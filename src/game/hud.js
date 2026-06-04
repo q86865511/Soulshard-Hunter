@@ -2,7 +2,11 @@
 import { uiText, uiBar, uiRect, uiScale, view, drawSpriteUI, textWidth } from '../engine/renderer.js';
 import { getSprite, iconOr } from '../engine/sprites.js';
 import { P, withAlpha } from '../engine/palette.js';
-import { Items } from './content/registry.js';
+import { Items, Abilities } from './content/registry.js';
+
+// hit-test rects for the on-screen weapon/ability/item icons, refreshed each
+// frame by drawHud — the run scene reads these to show hover tooltips.
+export const hudIcons = [];
 
 function iconCounter(sprite, value, x, y, S, color) {
   const sp = getSprite(sprite);
@@ -13,6 +17,7 @@ function iconCounter(sprite, value, x, y, S, color) {
 
 export function drawHud(run, player) {
   const S = uiScale();
+  hudIcons.length = 0;
   const W = view.W;
   const pad = 12 * S;
   const barW = Math.min(220 * S, W * 0.34);
@@ -52,6 +57,7 @@ export function drawHud(run, player) {
       const sp = getSprite(iconOr(inst.def.icon, 'weapon_w_soulbolt'));
       drawSpriteUI(sp.frames[0], bx + 3 * S, ay + 3 * S, (wsz - 6 * S) / sp.w);
       uiText(inst.def.evolved ? '★' : 'L' + inst.level, bx + wsz - 3 * S, ay + wsz - 3 * S, { size: 10 * S, align: 'right', color: inst.def.evolved ? P.goldL : P.shardL, weight: '800' });
+      hudIcons.push({ x: bx, y: ay, w: wsz, h: wsz, kind: 'weapon', def: inst.def, level: inst.level });
     });
   }
   // passive abilities (small icons, row above weapons)
@@ -63,6 +69,7 @@ export function drawHud(run, player) {
       drawSpriteUI(sp.frames[0], bx, ay, psz / sp.w);
       const stk = run.abilityLevels?.[id] || 1;
       if (stk > 1) uiText(String(stk), bx + psz - 1 * S, ay + psz, { size: 9 * S, align: 'right', color: P.goldL, weight: '800' });
+      hudIcons.push({ x: bx, y: ay, w: psz, h: psz, kind: 'ability', id, def: Abilities.get(id), level: stk });
     });
   }
 
@@ -77,7 +84,7 @@ export function drawHud(run, player) {
     uiRect(x, by, sw, sw, withAlpha('#10121f', 0.66), { radius: 4 * S, stroke: P.ink2, lw: 2 });
     uiText(String(i + 1), x + 4 * S, by + 12 * S, { size: 10 * S, color: withAlpha('#fff', 0.5), weight: '800' });
     const id = run.inventory && run.inventory[i];
-    if (id) { const def = Items.get(id); if (def) { const sp = getSprite(def.icon); drawSpriteUI(sp.frames[0], x + 6 * S, by + 8 * S, (22 * S) / sp.w); } }
+    if (id) { const def = Items.get(id); if (def) { const sp = getSprite(def.icon); drawSpriteUI(sp.frames[0], x + 6 * S, by + 8 * S, (22 * S) / sp.w); hudIcons.push({ x, y: by, w: sw, h: sw, kind: 'item', def, slot: i + 1 }); } }
   }
 }
 

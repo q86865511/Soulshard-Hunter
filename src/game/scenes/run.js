@@ -7,13 +7,13 @@ import { Player } from '../player.js';
 import { newRun, bankRun, META, saveMeta } from '../state.js';
 import { setScene } from '../scene.js';
 import { refs } from './refs.js';
-import { Enemies } from '../content/registry.js';
+import { Enemies, Equipment, Abilities } from '../content/registry.js';
 import { equipItem } from '../content/equipment.js';
 import {
   camera, clear, vignette, uiText, uiRect, uiScale, view, addShake, drawSpriteUI, textWidth,
   drawSprite, drawShadow, glowWorld, worldToScreen, fillRectWorld, uiBar, setShakeScale,
 } from '../../engine/renderer.js';
-import { drawHud, drawLowHpWarning } from '../hud.js';
+import { drawHud, drawLowHpWarning, hudIcons } from '../hud.js';
 import { pressed, mouse } from '../../engine/input.js';
 import { rng, dist, clamp, TAU } from '../../engine/math.js';
 import { P, withAlpha } from '../../engine/palette.js';
@@ -74,6 +74,7 @@ export const runScene = {
     this.boss = false; this.bossRef = null; this.bossDead = false;
     this.nextBossAt = 100;
 
+    Music.setBiome(map.biome.id); Music.setHero(this.run.characterId);
     Music.setMode('run');
     this.banner = map.biome.name + ' · 永恆獵場';
     this.bannerT = 2.6;
@@ -243,6 +244,8 @@ export const runScene = {
     if (this.paused) { this.updatePause(); return; }
     if (this.choice) { this.updateChoice(); return; }
     if (pressed('pause') || pressed('escape')) { this.paused = true; Sfx.play('uiClick'); return; }
+    if (pressed('map')) { this.showBuild = !this.showBuild; Sfx.play('uiClick'); }
+    if (this.showBuild) return;   // freeze the field while reviewing your build
 
     this.run.time += dt;
     this.threat = 1 + Math.floor(this.run.time / 45);
@@ -315,6 +318,7 @@ export const runScene = {
     this.drawStageHud();
     this.drawMinimap();
     this.drawBanner();
+    this.drawInfo();
     if (this.choice) this.drawChoice();
     if (this.dead) this.drawDeath();
     if (this.paused) this.drawPause();
@@ -348,6 +352,61 @@ export const runScene = {
     } else if (this.activeTypes && this.activeTypes.length) {
       uiText('當前敵潮：' + this.activeTypes.map((d) => d.name).join('、'), view.W / 2, 54 * S, { size: 11 * S, align: 'center', color: P.gray3 });
     }
+  },
+
+  // ---- info: hover tooltips + Tab build panel (R11) ------------------------
+  drawInfo() {
+    if (this.choice || this.dead || this.paused || settingsUI.open) return;
+    const S = uiScale();
+    if (this.showBuild) { this.drawBuildPanel(S); return; }
+    const mx = mouse.x * view.dpr, my = mouse.y * view.dpr;
+    let hov = null;
+    for (const ic of hudIcons) if (mx >= ic.x && mx <= ic.x + ic.w && my >= ic.y && my <= ic.y + ic.h) hov = ic;
+    if (hov) this.drawTooltip(hov, mx, my, S);
+    else uiText('Tab：查看 build', view.W - 12 * S, view.H - 10 * S, { size: 10 * S, align: 'right', color: withAlpha('#fff', 0.28) });
+  },
+  drawTooltip(ic, mx, my, S) {
+    const def = ic.def; if (!def) return;
+    const accent = ic.kind === 'weapon' ? P.shardL : ic.kind === 'ability' ? P.manaL : P.emberL;
+    const sub = ic.kind === 'weapon' ? (def.evolved ? '★ 進化武器' : '武器 Lv.' + ic.level)
+      : ic.kind === 'ability' ? ('被動 Lv.' + ic.level) : ('道具 ' + (ic.slot || ''));
+    const desc = (ic.kind === 'weapon' && def.levelDesc) ? def.levelDesc(ic.level) : (def.desc || '');
+    const W = 210 * S; const lines = []; let line = '';
+    for (const ch of desc) { if (textWidth(line + ch, 11 * S, '500') > W - 16 * S && line) { lines.push(line); line = ch; } else line += ch; }
+    if (line) lines.push(line);
+    const H = (34 + lines.length * 14) * S;
+    let x = mx + 14 * S, y = my + 6 * S;
+    if (x + W > view.W) x = view.W - W - 6 * S;
+    if (y + H > view.H) y = view.H - H - 6 * S;
+    uiRect(x, y, W, H, withAlpha('#10121f', 0.97), { radius: 6 * S, stroke: accent, lw: 2 });
+    uiText(def.name || ic.id || '?', x + 8 * S, y + 16 * S, { size: 13 * S, color: '#fff', weight: '800' });
+    uiText(sub, x + W - 8 * S, y + 16 * S, { size: 10 * S, align: 'right', color: accent, weight: '700' });
+    lines.forEach((l, i) => uiText(l, x + 8 * S, y + 32 * S + i * 14 * S, { size: 11 * S, color: P.gray4, weight: '500' }));
+  },
+  drawBuildPanel(S) {
+    const w = Math.min(view.W * 0.86, 600 * S), h = Math.min(view.H * 0.82, 470 * S);
+    const x = (view.W - w) / 2, y = (view.H - h) / 2;
+    uiRect(0, 0, view.W, view.H, withAlpha('#0b0d1a', 0.62));
+    uiRect(x, y, w, h, withAlpha('#161a30', 0.98), { radius: 10 * S, stroke: P.ink2, lw: 2 });
+    uiText('當前 BUILD', x + w / 2, y + 26 * S, { size: 18 * S, align: 'center', color: '#fff', weight: '900' });
+    uiText('（Tab 關閉）', x + w / 2, y + 44 * S, { size: 11 * S, align: 'center', color: P.gray3 });
+    const row = (t, xx, yy, c) => uiText(t, xx, yy, { size: 11.5 * S, color: c || P.gray4, weight: '500' });
+    const head = (t, xx, yy, c) => uiText(t, xx, yy, { size: 13 * S, color: c, weight: '800' });
+    const colL = x + 22 * S, colR = x + w / 2 + 10 * S; let yL = y + 70 * S, yR = y + 70 * S;
+    head('武器', colL, yL, P.shardL); yL += 18 * S;
+    for (const inst of this.player.weapons) { row((inst.def.evolved ? '★ ' : '') + inst.def.name + (inst.def.evolved ? '' : '  Lv.' + inst.level), colL, yL, '#fff'); yL += 15 * S; }
+    yL += 8 * S; head('被動', colL, yL, P.manaL); yL += 18 * S;
+    for (const id of (this.run.abilities || [])) { const a = Abilities.get(id); const stk = this.run.abilityLevels?.[id] || 1; row((a ? a.name : id) + (stk > 1 ? ' ×' + stk : ''), colL, yL, P.gray4); yL += 14 * S; if (yL > y + h - 20 * S) break; }
+    head('裝備', colR, yR, P.goldL); yR += 18 * S;
+    const eq = this.run.equipment || {};
+    const eqName = (slot) => { const id = eq[slot]; const d = id && Equipment.get(id); return d ? d.name : '—'; };
+    row('武器 ' + eqName('weapon'), colR, yR, '#fff'); yR += 15 * S;
+    row('護甲 ' + eqName('armor'), colR, yR, '#fff'); yR += 15 * S;
+    row('飾品 ' + eqName('trinket'), colR, yR, '#fff'); yR += 22 * S;
+    head('數值', colR, yR, P.emberL); yR += 18 * S;
+    const st = this.player.stats;
+    const stats = [['生命', Math.round(this.player.hp) + '/' + this.player.maxHp], ['傷害', '×' + st.damageMult.toFixed(2)], ['射速', '×' + st.fireRateMult.toFixed(2)], ['暴擊', Math.round(st.critChance * 100) + '%'], ['移速', Math.round(st.speed)], ['減傷', String(st.defense || 0)], ['閃避', Math.round((st.dodge || 0) * 100) + '%'], ['吸血', Math.round((st.lifesteal || 0) * 100) + '%'], ['幸運', (st.luck || 0).toFixed(2)]];
+    for (const [k, v] of stats) { row(k, colR, yR, P.gray3); uiText(v, x + w - 24 * S, yR, { size: 11.5 * S, align: 'right', color: '#fff', weight: '700' }); yR += 15 * S; }
   },
 
   drawBanner() {

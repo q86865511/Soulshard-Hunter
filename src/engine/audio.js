@@ -89,33 +89,54 @@ export const Sfx = {
 };
 
 // ---- music ----------------------------------------------------------------
+// A small generative engine: bass + chord pad + arpeggio + sparse lead + drums,
+// over a chord-root progression. Map music is tinted per biome; a hero tint and
+// a per-start lead-seed keep repeated runs from sounding identical.
 let musicTimer = null;
 let step = 0;
 const SCALES = {
-  run: [0, 3, 5, 7, 10],        // minor pentatonic
-  hub: [0, 2, 4, 7, 9],         // major pentatonic, calmer
-  boss: [0, 1, 5, 6, 8],        // tense
+  run:  [0, 2, 3, 5, 7, 10],    // natural minor-ish, roomy
+  hub:  [0, 2, 4, 7, 9],        // major pentatonic, calm
+  boss: [0, 1, 3, 6, 7, 10],    // tense, diminished colour
 };
-const BASE = { run: 220, hub: 196, boss: 165 };
+const PROG = {                  // chord-root progression (cycles each 8 steps)
+  run:  [0, 5, -2, 3],
+  hub:  [0, 4, 5, 2],
+  boss: [0, -1, 2, -3, 5, -1],
+};
+const BASE = { run: 174, hub: 196, boss: 150 };
+const TEMPO = { run: 134, hub: 104, boss: 190 };
+const BIOME_TINT = { crypt: 0, cavern: 2, frost: 3, inferno: -2, void: 5 };
 let mode = 'run';
-const TEMPO = { run: 150, hub: 110, boss: 200 };
+let biomeTint = 0, heroTint = 0, leadSeed = 0;
 
 function musicStep() {
   if (!ensure() || muted) return;
-  const scale = SCALES[mode] || SCALES.run, base = BASE[mode] || 200;
+  const scale = SCALES[mode] || SCALES.run;
+  const prog = PROG[mode] || PROG.run;
+  const base = (BASE[mode] || 190) * Math.pow(2, (biomeTint + heroTint) / 12);
+  const root = prog[Math.floor(step / 8) % prog.length];
   // bass on the beat
-  if (step % 4 === 0) {
-    const bi = (step / 4) % scale.length;
-    tone(noteFreq(scale[bi] - 12, base), 0.42, { type: 'triangle', gain: 0.10, target: musicGain });
+  if (step % 4 === 0) tone(noteFreq(root + scale[0] - 12, base), 0.46, { type: 'triangle', gain: 0.11, target: musicGain });
+  // chord pad at the top of each half-bar
+  if (step % 8 === 0) {
+    tone(noteFreq(root + scale[2], base), 0.72, { type: 'sine', gain: 0.05, target: musicGain });
+    tone(noteFreq(root + scale[4 % scale.length], base), 0.72, { type: 'sine', gain: 0.04, target: musicGain });
   }
   // arpeggio
-  if (step % 2 === 0 || (mode === 'boss')) {
-    const ai = (step * 3) % scale.length;
+  if (step % 2 === 0 || mode === 'boss') {
+    const ai = (step * 2 + leadSeed) % scale.length;
     const oct = step % 8 < 4 ? 0 : 12;
-    tone(noteFreq(scale[ai] + oct, base * 2), 0.16, { type: 'square', gain: 0.045, target: musicGain });
+    tone(noteFreq(root + scale[ai] + oct, base * 2), 0.16, { type: 'square', gain: 0.04, target: musicGain });
   }
-  // boss extra hat
-  if (mode === 'boss' && step % 2 === 1) noise(0.04, { gain: 0.03, freq: 6000, target: musicGain });
+  // sparse lead melody (not in the calm hub)
+  if (step % 4 === 2 && mode !== 'hub') {
+    const li = (Math.floor(step / 2) * 3 + leadSeed * 2) % scale.length;
+    tone(noteFreq(root + scale[li] + 12, base * 2), 0.22, { type: 'triangle', gain: 0.05, target: musicGain });
+  }
+  // drums: soft kick on the beat, boss hat on the off-beat
+  if (step % 4 === 0) noise(0.05, { gain: 0.03, freq: 200, type: 'lowpass', target: musicGain });
+  if (mode === 'boss' && step % 2 === 1) noise(0.04, { gain: 0.035, freq: 6000, target: musicGain });
   step = (step + 1) % 32;
 }
 
@@ -123,11 +144,14 @@ export const Music = {
   start(m = 'run') {
     if (!ensure()) return;
     mode = m; step = 0; musicPlaying = true;
+    leadSeed = (leadSeed + 3) % 7;     // vary the melody each (re)start
     if (musicGain) musicGain.gain.linearRampToValueAtTime(muted ? 0 : vol.music, ctx.currentTime + 1.2);
     if (musicTimer) clearInterval(musicTimer);
     musicTimer = setInterval(musicStep, 60000 / (TEMPO[m] || 140) / 2);
   },
   setMode(m) { if (m !== mode || !musicPlaying) this.start(m); },
+  setBiome(id) { biomeTint = BIOME_TINT[id] ?? 0; },       // map music flavour
+  setHero(id) { let h = 0; for (let i = 0; i < (id || '').length; i++) h = (h + id.charCodeAt(i)) % 12; heroTint = (h % 5) - 2; }, // hero theme flavour
   stop() { musicPlaying = false; if (musicTimer) { clearInterval(musicTimer); musicTimer = null; } if (musicGain && ctx) musicGain.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.4); },
 };
 
