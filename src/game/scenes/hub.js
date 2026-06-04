@@ -8,6 +8,7 @@ import { Talents, Facilities, Characters } from '../content/registry.js';
 import { TALENT_BRANCHES } from '../content/talents.js';
 import { ACHIEVEMENTS, achievementProgress } from '../content/achievements.js';
 import { STORY_QUESTS, chapterState, claimChapter } from '../content/quests.js';
+import { BIOMES } from '../../art/biomes.js';
 import {
   camera, uiText, uiRect, uiScale, view, drawSprite, drawShadow, drawSpriteUI,
   worldToScreen, vignette, textWidth, glowWorld, uiBar,
@@ -36,6 +37,7 @@ export const hubScene = {
     ];
     this.panel = null; this.near = null; this.t = 0;
     this.flash = ''; this.flashT = 0;
+    this.sortPage = 0; this.selBiome = null; this.selDiff = 1;   // sortie: char page + level + difficulty
     const ch = Characters.get(META.selectedCharacter || 'hunter');
     this.heroSprite = ch ? ch.sprite : 'player';
     Music.start('hub');
@@ -174,13 +176,31 @@ export const hubScene = {
   sortieLayout() {
     const f = this.panelFrame(); const S = f.S;
     const chars = Characters.all();
-    const cols = 3;
-    const cw = (f.w - 40 * S - (cols - 1) * 14 * S) / cols;
-    const chh = 116 * S;
-    const cards = chars.map((c, i) => ({ c, x: f.x + 20 * S + (i % cols) * (cw + 14 * S), y: f.y + 66 * S + Math.floor(i / cols) * (chh + 12 * S), w: cw, h: chh }));
-    const start = { x: f.x + f.w / 2 - 120 * S, y: f.y + f.h - 60 * S, w: 240 * S, h: 46 * S };
-    return { f, cards, start };
+    const perPage = 6, cols = 3;
+    const pages = Math.max(1, Math.ceil(chars.length / perPage));
+    if (this.sortPage >= pages) this.sortPage = pages - 1;
+    if (this.sortPage < 0) this.sortPage = 0;
+    // lay out bottom-up so the controls never collide with the start button
+    const start = { x: f.x + f.w / 2 - 110 * S, y: f.y + f.h - 52 * S, w: 220 * S, h: 40 * S };
+    const dY = start.y - 44 * S;
+    const dPrev = { x: f.x + f.w / 2 - 96 * S, y: dY, w: 30 * S, h: 26 * S };
+    const dNext = { x: f.x + f.w / 2 + 66 * S, y: dY, w: 30 * S, h: 26 * S };
+    const lvlY = dY - 44 * S;
+    const levels = BIOMES.slice(0, Math.min(BIOMES.length, (META.levels && META.levels.unlocked) || 1));
+    const lbW = Math.min(116 * S, (f.w - 48 * S) / Math.max(1, levels.length) - 8 * S);
+    const lvlButtons = levels.map((b, i) => ({ b, x: f.x + 24 * S + i * (lbW + 8 * S), y: lvlY, w: lbW, h: 30 * S }));
+    const pgY = lvlY - 34 * S;
+    const prev = { x: f.x + f.w / 2 - 116 * S, y: pgY, w: 34 * S, h: 22 * S };
+    const next = { x: f.x + f.w / 2 + 82 * S, y: pgY, w: 34 * S, h: 22 * S };
+    const top = f.y + 58 * S;
+    const cw = (f.w - 40 * S - (cols - 1) * 12 * S) / cols;
+    const chh = Math.max(60 * S, Math.min(92 * S, (pgY - 8 * S - top) / 2 - 8 * S));
+    const pageChars = chars.slice(this.sortPage * perPage, this.sortPage * perPage + perPage);
+    const cards = pageChars.map((c, i) => ({ c, x: f.x + 20 * S + (i % cols) * (cw + 12 * S), y: top + Math.floor(i / cols) * (chh + 8 * S), w: cw, h: chh }));
+    return { f, cards, prev, next, pages, pgY, levels, lvlButtons, lvlY, dPrev, dNext, dY, start };
   },
+  curBiome(L) { return this.selBiome || (L.levels.length ? L.levels[L.levels.length - 1].id : BIOMES[0].id); },
+  maxDiff(biomeId) { return ((META.levels && META.levels.diff && META.levels.diff[biomeId]) || 0) + 1; },
   selectChar(c) {
     if (META.unlocked.characters.includes(c.id)) { META.selectedCharacter = c.id; saveMeta(); Sfx.play('uiClick'); }
     else if (c.unlock.type === 'gold') {
@@ -189,10 +209,17 @@ export const hubScene = {
     } else this.feedback(c.unlock.hint || '尚未解鎖');
   },
   updateSortie(mx, my) {
+    const L = this.sortieLayout();
+    if (mouse.wheel) this.sortPage = Math.max(0, Math.min(L.pages - 1, this.sortPage + (mouse.wheel > 0 ? 1 : -1)));
     if (!mouse.justDown) return;
-    const { cards, start } = this.sortieLayout();
-    for (const card of cards) if (inside(mx, my, card)) { this.selectChar(card.c); return; }
-    if (inside(mx, my, start)) { Sfx.play('portal'); saveMeta(); setScene(refs.run, { run: newRun() }); }
+    for (const card of L.cards) if (inside(mx, my, card)) { this.selectChar(card.c); return; }
+    if (inside(mx, my, L.prev)) { this.sortPage = Math.max(0, this.sortPage - 1); Sfx.play('uiClick'); return; }
+    if (inside(mx, my, L.next)) { this.sortPage = Math.min(L.pages - 1, this.sortPage + 1); Sfx.play('uiClick'); return; }
+    for (const lb of L.lvlButtons) if (inside(mx, my, lb)) { this.selBiome = lb.b.id; this.selDiff = 1; Sfx.play('uiClick'); return; }
+    const maxD = this.maxDiff(this.curBiome(L));
+    if (inside(mx, my, L.dPrev)) { this.selDiff = Math.max(1, this.selDiff - 1); Sfx.play('uiClick'); return; }
+    if (inside(mx, my, L.dNext)) { this.selDiff = Math.min(maxD, this.selDiff + 1); Sfx.play('uiClick'); return; }
+    if (inside(mx, my, L.start)) { const b = this.curBiome(L); const d = Math.min(this.maxDiff(b), Math.max(1, this.selDiff)); Sfx.play('portal'); saveMeta(); setScene(refs.run, { run: newRun({ biomeId: b, difficulty: d }) }); }
   },
 
   // ---- render --------------------------------------------------------------
@@ -305,30 +332,50 @@ export const hubScene = {
   },
 
   drawSortie() {
-    const f = this.drawPanelFrame('選 擇 角 色 · 出 擊');
+    const f = this.drawPanelFrame('出 擊 · 選 角 / 關 卡 / 難 度');
     const S = f.S;
     const mx = mouse.x * view.dpr, my = mouse.y * view.dpr;
-    const { cards, start } = this.sortieLayout();
-    for (const card of cards) {
+    const L = this.sortieLayout();
+    // character cards (paged —滾輪/箭頭翻頁)
+    for (const card of L.cards) {
       const c = card.c;
       const unlocked = META.unlocked.characters.includes(c.id);
       const selected = META.selectedCharacter === c.id;
       const hover = inside(mx, my, card);
-      uiRect(card.x, card.y, card.w, card.h, withAlpha(selected ? '#243a5a' : unlocked ? '#1b2138' : '#201622', 0.96), { radius: 7 * S, stroke: selected ? P.shardL : (hover ? P.gray3 : P.ink2), lw: selected ? 3 : 2 });
-      const sp = getSprite(c.sprite); const sc = 3 * S;
-      drawSpriteUI(sp.frames[0], card.x + card.w / 2 - sp.w * sc / 2, card.y + 8 * S, sc, { alpha: unlocked ? 1 : 0.3 });
-      uiText(c.name, card.x + card.w / 2, card.y + 66 * S, { size: 13 * S, align: 'center', color: unlocked ? '#fff' : P.gray3, weight: '800' });
-      // centered wrapped description
-      this.centerWrap(c.desc, card.x + card.w / 2, card.y + 80 * S, card.w - 14 * S, 9.5 * S, unlocked ? P.gray4 : P.gray2);
+      uiRect(card.x, card.y, card.w, card.h, withAlpha(selected ? '#243a5a' : unlocked ? '#1b2138' : '#201622', 0.96), { radius: 7 * S, stroke: selected ? P.shardL : hover ? P.gray3 : P.ink2, lw: selected ? 3 : 2 });
+      const sp = getSprite(c.sprite); const sc = 2.4 * S;
+      drawSpriteUI(sp.frames[0], card.x + card.w / 2 - sp.w * sc / 2, card.y + 6 * S, sc, { alpha: unlocked ? 1 : 0.3 });
+      uiText(c.name, card.x + card.w / 2, card.y + card.h - 22 * S, { size: 12 * S, align: 'center', color: unlocked ? '#fff' : P.gray3, weight: '800' });
       if (!unlocked) {
-        const label = c.unlock.type === 'gold' ? (c.unlock.cost + ' 金幣 解鎖') : (c.unlock.hint || '未解鎖');
+        const label = c.unlock.type === 'gold' ? (c.unlock.cost + ' 金') : '成就解鎖';
         const afford = c.unlock.type === 'gold' && META.gold >= c.unlock.cost;
-        uiText('🔒 ' + label, card.x + card.w / 2, card.y + card.h - 9 * S, { size: 10 * S, align: 'center', color: afford ? P.goldL : P.gray3, weight: '700' });
-      } else if (selected) uiText('● 已選擇', card.x + card.w / 2, card.y + card.h - 9 * S, { size: 10 * S, align: 'center', color: P.shardL, weight: '800' });
+        uiText('🔒 ' + label, card.x + card.w / 2, card.y + card.h - 7 * S, { size: 9 * S, align: 'center', color: afford ? P.goldL : P.gray3, weight: '700' });
+      } else if (selected) uiText('● 已選', card.x + card.w / 2, card.y + card.h - 7 * S, { size: 9 * S, align: 'center', color: P.shardL, weight: '800' });
     }
-    const hoverStart = inside(mx, my, start);
-    uiRect(start.x, start.y, start.w, start.h, withAlpha(hoverStart ? '#2a6a3a' : '#1f5030', 0.98), { radius: 9 * S, stroke: P.greenL, lw: hoverStart ? 3 : 2 });
-    uiText('出 擊 狩 獵', start.x + start.w / 2, start.y + start.h / 2 + 1 * S, { size: 19 * S, align: 'center', baseline: 'middle', color: '#fff', weight: '900' });
+    const arrow = (r, t, on) => { uiRect(r.x, r.y, r.w, r.h, withAlpha('#1b2138', 0.96), { radius: 5 * S, stroke: on ? P.gray3 : P.ink2, lw: 2 }); uiText(t, r.x + r.w / 2, r.y + r.h / 2 + 1 * S, { size: 14 * S, align: 'center', baseline: 'middle', color: on ? '#fff' : P.gray2, weight: '900' }); };
+    arrow(L.prev, '‹', this.sortPage > 0);
+    arrow(L.next, '›', this.sortPage < L.pages - 1);
+    uiText(`${this.sortPage + 1} / ${L.pages}`, f.x + f.w / 2, L.pgY + 16 * S, { size: 12 * S, align: 'center', color: P.gray3, weight: '700' });
+    // level row
+    const sel = this.curBiome(L);
+    uiText('關卡', f.x + 24 * S, L.lvlY - 6 * S, { size: 11 * S, color: P.gray3, weight: '700' });
+    for (const lb of L.lvlButtons) {
+      const on = lb.b.id === sel; const cleared = (META.levels.diff && META.levels.diff[lb.b.id]) || 0;
+      uiRect(lb.x, lb.y, lb.w, lb.h, withAlpha(on ? '#243a5a' : '#1b2138', 0.96), { radius: 6 * S, stroke: on ? P.shardL : P.ink2, lw: on ? 3 : 2 });
+      uiText(lb.b.name, lb.x + lb.w / 2, lb.y + lb.h / 2 + 1 * S, { size: 11 * S, align: 'center', baseline: 'middle', color: on ? '#fff' : P.gray4, weight: '700' });
+      if (cleared > 0) uiText('✓' + cleared, lb.x + lb.w - 5 * S, lb.y + 10 * S, { size: 8 * S, align: 'right', color: P.greenL, weight: '800' });
+    }
+    // difficulty row
+    const maxD = this.maxDiff(sel);
+    this.selDiff = Math.min(maxD, Math.max(1, this.selDiff || 1));
+    uiText('難度', f.x + 24 * S, L.dY + 17 * S, { size: 11 * S, color: P.gray3, weight: '700' });
+    arrow(L.dPrev, '−', this.selDiff > 1);
+    arrow(L.dNext, '+', this.selDiff < maxD);
+    uiText('難度 ' + this.selDiff + (this.selDiff >= maxD ? ' · 最高可玩' : ''), f.x + f.w / 2, L.dY + 17 * S, { size: 13 * S, align: 'center', baseline: 'middle', color: P.emberL, weight: '800' });
+    // start
+    const hovS = inside(mx, my, L.start);
+    uiRect(L.start.x, L.start.y, L.start.w, L.start.h, withAlpha(hovS ? '#2a6a3a' : '#1f5030', 0.98), { radius: 9 * S, stroke: P.greenL, lw: hovS ? 3 : 2 });
+    uiText('出 擊 狩 獵', L.start.x + L.start.w / 2, L.start.y + L.start.h / 2 + 1 * S, { size: 18 * S, align: 'center', baseline: 'middle', color: '#fff', weight: '900' });
   },
 
   questLayout() {

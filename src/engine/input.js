@@ -11,6 +11,7 @@ export const mouse = {
   justDown: false,
   justUp: false,
   rightDown: false,
+  wheel: 0,          // accumulated wheel deltaY this frame (for scrollable panels)
 };
 
 let canvasEl = null;
@@ -67,6 +68,7 @@ export function initInput(canvas, getScale) {
     if (e.button === 2) { mouse.rightDown = false; }
   });
   canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+  canvas.addEventListener('wheel', (e) => { mouse.wheel += e.deltaY; e.preventDefault(); }, { passive: false });
 
   // Basic touch -> treat as movement + fire (mobile fallback).
   canvas.addEventListener('touchstart', (e) => { updateMouse(e.touches[0]); mouse.down = true; mouse.justDown = true; }, { passive: true });
@@ -97,4 +99,5 @@ export function endFrameInput() {
   justUp.clear();
   mouse.justDown = false;
   mouse.justUp = false;
+  mouse.wheel = 0;
 }

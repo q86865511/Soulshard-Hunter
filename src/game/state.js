@@ -19,6 +19,7 @@ const DEFAULT_META = () => ({
   settings: { master: 0.9, sfx: 0.75, music: 0.5, shake: true, muted: false },
   achievements: [],      // unlocked achievement ids
   questIndex: 0,         // current story-quest chapter
+  levels: { unlocked: 1, diff: {} },   // # of biomes unlocked + highest cleared difficulty per biome
   flags: {},
 });
 
@@ -78,10 +79,11 @@ export const WEAPONS = {
 export function defaultWeapon() { return { ...WEAPONS.wand }; }
 
 // ---- run lifecycle ---------------------------------------------------------
-export function newRun() {
+export function newRun(opts = {}) {
   const char = Characters.get(META.selectedCharacter || 'hunter') || Characters.get('hunter');
   const run = {
     floor: 1, stage: 1, depth: 1, time: 0,
+    biomeId: opts.biomeId || null, difficulty: opts.difficulty || 1, cleared: false,
     gold: 0, goldEarned: 0, shards: 0,
     level: 1, xp: 0, xpNext: 20, kills: 0, score: 0, bossKills: 0,
     stats: makeBaseStats(),

@@ -3,6 +3,7 @@
 // stage's timer (or slay its boss) to open the exit to the next biome.
 import { World, TS } from '../world.js';
 import { generateWorld } from '../maps.js';
+import { BIOMES } from '../../art/biomes.js';
 import { Player } from '../player.js';
 import { newRun, bankRun, META, saveMeta } from '../state.js';
 import { setScene } from '../scene.js';
@@ -35,6 +36,12 @@ const ANVILS = [
   { name: '壁壘鐵砧', desc: '減傷 +1', price: 55, apply: (s) => { s.defense += 1; } },
 ];
 
+// A level lasts 30 minutes; the last 4 minutes are a closing ring, after which
+// the level's FINAL BOSS appears. Clearing it unlocks the next level + difficulty.
+const LEVEL_TIME = 30 * 60;
+const FINAL_SHRINK = 240;
+const FINAL_BOSS = { crypt: 'g_plagueheart', cavern: 'g_stormtyrant', frost: 'b2_glacierseer', inferno: 'b2_emberlord', void: 'b2_voidweaver' };
+
 export const runScene = {
   enter(payload) {
     this.run = payload.run || newRun();
@@ -48,13 +55,14 @@ export const runScene = {
     this.paused = false;
     this.world.onPlayerDeath = () => this.onDeath();
     this.world.onLevelUp = () => this.onLevelUp();
-    this.world.onEnemyKilled = (e) => { if (e.boss) this.onBossDead(e); };
+    this.world.onEnemyKilled = (e) => { if (e === this.finalBossRef) this.onLevelClear(); else if (e.boss) this.onBossDead(e); };
     this.buildWorld();
   },
 
-  // ---- single persistent battleground --------------------------------------
+  // ---- the level battleground (one biome, 30 min, final-boss climax) --------
   buildWorld() {
-    const map = generateWorld();
+    const biome = BIOMES.find((b) => b.id === this.run.biomeId) || BIOMES[0];
+    const map = generateWorld(biome);
     this.map = map;
     this.world.loadMap(map);
     this.buildMinimap();
@@ -89,9 +97,14 @@ export const runScene = {
     this.evtMines = []; this.zone = null; this.evtStrikes = [];
     this.nextEventAt = 45;
 
+    // difficulty scaling + final-boss phase
+    this.diffMul = 1 + (Math.max(1, this.run.difficulty || 1) - 1) * 0.35;
+    this.finalZone = null; this.finalBoss = false; this.finalBossRef = null;
+    this.cleared = false; this.won = false;
+
     Music.setBiome(map.biome.id); Music.setHero(this.run.characterId);
     Music.setMode('run');
-    this.banner = map.biome.name + ' · 永恆獵場';
+    this.banner = map.biome.name + ' · 難度 ' + (this.run.difficulty || 1);
     this.bannerT = 2.6;
   },
 
@@ -126,7 +139,7 @@ export const runScene = {
   },
 
   bossEventTick(dt) {
-    if (this.boss) return;
+    if (this.boss || this.finalZone || this.finalBoss) return;
     if (this.run.time >= this.nextBossAt) this.spawnBossEvent();
   },
   spawnBossEvent() {
@@ -152,9 +165,56 @@ export const runScene = {
     Music.setMode('run');
   },
 
+  // ---- final climax: closing ring -> final boss -> level clear (R1/R2) ------
+  finalTick(dt) {
+    if (this.cleared) return;
+    const t = this.run.time;
+    if (!this.finalBoss && !this.finalZone && t >= LEVEL_TIME - FINAL_SHRINK) {
+      const c = this.map.center;
+      this.finalZone = { cx: c.x, cy: c.y, r: 1, r0: Math.max(this.world.pxW, this.world.pxH) * 0.62, r1: 78, t: 0, dur: FINAL_SHRINK, tick: 0 };
+      this.banner = '最終縮圈！退向中心，最終首領即將降臨'; this.bannerT = 3.4; Sfx.play('portal');
+    }
+    if (this.finalZone) {
+      const z = this.finalZone; z.t += dt;
+      z.r = z.r0 + (z.r1 - z.r0) * Math.min(1, z.t / z.dur);
+      z.tick -= dt;
+      if (z.tick <= 0) { z.tick = 0.5; if (dist(this.player.x, this.player.y, z.cx, z.cy) > z.r) this.player.takeDamage(8 + this.threat, Math.atan2(this.player.y - z.cy, this.player.x - z.cx), this.world); }
+    }
+    if (!this.finalBoss && t >= LEVEL_TIME) this.spawnFinalBoss();
+  },
+  spawnFinalBoss() {
+    const c = this.map.center;
+    let def = Enemies.get(FINAL_BOSS[this.run.biomeId]);
+    if (!def) { const bs = Enemies.filter((d) => d.boss); def = bs.length ? bs[rng.int(0, bs.length - 1)] : null; }
+    if (!def) { this.onLevelClear(); return; }
+    const hpScale = (4 + this.threat * 0.6) * this.diffMul;
+    const dmgScale = (1.4 + this.threat * 0.05) * this.diffMul;
+    this.finalBossRef = this.world.spawnEnemy(def, c.x, c.y - 30, { hpScale, dmgScale, quiet: true });
+    this.bossRef = this.finalBossRef; this.boss = true; this.finalBoss = true;
+    this.evtMines = []; this.evtStrikes = []; this.zone = null;
+    this.banner = '最終首領 · ' + (def.name || 'BOSS') + ' 降臨！'; this.bannerT = 3.6;
+    addShake(10); Sfx.play('boss'); Music.setMode('boss');
+  },
+  onLevelClear() {
+    if (this.dead) return;
+    this.won = true; this.dead = true; this.deathT = 0; this.cleared = true; this.run.cleared = true;
+    this.run.bossKills = (this.run.bossKills || 0) + 1;
+    const bid = this.run.biomeId || BIOMES[0].id;
+    const idx = BIOMES.findIndex((b) => b.id === bid);
+    META.levels = META.levels || { unlocked: 1, diff: {} };
+    META.levels.diff = META.levels.diff || {};
+    META.levels.diff[bid] = Math.max(META.levels.diff[bid] || 0, this.run.difficulty || 1);
+    if (idx >= 0) META.levels.unlocked = Math.max(META.levels.unlocked || 1, Math.min(BIOMES.length, idx + 2));
+    this.run.score = Math.floor(this.run.kills * 12 + this.run.stage * 400 + this.run.time + (this.run.difficulty || 1) * 600);
+    META.stats.bestStage = Math.max(META.stats.bestStage || 0, this.run.stage);
+    META.stats.bestScore = Math.max(META.stats.bestScore || 0, this.run.score);
+    Music.stop(); addShake(8); Sfx.play('levelup');
+    bankRun(this.run);
+  },
+
   // ---- special harasser events (R5) ----------------------------------------
   eventsTick(dt) {
-    if (this.boss) return;
+    if (this.boss || this.finalZone || this.finalBoss) return;
     if (this.run.time >= this.nextEventAt) { this.triggerEvent(); this.nextEventAt = this.run.time + 38 + rng.next() * 30; }
   },
   triggerEvent() {
@@ -232,11 +292,17 @@ export const runScene = {
       strokeCircleWorld(s.x, s.y, s.r, withAlpha(P.redL, 0.4 + 0.4 * k), 2);
       fillCircleWorld(s.x, s.y, s.r * k, withAlpha(P.ember, 0.12));
     }
+    if (this.finalZone) {
+      const z = this.finalZone; const ins = dist(this.player.x, this.player.y, z.cx, z.cy) <= z.r;
+      strokeCircleWorld(z.cx, z.cy, z.r, ins ? P.manaL : P.redL, 4);
+      strokeCircleWorld(z.cx, z.cy, Math.max(1, z.r - 3), withAlpha(ins ? P.shard : P.red, 0.5), 2);
+      if (!ins) uiRect(0, 0, view.W, view.H, withAlpha('#b4141e', 0.16));
+    }
   },
 
   // continuous spawning from the current 1-3 active enemy types
   spawnTick(dt) {
-    if (this.boss) return;                 // pause the swarm while a boss is up
+    if (this.boss || this.finalBoss) return;   // pause the swarm during a boss / the finale
     this.typeRotT -= dt;
     if (this.typeRotT <= 0) this.rotateTypes();
     this.spawnTimer -= dt;
@@ -244,8 +310,8 @@ export const runScene = {
     const cap = Math.min(120, 24 + this.threat * 6 + Math.floor(t * 0.05));
     if (this.spawnTimer <= 0 && this.world.enemies.length < cap && this.activeTypes.length) {
       const group = 2 + Math.floor(this.threat / 2) + (rng.chance(0.3) ? 1 : 0);
-      const hpScale = 1 + (this.threat - 1) * 0.20 + t * 0.006;
-      const dmgScale = 1 + (this.threat - 1) * 0.10 + t * 0.004;
+      const hpScale = (1 + (this.threat - 1) * 0.18 + t * 0.004) * this.diffMul;
+      const dmgScale = (1 + (this.threat - 1) * 0.10 + t * 0.0025) * this.diffMul;
       for (let i = 0; i < group; i++) {
         const def = this.activeTypes[rng.int(0, this.activeTypes.length - 1)];
         const elite = this.threat >= 3 && rng.chance(0.035 + t * 0.0004);
@@ -351,7 +417,7 @@ export const runScene = {
     if (this.shopOpen) { this.updateShopPanel(); return; }   // modal shop also freezes the field
 
     this.run.time += dt;
-    this.threat = 1 + Math.floor(this.run.time / 45);
+    this.threat = 1 + Math.floor(this.run.time / 150);   // ~1 -> 13 over the 30-min level
     this.run.stage = this.threat; this.run.floor = this.threat;   // keep loot/score scaling alive
     // screen shake stays gentle by default, swelling only when near death
     const hpFrac = this.player.maxHp ? this.player.hp / this.player.maxHp : 1;
@@ -364,6 +430,7 @@ export const runScene = {
     this.bossEventTick(dt);
     this.eventsTick(dt);
     this.updateEvents(dt);
+    this.finalTick(dt);
     this.nearShrine = !!(this.shrinePos && dist(this.player.x, this.player.y, this.shrinePos.x, this.shrinePos.y) < 20);
     if (this.nearShrine && pressed('interact')) { this.shopOpen = true; Sfx.play('uiClick'); }
     if (this.levelQueue > 0 && !this.choice) this.openChoice();
@@ -478,7 +545,7 @@ export const runScene = {
     this.drawInfo();
     if (this.shopOpen) this.drawShopPanel();
     if (this.choice) this.drawChoice();
-    if (this.dead) this.drawDeath();
+    if (this.dead) { if (this.won) this.drawWon(); else this.drawDeath(); }
     if (this.paused) this.drawPause();
     settingsUI.draw();
   },
@@ -538,13 +605,14 @@ export const runScene = {
 
   drawStageHud() {
     const S = uiScale();
-    const name = this.map.biome.name;
-    uiText(`威脅 ${this.threat} 級 · ${name}`, view.W / 2, 24 * S, { size: 16 * S, align: 'center', color: '#fff', weight: '800' });
-    const mins = Math.floor(this.run.time / 60), secs = Math.floor(this.run.time % 60);
-    uiText(`存活 ${mins}:${secs.toString().padStart(2, '0')}`, view.W / 2, 42 * S, { size: 13 * S, align: 'center', color: P.gray3, weight: '700' });
+    uiText(`${this.map.biome.name} · 難度 ${this.run.difficulty || 1} · 威脅 ${this.threat}`, view.W / 2, 24 * S, { size: 15 * S, align: 'center', color: '#fff', weight: '800' });
+    const remain = Math.max(0, LEVEL_TIME - this.run.time);
+    const mm = Math.floor(remain / 60), ss = Math.floor(remain % 60);
+    const label = this.finalBoss ? '最終決戰！' : this.finalZone ? '縮圈中…退向中心' : `距最終首領 ${mm}:${ss.toString().padStart(2, '0')}`;
+    uiText(label, view.W / 2, 42 * S, { size: 13 * S, align: 'center', color: (this.finalZone || this.finalBoss) ? P.redL : P.gray3, weight: '700' });
     if (this.boss && this.bossRef && !this.bossRef.dead) {
       const bw = Math.min(360 * S, view.W * 0.5);
-      uiText(this.bossRef.def.name, view.W / 2, 56 * S, { size: 13 * S, align: 'center', color: P.redL, weight: '800' });
+      uiText((this.finalBoss ? '★ ' : '') + this.bossRef.def.name, view.W / 2, 56 * S, { size: 13 * S, align: 'center', color: P.redL, weight: '800' });
       uiBar(view.W / 2 - bw / 2, 64 * S, bw, 9 * S, this.bossRef.hp / this.bossRef.maxHp, { fg: P.red, bg: '#2a0e14', border: P.ink, glow: true });
     } else if (this.activeTypes && this.activeTypes.length) {
       uiText('當前敵潮：' + this.activeTypes.map((d) => d.name).join('、'), view.W / 2, 54 * S, { size: 11 * S, align: 'center', color: P.gray3 });
@@ -610,6 +678,26 @@ export const runScene = {
     if (this.bannerT <= 0) return;
     const S = uiScale(); const a = Math.min(1, this.bannerT);
     uiText(this.banner, view.W / 2, view.H * 0.2, { size: 28 * S, align: 'center', color: withAlpha('#ffe9a0', a), weight: '900', shadowColor: withAlpha('#000', a * 0.8) });
+  },
+
+  drawWon() {
+    const S = uiScale(); const a = Math.min(0.86, this.deathT * 0.9);
+    uiRect(0, 0, view.W, view.H, withAlpha('#0b1a0d', a));
+    if (this.deathT < 0.3) return;
+    const cx = view.W / 2;
+    uiText('關 卡 通 關！', cx, view.H * 0.26, { size: 42 * S, align: 'center', color: P.goldL, weight: '900' });
+    const idx = BIOMES.findIndex((b) => b.id === this.run.biomeId);
+    const nextName = idx >= 0 && idx + 1 < BIOMES.length ? BIOMES[idx + 1].name : null;
+    const lines = [
+      `${this.map.biome.name} · 難度 ${this.run.difficulty || 1} 通關`,
+      `擊殺 ${this.run.kills}　·　分數 ${this.run.score}`,
+      nextName ? `★ 已解鎖新關卡：${nextName}` : '★ 已是最深關卡',
+      `★ 解鎖本關更高難度（難度 ${(this.run.difficulty || 1) + 1}）`,
+      `帶回金幣：${this.run.gold} → 已存入金庫`,
+    ];
+    lines.forEach((l, i) => uiText(l, cx, view.H * 0.26 + (54 + i * 28) * S, { size: 16 * S, align: 'center', color: (i === 2 || i === 3) ? P.shardL : '#d8e8d0', weight: (i === 2 || i === 3) ? '800' : '600' }));
+    const blink = Math.sin(this.t * 4) * 0.5 + 0.5;
+    uiText('點擊 / 空白鍵 返回城鎮', cx, view.H * 0.84, { size: 16 * S, align: 'center', color: withAlpha('#ffd479', 0.5 + blink * 0.5), weight: '700' });
   },
 
   drawDeath() {

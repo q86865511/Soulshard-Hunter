@@ -62,7 +62,7 @@ export const titleScene = {
 
     const blink = Math.sin(this.t * 4) * 0.5 + 0.5;
     uiText('點擊 / 空白鍵 開始狩獵', view.W / 2, view.H * 0.82, { size: 18 * S, align: 'center', color: withAlpha('#ffd479', 0.35 + blink * 0.6), weight: '800' });
-    uiText('WASD 移動　滑鼠瞄準射擊　Shift 衝刺', view.W / 2, view.H * 0.88, { size: 12 * S, align: 'center', color: P.gray2 });
+    uiText('WASD 移動　武器全自動瞄準　Shift 衝刺　Esc 設定', view.W / 2, view.H * 0.88, { size: 12 * S, align: 'center', color: P.gray2 });
     const hist = (META.stats.history || []).slice(0, 3);
     if (hist.length) {
       const medals = ['①', '②', '③'];

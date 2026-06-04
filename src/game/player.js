@@ -114,7 +114,7 @@ export class Player {
       this.dashT -= dt; this.vx = this.dashVX; this.vy = this.dashVY;
       if (Math.random() < 0.8) world.particles.spawn({ x: this.x, y: this.y, life: 0.22, size: 3, color: P.shard, drag: 0.85, glow: true });
     } else {
-      const tvx = ax.x * speed, tvy = ax.y * speed, acc = this.moving ? 16 : 12;
+      const tvx = ax.x * speed, tvy = ax.y * speed, acc = this.moving ? 26 : 20;
       this.vx += (tvx - this.vx) * Math.min(1, acc * dt);
       this.vy += (tvy - this.vy) * Math.min(1, acc * dt);
       if (this.moving) this.walkT += dt;

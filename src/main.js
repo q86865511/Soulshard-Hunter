@@ -125,6 +125,7 @@ function boot() {
   };
 
   startLoop({
+    fixed: 1 / 120,          // 120 Hz simulation: smoother + lower input latency
     update: (dt) => {
       if (pressed('mute')) Audio.toggleMute();
       updateActive(dt);
