@@ -61,7 +61,7 @@ export class Player {
     }
   }
   updateWeapons(dt, world) {
-    const haste = this.stats.fireRateMult || 1;
+    const haste = (this.stats.fireRateMult || 1) * (world.playerTempo || 1);
     for (const inst of this.weapons) {
       if (inst.def.update) inst.def.update(world, this, inst, dt);
       if (inst.def.cooldown) {

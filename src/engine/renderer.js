@@ -60,8 +60,10 @@ export function screenToWorld(sx, sy) {
 export function cssToWorld(mx, my) { return screenToWorld(mx * dpr, my * dpr); }
 
 let shakeEnabled = true;
+let shakeScale = 0.45;          // global damp: screen shake stays subtle by default…
 export function setShakeEnabled(b) { shakeEnabled = b; }
-export function addShake(mag) { if (shakeEnabled) camera.shakeMag = Math.min(14, camera.shakeMag + mag); }
+export function setShakeScale(s) { shakeScale = s; }   // …the run scene raises this only when near death
+export function addShake(mag) { if (shakeEnabled) camera.shakeMag = Math.min(10, camera.shakeMag + mag * shakeScale); }
 
 export function updateCamera(dt) {
   // smooth follow

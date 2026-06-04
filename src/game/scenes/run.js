@@ -11,7 +11,7 @@ import { Enemies } from '../content/registry.js';
 import { equipItem } from '../content/equipment.js';
 import {
   camera, clear, vignette, uiText, uiRect, uiScale, view, addShake, drawSpriteUI, textWidth,
-  drawSprite, drawShadow, glowWorld, worldToScreen, fillRectWorld, uiBar,
+  drawSprite, drawShadow, glowWorld, worldToScreen, fillRectWorld, uiBar, setShakeScale,
 } from '../../engine/renderer.js';
 import { drawHud, drawLowHpWarning } from '../hud.js';
 import { pressed, mouse } from '../../engine/input.js';
@@ -227,6 +227,9 @@ export const runScene = {
     if (pressed('pause') || pressed('escape')) { this.paused = true; Sfx.play('uiClick'); return; }
 
     this.run.time += dt; this.stageTime += dt;
+    // screen shake stays gentle by default, swelling only when near death
+    const hpFrac = this.player.maxHp ? this.player.hp / this.player.maxHp : 1;
+    setShakeScale(hpFrac < 0.25 ? 1.0 : 0.42);
     this.world.update(dt);
     this.aimCamera();
     if (this.bannerT > 0) this.bannerT -= dt;

@@ -31,7 +31,7 @@ E({
 // ---- armor -----------------------------------------------------------------
 E({
   id: 'leather_armor', name: '皮革護甲', slot: 'armor', tier: 1, weight: 8, price: 40, icon: 'equip_leather_armor',
-  desc: '生命上限 +25、減傷 +2', apply: (p) => { p.stats.maxHp += 25; p.heal(25); p.stats.defense += 2; },
+  desc: '生命上限 +18、減傷 +2', apply: (p) => { p.stats.maxHp += 18; p.heal(18); p.stats.defense += 2; },
 });
 E({
   id: 'mage_robe', name: '法師長袍', slot: 'armor', tier: 2, weight: 6, price: 55, icon: 'equip_mage_robe',
@@ -45,7 +45,7 @@ E({
 });
 E({
   id: 'vamp_amulet', name: '吸血護符', slot: 'trinket', tier: 2, weight: 6, price: 60, icon: 'equip_vamp_amulet',
-  desc: '吸血 +5%', apply: (p) => { p.stats.lifesteal += 0.05; },
+  desc: '吸血 +3.5%', apply: (p) => { p.stats.lifesteal += 0.035; },
 });
 
 // ---- apply helper ----------------------------------------------------------

@@ -10,18 +10,18 @@ const A = (o) => Abilities.register(o);
 A({ id: 'power', name: '力量結晶', tier: 1, weight: 10, maxStacks: 8, desc: '傷害 +18%', apply: (p) => p.stats.damageMult *= 1.18 });
 A({ id: 'haste', name: '迅捷符文', tier: 1, weight: 10, maxStacks: 8, desc: '射速 +14%', apply: (p) => p.stats.fireRateMult *= 1.14 });
 A({ id: 'swift', name: '疾風之靴', tier: 1, weight: 9, maxStacks: 6, desc: '移動速度 +10%', apply: (p) => p.stats.speed *= 1.10 });
-A({ id: 'vitality', name: '生命寶石', tier: 1, weight: 9, maxStacks: 8, desc: '生命上限 +25 並回復', apply: (p) => { p.stats.maxHp += 25; p.heal(25); } });
+A({ id: 'vitality', name: '生命寶石', tier: 1, weight: 8, maxStacks: 8, desc: '生命上限 +16 並回復', apply: (p) => { p.stats.maxHp += 16; p.heal(16); } });
 A({ id: 'crit', name: '銳利之眼', tier: 1, weight: 8, maxStacks: 6, desc: '暴擊率 +7%', apply: (p) => p.stats.critChance += 0.07 });
 A({ id: 'velocity', name: '加速彈道', tier: 1, weight: 7, maxStacks: 5, desc: '彈速 +22%', apply: (p) => p.stats.projSpeedMult *= 1.22 });
 A({ id: 'magnet', name: '拾取磁石', tier: 1, weight: 6, maxStacks: 4, desc: '拾取範圍 +60%', apply: (p) => p.stats.pickupRange *= 1.6 });
 A({ id: 'greed', name: '貪婪之觸', tier: 1, weight: 6, maxStacks: 5, desc: '金幣獲取 +25%', apply: (p) => p.stats.goldMult *= 1.25 });
-A({ id: 'regen', name: '再生之種', tier: 1, weight: 6, maxStacks: 5, desc: '每秒回復 +1 生命', apply: (p) => p.stats.hpRegen += 1 });
+A({ id: 'regen', name: '再生之種', tier: 1, weight: 6, maxStacks: 5, desc: '每秒回復 +0.6 生命', apply: (p) => p.stats.hpRegen += 0.6 });
 A({ id: 'dash', name: '瞬影', tier: 1, weight: 5, maxStacks: 3, desc: '衝刺冷卻 -22%', apply: (p) => p.stats.dashCd *= 0.78 });
 
 // ---- tier 2 (rare) ---------------------------------------------------------
 A({ id: 'multishot', name: '分裂魂彈', tier: 2, weight: 5, maxStacks: 4, desc: '投射物數量 +1', apply: (p) => p.stats.projCountAdd += 1 });
 A({ id: 'pierce', name: '貫穿之矢', tier: 2, weight: 5, maxStacks: 4, desc: '穿透 +1', apply: (p) => p.stats.pierceAdd += 1 });
-A({ id: 'lifesteal', name: '吸血鬼牙', tier: 2, weight: 4, maxStacks: 4, desc: '吸血 +4%', apply: (p) => p.stats.lifesteal += 0.04 });
+A({ id: 'lifesteal', name: '吸血鬼牙', tier: 2, weight: 4, maxStacks: 4, desc: '吸血 +2.5%', apply: (p) => p.stats.lifesteal += 0.025 });
 A({ id: 'homing', name: '追蹤魂彈', tier: 2, weight: 4, maxStacks: 3, desc: '子彈追蹤敵人', apply: (p) => p.stats.homing += 2.2 });
 A({ id: 'luck', name: '幸運符', tier: 2, weight: 4, maxStacks: 4, desc: '幸運 +0.15（掉落/魂晶）', apply: (p) => p.stats.luck += 0.15 });
 A({

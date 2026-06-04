@@ -11,11 +11,11 @@ const I = (o) => Items.register(o);
 
 I({
   id: 'heal_potion', name: '治療藥水', desc: '立即回復 45 點生命', tier: 1, weight: 10, price: 18, icon: 'item_heal_potion',
-  use: (w, p) => { if (p.hp >= p.maxHp) return false; p.heal(45); w.particles.text(p.x, p.y - 16, '+45', { color: P.redL, size: 14 }); return true; },
+  use: (w, p) => { if (p.hp >= p.maxHp) return false; p.heal(36); w.particles.text(p.x, p.y - 16, '+36', { color: P.redL, size: 14 }); return true; },
 });
 I({
   id: 'big_potion', name: '大型藥水', desc: '立即回復 110 點生命', tier: 2, weight: 5, price: 40, icon: 'item_big_potion',
-  use: (w, p) => { if (p.hp >= p.maxHp) return false; p.heal(110); w.particles.text(p.x, p.y - 16, '+110', { color: P.redL, size: 15 }); return true; },
+  use: (w, p) => { if (p.hp >= p.maxHp) return false; p.heal(85); w.particles.text(p.x, p.y - 16, '+85', { color: P.redL, size: 15 }); return true; },
 });
 I({
   id: 'bomb', name: '魂晶炸彈', desc: '對周圍敵人造成大量範圍傷害', tier: 1, weight: 8, price: 25, icon: 'item_bomb',

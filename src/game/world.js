@@ -208,6 +208,11 @@ export class World {
   // ---- update --------------------------------------------------------------
   update(dt) {
     this.time += dt;
+    // Attack tempo ramps slow -> fast over the run (both sides start sluggish and
+    // speed up). Player + enemy fire intervals are divided by these.
+    const rt = (this.run && this.run.time) || this.time;
+    this.playerTempo = clamp(0.72 + rt / 240 * 0.55, 0.72, 1.28);
+    this.enemyTempo = clamp(0.60 + rt / 210 * 0.68, 0.60, 1.30);
     if (this.player && !this.player.dead) this.player.update(dt, this);
 
     for (const e of this.enemies) e.update(dt, this);

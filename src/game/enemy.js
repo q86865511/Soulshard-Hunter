@@ -117,7 +117,7 @@ export class Enemy {
           else { mx = Math.cos(ang + Math.PI / 2) * 0.6; my = Math.sin(ang + Math.PI / 2) * 0.6; } // bosses hold ground & strafe
           this.attackCd -= dt;
           if (this.attackCd <= 0 && toP < pref + 40 && world.lineClear(this.x, this.y, player.x, player.y)) {
-            this.attackCd = (this.attack?.cooldown ?? 1.6) / (this.boss ? this.enrage : 1);
+            this.attackCd = (this.attack?.cooldown ?? 1.6) / ((this.boss ? this.enrage : 1) * (world.enemyTempo || 1));
             const burst = (this.attack?.burst ?? 1) + (this.boss ? this.phase : 0);
             for (let i = 0; i < burst; i++) {
               const spread = (this.attack?.spread ?? 0) * (i - (burst - 1) / 2);
@@ -131,7 +131,7 @@ export class Enemy {
           if (this.charging) {
             this.stateT -= dt;
             mx = this.dashVX; my = this.dashVY;
-            if (this.stateT <= 0) { this.charging = false; this.attackCd = (this.attack?.cooldown ?? 2.2) / (this.boss ? this.enrage : 1); }
+            if (this.stateT <= 0) { this.charging = false; this.attackCd = (this.attack?.cooldown ?? 2.2) / ((this.boss ? this.enrage : 1) * (world.enemyTempo || 1)); }
           } else if (this.attackCd <= 0 && toP < (this.attack?.range ?? 140)) {
             // telegraph then dash
             this.charging = true; this.stateT = 0.4;
@@ -149,6 +149,19 @@ export class Enemy {
           break;
         }
         default: { mx = Math.cos(ang); my = Math.sin(ang); }
+      }
+    }
+
+    // obstacle avoidance: if a wall lies just ahead of the desired heading, steer
+    // around it instead of grinding into it (fixes melee enemies sticking on walls).
+    if (this.spawnT <= 0 && !this.charging && (mx !== 0 || my !== 0)) {
+      const probe = this.radius + 9;
+      if (world.solidAt(this.x + mx * probe, this.y + my * probe)) {
+        const baseA = Math.atan2(my, mx);
+        for (const off of [0.6, -0.6, 1.2, -1.2, 1.9, -1.9, 2.7]) {
+          const a = baseA + off, nx = Math.cos(a), ny = Math.sin(a);
+          if (!world.solidAt(this.x + nx * probe, this.y + ny * probe)) { mx = nx; my = ny; break; }
+        }
       }
     }
 

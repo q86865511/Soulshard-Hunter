@@ -34,7 +34,7 @@ const W = (o) => Weapons.register(o);
 // ---- core weapons ----------------------------------------------------------
 W({
   id: 'w_soulbolt', name: '魂晶彈', icon: 'weapon_w_soulbolt', tier: 1, weight: 10, maxLevel: 8,
-  cooldown: (l) => Math.max(0.18, 0.62 - l * 0.04),
+  cooldown: (l) => Math.max(0.24, 0.66 - l * 0.04),
   fire(world, p, inst) {
     const l = inst.level;
     const count = 1 + Math.floor(l / 2) + (p.stats.projCountAdd || 0);
@@ -132,7 +132,15 @@ W({
   cooldown: (l) => Math.max(0.5, 1.0 - l * 0.06),
   fire(world, p, inst) {
     const l = inst.level, count = 2 + Math.floor(l * 0.8);
-    for (let i = 0; i < count; i++) { const a = Math.random() * TAU; const { dmg, crit } = roll(p, 8 + l * 3); world.addProjectile(new Projectile({ x: p.x, y: p.y, vx: Math.cos(a) * 120, vy: Math.sin(a) * 120, damage: dmg, crit, faction: 'player', sprite: 'bolt_void', color: P.purpleL, homing: 3.6, life: 2.2, knockback: 14 })); }
+    // launch toward the nearest foes (then home) instead of spraying randomly
+    const targets = nearestN(world, p.x, p.y, Math.max(1, count));
+    for (let i = 0; i < count; i++) {
+      const t = targets.length ? targets[i % targets.length] : null;
+      const baseA = t ? Math.atan2(t.y - p.y, t.x - p.x) : faceA(p);
+      const a = baseA + (Math.random() - 0.5) * 0.5;
+      const { dmg, crit } = roll(p, 8 + l * 3);
+      world.addProjectile(new Projectile({ x: p.x, y: p.y, vx: Math.cos(a) * 150, vy: Math.sin(a) * 150, damage: dmg, crit, faction: 'player', sprite: 'bolt_void', color: P.purpleL, homing: 4.2, life: 2.2, knockback: 14 }));
+    }
     Sfx.play('shoot');
   },
   desc: '發射自動追蹤敵人的魂彈。',
