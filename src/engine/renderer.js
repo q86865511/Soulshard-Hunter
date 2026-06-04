@@ -154,6 +154,11 @@ export function fillCircleWorld(wx, wy, r, color) {
   ctx.fillStyle = color;
   ctx.beginPath(); ctx.arc(s.x, s.y, r * camera.zoom, 0, Math.PI * 2); ctx.fill();
 }
+export function strokeCircleWorld(wx, wy, r, color, lw = 2) {
+  const s = worldToScreen(wx, wy);
+  ctx.strokeStyle = color; ctx.lineWidth = lw;
+  ctx.beginPath(); ctx.arc(s.x, s.y, r * camera.zoom, 0, Math.PI * 2); ctx.stroke();
+}
 export function lineWorld(x0, y0, x1, y1, color, lw = 1) {
   const a = worldToScreen(x0, y0), b = worldToScreen(x1, y1);
   ctx.strokeStyle = color; ctx.lineWidth = lw;

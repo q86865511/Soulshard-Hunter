@@ -12,6 +12,7 @@ import { equipItem } from '../content/equipment.js';
 import {
   camera, clear, vignette, uiText, uiRect, uiScale, view, addShake, drawSpriteUI, textWidth,
   drawSprite, drawShadow, glowWorld, worldToScreen, fillRectWorld, uiBar, setShakeScale,
+  fillCircleWorld, strokeCircleWorld,
 } from '../../engine/renderer.js';
 import { drawHud, drawLowHpWarning, hudIcons } from '../hud.js';
 import { pressed, mouse } from '../../engine/input.js';
@@ -84,6 +85,10 @@ export const runScene = {
     this.boss = false; this.bossRef = null; this.bossDead = false;
     this.nextBossAt = 100;
 
+    // special "harasser" events (mushrooms / shrink-zone / bombard)
+    this.evtMines = []; this.zone = null; this.evtStrikes = [];
+    this.nextEventAt = 45;
+
     Music.setBiome(map.biome.id); Music.setHero(this.run.characterId);
     Music.setMode('run');
     this.banner = map.biome.name + ' · 永恆獵場';
@@ -145,6 +150,88 @@ export const runScene = {
     this.banner = '擊敗首領！'; this.bannerT = 2.6; addShake(6);
     this.world.addPickup('heart', this.player.x, this.player.y, 28);
     Music.setMode('run');
+  },
+
+  // ---- special harasser events (R5) ----------------------------------------
+  eventsTick(dt) {
+    if (this.boss) return;
+    if (this.run.time >= this.nextEventAt) { this.triggerEvent(); this.nextEventAt = this.run.time + 38 + rng.next() * 30; }
+  },
+  triggerEvent() {
+    const roll = rng.int(0, 2);
+    if (roll === 0) this.evMushrooms();
+    else if (roll === 1) this.evShrink();
+    else this.evBombard();
+  },
+  evMushrooms() {
+    const n = 5 + Math.floor(this.threat / 2);
+    for (let i = 0; i < n; i++) {
+      const a = rng.next() * TAU, r = 28 + rng.next() * 132;
+      const x = clamp(this.player.x + Math.cos(a) * r, TS * 2, this.world.pxW - TS * 2);
+      const y = clamp(this.player.y + Math.sin(a) * r, TS * 2, this.world.pxH - TS * 2);
+      if (this.world.solidAt(x, y)) continue;
+      this.evtMines.push({ x, y, arm: 0.9, life: 9, r: 34, dmg: 16 + this.threat * 2, pulse: rng.next() * TAU });
+    }
+    this.banner = '提摩的蘑菇地雷！小心腳下'; this.bannerT = 2.6; Sfx.play('boss');
+  },
+  evShrink() {
+    const t = this.world.randomFloorTile(rng);
+    this.zone = { cx: t.x, cy: t.y, r: 260, r0: 260, r1: 70, t: 0, dur: 18, hold: 4, tick: 0, dmg: 6 + this.threat };
+    this.banner = '縮圈！退入安全圈內'; this.bannerT = 2.8; Sfx.play('portal');
+  },
+  evBombard() {
+    const n = 6 + Math.floor(this.threat / 2);
+    for (let i = 0; i < n; i++) {
+      const lead = i < 3;
+      const a = rng.next() * TAU, r = lead ? rng.next() * 60 : 40 + rng.next() * 160;
+      const x = clamp(this.player.x + Math.cos(a) * r, TS * 2, this.world.pxW - TS * 2);
+      const y = clamp(this.player.y + Math.sin(a) * r, TS * 2, this.world.pxH - TS * 2);
+      this.evtStrikes.push({ x, y, t: 1.2 + i * 0.18, max: 1.2 + i * 0.18, r: 38, dmg: 18 + this.threat * 2 });
+    }
+    this.banner = '希格斯的炸彈大絕！'; this.bannerT = 2.6; Sfx.play('boss'); addShake(4);
+  },
+  eventExplode(x, y, r, dmg) {
+    this.world.spawnExplosion(x, y, r, P.ember, dmg * 0.7, { knockback: 80 });
+    const p = this.player;
+    if (p && !p.dead && dist(p.x, p.y, x, y) < r + p.radius) p.takeDamage(dmg, Math.atan2(p.y - y, p.x - x), this.world);
+  },
+  updateEvents(dt) {
+    for (let i = this.evtMines.length - 1; i >= 0; i--) {
+      const m = this.evtMines[i]; m.arm -= dt; m.life -= dt; m.pulse += dt * 6;
+      let go = m.life <= 0;
+      if (m.arm <= 0 && !go && dist(this.player.x, this.player.y, m.x, m.y) < 16) go = true;
+      if (go) { this.eventExplode(m.x, m.y, m.r, m.dmg); this.evtMines.splice(i, 1); }
+    }
+    if (this.zone) {
+      const z = this.zone; z.t += dt;
+      z.r = z.r0 + (z.r1 - z.r0) * Math.min(1, z.t / z.dur);
+      z.tick -= dt;
+      if (z.tick <= 0) { z.tick = 0.5; if (dist(this.player.x, this.player.y, z.cx, z.cy) > z.r) this.player.takeDamage(z.dmg, Math.atan2(this.player.y - z.cy, this.player.x - z.cx), this.world); }
+      if (z.t >= z.dur + z.hold) this.zone = null;
+    }
+    for (let i = this.evtStrikes.length - 1; i >= 0; i--) {
+      const s = this.evtStrikes[i]; s.t -= dt;
+      if (s.t <= 0) { this.eventExplode(s.x, s.y, s.r, s.dmg); this.evtStrikes.splice(i, 1); }
+    }
+  },
+  drawEvents() {
+    for (const m of this.evtMines) {
+      const armed = m.arm <= 0;
+      glowWorld(m.x, m.y, armed ? 8 : 5, armed ? P.red : P.toxic, 0.3 + (armed ? 0.25 * (0.5 + 0.5 * Math.sin(m.pulse)) : 0));
+      fillCircleWorld(m.x, m.y, 3.5, P.toxic); fillCircleWorld(m.x, m.y - 1, 2.3, P.redL);
+      if (armed) strokeCircleWorld(m.x, m.y, m.r, withAlpha(P.red, 0.22), 1.5);
+    }
+    if (this.zone) {
+      const z = this.zone; const inside = dist(this.player.x, this.player.y, z.cx, z.cy) <= z.r;
+      strokeCircleWorld(z.cx, z.cy, z.r, inside ? P.shardL : P.redL, 3);
+      strokeCircleWorld(z.cx, z.cy, Math.max(1, z.r - 2), withAlpha(inside ? P.shard : P.red, 0.4), 1.5);
+      if (!inside) uiRect(0, 0, view.W, view.H, withAlpha('#b4141e', 0.12));
+    }
+    for (const s of this.evtStrikes) {
+      const k = 1 - clamp(s.t / s.max, 0, 1);
+      strokeCircleWorld(s.x, s.y, s.r, withAlpha(P.redL, 0.4 + 0.4 * k), 2);
+      fillCircleWorld(s.x, s.y, s.r * k, withAlpha(P.ember, 0.12));
+    }
   },
 
   // continuous spawning from the current 1-3 active enemy types
@@ -275,6 +362,8 @@ export const runScene = {
 
     this.spawnTick(dt);
     this.bossEventTick(dt);
+    this.eventsTick(dt);
+    this.updateEvents(dt);
     this.nearShrine = !!(this.shrinePos && dist(this.player.x, this.player.y, this.shrinePos.x, this.shrinePos.y) < 20);
     if (this.nearShrine && pressed('interact')) { this.shopOpen = true; Sfx.play('uiClick'); }
     if (this.levelQueue > 0 && !this.choice) this.openChoice();
@@ -378,6 +467,7 @@ export const runScene = {
   render() {
     this.world.draw();
     if (this.shrinePos) this.drawShrine();
+    this.drawEvents();
     vignette(0.42);
     drawLowHpWarning(this.player, this.t);
     this.world.particles.drawText();
