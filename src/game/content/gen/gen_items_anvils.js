@@ -37,7 +37,7 @@ function anvilFx(w, p, label) {
 // TACTICAL CONSUMABLES (4)
 // ===========================================================================
 
-// 1) 誘餌煙花 — pop a decoy flare: brief invulnerability/dash-window to slip
+// 1) 誘餌煙花 — pop a decoy flare: a brief invulnerability/shield window to slip
 //    away, while yanking every drop on the field toward you.
 Items.register({
   id: 'it_decoy_flare', name: '誘餌煙花', desc: '施放誘餌煙花，3 秒內免疫傷害並吸引場上所有掉落物', tier: 1, weight: 7, price: 24, icon: 'item_it_decoy_flare',
@@ -158,7 +158,7 @@ Items.register({
 // ICONS (16x16 panel + symbol + outline, via defineIcon)
 // ===========================================================================
 
-// small reusable anvil silhouette centred around (cx, base)
+// small reusable anvil silhouette
 function itAnvilShape(p, body, bodyL, bodyD) {
   // top face
   p.rect(3, 5, 10, 2, body);
@@ -185,7 +185,7 @@ defineIcon('item_it_decoy_flare', P.woodD, (p) => {
   p.px(12, 2, P.emberL); p.px(7, 3, P.emberL); p.px(13, 6, P.ember); p.px(5, 8, P.ember);
 });
 
-// timeslow — an icy hourglass-ish frozen burst
+// timeslow — an icy frozen burst
 defineIcon('item_it_timeslow_burst', P.blueD, (p) => {
   p.ring(8, 8, 5, P.iceD);
   p.ring(8, 8, 3, P.ice);
@@ -197,7 +197,7 @@ defineIcon('item_it_timeslow_burst', P.blueD, (p) => {
   p.px(8, 3, P.white); p.px(8, 13, P.iceD);
 });
 
-// chain-heal — linked hearts / restorative cross
+// chain-heal — heart + restorative cross
 defineIcon('item_it_chain_heal', P.blood, (p) => {
   sym.heart(p, P.red, -1, 0);
   p.rect(10, 9, 2, 4, P.redL);

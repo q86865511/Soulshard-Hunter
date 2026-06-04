@@ -144,7 +144,7 @@ Equipment.register({
 });
 
 // ===========================================================================
-// FX projectile sprites (8x8 unless noted) referenced by the epic weapons.
+// FX projectile sprites referenced by the epic weapons.
 // ===========================================================================
 
 // prism lance bolt — elongated white-hot crystal sliver (points up; engine rotates).

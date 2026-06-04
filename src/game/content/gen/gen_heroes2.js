@@ -15,8 +15,9 @@ import { Sfx } from '../../../engine/audio.js';
 //
 // NOTE for the achievement/unlock system:
 //   Two characters use NEW achievement condition strings that
-//   `checkCharacterUnlocks` in characters.js does not yet honor. Please extend
-//   that function with:
+//   `checkCharacterUnlocks` in characters.js does not yet honor. They load and
+//   run fine (an unrecognised condition is simply skipped — no throw), but the
+//   two hidden heroes will not auto-unlock until that function is extended with:
 //     - 'kills_5000'  -> unlock when (META.stats.kills || 0) >= 5000
 //                        (cumulative lifetime kills; META.stats.kills already exists)
 //     - 'survive_600' -> unlock when a single run survives >= 600 seconds.

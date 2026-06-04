@@ -239,6 +239,7 @@ export class World {
         e.processed = true;
         this.particles.death(e.x, e.y, e.def.bloodColor || P.green);
         Sfx.play('kill');
+        if (e.def.deathBlast) this.bombBlast(e);
         this.dropLoot(e);
         this.run.kills = (this.run.kills || 0) + 1;
         if (this.player) for (const h of this.player.hooks.kill) h(e, this);
@@ -298,6 +299,15 @@ export class World {
     return hits;
   }
 
+  // an enemy with def.deathBlast detonates when it dies, hurting the PLAYER too
+  bombBlast(e) {
+    const b = e.def.deathBlast || {};
+    const r = b.r || 42, dmg = b.dmg || Math.round((e.damage || 10) * 1.6), color = b.color || P.ember;
+    this.spawnExplosion(e.x, e.y, r, color, dmg * 0.7, { knockback: 90 });   // visual + hurt other enemies
+    const p = this.player;
+    if (p && !p.dead && dist(p.x, p.y, e.x, e.y) < r + p.radius) p.takeDamage(dmg, Math.atan2(p.y - e.y, p.x - e.x), this);
+  }
+
   spawnExplosion(x, y, radius, color = P.ember, damage = 0, opts = {}) {
     this.particles.ring(x, y, color, 18, radius * 7);
     this.particles.burst(x, y, 14, { speed: radius * 6, color: [color, '#ffffff'], size: 2.6, life: 0.4, glow: true });
@@ -336,7 +346,7 @@ export class World {
     for (const h of this.hazards) {
       const def = HAZ[h.kind] || HAZ.lava;
       const active = def.periodic ? h.on : true;
-      const spr = 'hz_' + h.kind;
+      const spr = 'hz_' + (h.kind === 'poison' ? 'poisonpool' : h.kind);
       if (hasSprite(spr)) {
         const sp = getSprite(spr);
         for (let yy = h.y - h.r; yy <= h.y + h.r; yy += TS) for (let xx = h.x - h.r; xx <= h.x + h.r; xx += TS)
