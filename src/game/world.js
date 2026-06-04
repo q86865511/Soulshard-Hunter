@@ -338,8 +338,9 @@ export class World {
   }
   hazardStrike(h, def) {
     const p = this.player;
-    if (p && !p.dead && dist(p.x, p.y, h.x, h.y) < h.r + p.radius) p.takeDamage(def.dmg, Math.atan2(p.y - h.y, p.x - h.x), this);
-    for (const e of this.enemies) { if (e.dead || e.spawnT > 0) continue; if (dist(e.x, e.y, h.x, h.y) < h.r + e.radius) e.hurt(def.dmg * 0.8, 0, 0, this, false); }
+    const dmg = def.dmg * Math.min(2.2, 1 + (this.threat || 0) * 0.08);   // scales with threat, capped
+    if (p && !p.dead && dist(p.x, p.y, h.x, h.y) < h.r + p.radius) p.takeDamage(dmg, Math.atan2(p.y - h.y, p.x - h.x), this);
+    for (const e of this.enemies) { if (e.dead || e.spawnT > 0) continue; if (dist(e.x, e.y, h.x, h.y) < h.r + e.radius) e.hurt(dmg * 0.8, 0, 0, this, false); }
     this.particles.ring(h.x, h.y, def.color, 7, h.r * 3.5);
   }
   drawHazards() {

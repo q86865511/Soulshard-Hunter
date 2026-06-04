@@ -20,7 +20,7 @@ import { pressed, mouse } from '../../engine/input.js';
 import { rng, dist, clamp, TAU } from '../../engine/math.js';
 import { P, withAlpha } from '../../engine/palette.js';
 import { getSprite, frameAt, iconOr } from '../../engine/sprites.js';
-import { getRunChoices, applyChoice, choiceStyle } from '../progression.js';
+import { getRunChoices, applyChoice, choiceStyle, MAX_WEAPONS, MAX_PASSIVES } from '../progression.js';
 import { Sfx, Music } from '../../engine/audio.js';
 import { settingsUI } from '../ui/settings.js';
 
@@ -100,7 +100,7 @@ export const runScene = {
     // difficulty scaling + final-boss phase
     this.diffMul = 1 + (Math.max(1, this.run.difficulty || 1) - 1) * 0.35;
     this.finalZone = null; this.finalBoss = false; this.finalBossRef = null;
-    this.cleared = false; this.won = false;
+    this.cleared = false; this.won = false; this.bigMap = false; this.buildIcons = [];
 
     Music.setBiome(map.biome.id); Music.setHero(this.run.characterId);
     Music.setMode('run');
@@ -178,7 +178,7 @@ export const runScene = {
       const z = this.finalZone; z.t += dt;
       z.r = z.r0 + (z.r1 - z.r0) * Math.min(1, z.t / z.dur);
       z.tick -= dt;
-      if (z.tick <= 0) { z.tick = 0.5; if (dist(this.player.x, this.player.y, z.cx, z.cy) > z.r) this.player.takeDamage(8 + this.threat, Math.atan2(this.player.y - z.cy, this.player.x - z.cx), this.world); }
+      if (z.tick <= 0) { z.tick = 0.5; if (dist(this.player.x, this.player.y, z.cx, z.cy) > z.r) this.player.takeDamage(8 + Math.min(this.threat, 10), Math.atan2(this.player.y - z.cy, this.player.x - z.cx), this.world); }
     }
     if (!this.finalBoss && t >= LEVEL_TIME) this.spawnFinalBoss();
   },
@@ -231,13 +231,13 @@ export const runScene = {
       const x = clamp(this.player.x + Math.cos(a) * r, TS * 2, this.world.pxW - TS * 2);
       const y = clamp(this.player.y + Math.sin(a) * r, TS * 2, this.world.pxH - TS * 2);
       if (this.world.solidAt(x, y)) continue;
-      this.evtMines.push({ x, y, arm: 0.9, life: 9, r: 34, dmg: 16 + this.threat * 2, pulse: rng.next() * TAU });
+      this.evtMines.push({ x, y, arm: 0.9, life: 9, r: 34, dmg: 16 + Math.min(this.threat, 10) * 2, pulse: rng.next() * TAU });
     }
     this.banner = '提摩的蘑菇地雷！小心腳下'; this.bannerT = 2.6; Sfx.play('boss');
   },
   evShrink() {
     const t = this.world.randomFloorTile(rng);
-    this.zone = { cx: t.x, cy: t.y, r: 260, r0: 260, r1: 70, t: 0, dur: 18, hold: 4, tick: 0, dmg: 6 + this.threat };
+    this.zone = { cx: t.x, cy: t.y, r: 260, r0: 260, r1: 70, t: 0, dur: 18, hold: 4, tick: 0, dmg: 6 + Math.min(this.threat, 10) };
     this.banner = '縮圈！退入安全圈內'; this.bannerT = 2.8; Sfx.play('portal');
   },
   evBombard() {
@@ -247,7 +247,7 @@ export const runScene = {
       const a = rng.next() * TAU, r = lead ? rng.next() * 60 : 40 + rng.next() * 160;
       const x = clamp(this.player.x + Math.cos(a) * r, TS * 2, this.world.pxW - TS * 2);
       const y = clamp(this.player.y + Math.sin(a) * r, TS * 2, this.world.pxH - TS * 2);
-      this.evtStrikes.push({ x, y, t: 1.2 + i * 0.18, max: 1.2 + i * 0.18, r: 38, dmg: 18 + this.threat * 2 });
+      this.evtStrikes.push({ x, y, t: 1.2 + i * 0.18, max: 1.2 + i * 0.18, r: 38, dmg: 18 + Math.min(this.threat, 10) * 2 });
     }
     this.banner = '希格斯的炸彈大絕！'; this.bannerT = 2.6; Sfx.play('boss'); addShake(4);
   },
@@ -311,8 +311,11 @@ export const runScene = {
     const cap = Math.min(120, 24 + this.threat * 6 + Math.floor(t * 0.05));
     if (this.spawnTimer <= 0 && this.world.enemies.length < cap && this.activeTypes.length) {
       const group = 2 + Math.floor(this.threat / 2) + (rng.chance(0.3) ? 1 : 0);
-      const hpScale = (1 + (this.threat - 1) * 0.18 + t * 0.004) * this.diffMul;
-      const dmgScale = (1 + (this.threat - 1) * 0.10 + t * 0.0025) * this.diffMul;
+      // enemy hp/dmg grow with threat + time but the growth is CAPPED (no infinite pile-up);
+      // difficulty multiplies on top of the capped growth.
+      const tc = Math.min(t, 1200);
+      const hpScale = (1 + Math.min(5, (this.threat - 1) * 0.18 + tc * 0.003)) * this.diffMul;
+      const dmgScale = (1 + Math.min(2.6, (this.threat - 1) * 0.10 + tc * 0.002)) * this.diffMul;
       for (let i = 0; i < group; i++) {
         const def = this.activeTypes[rng.int(0, this.activeTypes.length - 1)];
         const elite = this.threat >= 3 && rng.chance(0.035 + t * 0.0004);
@@ -414,12 +417,14 @@ export const runScene = {
     if (this.choice) { this.updateChoice(); return; }
     if (pressed('pause') || pressed('escape')) { this.paused = true; Sfx.play('uiClick'); return; }
     if (pressed('map')) { this.showBuild = !this.showBuild; Sfx.play('uiClick'); }
+    if (pressed('minimap')) { this.bigMap = !this.bigMap; Sfx.play('uiClick'); }
     if (this.showBuild) return;   // freeze the field while reviewing your build
     if (this.shopOpen) { this.updateShopPanel(); return; }   // modal shop also freezes the field
 
     this.run.time += dt;
     this.threat = 1 + Math.floor(this.run.time / 150);   // ~1 -> 13 over the 30-min level
     this.run.stage = this.threat; this.run.floor = this.threat;   // keep loot/score scaling alive
+    this.world.threat = this.threat;   // hazards read this to scale (capped)
     // screen shake stays gentle by default, swelling only when near death
     const hpFrac = this.player.maxHp ? this.player.hp / this.player.maxHp : 1;
     setShakeScale(hpFrac < 0.25 ? 1.0 : 0.42);
@@ -456,6 +461,25 @@ export const runScene = {
     for (const pk of this.world.pickups) if (pk.type === 'chest' && (!pk.hidden || pk.revealed)) dot(pk.x, pk.y, P.goldL, 3 * S);
     if (this.shrinePos) dot(this.shrinePos.x, this.shrinePos.y, P.shardL, 3 * S);
     dot(this.player.x, this.player.y, '#ffffff', 4 * S);
+  },
+
+  // M: a big semi-transparent minimap floating in the centre of the screen
+  drawBigMinimap() {
+    if (!this.bigMap || !this.minimap || this.showBuild || this.choice || this.shopOpen || this.dead) return;
+    const S = uiScale(); const m = this.map;
+    const mw = Math.min(view.W * 0.6, view.H * 0.6 * m.tw / m.th), mh = mw * m.th / m.tw;
+    const mx = (view.W - mw) / 2, my = (view.H - mh) / 2;
+    uiRect(mx - 4, my - 4, mw + 8, mh + 8, withAlpha('#0b0d1a', 0.42), { radius: 6 * S, stroke: P.shardL, lw: 2 });
+    drawSpriteUI(this.minimap, mx, my, mw / m.tw, { alpha: 0.5 });
+    const pxW = m.tw * TS, pxH = m.th * TS;
+    const dot = (wx, wy, col, sz) => { const dx = mx + (wx / pxW) * mw, dy = my + (wy / pxH) * mh; uiRect(dx - sz / 2, dy - sz / 2, sz, sz, col, { radius: sz / 2 }); };
+    const en = this.world.enemies;
+    for (let i = 0; i < en.length && i < 200; i++) dot(en[i].x, en[i].y, withAlpha(en[i].boss ? P.redL : P.red, 0.85), (en[i].boss ? 6 : 3) * S);
+    for (const pk of this.world.pickups) if (pk.type === 'chest' && (!pk.hidden || pk.revealed)) dot(pk.x, pk.y, P.goldL, 5 * S);
+    if (this.shrinePos) dot(this.shrinePos.x, this.shrinePos.y, P.shardL, 5 * S);
+    if (this.finalZone) dot(this.finalZone.cx, this.finalZone.cy, P.manaL, 7 * S);
+    dot(this.player.x, this.player.y, '#ffffff', 6 * S);
+    uiText('放大地圖　·　M 關閉', view.W / 2, my - 12 * S, { size: 12 * S, align: 'center', color: withAlpha(P.shardL, 0.85), weight: '700' });
   },
 
   aimCamera() {
@@ -544,6 +568,7 @@ export const runScene = {
     this.drawMinimap();
     this.drawBanner();
     this.drawInfo();
+    this.drawBigMinimap();
     if (this.shopOpen) this.drawShopPanel();
     if (this.choice) this.drawChoice();
     if (this.dead) { if (this.won) this.drawWon(); else this.drawDeath(); }
@@ -625,18 +650,26 @@ export const runScene = {
   drawInfo() {
     if (this.choice || this.dead || this.paused || settingsUI.open) return;
     const S = uiScale();
-    if (this.showBuild) { this.drawBuildPanel(S); return; }
     const mx = mouse.x * view.dpr, my = mouse.y * view.dpr;
+    if (this.showBuild) {
+      this.drawBuildPanel(S);
+      let hb = null;
+      for (const ic of (this.buildIcons || [])) if (mx >= ic.x && mx <= ic.x + ic.w && my >= ic.y && my <= ic.y + ic.h) hb = ic;
+      if (hb) this.drawTooltip(hb, mx, my, S);
+      return;
+    }
     let hov = null;
     for (const ic of hudIcons) if (mx >= ic.x && mx <= ic.x + ic.w && my >= ic.y && my <= ic.y + ic.h) hov = ic;
     if (hov) this.drawTooltip(hov, mx, my, S);
-    else uiText('Tab：查看 build', view.W - 12 * S, view.H - 10 * S, { size: 10 * S, align: 'right', color: withAlpha('#fff', 0.28) });
+    else uiText('Tab：build　·　M：放大地圖', view.W - 12 * S, view.H - 10 * S, { size: 10 * S, align: 'right', color: withAlpha('#fff', 0.28) });
   },
   drawTooltip(ic, mx, my, S) {
     const def = ic.def; if (!def) return;
-    const accent = ic.kind === 'weapon' ? P.shardL : ic.kind === 'ability' ? P.manaL : P.emberL;
+    const accent = ic.kind === 'weapon' ? P.shardL : ic.kind === 'ability' ? (def.cursed ? P.redL : P.manaL) : ic.kind === 'equip' ? P.goldL : P.emberL;
     const sub = ic.kind === 'weapon' ? (def.evolved ? '★ 進化武器' : '武器 Lv.' + ic.level)
-      : ic.kind === 'ability' ? ('被動 Lv.' + ic.level) : ('道具 ' + (ic.slot || ''));
+      : ic.kind === 'ability' ? ((def.cursed ? '詛咒被動' : '被動') + ' Lv.' + ic.level)
+      : ic.kind === 'equip' ? ('裝備 · ' + (def.slot === 'weapon' ? '專武' : def.slot === 'armor' ? '護甲' : '飾品'))
+      : ('道具 ' + (ic.slot || ''));
     const desc = (ic.kind === 'weapon' && def.levelDesc) ? def.levelDesc(ic.level) : (def.desc || '');
     const W = 210 * S; const lines = []; let line = '';
     for (const ch of desc) { if (textWidth(line + ch, 11 * S, '500') > W - 16 * S && line) { lines.push(line); line = ch; } else line += ch; }
@@ -651,29 +684,50 @@ export const runScene = {
     lines.forEach((l, i) => uiText(l, x + 8 * S, y + 32 * S + i * 14 * S, { size: 11 * S, color: P.gray4, weight: '500' }));
   },
   drawBuildPanel(S) {
-    const w = Math.min(view.W * 0.86, 600 * S), h = Math.min(view.H * 0.82, 470 * S);
+    const w = Math.min(view.W * 0.9, 640 * S), h = Math.min(view.H * 0.86, 500 * S);
     const x = (view.W - w) / 2, y = (view.H - h) / 2;
-    uiRect(0, 0, view.W, view.H, withAlpha('#0b0d1a', 0.62));
+    uiRect(0, 0, view.W, view.H, withAlpha('#0b0d1a', 0.66));
     uiRect(x, y, w, h, withAlpha('#161a30', 0.98), { radius: 10 * S, stroke: P.ink2, lw: 2 });
     uiText('當前 BUILD', x + w / 2, y + 26 * S, { size: 18 * S, align: 'center', color: '#fff', weight: '900' });
-    uiText('（Tab 關閉）', x + w / 2, y + 44 * S, { size: 11 * S, align: 'center', color: P.gray3 });
-    const row = (t, xx, yy, c) => uiText(t, xx, yy, { size: 11.5 * S, color: c || P.gray4, weight: '500' });
-    const head = (t, xx, yy, c) => uiText(t, xx, yy, { size: 13 * S, color: c, weight: '800' });
-    const colL = x + 22 * S, colR = x + w / 2 + 10 * S; let yL = y + 70 * S, yR = y + 70 * S;
-    head('武器', colL, yL, P.shardL); yL += 18 * S;
-    for (const inst of this.player.weapons) { row((inst.def.evolved ? '★ ' : '') + inst.def.name + (inst.def.evolved ? '' : '  Lv.' + inst.level), colL, yL, '#fff'); yL += 15 * S; }
-    yL += 8 * S; head('被動', colL, yL, P.manaL); yL += 18 * S;
-    for (const id of (this.run.abilities || [])) { const a = Abilities.get(id); const stk = this.run.abilityLevels?.[id] || 1; row((a ? a.name : id) + (stk > 1 ? ' ×' + stk : ''), colL, yL, P.gray4); yL += 14 * S; if (yL > y + h - 20 * S) break; }
-    head('裝備', colR, yR, P.goldL); yR += 18 * S;
+    uiText('Tab 關閉　·　滑鼠移到圖示看說明', x + w / 2, y + 44 * S, { size: 11 * S, align: 'center', color: P.gray3 });
+    this.buildIcons = [];
+    const sz = 30 * S, gap = 6 * S;
+    const head = (t, xx, yy, c, extra, ecol) => { uiText(t, xx, yy, { size: 13 * S, color: c, weight: '800' }); if (extra) uiText(extra, xx + textWidth(t, 13 * S, '800') + 10 * S, yy, { size: 11 * S, color: ecol || P.gray3, weight: '700' }); };
+    const cell = (bx, by, sp, stroke, badge, bcol) => { uiRect(bx, by, sz, sz, withAlpha('#10121f', 0.82), { radius: 4 * S, stroke, lw: 2 }); drawSpriteUI(sp.frames[0], bx + 3 * S, by + 3 * S, (sz - 6 * S) / sp.w); if (badge) uiText(badge, bx + sz - 3 * S, by + sz - 3 * S, { size: 9 * S, align: 'right', color: bcol, weight: '800' }); };
+    // left column: weapons + passives
+    const colL = x + 24 * S; let yL = y + 70 * S;
+    head('武器', colL, yL, P.shardL, this.player.weapons.length + ' / ' + MAX_WEAPONS, this.player.weapons.length >= MAX_WEAPONS ? P.redL : P.gray3); yL += 14 * S;
+    this.player.weapons.forEach((inst, i) => {
+      const bx = colL + i * (sz + gap);
+      cell(bx, yL, getSprite(iconOr(inst.def.icon, 'weapon_w_soulbolt')), inst.def.evolved ? P.goldL : P.ink2, inst.def.evolved ? '★' : 'L' + inst.level, inst.def.evolved ? P.goldL : P.shardL);
+      this.buildIcons.push({ x: bx, y: yL, w: sz, h: sz, kind: 'weapon', def: inst.def, level: inst.level });
+    });
+    yL += sz + 18 * S;
+    const abils = this.run.abilities || [];
+    head('被動', colL, yL, P.manaL, abils.length + ' / ' + MAX_PASSIVES, abils.length >= MAX_PASSIVES ? P.redL : P.gray3); yL += 14 * S;
+    const perRow = 7;
+    abils.slice(0, MAX_PASSIVES).forEach((id, i) => {
+      const bx = colL + (i % perRow) * (sz + gap), by = yL + Math.floor(i / perRow) * (sz + gap);
+      const a = Abilities.get(id); const stk = this.run.abilityLevels?.[id] || 1;
+      cell(bx, by, getSprite(iconOr('ability_' + id, 'ability_power')), a && a.cursed ? P.redL : P.ink2, stk > 1 ? '×' + stk : '', P.goldL);
+      if (a) this.buildIcons.push({ x: bx, y: by, w: sz, h: sz, kind: 'ability', id, def: a, level: stk });
+    });
+    // right column: equipment + stats
+    const colR = x + w * 0.56; let yR = y + 70 * S;
+    head('裝備', colR, yR, P.goldL); yR += 16 * S;
     const eq = this.run.equipment || {};
-    const eqName = (slot) => { const id = eq[slot]; const d = id && Equipment.get(id); return d ? d.name : '—'; };
-    row('武器 ' + eqName('weapon'), colR, yR, '#fff'); yR += 15 * S;
-    row('護甲 ' + eqName('armor'), colR, yR, '#fff'); yR += 15 * S;
-    row('飾品 ' + eqName('trinket'), colR, yR, '#fff'); yR += 22 * S;
-    head('數值', colR, yR, P.emberL); yR += 18 * S;
+    [['weapon', '專武'], ['armor', '護甲'], ['trinket', '飾品']].forEach(([slot, label], i) => {
+      const bx = colR + i * (sz + 18 * S);
+      const id = eq[slot]; const d = id && Equipment.get(id);
+      if (d) { cell(bx, yR, getSprite(iconOr(d.icon, 'equip_leather_armor')), P.goldL, '', ''); this.buildIcons.push({ x: bx, y: yR, w: sz, h: sz, kind: 'equip', def: d }); }
+      else { uiRect(bx, yR, sz, sz, withAlpha('#10121f', 0.82), { radius: 4 * S, stroke: P.ink2, lw: 2 }); uiText('—', bx + sz / 2, yR + sz / 2 + 4 * S, { size: 12 * S, align: 'center', color: P.gray2 }); }
+      uiText(label, bx + sz / 2, yR + sz + 11 * S, { size: 9 * S, align: 'center', color: P.gray3 });
+    });
+    yR += sz + 32 * S;
+    head('數值', colR, yR, P.emberL); yR += 16 * S;
     const st = this.player.stats;
-    const stats = [['生命', Math.round(this.player.hp) + '/' + this.player.maxHp], ['傷害', '×' + st.damageMult.toFixed(2)], ['射速', '×' + st.fireRateMult.toFixed(2)], ['暴擊', Math.round(st.critChance * 100) + '%'], ['移速', Math.round(st.speed)], ['減傷', String(st.defense || 0)], ['閃避', Math.round((st.dodge || 0) * 100) + '%'], ['吸血', Math.round((st.lifesteal || 0) * 100) + '%'], ['幸運', (st.luck || 0).toFixed(2)]];
-    for (const [k, v] of stats) { row(k, colR, yR, P.gray3); uiText(v, x + w - 24 * S, yR, { size: 11.5 * S, align: 'right', color: '#fff', weight: '700' }); yR += 15 * S; }
+    const stats = [['生命', Math.round(this.player.hp) + ' / ' + this.player.maxHp], ['傷害', '×' + st.damageMult.toFixed(2)], ['射速', '×' + st.fireRateMult.toFixed(2)], ['暴擊', Math.round(st.critChance * 100) + '%'], ['暴傷', '×' + (st.critMult || 2).toFixed(1)], ['移速', Math.round(st.speed)], ['減傷', String(st.defense || 0)], ['閃避', Math.round((st.dodge || 0) * 100) + '%'], ['吸血', Math.round((st.lifesteal || 0) * 100) + '%'], ['幸運', (st.luck || 0).toFixed(2)]];
+    for (const [k, v] of stats) { if (yR > y + h - 16 * S) break; uiText(k, colR, yR, { size: 11.5 * S, color: P.gray3, weight: '500' }); uiText(v, x + w - 24 * S, yR, { size: 11.5 * S, align: 'right', color: '#fff', weight: '700' }); yR += 15 * S; }
   },
 
   drawBanner() {

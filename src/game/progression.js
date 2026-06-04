@@ -5,6 +5,10 @@ import { weaponPool } from './content/weapons.js';
 import { rng } from '../engine/math.js';
 import { P } from '../engine/palette.js';
 
+// per-character acquisition caps (so power can't pile up without bound)
+export const MAX_WEAPONS = 6;
+export const MAX_PASSIVES = 14;
+
 function eligibleAbilities(run) {
   const maxTier = run.level >= 8 ? 3 : run.level >= 4 ? 2 : 1;
   return Abilities.all().filter((d) => (d.tier ?? 1) <= maxTier && (run.abilityLevels[d.id] || 0) < (d.maxStacks ?? 99));
@@ -15,10 +19,14 @@ export function getRunChoices(run, player, n = 3) {
   for (const inst of player.weapons) {
     if (!inst.def.evolved && inst.level < (inst.def.maxLevel || 8)) pool.push({ kind: 'weaponup', id: inst.def.id, def: inst.def, weight: 9, level: inst.level });
   }
-  if (player.weapons.length < 6) {
+  if (player.weapons.length < MAX_WEAPONS) {
     for (const w of weaponPool()) if (!player.hasWeapon(w.id)) pool.push({ kind: 'weapon', id: w.id, def: w, weight: (w.weight ?? 5) * 0.8 });
   }
-  for (const a of eligibleAbilities(run)) pool.push({ kind: 'ability', id: a.id, def: a, weight: a.weight ?? 5 });
+  const atPassiveCap = (run.abilities || []).length >= MAX_PASSIVES;
+  for (const a of eligibleAbilities(run)) {
+    if (atPassiveCap && !(run.abilityLevels[a.id] > 0)) continue;   // at cap: only stack already-owned passives
+    pool.push({ kind: 'ability', id: a.id, def: a, weight: a.weight ?? 5 });
+  }
 
   // fusion: sacrifice a weapon to instantly max + evolve another (R8 / #8)
   if (player.weapons.length >= 2) {
