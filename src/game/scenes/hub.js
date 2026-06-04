@@ -1,0 +1,350 @@
+// Hub / camp scene: spend gold on permanent talents & facilities, choose a
+// loadout, then sortie. This is the meta-progression core.
+import { World, makeCamp, TS } from '../world.js';
+import { refs } from './refs.js';
+import { setScene } from '../scene.js';
+import { newRun, META, saveMeta, WEAPONS } from '../state.js';
+import { Talents, Facilities, Characters } from '../content/registry.js';
+import { TALENT_BRANCHES } from '../content/talents.js';
+import {
+  camera, uiText, uiRect, uiScale, view, drawSprite, drawShadow, drawSpriteUI,
+  worldToScreen, vignette, textWidth, glowWorld,
+} from '../../engine/renderer.js';
+import { getSprite, frameAt, iconOr } from '../../engine/sprites.js';
+import { moveAxis, pressed, mouse } from '../../engine/input.js';
+import { dist } from '../../engine/math.js';
+import { P, withAlpha } from '../../engine/palette.js';
+import { Sfx, Music } from '../../engine/audio.js';
+import { settingsUI } from '../ui/settings.js';
+
+const inside = (mx, my, r) => mx >= r.x && mx <= r.x + r.w && my >= r.y && my <= r.y + r.h;
+
+export const hubScene = {
+  enter() {
+    const CW = 34, CH = 22;
+    this.world = new World({});
+    this.world.loadMap(makeCamp(CW, CH));
+    const cx = this.world.pxW / 2, cy = this.world.pxH / 2;
+    this.hero = { x: cx, y: cy + 34, vx: 0, vy: 0, facing: 1, radius: 5, walkT: 0, moving: false };
+    camera.x = camera.targetX = cx; camera.y = camera.targetY = cy;
+    this.stations = [
+      { id: 'talents', sprite: 'hub_altar', label: '天賦祭壇', color: P.shardL, x: 8 * TS, y: cy },
+      { id: 'sortie', sprite: 'portal', label: '出擊傳送門', color: P.manaL, x: cx, y: 5 * TS },
+      { id: 'facilities', sprite: 'hub_forge', label: '設施工坊', color: P.emberL, x: (CW - 8) * TS, y: cy },
+    ];
+    this.panel = null; this.near = null; this.t = 0;
+    this.flash = ''; this.flashT = 0;
+    const ch = Characters.get(META.selectedCharacter || 'hunter');
+    this.heroSprite = ch ? ch.sprite : 'player';
+    Music.start('hub');
+  },
+
+  // ---- update --------------------------------------------------------------
+  update(dt) {
+    this.t += dt;
+    if (this.flashT > 0) this.flashT -= dt;
+    if (settingsUI.open) { settingsUI.update(); return; }
+    if (this.panel) { this.updatePanel(); return; }
+    if (pressed('escape')) { settingsUI.show(); return; }
+
+    const ax = moveAxis(); const h = this.hero;
+    h.moving = !!(ax.x || ax.y);
+    const sp = 92;
+    h.vx += (ax.x * sp - h.vx) * Math.min(1, 14 * dt);
+    h.vy += (ax.y * sp - h.vy) * Math.min(1, 14 * dt);
+    if (Math.abs(h.vx) > 2) h.facing = h.vx < 0 ? -1 : 1;
+    this.world.moveActor(h, h.vx * dt, h.vy * dt);
+    if (h.moving) h.walkT += dt;
+    camera.targetX = h.x; camera.targetY = h.y - 6;
+    this.world.particles.update(dt);
+
+    this.near = null; let bd = 30;
+    for (const s of this.stations) { const d = dist(h.x, h.y, s.x, s.y); if (d < bd) { bd = d; this.near = s; } }
+
+    let open = null;
+    if (this.near && (pressed('interact') || pressed('enter'))) open = this.near.id;
+    if (mouse.justDown) {
+      const mx = mouse.x * view.dpr, my = mouse.y * view.dpr;
+      for (const s of this.stations) { const ss = worldToScreen(s.x, s.y - 10); if (dist(mx, my, ss.x, ss.y) < 46 * view.dpr) open = s.id; }
+    }
+    if (pressed('slot1')) open = 'talents';
+    if (pressed('slot2')) open = 'facilities';
+    if (pressed('space')) open = 'sortie';
+    if (open) { this.panel = open; Sfx.play('uiClick'); }
+  },
+
+  feedback(msg) { this.flash = msg; this.flashT = 1.4; Sfx.play('buy'); },
+
+  updatePanel() {
+    if (pressed('escape') || pressed('map')) { this.panel = null; return; }
+    const mx = mouse.x * view.dpr, my = mouse.y * view.dpr;
+    const frame = this.panelFrame();
+    // close button / click outside
+    if (mouse.justDown) {
+      if (inside(mx, my, frame.close)) { this.panel = null; return; }
+      if (!inside(mx, my, frame)) { this.panel = null; return; }
+    }
+    if (this.panel === 'talents') this.updateTalents(mx, my);
+    else if (this.panel === 'facilities') this.updateFacilities(mx, my);
+    else if (this.panel === 'sortie') this.updateSortie(mx, my);
+  },
+
+  // ---- purchase logic ------------------------------------------------------
+  talentState(def) {
+    const cur = META.talents[def.id] || 0;
+    if (cur >= def.maxLevel) return 'max';
+    if (def.requires) for (const r of def.requires) if (!(META.talents[r] > 0)) return 'locked';
+    return META.gold >= def.cost(cur) ? 'ok' : 'poor';
+  },
+  buyTalent(def) {
+    if (this.talentState(def) !== 'ok') return;
+    const cur = META.talents[def.id] || 0;
+    META.gold -= def.cost(cur);
+    META.talents[def.id] = cur + 1;
+    saveMeta();
+    this.feedback(def.name + ' Lv.' + (cur + 1));
+  },
+  facilityState(def) {
+    const cur = META.facilities[def.id] || 0;
+    if (cur >= def.maxLevel) return 'max';
+    return META.gold >= def.cost(cur) ? 'ok' : 'poor';
+  },
+  buyFacility(def) {
+    if (this.facilityState(def) !== 'ok') return;
+    const cur = META.facilities[def.id] || 0;
+    META.gold -= def.cost(cur);
+    META.facilities[def.id] = cur + 1;
+    if (def.onPurchase) try { def.onPurchase(META, cur + 1); } catch (e) { /* ignore */ }
+    saveMeta();
+    this.feedback(def.name + ' Lv.' + (cur + 1));
+  },
+
+  // ---- layout --------------------------------------------------------------
+  panelFrame() {
+    const S = uiScale();
+    const pw = Math.min(view.W * 0.82, 880 * S);
+    const ph = Math.min(view.H * 0.84, 600 * S);
+    const x = (view.W - pw) / 2, y = (view.H - ph) / 2;
+    return { x, y, w: pw, h: ph, S, close: { x: x + pw - 38 * S, y: y + 10 * S, w: 28 * S, h: 28 * S } };
+  },
+
+  talentNodes() {
+    const f = this.panelFrame(); const S = f.S;
+    const cols = TALENT_BRANCHES.length; const colW = f.w / cols;
+    const nodes = [];
+    TALENT_BRANCHES.forEach((br, ci) => {
+      const list = Talents.filter((t) => t.branch === br.id).sort((a, b) => (a.row || 0) - (b.row || 0));
+      list.forEach((def, ri) => {
+        const nodeW = Math.min(colW - 22 * S, 168 * S);
+        const nodeH = 66 * S;
+        const x = f.x + ci * colW + (colW - nodeW) / 2;
+        const y = f.y + 84 * S + ri * (nodeH + 12 * S);
+        nodes.push({ def, x, y, w: nodeW, h: nodeH, color: br.color });
+      });
+    });
+    return { f, nodes };
+  },
+  updateTalents(mx, my) {
+    if (!mouse.justDown) return;
+    const { nodes } = this.talentNodes();
+    for (const n of nodes) if (inside(mx, my, n)) { this.buyTalent(n.def); return; }
+  },
+
+  facilityCards() {
+    const f = this.panelFrame(); const S = f.S;
+    const list = Facilities.all();
+    const cols = 3; const cardW = (f.w - 40 * S - (cols - 1) * 16 * S) / cols; const cardH = 92 * S;
+    const cards = list.map((def, i) => {
+      const c = i % cols, r = Math.floor(i / cols);
+      return { def, x: f.x + 20 * S + c * (cardW + 16 * S), y: f.y + 70 * S + r * (cardH + 14 * S), w: cardW, h: cardH };
+    });
+    return { f, cards };
+  },
+  updateFacilities(mx, my) {
+    if (!mouse.justDown) return;
+    const { cards } = this.facilityCards();
+    for (const c of cards) if (inside(mx, my, c)) { this.buyFacility(c.def); return; }
+  },
+
+  sortieLayout() {
+    const f = this.panelFrame(); const S = f.S;
+    const chars = Characters.all();
+    const cols = 3;
+    const cw = (f.w - 40 * S - (cols - 1) * 14 * S) / cols;
+    const chh = 116 * S;
+    const cards = chars.map((c, i) => ({ c, x: f.x + 20 * S + (i % cols) * (cw + 14 * S), y: f.y + 66 * S + Math.floor(i / cols) * (chh + 12 * S), w: cw, h: chh }));
+    const start = { x: f.x + f.w / 2 - 120 * S, y: f.y + f.h - 60 * S, w: 240 * S, h: 46 * S };
+    return { f, cards, start };
+  },
+  selectChar(c) {
+    if (META.unlocked.characters.includes(c.id)) { META.selectedCharacter = c.id; saveMeta(); Sfx.play('uiClick'); }
+    else if (c.unlock.type === 'gold') {
+      if (META.gold >= c.unlock.cost) { META.gold -= c.unlock.cost; META.unlocked.characters.push(c.id); META.selectedCharacter = c.id; saveMeta(); this.feedback('解鎖 ' + c.name); }
+      else this.feedback('金幣不足');
+    } else this.feedback(c.unlock.hint || '尚未解鎖');
+  },
+  updateSortie(mx, my) {
+    if (!mouse.justDown) return;
+    const { cards, start } = this.sortieLayout();
+    for (const card of cards) if (inside(mx, my, card)) { this.selectChar(card.c); return; }
+    if (inside(mx, my, start)) { Sfx.play('portal'); saveMeta(); setScene(refs.run, { run: newRun() }); }
+  },
+
+  // ---- render --------------------------------------------------------------
+  render() {
+    const S = uiScale();
+    this.world.draw();
+    // stations + hero
+    for (const s of this.stations) {
+      const sp = getSprite(s.sprite);
+      const bob = s.id === 'sortie' ? Math.sin(this.t * 2) : 0;
+      glowWorld(s.x, s.y - 8, 16, s.color, 0.16 + (this.near === s ? 0.14 : 0));
+      drawShadow(s.x, s.y, sp.w * 0.3);
+      drawSprite(frameAt(sp, this.t), s.x, s.y + bob, { ax: sp.ax, ay: sp.ay });
+    }
+    const h = this.hero; const psp = getSprite(this.heroSprite || 'player');
+    drawShadow(h.x, h.y, h.radius + 1.5);
+    drawSprite(h.moving ? frameAt(psp, h.walkT) : frameAt(psp, this.t * 0.4), h.x, h.y, { ax: psp.ax, ay: psp.ay, flipX: h.facing < 0 });
+    // station labels
+    for (const s of this.stations) {
+      const sp = getSprite(s.sprite);
+      const ss = worldToScreen(s.x, s.y - sp.h - 6);
+      uiText(s.label, ss.x, ss.y, { size: 13 * S, align: 'center', color: s.color, weight: '800' });
+      if (this.near === s) {
+        const sp2 = worldToScreen(s.x, s.y + 8);
+        uiText('按 E', sp2.x, sp2.y, { size: 12 * S, align: 'center', color: withAlpha('#fff', 0.6 + Math.sin(this.t * 6) * 0.3), weight: '800' });
+      }
+    }
+    this.world.particles.drawText();
+    vignette(0.45);
+
+    // top bar
+    uiText('城 鎮', view.W / 2, 28 * S, { size: 20 * S, align: 'center', color: '#fff', weight: '900' });
+    const csp = getSprite('coin');
+    drawSpriteUI(csp.frames[0], view.W - 110 * S, 12 * S, 2.2 * S);
+    uiText(String(META.gold), view.W - 84 * S, 30 * S, { size: 18 * S, color: P.goldL, weight: '800' });
+    uiText('1 天賦　2 設施　空白/走近傳送門 出擊　Esc 設定', view.W / 2, view.H - 16 * S, { size: 12 * S, align: 'center', color: P.gray3 });
+    if (this.flashT > 0) uiText(this.flash, view.W / 2, view.H * 0.8, { size: 18 * S, align: 'center', color: withAlpha(P.goldL, Math.min(1, this.flashT)), weight: '800' });
+
+    if (this.panel === 'talents') this.drawTalents();
+    else if (this.panel === 'facilities') this.drawFacilities();
+    else if (this.panel === 'sortie') this.drawSortie();
+    settingsUI.draw();
+  },
+
+  drawPanelFrame(title) {
+    const f = this.panelFrame(); const S = f.S;
+    uiRect(0, 0, view.W, view.H, withAlpha('#0b0d1a', 0.74));
+    uiRect(f.x, f.y, f.w, f.h, withAlpha('#161a30', 0.98), { radius: 12 * S, stroke: P.ink2, lw: 2 });
+    uiRect(f.x, f.y, f.w, 50 * S, withAlpha('#1f2542', 0.96), { radius: 12 * S });
+    uiText(title, f.x + 22 * S, f.y + 32 * S, { size: 20 * S, color: '#fff', weight: '900' });
+    const csp = getSprite('coin');
+    drawSpriteUI(csp.frames[0], f.x + f.w - 150 * S, f.y + 14 * S, 2 * S);
+    uiText(String(META.gold), f.x + f.w - 128 * S, f.y + 32 * S, { size: 17 * S, color: P.goldL, weight: '800' });
+    uiRect(f.close.x, f.close.y, f.close.w, f.close.h, withAlpha('#3a2030', 0.9), { radius: 6 * S, stroke: P.redD, lw: 2 });
+    uiText('✕', f.close.x + f.close.w / 2, f.close.y + f.close.h / 2 + 1 * S, { size: 16 * S, align: 'center', baseline: 'middle', color: P.redL, weight: '900' });
+    return f;
+  },
+
+  drawTalents() {
+    const f = this.drawPanelFrame('天 賦 樹');
+    const S = f.S;
+    const cols = TALENT_BRANCHES.length; const colW = f.w / cols;
+    TALENT_BRANCHES.forEach((br, ci) => {
+      uiText(br.name, f.x + ci * colW + colW / 2, f.y + 70 * S, { size: 15 * S, align: 'center', color: br.color, weight: '800' });
+    });
+    const mx = mouse.x * view.dpr, my = mouse.y * view.dpr;
+    const { nodes } = this.talentNodes();
+    for (const n of nodes) {
+      const def = n.def; const cur = META.talents[def.id] || 0; const st = this.talentState(def);
+      const hover = inside(mx, my, n);
+      const bg = st === 'max' ? '#1c2c1c' : st === 'locked' ? '#201622' : '#1b2138';
+      uiRect(n.x, n.y, n.w, n.h, withAlpha(bg, 0.96), { radius: 7 * S, stroke: hover && st === 'ok' ? n.color : P.ink2, lw: hover ? 3 : 2 });
+      const BRANCH_ICON = { offense: 'talent_t_damage', defense: 'talent_t_hp', utility: 'talent_t_speed', fortune: 'talent_t_gold' };
+      const isp = getSprite(iconOr(def.icon, BRANCH_ICON[def.branch] || 'talent_t_damage'));
+      drawSpriteUI(isp.frames[0], n.x + 6 * S, n.y + 6 * S, (26 * S) / isp.w);
+      uiText(def.name, n.x + 38 * S, n.y + 17 * S, { size: 12.5 * S, color: '#fff', weight: '800' });
+      this.clip1(def.desc, n.x + 38 * S, n.y + 31 * S, n.w - 44 * S, 10 * S, P.gray4);
+      // level pips
+      for (let i = 0; i < def.maxLevel; i++) {
+        uiRect(n.x + 40 * S + i * 9 * S, n.y + 42 * S, 7 * S, 5 * S, i < cur ? n.color : '#333a55', { radius: 1 });
+      }
+      const label = st === 'max' ? '已滿級' : st === 'locked' ? '需先解鎖前置' : (def.cost(cur) + ' 金幣');
+      const col = st === 'max' ? P.greenL : st === 'locked' ? P.gray3 : st === 'poor' ? P.redL : P.goldL;
+      uiText(label, n.x + n.w - 8 * S, n.y + n.h - 9 * S, { size: 11 * S, align: 'right', color: col, weight: '800' });
+    }
+    uiText('點擊節點花費金幣升級　·　Esc 關閉', f.x + f.w / 2, f.y + f.h - 14 * S, { size: 11 * S, align: 'center', color: P.gray3 });
+  },
+
+  drawFacilities() {
+    const f = this.drawPanelFrame('營 地 設 施');
+    const S = f.S;
+    const mx = mouse.x * view.dpr, my = mouse.y * view.dpr;
+    const { cards } = this.facilityCards();
+    for (const c of cards) {
+      const def = c.def; const cur = META.facilities[def.id] || 0; const st = this.facilityState(def);
+      const hover = inside(mx, my, c);
+      uiRect(c.x, c.y, c.w, c.h, withAlpha('#1b2138', 0.96), { radius: 7 * S, stroke: hover && st === 'ok' ? P.emberL : P.ink2, lw: hover ? 3 : 2 });
+      const isp = getSprite(iconOr(def.icon, 'facility_f_forge'));
+      drawSpriteUI(isp.frames[0], c.x + 8 * S, c.y + 8 * S, (30 * S) / isp.w);
+      this.clip1(def.name, c.x + 46 * S, c.y + 20 * S, c.w - 92 * S, 13 * S, '#fff', '800');
+      uiText('Lv.' + cur + '/' + def.maxLevel, c.x + c.w - 9 * S, c.y + 20 * S, { size: 11 * S, align: 'right', color: P.emberL, weight: '800' });
+      this.wrap(def.desc, c.x + 10 * S, c.y + 42 * S, c.w - 20 * S, 10.5 * S);
+      const label = st === 'max' ? '已滿級' : (def.cost(cur) + ' 金幣');
+      const col = st === 'max' ? P.greenL : st === 'poor' ? P.redL : P.goldL;
+      uiText(label, c.x + c.w - 10 * S, c.y + c.h - 10 * S, { size: 12 * S, align: 'right', color: col, weight: '800' });
+    }
+    uiText('點擊設施花費金幣建造/升級　·　Esc 關閉', f.x + f.w / 2, f.y + f.h - 14 * S, { size: 11 * S, align: 'center', color: P.gray3 });
+  },
+
+  drawSortie() {
+    const f = this.drawPanelFrame('選 擇 角 色 · 出 擊');
+    const S = f.S;
+    const mx = mouse.x * view.dpr, my = mouse.y * view.dpr;
+    const { cards, start } = this.sortieLayout();
+    for (const card of cards) {
+      const c = card.c;
+      const unlocked = META.unlocked.characters.includes(c.id);
+      const selected = META.selectedCharacter === c.id;
+      const hover = inside(mx, my, card);
+      uiRect(card.x, card.y, card.w, card.h, withAlpha(selected ? '#243a5a' : unlocked ? '#1b2138' : '#201622', 0.96), { radius: 7 * S, stroke: selected ? P.shardL : (hover ? P.gray3 : P.ink2), lw: selected ? 3 : 2 });
+      const sp = getSprite(c.sprite); const sc = 3 * S;
+      drawSpriteUI(sp.frames[0], card.x + card.w / 2 - sp.w * sc / 2, card.y + 8 * S, sc, { alpha: unlocked ? 1 : 0.3 });
+      uiText(c.name, card.x + card.w / 2, card.y + 66 * S, { size: 13 * S, align: 'center', color: unlocked ? '#fff' : P.gray3, weight: '800' });
+      // centered wrapped description
+      this.centerWrap(c.desc, card.x + card.w / 2, card.y + 80 * S, card.w - 14 * S, 9.5 * S, unlocked ? P.gray4 : P.gray2);
+      if (!unlocked) {
+        const label = c.unlock.type === 'gold' ? (c.unlock.cost + ' 金幣 解鎖') : (c.unlock.hint || '未解鎖');
+        const afford = c.unlock.type === 'gold' && META.gold >= c.unlock.cost;
+        uiText('🔒 ' + label, card.x + card.w / 2, card.y + card.h - 9 * S, { size: 10 * S, align: 'center', color: afford ? P.goldL : P.gray3, weight: '700' });
+      } else if (selected) uiText('● 已選擇', card.x + card.w / 2, card.y + card.h - 9 * S, { size: 10 * S, align: 'center', color: P.shardL, weight: '800' });
+    }
+    const hoverStart = inside(mx, my, start);
+    uiRect(start.x, start.y, start.w, start.h, withAlpha(hoverStart ? '#2a6a3a' : '#1f5030', 0.98), { radius: 9 * S, stroke: P.greenL, lw: hoverStart ? 3 : 2 });
+    uiText('出 擊 狩 獵', start.x + start.w / 2, start.y + start.h / 2 + 1 * S, { size: 19 * S, align: 'center', baseline: 'middle', color: '#fff', weight: '900' });
+  },
+
+  centerWrap(str, cx, y, maxw, size, color) {
+    const lines = []; let line = '';
+    for (const ch of str) { if (textWidth(line + ch, size, '600') > maxw && line) { lines.push(line); line = ch; } else line += ch; }
+    if (line) lines.push(line);
+    lines.slice(0, 3).forEach((l, i) => uiText(l, cx, y + i * (size + 2), { size, align: 'center', color: color || P.gray4, weight: '600' }));
+  },
+
+  clip1(str, x, y, maxw, size, color, weight) {
+    let s = str;
+    while (s.length > 1 && textWidth(s, size, weight || '600') > maxw) s = s.slice(0, -1);
+    if (s.length < str.length && s.length > 1) s = s.slice(0, -1) + '…';
+    uiText(s, x, y, { size, color: color || P.gray4, weight: weight || '600' });
+  },
+  wrap(str, x, y, maxw, size) {
+    let line = '', yy = y;
+    for (const ch of str) {
+      if (textWidth(line + ch, size, '600') > maxw && line) { uiText(line, x, yy, { size, color: P.gray4 }); line = ch; yy += size + 2; }
+      else line += ch;
+    }
+    if (line) uiText(line, x, yy, { size, color: P.gray4 });
+  },
+};
+
+refs.hub = hubScene;

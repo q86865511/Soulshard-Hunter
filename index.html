@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>魂晶獵手 · Soulshard Hunter</title>
+  <style>
+    :root { --bg: #0b0d1a; }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body {
+      width: 100%; height: 100%; overflow: hidden;
+      background: var(--bg);
+      font-family: "Segoe UI", "Microsoft JhengHei", system-ui, sans-serif;
+      color: #e8e8f0;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    #stage {
+      position: fixed; inset: 0;
+      display: flex; align-items: center; justify-content: center;
+      background:
+        radial-gradient(circle at 50% 35%, #181b33 0%, #0b0d1a 70%);
+    }
+    canvas#game {
+      image-rendering: pixelated;
+      image-rendering: crisp-edges;
+      background: #0b0d1a;
+      box-shadow: 0 0 0 2px #2a2f50, 0 18px 60px rgba(0,0,0,0.6);
+      touch-action: none;
+      cursor: crosshair;
+    }
+    #loading {
+      position: fixed; inset: 0; display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: 14px;
+      background: var(--bg); z-index: 50; transition: opacity .4s;
+    }
+    #loading .title { font-size: 28px; letter-spacing: 6px; color: #ffd479; }
+    #loading .bar { width: 220px; height: 8px; background: #1c2040; border-radius: 4px; overflow: hidden; }
+    #loading .bar > i { display:block; height:100%; width:0%; background: linear-gradient(90deg,#ffb142,#ffd479); transition: width .2s; }
+    #loading .hint { font-size: 12px; color: #6b7099; letter-spacing: 2px; }
+    #fatal { position: fixed; inset: 0; display:none; flex-direction:column; gap:10px; align-items:center; justify-content:center;
+      background:#160a0a; color:#ff8a8a; font-family: monospace; padding: 24px; text-align:center; z-index:99; }
+    #fatal pre { max-width: 90vw; overflow:auto; text-align:left; color:#ffcaca; font-size:12px; }
+  </style>
+</head>
+<body>
+  <div id="stage">
+    <canvas id="game"></canvas>
+  </div>
+  <div id="loading">
+    <div class="title">魂晶獵手</div>
+    <div class="bar"><i id="loadbar"></i></div>
+    <div class="hint">SOULSHARD HUNTER · loading…</div>
+  </div>
+  <div id="fatal"><div>⚠ 發生錯誤</div><pre id="fatalmsg"></pre></div>
+  <script>
+    // Surface uncaught errors visibly so self-testing can detect failures.
+    window.addEventListener('error', (e) => {
+      const f = document.getElementById('fatal');
+      const m = document.getElementById('fatalmsg');
+      if (f && m) { f.style.display = 'flex'; m.textContent = (e.error && e.error.stack) || e.message || String(e); }
+      window.__GAME_ERROR__ = (e.error && e.error.stack) || e.message || String(e);
+    });
+    window.addEventListener('unhandledrejection', (e) => {
+      window.__GAME_ERROR__ = String(e.reason && (e.reason.stack || e.reason));
+    });
+  </script>
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>

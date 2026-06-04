@@ -1,0 +1,19 @@
+# dependencies (none required — game is dependency-free)
+node_modules/
+
+# OS / editor cruft
+.DS_Store
+Thumbs.db
+*.log
+
+# workflow scratch / intermediate generation artifacts
+.gen_*
+.tmp_gen*
+.tmp_gen/
+.review_*
+gen_characters.js
+tools/_scratch_*
+tools/_integrate_scratch.mjs
+
+# local-only Claude harness files
+.claude/settings.local.json
