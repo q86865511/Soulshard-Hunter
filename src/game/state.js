@@ -2,6 +2,7 @@
 import { P } from '../engine/palette.js';
 import { Talents, Facilities, Characters } from './content/registry.js';
 import { checkCharacterUnlocks } from './content/characters.js';
+import { checkAchievements } from './content/achievements.js';
 import { Audio } from '../engine/audio.js';
 import { setShakeEnabled } from '../engine/renderer.js';
 
@@ -14,8 +15,9 @@ const DEFAULT_META = () => ({
   unlocked: { abilities: [], equipment: [], weapons: ['wand'], characters: ['hunter'] },
   loadoutWeapon: 'wand',
   selectedCharacter: 'hunter',
-  stats: { runs: 0, kills: 0, bestFloor: 0, bestStage: 0, bestScore: 0, deaths: 0, totalGold: 0, history: [] },
+  stats: { runs: 0, kills: 0, bestFloor: 0, bestStage: 0, bestScore: 0, bestTime: 0, bossKills: 0, deaths: 0, totalGold: 0, history: [] },
   settings: { master: 0.9, sfx: 0.75, music: 0.5, shake: true, muted: false },
+  achievements: [],      // unlocked achievement ids
   flags: {},
 });
 
@@ -80,7 +82,7 @@ export function newRun() {
   const run = {
     floor: 1, stage: 1, depth: 1, time: 0,
     gold: 0, goldEarned: 0, shards: 0,
-    level: 1, xp: 0, xpNext: 20, kills: 0, score: 0,
+    level: 1, xp: 0, xpNext: 20, kills: 0, score: 0, bossKills: 0,
     stats: makeBaseStats(),
     characterId: char ? char.id : 'hunter',
     characterSprite: char ? char.sprite : 'player',
@@ -118,11 +120,14 @@ export function bankRun(run) {
   META.stats.kills += run.kills;
   META.stats.totalGold += run.gold;
   META.stats.bestFloor = Math.max(META.stats.bestFloor, run.floor);
+  META.stats.bestTime = Math.max(META.stats.bestTime || 0, Math.floor(run.time || 0));
+  META.stats.bossKills = (META.stats.bossKills || 0) + (run.bossKills || 0);
   META.stats.deaths += 1;
   META.stats.history = META.stats.history || [];
   META.stats.history.push({ score: run.score || 0, stage: run.stage || run.floor || 1, kills: run.kills || 0, char: run.characterId || 'hunter' });
   META.stats.history.sort((a, b) => b.score - a.score);
   META.stats.history = META.stats.history.slice(0, 10);
   try { checkCharacterUnlocks(META); } catch (e) { /* ignore */ }
+  try { checkAchievements(META); } catch (e) { /* ignore */ }
   saveMeta();
 }

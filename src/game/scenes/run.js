@@ -140,6 +140,7 @@ export const runScene = {
   },
   onBossDead(e) {
     this.boss = false; this.bossDead = true; this.bossRef = null;
+    this.run.bossKills = (this.run.bossKills || 0) + 1;
     this.nextBossAt = this.run.time + 140 + rng.next() * 40;
     this.banner = '擊敗首領！'; this.bannerT = 2.6; addShake(6);
     this.world.addPickup('heart', this.player.x, this.player.y, 28);

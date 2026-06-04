@@ -6,6 +6,7 @@ import { setScene } from '../scene.js';
 import { newRun, META, saveMeta, WEAPONS } from '../state.js';
 import { Talents, Facilities, Characters } from '../content/registry.js';
 import { TALENT_BRANCHES } from '../content/talents.js';
+import { ACHIEVEMENTS, achievementProgress } from '../content/achievements.js';
 import {
   camera, uiText, uiRect, uiScale, view, drawSprite, drawShadow, drawSpriteUI,
   worldToScreen, vignette, textWidth, glowWorld,
@@ -69,6 +70,7 @@ export const hubScene = {
     }
     if (pressed('slot1')) open = 'talents';
     if (pressed('slot2')) open = 'facilities';
+    if (pressed('slot3')) open = 'achievements';
     if (pressed('space')) open = 'sortie';
     if (open) { this.panel = open; Sfx.play('uiClick'); }
   },
@@ -223,12 +225,13 @@ export const hubScene = {
     const csp = getSprite('coin');
     drawSpriteUI(csp.frames[0], view.W - 110 * S, 12 * S, 2.2 * S);
     uiText(String(META.gold), view.W - 84 * S, 30 * S, { size: 18 * S, color: P.goldL, weight: '800' });
-    uiText('1 天賦　2 設施　空白/走近傳送門 出擊　Esc 設定', view.W / 2, view.H - 16 * S, { size: 12 * S, align: 'center', color: P.gray3 });
+    uiText('1 天賦　2 設施　3 成就　空白/走近傳送門 出擊　Esc 設定', view.W / 2, view.H - 16 * S, { size: 12 * S, align: 'center', color: P.gray3 });
     if (this.flashT > 0) uiText(this.flash, view.W / 2, view.H * 0.8, { size: 18 * S, align: 'center', color: withAlpha(P.goldL, Math.min(1, this.flashT)), weight: '800' });
 
     if (this.panel === 'talents') this.drawTalents();
     else if (this.panel === 'facilities') this.drawFacilities();
     else if (this.panel === 'sortie') this.drawSortie();
+    else if (this.panel === 'achievements') this.drawAchievements();
     settingsUI.draw();
   },
 
@@ -322,6 +325,28 @@ export const hubScene = {
     const hoverStart = inside(mx, my, start);
     uiRect(start.x, start.y, start.w, start.h, withAlpha(hoverStart ? '#2a6a3a' : '#1f5030', 0.98), { radius: 9 * S, stroke: P.greenL, lw: hoverStart ? 3 : 2 });
     uiText('出 擊 狩 獵', start.x + start.w / 2, start.y + start.h / 2 + 1 * S, { size: 19 * S, align: 'center', baseline: 'middle', color: '#fff', weight: '900' });
+  },
+
+  drawAchievements() {
+    const f = this.drawPanelFrame('成 就 殿 堂');
+    const S = f.S;
+    const cols = 2;
+    const cardW = (f.w - 40 * S - (cols - 1) * 14 * S) / cols, cardH = 54 * S;
+    const got = META.achievements || [];
+    ACHIEVEMENTS.forEach((a, i) => {
+      const c = i % cols, r = Math.floor(i / cols);
+      const x = f.x + 20 * S + c * (cardW + 14 * S), y = f.y + 72 * S + r * (cardH + 9 * S);
+      if (y + cardH > f.y + f.h - 30 * S) return;
+      const done = got.includes(a.id);
+      const name = (a.hidden && !done) ? '？？？' : (a.realName || a.name);
+      const desc = (a.hidden && !done) ? '隱藏成就 — 達成後揭曉' : a.desc;
+      uiRect(x, y, cardW, cardH, withAlpha(done ? '#1d2c1d' : '#1b2138', 0.96), { radius: 7 * S, stroke: done ? P.goldL : P.ink2, lw: 2 });
+      uiText(done ? '★' : '☆', x + 12 * S, y + 23 * S, { size: 17 * S, color: done ? P.goldL : P.gray2, weight: '900' });
+      uiText(name, x + 34 * S, y + 20 * S, { size: 12.5 * S, color: done ? '#fff' : P.gray3, weight: '800' });
+      this.clip1(desc, x + 34 * S, y + 38 * S, cardW - 42 * S, 10 * S, done ? P.gray4 : P.gray2);
+    });
+    const prog = achievementProgress(META);
+    uiText(`已解鎖 ${prog.unlocked} / ${prog.total}　·　Esc 關閉`, f.x + f.w / 2, f.y + f.h - 14 * S, { size: 12 * S, align: 'center', color: P.goldL, weight: '700' });
   },
 
   centerWrap(str, cx, y, maxw, size, color) {

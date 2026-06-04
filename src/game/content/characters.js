@@ -45,15 +45,24 @@ for (const c of Characters.all()) {
 }
 
 // unlock achievement-gated characters based on lifetime stats
+// data-driven condition matcher: reach_stage_N / kills_N / survive_N / bosses_N
+function meetsCondition(cond, s) {
+  if (!cond) return false;
+  let m;
+  if ((m = /^reach_stage_(\d+)$/.exec(cond))) return (s.bestStage || 0) >= +m[1];
+  if ((m = /^kills_(\d+)$/.exec(cond))) return (s.kills || 0) >= +m[1];
+  if ((m = /^survive_(\d+)$/.exec(cond))) return (s.bestTime || 0) >= +m[1];
+  if ((m = /^bosses_(\d+)$/.exec(cond))) return (s.bossKills || 0) >= +m[1];
+  return false;
+}
+
 export function checkCharacterUnlocks(META) {
   const got = META.unlocked.characters;
-  const add = (id) => { if (!got.includes(id)) { got.push(id); return true; } return false; };
+  const s = META.stats || {};
   let unlocked = null;
   for (const c of Characters.all()) {
-    if (c.unlock.type !== 'achievement' || got.includes(c.id)) continue;
-    const cond = c.unlock.condition;
-    if (cond === 'reach_stage_5' && (META.stats.bestStage || 0) >= 5) { if (add(c.id)) unlocked = c; }
-    if (cond === 'kills_2000' && (META.stats.kills || 0) >= 2000) { if (add(c.id)) unlocked = c; }
+    if (!c.unlock || c.unlock.type !== 'achievement' || got.includes(c.id)) continue;
+    if (meetsCondition(c.unlock.condition, s)) { got.push(c.id); unlocked = c; }
   }
   return unlocked;
 }
