@@ -133,7 +133,7 @@ export class World {
   dropLoot(e) {
     const floor = this.run.floor || 1;
     const gMul = this.player?.stats?.goldMult ?? 1;
-    let gold = Math.round((e.gold || 0) * (1 + floor * 0.12) * gMul);
+    let gold = Math.round((e.gold || 0) * (1 + floor * 0.08) * gMul * 0.62);
     // scatter into a few coins
     let coins = clamp(Math.round(gold / 3), 1, 5);
     for (let i = 0; i < coins; i++) this.addPickup('gold', e.x, e.y, Math.ceil(gold / coins));

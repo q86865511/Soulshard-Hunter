@@ -205,6 +205,7 @@ export const runScene = {
     META.levels.diff = META.levels.diff || {};
     META.levels.diff[bid] = Math.max(META.levels.diff[bid] || 0, this.run.difficulty || 1);
     if (idx >= 0) META.levels.unlocked = Math.max(META.levels.unlocked || 1, Math.min(BIOMES.length, idx + 2));
+    this.run.gold += 220 + (this.run.difficulty || 1) * 160 + this.threat * 18;   // clearing rewards meta progress
     this.run.score = Math.floor(this.run.kills * 12 + this.run.stage * 400 + this.run.time + (this.run.difficulty || 1) * 600);
     META.stats.bestStage = Math.max(META.stats.bestStage || 0, this.run.stage);
     META.stats.bestScore = Math.max(META.stats.bestScore || 0, this.run.score);
@@ -583,10 +584,11 @@ export const runScene = {
     const hover = inside(mx, my, c);
     if (kind === 'gear') {
       const o = c.offer; const afford = this.run.shards >= o.price;
-      uiRect(c.x, c.y, c.w, c.h, withAlpha(o.bought ? '#1c2c1c' : '#1b2138', 0.96), { radius: 7 * S, stroke: hover && !o.bought ? P.goldL : P.ink2, lw: hover ? 3 : 2 });
+      const rar = (o.def.tier || 1) >= 3 ? P.goldL : (o.def.tier || 1) === 2 ? P.purpleL : P.shardL;
+      uiRect(c.x, c.y, c.w, c.h, withAlpha(o.bought ? '#1c2c1c' : '#1b2138', 0.96), { radius: 7 * S, stroke: o.bought ? P.ink2 : hover ? rar : withAlpha(rar, 0.55), lw: hover ? 3 : 2 });
       const sp = getSprite(iconOr(o.def.icon, 'equip_leather_armor'));
       drawSpriteUI(sp.frames[0], c.x + 6 * S, c.y + 6 * S, (26 * S) / sp.w);
-      uiText(o.def.name, c.x + 38 * S, c.y + 18 * S, { size: 12 * S, color: '#fff', weight: '800' });
+      uiText(o.def.name, c.x + 38 * S, c.y + 18 * S, { size: 12 * S, color: o.bought ? P.gray3 : rar, weight: '800' });
       this.clipShop(o.def.desc || '', c.x + 38 * S, c.y + 32 * S, c.w - 46 * S, 10 * S);
       uiText(o.bought ? '已購買' : ('魂晶 ' + o.price), c.x + c.w - 8 * S, c.y + c.h - 7 * S, { size: 11 * S, align: 'right', color: o.bought ? P.greenL : afford ? P.shardL : P.redL, weight: '800' });
     } else {
@@ -719,11 +721,12 @@ export const runScene = {
     uiText('點擊 / 空白鍵 返回城鎮', cx, view.H * 0.84, { size: 16 * S, align: 'center', color: withAlpha('#ffd479', 0.5 + blink * 0.5), weight: '700' });
   },
 
-  wrapText(str, cx, y, maxw, size) {
+  wrapText(str, cx, y, maxw, size, color = '#c8cfe8') {
     const lines = []; let line = '';
     for (const ch of str) { if (textWidth(line + ch, size, '600') > maxw && line) { lines.push(line); line = ch; } else line += ch; }
     if (line) lines.push(line);
-    lines.forEach((l, i) => uiText(l, cx, y + i * (size + 3), { size, align: 'center', color: '#c8cfe8', weight: '600' }));
+    lines.forEach((l, i) => uiText(l, cx, y + i * (size + 3), { size, align: 'center', color, weight: '600' }));
+    return lines.length;
   },
 
   drawChoice() {
@@ -734,16 +737,21 @@ export const runScene = {
     uiText('（點擊卡片或按 1 / 2 / 3）', view.W / 2, rects[0].y - 6 * S, { size: 12 * S, align: 'center', color: P.gray3 });
     rects.forEach((r, i) => {
       const c = this.choice.options[i]; const st = choiceStyle(c); const hover = this.choice.hover === i;
-      const oy = hover ? -7 * S : 0;
+      const oy = hover ? -8 * S : 0;
       uiRect(r.x, r.y + oy, r.w, r.h, withAlpha(st.bg, 0.97), { radius: 9 * S, stroke: hover ? st.accent : P.ink2, lw: hover ? 3 : 2 });
-      if (hover) uiRect(r.x, r.y + oy, r.w, 4 * S, st.accent, { radius: 2 * S });
-      const sp = getSprite(iconOr(st.icon, c.kind === 'ability' ? 'ability_power' : 'weapon_w_soulbolt')); const isc = (r.w * 0.44) / sp.w;
-      drawSpriteUI(sp.frames[0], r.x + r.w / 2 - sp.w * isc / 2, r.y + oy + 16 * S, isc);
-      const midY = r.y + oy + 16 * S + sp.h * isc;
-      uiText(st.sub, r.x + r.w / 2, midY + 14 * S, { size: 11 * S, align: 'center', color: st.accent, weight: '800' });
-      uiText(c.def.name, r.x + r.w / 2, midY + 34 * S, { size: 16 * S, align: 'center', color: '#fff', weight: '800' });
-      this.wrapText(st.desc || '', r.x + r.w / 2, midY + 54 * S, r.w - 22 * S, 12.5 * S);
-      uiText(String(i + 1), r.x + 11 * S, r.y + oy + 20 * S, { size: 14 * S, color: withAlpha('#fff', 0.45), weight: '900' });
+      uiRect(r.x, r.y + oy, r.w, 5 * S, st.accent, { radius: 2 * S });   // rarity bar (always)
+      const pw = textWidth(st.tag, 10 * S, '800') + 14 * S;              // rarity pill
+      uiRect(r.x + r.w - pw - 8 * S, r.y + oy + 10 * S, pw, 16 * S, withAlpha(st.accent, 0.2), { radius: 8 * S, stroke: st.accent, lw: 1 });
+      uiText(st.tag, r.x + r.w - pw / 2 - 8 * S, r.y + oy + 18 * S, { size: 10 * S, align: 'center', baseline: 'middle', color: st.accent, weight: '800' });
+      const sp = getSprite(iconOr(st.icon, c.kind === 'ability' ? 'ability_power' : 'weapon_w_soulbolt')); const isc = (r.w * 0.42) / sp.w;
+      drawSpriteUI(sp.frames[0], r.x + r.w / 2 - sp.w * isc / 2, r.y + oy + 20 * S, isc);
+      const midY = r.y + oy + 20 * S + sp.h * isc;
+      uiText(st.sub, r.x + r.w / 2, midY + 12 * S, { size: 11 * S, align: 'center', color: st.accent, weight: '800' });
+      uiText(c.def.name, r.x + r.w / 2, midY + 31 * S, { size: 15.5 * S, align: 'center', color: '#fff', weight: '800' });
+      let dy = midY + 49 * S;
+      if (st.effect) { const n = this.wrapText(st.effect, r.x + r.w / 2, dy, r.w - 22 * S, 12 * S, P.emberL); dy += n * (12 * S + 3) + 5 * S; }
+      this.wrapText(st.desc || '', r.x + r.w / 2, dy, r.w - 22 * S, 11.5 * S, P.gray4);
+      uiText(String(i + 1), r.x + 11 * S, r.y + oy + 22 * S, { size: 14 * S, color: withAlpha('#fff', 0.45), weight: '900' });
     });
   },
 };

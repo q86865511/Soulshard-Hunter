@@ -7,8 +7,8 @@ import { rng } from '../../engine/math.js';
 const A = (o) => Abilities.register(o);
 
 // ---- tier 1 (common, stat boosts) -----------------------------------------
-A({ id: 'power', name: '力量結晶', tier: 1, weight: 10, maxStacks: 8, desc: '傷害 +18%', apply: (p) => p.stats.damageMult *= 1.18 });
-A({ id: 'haste', name: '迅捷符文', tier: 1, weight: 10, maxStacks: 8, desc: '射速 +14%', apply: (p) => p.stats.fireRateMult *= 1.14 });
+A({ id: 'power', name: '力量結晶', tier: 1, weight: 10, maxStacks: 8, desc: '傷害 +15%', apply: (p) => p.stats.damageMult *= 1.15 });
+A({ id: 'haste', name: '迅捷符文', tier: 1, weight: 10, maxStacks: 8, desc: '射速 +12%', apply: (p) => p.stats.fireRateMult *= 1.12 });
 A({ id: 'swift', name: '疾風之靴', tier: 1, weight: 9, maxStacks: 6, desc: '移動速度 +10%', apply: (p) => p.stats.speed *= 1.10 });
 A({ id: 'vitality', name: '生命寶石', tier: 1, weight: 8, maxStacks: 8, desc: '生命上限 +16 並回復', apply: (p) => { p.stats.maxHp += 16; p.heal(16); } });
 A({ id: 'crit', name: '銳利之眼', tier: 1, weight: 8, maxStacks: 6, desc: '暴擊率 +7%', apply: (p) => p.stats.critChance += 0.07 });
@@ -72,11 +72,23 @@ A({
     });
   },
 });
-A({ id: 'overload', name: '過載核心', tier: 3, weight: 3, maxStacks: 3, desc: '射速 +25%、傷害 +10%', apply: (p) => { p.stats.fireRateMult *= 1.25; p.stats.damageMult *= 1.10; } });
+A({ id: 'overload', name: '過載核心', tier: 3, weight: 3, maxStacks: 3, desc: '射速 +18%、傷害 +8%', apply: (p) => { p.stats.fireRateMult *= 1.18; p.stats.damageMult *= 1.08; } });
 A({
   id: 'glasscannon', name: '玻璃大砲', tier: 3, weight: 2, maxStacks: 1, desc: '傷害 +45%，但生命上限 -25%',
   apply: (p) => { p.stats.damageMult *= 1.45; p.stats.maxHp = Math.round(p.stats.maxHp * 0.75); p.hp = Math.min(p.hp, p.stats.maxHp); },
 });
+
+// ---- cursed (strong, but with a price — the curse system) ------------------
+A({ id: 'curse_bloodpact', name: '血之契約', tier: 3, weight: 3, maxStacks: 2, cursed: true, desc: '傷害 +35%，但生命上限 -18%',
+  apply: (p) => { p.stats.damageMult *= 1.35; p.stats.maxHp = Math.round(p.stats.maxHp * 0.82); p.hp = Math.min(p.hp, p.stats.maxHp); } });
+A({ id: 'curse_frenzy', name: '狂亂咒印', tier: 3, weight: 3, maxStacks: 2, cursed: true, desc: '射速 +30%，但減傷 -3',
+  apply: (p) => { p.stats.fireRateMult *= 1.30; p.stats.defense -= 3; } });
+A({ id: 'curse_titan', name: '巨力詛咒', tier: 3, weight: 2, maxStacks: 2, cursed: true, desc: '傷害 +50%，但移速 -15%',
+  apply: (p) => { p.stats.damageMult *= 1.50; p.stats.speed *= 0.85; } });
+A({ id: 'curse_glasssoul', name: '琉璃魂', tier: 3, weight: 2, maxStacks: 1, cursed: true, desc: '暴擊 +20%、暴傷 +0.5，但閃避歸零、生命 -10%',
+  apply: (p) => { p.stats.critChance += 0.20; p.stats.critMult += 0.5; p.stats.dodge = 0; p.stats.maxHp = Math.round(p.stats.maxHp * 0.9); p.hp = Math.min(p.hp, p.stats.maxHp); } });
+A({ id: 'curse_greedpact', name: '貪婪之約', tier: 2, weight: 3, maxStacks: 2, cursed: true, desc: '金幣/魂晶 +40%，但受到傷害 +10%',
+  apply: (p) => { p.stats.goldMult *= 1.4; p.stats.shardMult = (p.stats.shardMult || 1) * 1.4; p.stats.armorMult = (p.stats.armorMult || 0) - 0.10; } });
 
 // ---- helpers ---------------------------------------------------------------
 export function getAbilityChoices(run, n = 3) {

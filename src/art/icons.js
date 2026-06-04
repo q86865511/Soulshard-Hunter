@@ -65,4 +65,11 @@ defineIcon('ability_thorns', P.greenD, (p) => sym.spikes(p, P.bone));
 defineIcon('ability_dash', P.blueD, (p) => { p.hline(3, 10, 8, P.iceD); p.line(8, 5, 12, 8, P.ice); p.line(8, 11, 12, 8, P.ice); });
 defineIcon('ability_luck', P.greenD, (p) => sym.star(p, P.greenL));
 
+// cursed abilities — dark crimson panel + an ominous mark
+defineIcon('ability_curse_bloodpact', '#2a0e16', (p) => { sym.drop(p, P.red); p.px(8, 4, P.redL); p.ring(8, 8, 5, P.blood); });
+defineIcon('ability_curse_frenzy', '#2a0e16', (p) => { sym.bolt(p, P.redL); p.ring(8, 8, 5, P.blood); });
+defineIcon('ability_curse_titan', '#2a0e16', (p) => { sym.sword(p); p.vline(3, 12, 8, P.redD); });
+defineIcon('ability_curse_glasssoul', '#2a0e16', (p) => { sym.shardSym(p, P.redL); p.line(7, 4, 9, 12, P.ink); });
+defineIcon('ability_curse_greedpact', '#2a0e16', (p) => { sym.coin(p); p.px(8, 3, P.red); p.ring(8, 8, 5, P.blood); });
+
 export const ICONS_READY = true;

@@ -60,6 +60,21 @@ export class Player {
       if (world) { world.particles.ring(this.x, this.y, P.goldL, 24, 140); world.particles.text(this.x, this.y - 20, '武器進化！', { color: P.goldL, size: 16, life: 1.2 }); Sfx.play('levelup'); }
     }
   }
+  // fusion: sacrifice one weapon to instantly max + force-evolve another (#8)
+  fuseWeapons(target, sacrifice, world) {
+    if (!target || !sacrifice || target === sacrifice) return;
+    if (!this.weapons.includes(target) || !this.weapons.includes(sacrifice)) return;
+    this.weapons = this.weapons.filter((w) => w !== sacrifice);
+    target.level = target.def.maxLevel || 8;
+    const d = target.def;
+    if (d.evolveInto) {
+      this.weapons = this.weapons.filter((w) => w !== target);
+      const evo = Weapons.get(d.evolveInto);
+      this.weapons.push(evo ? { def: evo, level: 1, t: 0, st: {} } : target);
+    }
+    if (world) { world.particles.ring(this.x, this.y, P.goldL, 28, 160); world.particles.text(this.x, this.y - 20, '武器融合！', { color: P.goldL, size: 16, life: 1.3 }); Sfx.play('levelup'); }
+  }
+
   updateWeapons(dt, world) {
     const haste = (this.stats.fireRateMult || 1) * (world.playerTempo || 1);
     for (const inst of this.weapons) {
