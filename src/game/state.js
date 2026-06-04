@@ -18,6 +18,7 @@ const DEFAULT_META = () => ({
   stats: { runs: 0, kills: 0, bestFloor: 0, bestStage: 0, bestScore: 0, bestTime: 0, bossKills: 0, deaths: 0, totalGold: 0, history: [] },
   settings: { master: 0.9, sfx: 0.75, music: 0.5, shake: true, muted: false },
   achievements: [],      // unlocked achievement ids
+  questIndex: 0,         // current story-quest chapter
   flags: {},
 });
 

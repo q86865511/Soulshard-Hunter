@@ -7,9 +7,10 @@ import { newRun, META, saveMeta, WEAPONS } from '../state.js';
 import { Talents, Facilities, Characters } from '../content/registry.js';
 import { TALENT_BRANCHES } from '../content/talents.js';
 import { ACHIEVEMENTS, achievementProgress } from '../content/achievements.js';
+import { STORY_QUESTS, chapterState, claimChapter } from '../content/quests.js';
 import {
   camera, uiText, uiRect, uiScale, view, drawSprite, drawShadow, drawSpriteUI,
-  worldToScreen, vignette, textWidth, glowWorld,
+  worldToScreen, vignette, textWidth, glowWorld, uiBar,
 } from '../../engine/renderer.js';
 import { getSprite, frameAt, iconOr } from '../../engine/sprites.js';
 import { moveAxis, pressed, mouse } from '../../engine/input.js';
@@ -71,6 +72,7 @@ export const hubScene = {
     if (pressed('slot1')) open = 'talents';
     if (pressed('slot2')) open = 'facilities';
     if (pressed('slot3')) open = 'achievements';
+    if (pressed('slot4')) open = 'quests';
     if (pressed('space')) open = 'sortie';
     if (open) { this.panel = open; Sfx.play('uiClick'); }
   },
@@ -89,6 +91,7 @@ export const hubScene = {
     if (this.panel === 'talents') this.updateTalents(mx, my);
     else if (this.panel === 'facilities') this.updateFacilities(mx, my);
     else if (this.panel === 'sortie') this.updateSortie(mx, my);
+    else if (this.panel === 'quests') this.updateQuests(mx, my);
   },
 
   // ---- purchase logic ------------------------------------------------------
@@ -225,13 +228,14 @@ export const hubScene = {
     const csp = getSprite('coin');
     drawSpriteUI(csp.frames[0], view.W - 110 * S, 12 * S, 2.2 * S);
     uiText(String(META.gold), view.W - 84 * S, 30 * S, { size: 18 * S, color: P.goldL, weight: '800' });
-    uiText('1 天賦　2 設施　3 成就　空白/走近傳送門 出擊　Esc 設定', view.W / 2, view.H - 16 * S, { size: 12 * S, align: 'center', color: P.gray3 });
+    uiText('1 天賦　2 設施　3 成就　4 任務　空白 出擊　Esc 設定', view.W / 2, view.H - 16 * S, { size: 12 * S, align: 'center', color: P.gray3 });
     if (this.flashT > 0) uiText(this.flash, view.W / 2, view.H * 0.8, { size: 18 * S, align: 'center', color: withAlpha(P.goldL, Math.min(1, this.flashT)), weight: '800' });
 
     if (this.panel === 'talents') this.drawTalents();
     else if (this.panel === 'facilities') this.drawFacilities();
     else if (this.panel === 'sortie') this.drawSortie();
     else if (this.panel === 'achievements') this.drawAchievements();
+    else if (this.panel === 'quests') this.drawQuests();
     settingsUI.draw();
   },
 
@@ -325,6 +329,43 @@ export const hubScene = {
     const hoverStart = inside(mx, my, start);
     uiRect(start.x, start.y, start.w, start.h, withAlpha(hoverStart ? '#2a6a3a' : '#1f5030', 0.98), { radius: 9 * S, stroke: P.greenL, lw: hoverStart ? 3 : 2 });
     uiText('出 擊 狩 獵', start.x + start.w / 2, start.y + start.h / 2 + 1 * S, { size: 19 * S, align: 'center', baseline: 'middle', color: '#fff', weight: '900' });
+  },
+
+  questLayout() {
+    const f = this.panelFrame(); const S = f.S;
+    return { f, claim: { x: f.x + f.w / 2 - 100 * S, y: f.y + f.h - 60 * S, w: 200 * S, h: 42 * S } };
+  },
+  updateQuests(mx, my) {
+    if (!mouse.justDown) return;
+    const cur = chapterState(META, META.questIndex || 0);
+    if (!cur || !cur.done) return;
+    if (inside(mx, my, this.questLayout().claim)) { const q = claimChapter(META); if (q) { saveMeta(); this.feedback('完成 ' + q.title); } }
+  },
+  drawQuests() {
+    const f = this.drawPanelFrame('故 事 · 任 務');
+    const S = f.S;
+    const i = META.questIndex || 0;
+    let y = f.y + 70 * S;
+    for (let j = 0; j < i && j < STORY_QUESTS.length; j++) { uiText('✓ ' + STORY_QUESTS[j].title, f.x + 24 * S, y, { size: 12 * S, color: P.greenL, weight: '700' }); y += 17 * S; }
+    const cur = chapterState(META, i);
+    if (!cur) { uiText('所有篇章已完成 — 你已成為魂晶之主。', f.x + f.w / 2, f.y + f.h / 2, { size: 15 * S, align: 'center', color: P.goldL, weight: '800' }); return; }
+    const q = cur.q;
+    y += 10 * S;
+    uiText(q.title, f.x + 24 * S, y, { size: 17 * S, color: '#fff', weight: '900' }); y += 24 * S;
+    // wrapped story text
+    { let line = '', yy = y; const maxw = f.w - 48 * S, size = 12.5 * S;
+      for (const ch of q.story) { if (textWidth(line + ch, size, '500') > maxw && line) { uiText(line, f.x + 24 * S, yy, { size, color: P.gray4, weight: '500' }); line = ch; yy += size + 4; } else line += ch; }
+      if (line) { uiText(line, f.x + 24 * S, yy, { size, color: P.gray4, weight: '500' }); yy += size + 4; }
+      y = yy + 10 * S; }
+    uiText('任務目標：' + q.desc, f.x + 24 * S, y, { size: 13 * S, color: P.shardL, weight: '800' }); y += 18 * S;
+    const bw = f.w - 48 * S, frac = cur.prog / cur.goal;
+    uiBar(f.x + 24 * S, y, bw, 10 * S, frac, { fg: cur.done ? P.greenL : P.shardL, bg: '#16183a', border: P.ink });
+    const fmt = q.fmt === 'time' ? (v) => Math.floor(v / 60) + ':' + String(Math.floor(v % 60)).padStart(2, '0') : (v) => String(v);
+    uiText(fmt(cur.prog) + ' / ' + fmt(cur.goal), f.x + f.w - 24 * S, y + 9 * S, { size: 11 * S, align: 'right', color: P.gray3 });
+    const mx = mouse.x * view.dpr, my = mouse.y * view.dpr;
+    const L = this.questLayout(); const can = cur.done; const hov = inside(mx, my, L.claim);
+    uiRect(L.claim.x, L.claim.y, L.claim.w, L.claim.h, withAlpha(can ? (hov ? '#2a6a3a' : '#1f5030') : '#2a2030', 0.96), { radius: 8 * S, stroke: can ? P.greenL : P.gray1, lw: 2 });
+    uiText(can ? ('領取獎勵　+' + q.reward + ' 金幣') : '尚未達成', L.claim.x + L.claim.w / 2, L.claim.y + L.claim.h / 2 + 1 * S, { size: 13 * S, align: 'center', baseline: 'middle', color: can ? '#fff' : P.gray3, weight: '800' });
   },
 
   drawAchievements() {

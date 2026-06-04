@@ -118,10 +118,15 @@ export class Enemy {
           this.attackCd -= dt;
           if (this.attackCd <= 0 && toP < pref + 40 && world.lineClear(this.x, this.y, player.x, player.y)) {
             this.attackCd = (this.attack?.cooldown ?? 1.6) / ((this.boss ? this.enrage : 1) * (world.enemyTempo || 1));
-            const burst = (this.attack?.burst ?? 1) + (this.boss ? this.phase : 0);
-            for (let i = 0; i < burst; i++) {
-              const spread = (this.attack?.spread ?? 0) * (i - (burst - 1) / 2);
-              this.shoot(world, ang + spread);
+            // bosses mix patterns for variety (more radial spray as they enrage)
+            if (this.boss && Math.random() < 0.28 + this.phase * 0.12) {
+              this.radialBurst(world, 8 + this.phase * 4, this.attack?.projSpeed ?? 110);
+            } else {
+              const burst = (this.attack?.burst ?? 1) + (this.boss ? this.phase : 0);
+              for (let i = 0; i < burst; i++) {
+                const spread = (this.attack?.spread ?? 0) * (i - (burst - 1) / 2);
+                this.shoot(world, ang + spread);
+              }
             }
           }
           break;
