@@ -24,6 +24,16 @@ import { settingsUI } from '../ui/settings.js';
 
 const inside = (mx, my, r) => mx >= r.x && mx <= r.x + r.w && my >= r.y && my <= r.y + r.h;
 
+// LoL-Arena-style stat anvils sold at the in-run shop (repeatable; price climbs).
+const ANVILS = [
+  { name: '力量鐵砧', desc: '傷害 ×1.08', price: 45, apply: (s) => { s.damageMult *= 1.08; } },
+  { name: '迅捷鐵砧', desc: '射速 ×1.06', price: 45, apply: (s) => { s.fireRateMult *= 1.06; } },
+  { name: '堅韌鐵砧', desc: '生命上限 +14', price: 42, apply: (s, p) => { s.maxHp += 14; p.heal(14); } },
+  { name: '銳利鐵砧', desc: '暴擊率 +4%', price: 50, apply: (s) => { s.critChance += 0.04; } },
+  { name: '疾風鐵砧', desc: '移速 ×1.04', price: 40, apply: (s) => { s.speed *= 1.04; } },
+  { name: '壁壘鐵砧', desc: '減傷 +1', price: 55, apply: (s) => { s.defense += 1; } },
+];
+
 export const runScene = {
   enter(payload) {
     this.run = payload.run || newRun();
@@ -60,7 +70,7 @@ export const runScene = {
     // chests / hidden chest / in-run shop shrine
     for (const c of map.chests) this.world.addPickup('chest', c.x, c.y, 2);
     if (map.secret) this.world.addPickup('chest', map.secret.x, map.secret.y, 3, { hidden: true });
-    this.shopOffers = null;
+    this.shrinePos = null; this.shopOpen = false; this.nearShrine = false; this.shopFlashT = 0;
     if (map.shrine) this.setupShrine(map.shrine);
 
     // time-based threat + a rotating roster of only 1-3 active enemy types
@@ -95,15 +105,19 @@ export const runScene = {
   },
 
   setupShrine(pos) {
+    this.shrinePos = pos;
+    this.shopGear = this.rollShopGear();
+    this.shopAnvils = ANVILS.map((a) => ({ ...a, buys: 0 }));
+  },
+  rollShopGear() {
+    const pool = Equipment.all().filter((d) => (d.tier ?? 1) >= 2);
+    const src = (pool.length ? pool : Equipment.all()).slice();
     const offers = [];
-    const xs = [-26, 0, 26];
-    for (let i = 0; i < 3; i++) {
-      const isEquip = rng.chance(0.5);
-      const def = isEquip ? this.world.rollEquipment(1 + Math.floor(this.run.stage / 3)) : this.world.rollItem(1 + Math.floor(this.run.stage / 4));
-      if (!def) continue;
-      offers.push({ def, kind: isEquip ? 'equip' : 'item', price: def.price || 30, x: pos.x + xs[i], y: pos.y, bought: false });
+    for (let i = 0; i < 4 && src.length; i++) {
+      const d = src.splice(rng.int(0, src.length - 1), 1)[0];
+      offers.push({ def: d, price: Math.round((d.price || 60) * 1.6), bought: false });
     }
-    this.shopOffers = offers;
+    return offers;
   },
 
   bossEventTick(dt) {
@@ -246,6 +260,7 @@ export const runScene = {
     if (pressed('pause') || pressed('escape')) { this.paused = true; Sfx.play('uiClick'); return; }
     if (pressed('map')) { this.showBuild = !this.showBuild; Sfx.play('uiClick'); }
     if (this.showBuild) return;   // freeze the field while reviewing your build
+    if (this.shopOpen) { this.updateShopPanel(); return; }   // modal shop also freezes the field
 
     this.run.time += dt;
     this.threat = 1 + Math.floor(this.run.time / 45);
@@ -259,7 +274,8 @@ export const runScene = {
 
     this.spawnTick(dt);
     this.bossEventTick(dt);
-    if (this.shopOffers) this.updateShop();
+    this.nearShrine = !!(this.shrinePos && dist(this.player.x, this.player.y, this.shrinePos.x, this.shrinePos.y) < 20);
+    if (this.nearShrine && pressed('interact')) { this.shopOpen = true; Sfx.play('uiClick'); }
     if (this.levelQueue > 0 && !this.choice) this.openChoice();
   },
 
@@ -280,7 +296,7 @@ export const runScene = {
     const en = this.world.enemies;
     for (let i = 0; i < en.length && i < 80; i++) dot(en[i].x, en[i].y, withAlpha(P.red, 0.75), 2 * S);
     for (const pk of this.world.pickups) if (pk.type === 'chest' && (!pk.hidden || pk.revealed)) dot(pk.x, pk.y, P.goldL, 3 * S);
-    if (this.shopOffers) for (const o of this.shopOffers) if (!o.bought) dot(o.x, o.y, P.shardL, 3 * S);
+    if (this.shrinePos) dot(this.shrinePos.x, this.shrinePos.y, P.shardL, 3 * S);
     dot(this.player.x, this.player.y, '#ffffff', 4 * S);
   },
 
@@ -291,26 +307,76 @@ export const runScene = {
     camera.targetY = pxH > halfH * 2 ? clamp(this.player.y, halfH, pxH - halfH) : pxH / 2;
   },
 
-  updateShop() {
-    let near = null;
-    for (const o of this.shopOffers) if (!o.bought && dist(this.player.x, this.player.y, o.x, o.y) < 18) near = o;
-    this.nearOffer = near;
-    if (near && pressed('interact')) {
-      if (this.run.shards >= near.price) {
-        this.run.shards -= near.price; near.bought = true;
-        if (near.kind === 'equip') equipItem(this.player, this.run, near.def);
-        else if (this.run.inventory.length < 6) this.run.inventory.push(near.def.id);
-        this.world.particles.ring(near.x, near.y, P.goldL, 14, 80);
-        this.world.particles.text(near.x, near.y - 14, '購買！', { color: P.goldL, size: 13 });
-        Sfx.play(near.kind === 'equip' ? 'equip' : 'buy');
-      } else this.world.particles.text(this.player.x, this.player.y - 16, '魂晶不足', { color: P.redL, size: 12 });
+  // ---- in-run shop: epic/prismatic gear + stat anvils (+ hidden purist boon) -
+  shopLayout() {
+    const S = uiScale();
+    const w = Math.min(view.W * 0.9, 720 * S), h = Math.min(view.H * 0.85, 520 * S);
+    const x = (view.W - w) / 2, y = (view.H - h) / 2;
+    const close = { x: x + w - 38 * S, y: y + 10 * S, w: 28 * S, h: 28 * S };
+    const colW = (w - 60 * S) / 2;
+    const gearX = x + 24 * S, anvilX = x + 36 * S + colW;
+    const cardH = 56 * S, gap = 9 * S, top = y + 86 * S;
+    const showGear = !this.run.purist;
+    const gearCards = [], anvilCards = [];
+    if (showGear) this.shopGear.forEach((offer, i) => gearCards.push({ x: gearX, y: top + i * (cardH + gap), w: colW, h: cardH, offer }));
+    const aX = showGear ? anvilX : x + w / 2 - colW / 2;
+    this.shopAnvils.forEach((anvil, i) => anvilCards.push({ x: aX, y: top + i * (cardH + gap), w: colW, h: cardH, anvil }));
+    return { S, x, y, w, h, close, gearCards, anvilCards, gearX, anvilX: aX, colW, top, showGear };
+  },
+  updateShopPanel() {
+    if (pressed('escape') || pressed('interact') || pressed('map')) { this.shopOpen = false; return; }
+    const mx = mouse.x * view.dpr, my = mouse.y * view.dpr;
+    const L = this.shopLayout();
+    if (mouse.justDown) {
+      if (inside(mx, my, L.close)) { this.shopOpen = false; return; }
+      for (const c of L.gearCards) if (inside(mx, my, c)) { this.buyGear(c.offer); return; }
+      for (const c of L.anvilCards) if (inside(mx, my, c)) { this.buyAnvil(c.anvil); return; }
+      if (!inside(mx, my, L)) this.shopOpen = false;
     }
   },
+  buyGear(offer) {
+    if (!offer || offer.bought || this.run.purist) return;
+    if (this.run.shards < offer.price) { this.flashShop('魂晶不足'); return; }
+    this.run.shards -= offer.price; offer.bought = true;
+    equipItem(this.player, this.run, offer.def);
+    Sfx.play('equip');
+  },
+  buyAnvil(anvil) {
+    const price = Math.round(anvil.price * Math.pow(1.3, anvil.buys || 0));
+    if (this.run.shards < price) { this.flashShop('魂晶不足'); return; }
+    this.run.shards -= price; anvil.buys = (anvil.buys || 0) + 1;
+    try { anvil.apply(this.player.stats, this.player); } catch (e) { /* */ }
+    this.run.anvilCount = (this.run.anvilCount || 0) + 1;
+    Sfx.play('buy');
+    this.maybeBoon();
+  },
+  // hidden path: buy lots of anvils and NEVER take gear -> a one-time random boon
+  maybeBoon() {
+    if (this.run.boonUsed || this.run.gearTaken) return;
+    if ((this.run.anvilCount || 0) >= 4 && rng.chance(0.35)) this.triggerBoon();
+  },
+  triggerBoon() {
+    this.run.boonUsed = true; this.run.purist = true;
+    const boons = [
+      { n: '傷害', f: (s, m) => { s.damageMult *= 1 + m; } },
+      { n: '生命', f: (s, m, p) => { const a = Math.round(p.maxHp * m); s.maxHp += a; p.heal(a); } },
+      { n: '射速', f: (s, m) => { s.fireRateMult *= 1 + m; } },
+      { n: '移速', f: (s, m) => { s.speed *= 1 + m * 0.5; } },
+      { n: '暴擊', f: (s, m) => { s.critChance += m * 0.5; } },
+    ];
+    const b = boons[rng.int(0, boons.length - 1)];
+    const mag = 0.01 + rng.next() * 0.99;     // 1% .. 100%
+    try { b.f(this.player.stats, mag, this.player); } catch (e) { /* */ }
+    this.banner = `稜彩祝福！${b.n} +${Math.round(mag * 100)}%　自此踏上純能力值之道`;
+    this.bannerT = 4.0; Sfx.play('levelup');
+    this.world.particles.ring(this.player.x, this.player.y, P.purpleL, 30, 200);
+  },
+  flashShop(msg) { this.shopFlash = msg; this.shopFlashT = 1.2; },
 
   // ---- render --------------------------------------------------------------
   render() {
     this.world.draw();
-    if (this.shopOffers) this.drawShop();
+    if (this.shrinePos) this.drawShrine();
     vignette(0.42);
     drawLowHpWarning(this.player, this.t);
     this.world.particles.drawText();
@@ -319,24 +385,64 @@ export const runScene = {
     this.drawMinimap();
     this.drawBanner();
     this.drawInfo();
+    if (this.shopOpen) this.drawShopPanel();
     if (this.choice) this.drawChoice();
     if (this.dead) this.drawDeath();
     if (this.paused) this.drawPause();
     settingsUI.draw();
   },
 
-  drawShop() {
-    const S = uiScale();
-    for (const o of this.shopOffers) {
-      fillRectWorld(o.x - 7, o.y + 2, 14, 6, P.gray1); fillRectWorld(o.x - 6, o.y + 1, 12, 2, P.gray2);
-      if (o.bought) { const ss = worldToScreen(o.x, o.y - 4); uiText('已售出', ss.x, ss.y, { size: 11 * S, align: 'center', color: P.gray3 }); continue; }
-      const sp = getSprite(o.def.icon); const bob = Math.sin(this.t * 3 + o.x) * 1.5;
-      glowWorld(o.x, o.y - 8 + bob, 11, o.kind === 'equip' ? P.goldL : P.shardL, 0.22);
-      drawSprite(sp.frames[0], o.x, o.y - 8 + bob, { ax: sp.ax, ay: sp.ay });
-      const ns = worldToScreen(o.x, o.y - 22); uiText(o.def.name, ns.x, ns.y, { size: 11 * S, align: 'center', color: '#fff', weight: '700' });
-      const ps = worldToScreen(o.x, o.y + 16); uiText('魂晶 ' + o.price, ps.x, ps.y, { size: 11 * S, align: 'center', color: this.run.shards >= o.price ? P.shardL : P.redL, weight: '800' });
-      if (this.nearOffer === o) uiText('按 E 購買', ps.x, ps.y + 14 * S, { size: 11 * S, align: 'center', color: withAlpha('#fff', 0.5 + Math.sin(this.t * 6) * 0.3) });
+  drawShrine() {
+    const p = this.shrinePos; if (!p) return; const S = uiScale();
+    const sp = getSprite('hub_altar');
+    glowWorld(p.x, p.y - 8, 14, P.shardL, 0.22 + Math.sin(this.t * 3) * 0.06);
+    drawShadow(p.x, p.y, sp.w * 0.3);
+    drawSprite(frameAt(sp, this.t), p.x, p.y, { ax: sp.ax, ay: sp.ay });
+    const ns = worldToScreen(p.x, p.y - sp.h - 4);
+    uiText('魂晶商店', ns.x, ns.y, { size: 11 * S, align: 'center', color: P.shardL, weight: '800' });
+    if (this.nearShrine && !this.shopOpen) { const ps = worldToScreen(p.x, p.y + 8); uiText('按 E 開啟', ps.x, ps.y, { size: 11 * S, align: 'center', color: withAlpha('#fff', 0.6 + Math.sin(this.t * 6) * 0.3), weight: '800' }); }
+  },
+  drawShopPanel() {
+    const L = this.shopLayout(); const S = L.S;
+    const mx = mouse.x * view.dpr, my = mouse.y * view.dpr;
+    uiRect(0, 0, view.W, view.H, withAlpha('#0b0d1a', 0.66));
+    uiRect(L.x, L.y, L.w, L.h, withAlpha('#161a30', 0.98), { radius: 10 * S, stroke: P.shardD, lw: 2 });
+    uiText('魂 晶 商 店', L.x + 22 * S, L.y + 30 * S, { size: 18 * S, color: '#fff', weight: '900' });
+    const ssp = getSprite('shard'); drawSpriteUI(ssp.frames[0], L.x + L.w - 156 * S, L.y + 12 * S, 2 * S);
+    uiText(String(this.run.shards), L.x + L.w - 132 * S, L.y + 30 * S, { size: 16 * S, color: P.shardL, weight: '800' });
+    uiRect(L.close.x, L.close.y, L.close.w, L.close.h, withAlpha('#3a2030', 0.9), { radius: 6 * S, stroke: P.redD, lw: 2 });
+    uiText('✕', L.close.x + L.close.w / 2, L.close.y + L.close.h / 2 + 1 * S, { size: 16 * S, align: 'center', baseline: 'middle', color: P.redL, weight: '900' });
+    if (L.showGear) uiText('史詩・稜彩裝備', L.gearX, L.top - 14 * S, { size: 13 * S, color: P.goldL, weight: '800' });
+    uiText('能力值鐵砧', L.anvilX, L.top - 14 * S, { size: 13 * S, color: P.shardL, weight: '800' });
+    if (this.run.purist) uiText('純能力值之道：不再販售裝備', L.x + L.w / 2, L.y + 54 * S, { size: 11 * S, align: 'center', color: P.purpleL, weight: '700' });
+    else uiText('整局不取裝備、專注鐵砧，或有奇遇…', L.x + L.w / 2, L.y + 54 * S, { size: 10 * S, align: 'center', color: P.gray3 });
+    for (const c of L.gearCards) this.drawShopCard(c, 'gear', mx, my, S);
+    for (const c of L.anvilCards) this.drawShopCard(c, 'anvil', mx, my, S);
+    uiText('點擊購買　·　E / Esc 關閉', L.x + L.w / 2, L.y + L.h - 13 * S, { size: 11 * S, align: 'center', color: P.gray3 });
+    if (this.shopFlashT > 0) { this.shopFlashT -= 1 / 60; uiText(this.shopFlash, L.x + L.w / 2, L.y + L.h - 30 * S, { size: 12 * S, align: 'center', color: P.redL, weight: '800' }); }
+  },
+  drawShopCard(c, kind, mx, my, S) {
+    const hover = inside(mx, my, c);
+    if (kind === 'gear') {
+      const o = c.offer; const afford = this.run.shards >= o.price;
+      uiRect(c.x, c.y, c.w, c.h, withAlpha(o.bought ? '#1c2c1c' : '#1b2138', 0.96), { radius: 7 * S, stroke: hover && !o.bought ? P.goldL : P.ink2, lw: hover ? 3 : 2 });
+      const sp = getSprite(iconOr(o.def.icon, 'equip_leather_armor'));
+      drawSpriteUI(sp.frames[0], c.x + 6 * S, c.y + 6 * S, (26 * S) / sp.w);
+      uiText(o.def.name, c.x + 38 * S, c.y + 18 * S, { size: 12 * S, color: '#fff', weight: '800' });
+      this.clipShop(o.def.desc || '', c.x + 38 * S, c.y + 32 * S, c.w - 46 * S, 10 * S);
+      uiText(o.bought ? '已購買' : ('魂晶 ' + o.price), c.x + c.w - 8 * S, c.y + c.h - 7 * S, { size: 11 * S, align: 'right', color: o.bought ? P.greenL : afford ? P.shardL : P.redL, weight: '800' });
+    } else {
+      const a = c.anvil; const price = Math.round(a.price * Math.pow(1.3, a.buys || 0)); const afford = this.run.shards >= price;
+      uiRect(c.x, c.y, c.w, c.h, withAlpha('#1b2138', 0.96), { radius: 7 * S, stroke: hover ? P.shardL : P.ink2, lw: hover ? 3 : 2 });
+      uiText(a.name + (a.buys ? ' ×' + a.buys : ''), c.x + 10 * S, c.y + 18 * S, { size: 12 * S, color: '#fff', weight: '800' });
+      this.clipShop(a.desc, c.x + 10 * S, c.y + 32 * S, c.w - 18 * S, 10 * S);
+      uiText('魂晶 ' + price, c.x + c.w - 8 * S, c.y + c.h - 7 * S, { size: 11 * S, align: 'right', color: afford ? P.shardL : P.redL, weight: '800' });
     }
+  },
+  clipShop(str, x, y, maxw, size) {
+    let s = str; while (s.length > 1 && textWidth(s, size, '500') > maxw) s = s.slice(0, -1);
+    if (s.length < str.length && s.length > 1) s = s.slice(0, -1) + '…';
+    uiText(s, x, y, { size, color: P.gray4, weight: '500' });
   },
 
   drawStageHud() {

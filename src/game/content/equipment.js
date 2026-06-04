@@ -51,6 +51,7 @@ E({
 // ---- apply helper ----------------------------------------------------------
 export function equipItem(player, run, def) {
   if (!def) return;
+  if (run) run.gearTaken = true;   // taking ANY gear disqualifies the stat-purist boon
   if (def.slot === 'weapon') {
     player.weapon = { ...def.weapon };
     run.weapon = player.weapon;
