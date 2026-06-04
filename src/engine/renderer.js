@@ -29,8 +29,9 @@ export function resize() {
   canvas.width = W; canvas.height = H;
   canvas.style.width = cssW + 'px';
   canvas.style.height = cssH + 'px';
-  // choose a zoom so a comfortable slice of the world is visible
-  const z = Math.round(Math.min(W / 360, H / 230));
+  // choose a zoom so a comfortable slice of the (large) world is visible —
+  // a touch more zoomed-out than before so the big map reads as big.
+  const z = Math.round(Math.min(W / 430, H / 280));
   camera.zoom = Math.max(2, Math.min(6, z));
   ctx.imageSmoothingEnabled = false;
 }

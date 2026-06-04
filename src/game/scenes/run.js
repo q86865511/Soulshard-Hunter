@@ -2,7 +2,7 @@
 // (weapons auto-fire); enemies pour in endlessly and escalate. Survive each
 // stage's timer (or slay its boss) to open the exit to the next biome.
 import { World, TS } from '../world.js';
-import { generateStage, isBossStage, biomeForStage } from '../maps.js';
+import { generateWorld } from '../maps.js';
 import { Player } from '../player.js';
 import { newRun, bankRun, META, saveMeta } from '../state.js';
 import { setScene } from '../scene.js';
@@ -15,7 +15,7 @@ import {
 } from '../../engine/renderer.js';
 import { drawHud, drawLowHpWarning } from '../hud.js';
 import { pressed, mouse } from '../../engine/input.js';
-import { rng, dist, clamp } from '../../engine/math.js';
+import { rng, dist, clamp, TAU } from '../../engine/math.js';
 import { P, withAlpha } from '../../engine/palette.js';
 import { getSprite, frameAt, iconOr } from '../../engine/sprites.js';
 import { getRunChoices, applyChoice, choiceStyle } from '../progression.js';
@@ -27,8 +27,8 @@ const inside = (mx, my, r) => mx >= r.x && mx <= r.x + r.w && my >= r.y && my <=
 export const runScene = {
   enter(payload) {
     this.run = payload.run || newRun();
-    this.run.stage = this.run.stage || 1;
     this.run.time = 0;
+    this.run.stage = 1; this.run.floor = 1;
     this.world = new World(this.run);
     this.player = null;
     this.t = 0; this.dead = false; this.deathT = 0;
@@ -37,53 +37,60 @@ export const runScene = {
     this.paused = false;
     this.world.onPlayerDeath = () => this.onDeath();
     this.world.onLevelUp = () => this.onLevelUp();
-    this.world.onEnemyKilled = (e) => { if (e.boss) this.onBossDead(); };
-    this.loadStage(this.run.stage);
+    this.world.onEnemyKilled = (e) => { if (e.boss) this.onBossDead(e); };
+    this.buildWorld();
   },
 
-  // ---- stage flow ----------------------------------------------------------
-  loadStage(stage) {
-    const map = generateStage(stage);
-    this.map = map; this.run.stage = stage; this.run.floor = stage;
+  // ---- single persistent battleground --------------------------------------
+  buildWorld() {
+    const map = generateWorld();
+    this.map = map;
     this.world.loadMap(map);
     this.buildMinimap();
     this.world.enemies.length = 0; this.world.projectiles.length = 0;
     this.world.pickups.length = 0; this.world.beams.length = 0; this.world.particles.clear();
 
-    if (!this.player) {
-      this.player = new Player(map.entrance.x, map.entrance.y, this.run.stats);
-      this.player.run = this.run;
-      this.player.spriteName = this.run.characterSprite || 'player';
-      for (const wid of (this.run.startWeapons || ['w_soulbolt'])) this.player.addWeapon(wid, this.world);
-    }
-    this.player.x = map.entrance.x; this.player.y = map.entrance.y; this.player.vx = this.player.vy = 0;
+    this.player = new Player(map.entrance.x, map.entrance.y, this.run.stats);
+    this.player.run = this.run;
+    this.player.spriteName = this.run.characterSprite || 'player';
+    for (const wid of (this.run.startWeapons || ['w_soulbolt'])) this.player.addWeapon(wid, this.world);
     this.world.player = this.player;
     this.aimCamera(); camera.x = camera.targetX; camera.y = camera.targetY;
 
-    // chests / secret / shrine
-    for (const c of map.chests) this.world.addPickup('chest', c.x, c.y, 1 + Math.floor(stage / 3));
-    if (map.secret) this.world.addPickup('chest', map.secret.x, map.secret.y, 3 + Math.floor(stage / 2), { hidden: true });
+    // chests / hidden chest / in-run shop shrine
+    for (const c of map.chests) this.world.addPickup('chest', c.x, c.y, 2);
+    if (map.secret) this.world.addPickup('chest', map.secret.x, map.secret.y, 3, { hidden: true });
     this.shopOffers = null;
     if (map.shrine) this.setupShrine(map.shrine);
 
-    // stage goal + spawner
-    this.boss = map.boss; this.bossDead = false;
-    this.exitActive = false;
-    this.stageTime = 0;
-    this.goalTime = this.boss ? 9999 : 24 + stage * 3;
-    this.spawnTimer = 1.0;
-    this.tierCap = Math.min(4, 1 + Math.floor(stage / 1.5));
+    // time-based threat + a rotating roster of only 1-3 active enemy types
+    this.threat = 1;
+    this.spawnTimer = 2.0;
+    this.activeTypes = [];
+    this.typeRotT = 0;
+    this.rotateTypes();
 
-    if (this.boss) this.spawnBoss();
-    Music.setMode(this.boss ? 'boss' : 'run');
-    this.banner = map.biome.name + (this.boss ? ' · 首領' : ` · 第 ${stage} 區`);
-    this.bannerT = 2.4;
+    // bosses arrive as periodic events rather than stage gates
+    this.boss = false; this.bossRef = null; this.bossDead = false;
+    this.nextBossAt = 100;
+
+    Music.setMode('run');
+    this.banner = map.biome.name + ' · 永恆獵場';
+    this.bannerT = 2.6;
   },
 
-  nextStage() {
-    Sfx.play('portal');
-    this.player.heal(this.player.maxHp * 0.18);
-    this.loadStage(this.run.stage + 1);
+  tierCapNow() { return Math.min(4, 1 + Math.floor(this.threat / 2)); },
+
+  // choose 1-3 enemy types for the current wave window; rotates over time
+  rotateTypes() {
+    const pool = Enemies.upTo(this.tierCapNow()).filter((d) => !d.boss);
+    if (!pool.length) { this.activeTypes = []; this.typeRotT = 24; return; }
+    const n = this.threat <= 1 ? 1 + rng.int(0, 1) : 1 + rng.int(0, 2);
+    const picks = []; let p = pool.slice();
+    for (let i = 0; i < n && p.length; i++) { const d = rng.weighted(p, (x) => x.weight ?? 1); picks.push(d); p = p.filter((x) => x !== d); }
+    this.activeTypes = picks;
+    this.typeRotT = 30 + rng.next() * 18;
+    if (this.run.time > 3) { this.banner = '敵潮更替：' + picks.map((d) => d.name).join('、'); this.bannerT = 2.0; }
   },
 
   setupShrine(pos) {
@@ -98,39 +105,50 @@ export const runScene = {
     this.shopOffers = offers;
   },
 
-  spawnBoss() {
-    const bosses = Enemies.filter((d) => d.boss);
-    const def = bosses.length ? bosses[(this.run.stage / 5 - 1) % bosses.length | 0] : Enemies.get('brute');
-    const hpScale = 1 + (this.run.stage - 1) * 0.4;
-    const dmgScale = 1 + (this.run.stage - 1) * 0.14;
-    this.bossRef = this.world.spawnEnemy(def, this.map.center.x, this.map.center.y - 30, { hpScale, dmgScale, quiet: true });
-    this.banner = (def.name || 'BOSS') + ' 現身！'; this.bannerT = 2.6;
-    addShake(8); Sfx.play('boss');
+  bossEventTick(dt) {
+    if (this.boss) return;
+    if (this.run.time >= this.nextBossAt) this.spawnBossEvent();
   },
-  onBossDead() {
-    this.bossDead = true; this.exitActive = true;
-    this.banner = '擊敗首領！傳送門開啟'; this.bannerT = 2.6; addShake(6);
-    this.world.addPickup('heart', this.player.x, this.player.y, 40);
+  spawnBossEvent() {
+    const bosses = Enemies.filter((d) => d.boss);
+    if (!bosses.length) { this.nextBossAt = this.run.time + 120; return; }
+    const def = bosses[rng.int(0, bosses.length - 1)];
+    const hpScale = 1 + (this.threat - 1) * 0.34;
+    const dmgScale = 1 + (this.threat - 1) * 0.12;
+    const a = rng.next() * TAU, R = 150;
+    const bx = clamp(this.player.x + Math.cos(a) * R, TS * 2, this.world.pxW - TS * 2);
+    const by = clamp(this.player.y + Math.sin(a) * R, TS * 2, this.world.pxH - TS * 2);
+    this.bossRef = this.world.spawnEnemy(def, bx, by, { hpScale, dmgScale, quiet: true });
+    this.boss = true; this.bossDead = false;
+    this.banner = (def.name || 'BOSS') + ' 現身！'; this.bannerT = 2.8;
+    addShake(8); Sfx.play('boss'); Music.setMode('boss');
+  },
+  onBossDead(e) {
+    this.boss = false; this.bossDead = true; this.bossRef = null;
+    this.nextBossAt = this.run.time + 140 + rng.next() * 40;
+    this.banner = '擊敗首領！'; this.bannerT = 2.6; addShake(6);
+    this.world.addPickup('heart', this.player.x, this.player.y, 28);
+    Music.setMode('run');
   },
 
-  // continuous spawning
+  // continuous spawning from the current 1-3 active enemy types
   spawnTick(dt) {
-    if (this.boss) return;
+    if (this.boss) return;                 // pause the swarm while a boss is up
+    this.typeRotT -= dt;
+    if (this.typeRotT <= 0) this.rotateTypes();
     this.spawnTimer -= dt;
-    const cap = Math.min(86, 22 + this.run.stage * 6 + Math.floor(this.stageTime * 0.45));
-    if (this.spawnTimer <= 0 && this.world.enemies.length < cap) {
-      const group = 2 + Math.floor(this.run.stage / 3) + (rng.chance(0.3) ? 1 : 0);
-      const pool = Enemies.upTo(this.tierCap).filter((d) => !d.boss);
-      if (pool.length) {
-        const hpScale = 1 + (this.run.stage - 1) * 0.22 + this.stageTime * 0.01;
-        const dmgScale = 1 + (this.run.stage - 1) * 0.12 + this.stageTime * 0.006;
-        for (let i = 0; i < group; i++) {
-          const def = rng.weighted(pool, (d) => d.weight ?? 1);
-          const elite = this.run.stage >= 2 && rng.chance(0.05 + this.stageTime * 0.0008);
-          this.world.spawnRing(def, { hpScale, dmgScale, elite });
-        }
+    const t = this.run.time;
+    const cap = Math.min(120, 24 + this.threat * 6 + Math.floor(t * 0.05));
+    if (this.spawnTimer <= 0 && this.world.enemies.length < cap && this.activeTypes.length) {
+      const group = 2 + Math.floor(this.threat / 2) + (rng.chance(0.3) ? 1 : 0);
+      const hpScale = 1 + (this.threat - 1) * 0.20 + t * 0.006;
+      const dmgScale = 1 + (this.threat - 1) * 0.10 + t * 0.004;
+      for (let i = 0; i < group; i++) {
+        const def = this.activeTypes[rng.int(0, this.activeTypes.length - 1)];
+        const elite = this.threat >= 3 && rng.chance(0.035 + t * 0.0004);
+        this.world.spawnRing(def, { hpScale, dmgScale, elite });
       }
-      this.spawnTimer = Math.max(0.32, 1.5 - this.run.stage * 0.06 - this.stageTime * 0.008);
+      this.spawnTimer = Math.max(0.5, 1.6 - this.threat * 0.06 - t * 0.004);
     }
   },
 
@@ -226,7 +244,9 @@ export const runScene = {
     if (this.choice) { this.updateChoice(); return; }
     if (pressed('pause') || pressed('escape')) { this.paused = true; Sfx.play('uiClick'); return; }
 
-    this.run.time += dt; this.stageTime += dt;
+    this.run.time += dt;
+    this.threat = 1 + Math.floor(this.run.time / 45);
+    this.run.stage = this.threat; this.run.floor = this.threat;   // keep loot/score scaling alive
     // screen shake stays gentle by default, swelling only when near death
     const hpFrac = this.player.maxHp ? this.player.hp / this.player.maxHp : 1;
     setShakeScale(hpFrac < 0.25 ? 1.0 : 0.42);
@@ -235,10 +255,8 @@ export const runScene = {
     if (this.bannerT > 0) this.bannerT -= dt;
 
     this.spawnTick(dt);
-    if (!this.boss && !this.exitActive && this.stageTime >= this.goalTime) { this.exitActive = true; this.banner = '出口已開啟 → 前往傳送門'; this.bannerT = 2.4; Sfx.play('portal'); }
-
+    this.bossEventTick(dt);
     if (this.shopOffers) this.updateShop();
-    if (this.exitActive && dist(this.player.x, this.player.y, this.map.exit.x, this.map.exit.y) < 14) this.nextStage();
     if (this.levelQueue > 0 && !this.choice) this.openChoice();
   },
 
@@ -260,7 +278,6 @@ export const runScene = {
     for (let i = 0; i < en.length && i < 80; i++) dot(en[i].x, en[i].y, withAlpha(P.red, 0.75), 2 * S);
     for (const pk of this.world.pickups) if (pk.type === 'chest' && (!pk.hidden || pk.revealed)) dot(pk.x, pk.y, P.goldL, 3 * S);
     if (this.shopOffers) for (const o of this.shopOffers) if (!o.bought) dot(o.x, o.y, P.shardL, 3 * S);
-    if (this.exitActive) dot(this.map.exit.x, this.map.exit.y, P.manaL, 4.5 * S);
     dot(this.player.x, this.player.y, '#ffffff', 4 * S);
   },
 
@@ -290,7 +307,6 @@ export const runScene = {
   // ---- render --------------------------------------------------------------
   render() {
     this.world.draw();
-    this.drawExit();
     if (this.shopOffers) this.drawShop();
     vignette(0.42);
     drawLowHpWarning(this.player, this.t);
@@ -303,17 +319,6 @@ export const runScene = {
     if (this.dead) this.drawDeath();
     if (this.paused) this.drawPause();
     settingsUI.draw();
-  },
-
-  drawExit() {
-    const e = this.map.exit; const S = uiScale();
-    if (this.exitActive) {
-      const sp = getSprite('portal');
-      glowWorld(e.x, e.y - 8, 18, P.manaL, 0.32 + Math.sin(this.t * 3) * 0.08);
-      drawSprite(frameAt(sp, this.t), e.x, e.y, { ax: sp.ax, ay: sp.ay });
-      const ss = worldToScreen(e.x, e.y - 28);
-      uiText('傳送門 →', ss.x, ss.y, { size: 11 * S, align: 'center', color: P.manaL, weight: '800' });
-    }
   },
 
   drawShop() {
@@ -332,21 +337,16 @@ export const runScene = {
 
   drawStageHud() {
     const S = uiScale();
-    // stage + biome + timer (top center, below the wave banner area)
     const name = this.map.biome.name;
-    uiText(`第 ${this.run.stage} 區 · ${name}`, view.W / 2, 24 * S, { size: 16 * S, align: 'center', color: '#fff', weight: '800' });
+    uiText(`威脅 ${this.threat} 級 · ${name}`, view.W / 2, 24 * S, { size: 16 * S, align: 'center', color: '#fff', weight: '800' });
     const mins = Math.floor(this.run.time / 60), secs = Math.floor(this.run.time % 60);
-    uiText(`${mins}:${secs.toString().padStart(2, '0')}`, view.W / 2, 42 * S, { size: 13 * S, align: 'center', color: P.gray3, weight: '700' });
-    // stage goal bar
-    if (!this.boss) {
-      const frac = clamp(this.stageTime / this.goalTime, 0, 1);
-      const bw = Math.min(220 * S, view.W * 0.3);
-      uiBar(view.W / 2 - bw / 2, 52 * S, bw, 6 * S, frac, { fg: frac >= 1 ? P.manaL : this.map.biome.accent, bg: '#16183a', border: P.ink });
-      uiText(frac >= 1 ? '出口已開啟' : '存活中…', view.W / 2, 68 * S, { size: 10 * S, align: 'center', color: P.gray3 });
-    } else if (this.bossRef && !this.bossDead && !this.bossRef.dead) {
+    uiText(`存活 ${mins}:${secs.toString().padStart(2, '0')}`, view.W / 2, 42 * S, { size: 13 * S, align: 'center', color: P.gray3, weight: '700' });
+    if (this.boss && this.bossRef && !this.bossRef.dead) {
       const bw = Math.min(360 * S, view.W * 0.5);
-      uiText(this.bossRef.def.name, view.W / 2, 50 * S, { size: 13 * S, align: 'center', color: P.redL, weight: '800' });
-      uiBar(view.W / 2 - bw / 2, 58 * S, bw, 9 * S, this.bossRef.hp / this.bossRef.maxHp, { fg: P.red, bg: '#2a0e14', border: P.ink, glow: true });
+      uiText(this.bossRef.def.name, view.W / 2, 56 * S, { size: 13 * S, align: 'center', color: P.redL, weight: '800' });
+      uiBar(view.W / 2 - bw / 2, 64 * S, bw, 9 * S, this.bossRef.hp / this.bossRef.maxHp, { fg: P.red, bg: '#2a0e14', border: P.ink, glow: true });
+    } else if (this.activeTypes && this.activeTypes.length) {
+      uiText('當前敵潮：' + this.activeTypes.map((d) => d.name).join('、'), view.W / 2, 54 * S, { size: 11 * S, align: 'center', color: P.gray3 });
     }
   },
 

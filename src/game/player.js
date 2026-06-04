@@ -152,7 +152,7 @@ export class Player {
     drawShadow(this.x, this.y, this.radius + 1.5);
     const frame = this.moving ? frameAt(sp, this.walkT, 0) : frameAt(sp, this.t * 0.4);
     const blink = this.invuln > 0 && Math.floor(this.t * 20) % 2 === 0 && this.dashT <= 0;
-    const opts = { ax: sp.ax, ay: sp.ay, flipX: this.faceX < 0, alpha: blink ? 0.4 : 1 };
+    const opts = { ax: sp.ax, ay: sp.ay, flipX: this.faceX < 0, alpha: blink ? 0.4 : 1, scale: 0.9 };
     if (this.flash > 0) { opts.tint = '#ff5a5a'; opts.tintAmt = 0.8; }
     if (this.dashT > 0) glowWorld(this.x, this.y - 6, 10, P.shard, 0.4);
     drawSprite(frame, this.x, this.y, opts);

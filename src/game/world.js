@@ -4,14 +4,23 @@ import { Enemies, Equipment, Items } from './content/registry.js';
 import { equipItem } from './content/equipment.js';
 import { Enemy } from './enemy.js';
 import { Pickup } from './pickup.js';
-import { drawSprite, fillRectWorld, lineWorld, camera, view, worldToScreen, addShake } from '../engine/renderer.js';
-import { getSprite, frameAt } from '../engine/sprites.js';
+import { drawSprite, fillRectWorld, fillCircleWorld, glowWorld, lineWorld, camera, view, worldToScreen, addShake } from '../engine/renderer.js';
+import { getSprite, frameAt, hasSprite } from '../engine/sprites.js';
 import { circleHit, dist, dist2, clamp, rng, TAU } from '../engine/math.js';
 import { P, withAlpha } from '../engine/palette.js';
 import { Sfx } from '../engine/audio.js';
 
 export const TS = 16; // tile size (world units)
 export const FLOOR = 0, WALL = 1, VOID = 2;
+
+// Trap terrain definitions. Hazards damage BOTH player and enemies (neutral).
+// Continuous kinds tick on `interval`; periodic kinds telegraph then strike.
+const HAZ = {
+  lava:   { dmg: 9,  interval: 0.5, color: P.ember,  grav: -22 },
+  poison: { dmg: 5,  interval: 0.6, color: P.poison, grav: -6 },
+  thorns: { dmg: 7,  interval: 0.7, color: P.greenL, grav: 0 },
+  spikes: { dmg: 15, cycle: 1.5, activeTime: 0.5, color: P.steelL, periodic: true, grav: 0 },
+};
 
 export class World {
   constructor(run) {
@@ -24,6 +33,7 @@ export class World {
     this.projectiles = [];
     this.pickups = [];
     this.beams = [];        // transient lightning/laser visuals
+    this.hazards = [];      // trap-terrain zones (lava/spikes/poison/thorns)
     this.particles = new Particles();
     this.player = null;
     this.time = 0;
@@ -39,6 +49,7 @@ export class World {
     this.tileset = map.tileset || { floor: ['floor', 'floor2', 'floor_crack'], wall: 'wall', wallTop: 'wall_top' };
     this.biome = map.biome || null;
     this.pxW = this.tw * TS; this.pxH = this.th * TS;
+    this.hazards = (map.hazards || []).map((h) => ({ ...h, tick: Math.random() * 1.0, on: !(HAZ[h.kind] && HAZ[h.kind].periodic) }));
   }
 
   // ---- tile helpers --------------------------------------------------------
@@ -220,6 +231,7 @@ export class World {
     for (const pk of this.pickups) pk.update(dt, this);
 
     this.resolveCombat();
+    if (this.hazards.length) this.updateHazards(dt);
 
     // process enemy deaths
     for (const e of this.enemies) {
@@ -304,6 +316,39 @@ export class World {
     return best;
   }
 
+  // ---- trap terrain --------------------------------------------------------
+  updateHazards(dt) {
+    for (const h of this.hazards) {
+      const def = HAZ[h.kind] || HAZ.lava;
+      h.tick -= dt;
+      if (def.periodic) {
+        if (h.tick <= 0) { h.on = !h.on; h.tick = h.on ? def.activeTime : def.cycle; if (h.on) this.hazardStrike(h, def); }
+      } else if (h.tick <= 0) { h.tick = def.interval; this.hazardStrike(h, def); }
+    }
+  }
+  hazardStrike(h, def) {
+    const p = this.player;
+    if (p && !p.dead && dist(p.x, p.y, h.x, h.y) < h.r + p.radius) p.takeDamage(def.dmg, Math.atan2(p.y - h.y, p.x - h.x), this);
+    for (const e of this.enemies) { if (e.dead || e.spawnT > 0) continue; if (dist(e.x, e.y, h.x, h.y) < h.r + e.radius) e.hurt(def.dmg * 0.8, 0, 0, this, false); }
+    this.particles.ring(h.x, h.y, def.color, 7, h.r * 3.5);
+  }
+  drawHazards() {
+    for (const h of this.hazards) {
+      const def = HAZ[h.kind] || HAZ.lava;
+      const active = def.periodic ? h.on : true;
+      const spr = 'hz_' + h.kind;
+      if (hasSprite(spr)) {
+        const sp = getSprite(spr);
+        for (let yy = h.y - h.r; yy <= h.y + h.r; yy += TS) for (let xx = h.x - h.r; xx <= h.x + h.r; xx += TS)
+          if (dist(xx, yy, h.x, h.y) <= h.r) drawSprite(frameAt(sp, this.time, (xx + yy) | 0), Math.floor(xx / TS) * TS, Math.floor(yy / TS) * TS, { ax: 0, ay: 0, alpha: active ? 1 : 0.5 });
+      } else {
+        fillCircleWorld(h.x, h.y, h.r, withAlpha(def.color, active ? 0.16 : 0.05));
+      }
+      glowWorld(h.x, h.y, h.r * 0.9, def.color, active ? 0.2 : 0.07);
+      if (active && Math.random() < 0.3) { const a = Math.random() * TAU, rr = Math.random() * h.r; this.particles.spawn({ x: h.x + Math.cos(a) * rr, y: h.y + Math.sin(a) * rr, life: 0.4, size: 2, color: def.color, glow: true, grav: def.grav }); }
+    }
+  }
+
   // ---- draw ----------------------------------------------------------------
   drawTiles() {
     const z = camera.zoom;
@@ -334,6 +379,7 @@ export class World {
 
   draw() {
     this.drawTiles();
+    this.drawHazards();
     // decor (torches etc.)
     for (const d of this.decor) {
       const sp = getSprite(d.sprite);
