@@ -87,6 +87,7 @@ export const runScene = {
     if (map.secret) this.world.addPickup('chest', map.secret.x, map.secret.y, 3, { hidden: true });
     this.shrinePos = null; this.shopOpen = false; this.nearShrine = false; this.shopFlashT = 0;
     if (map.shrine) this.setupShrine(map.shrine);
+    this.npcs = (map.npcs || []).map((n) => ({ ...n })); this.nearNpc = null;   // E1 interactive NPCs
 
     // time-based threat + a rotating roster of only 1-3 active enemy types
     this.threat = 1;
@@ -146,6 +147,29 @@ export const runScene = {
       offers.push({ def: d, price: Math.round((d.price || 60) * 1.6), bought: false });
     }
     return offers;
+  },
+
+  // ---- interactive NPCs (E1) ----------------------------------------------
+  useNpc(n) {
+    n.used = true; Sfx.play('levelup');
+    if (n.kind === 'well') {
+      const boons = [
+        { n: '力量', f: (s) => { s.damageMult *= 1.06; } },
+        { n: '迅捷', f: (s) => { s.fireRateMult *= 1.06; } },
+        { n: '活力', f: (s, p) => { s.maxHp += 18; p.heal(18); } },
+        { n: '疾風', f: (s) => { s.speed *= 1.05; } },
+        { n: '銳利', f: (s) => { s.critChance += 0.03; } },
+      ];
+      const b = boons[rng.int(0, boons.length - 1)];
+      try { b.f(this.player.stats, this.player); } catch (e) { /* */ }
+      this.banner = `祈願水井：獲得「${b.n}」之祝福！`; this.bannerT = 2.6;
+      this.world.particles.ring(n.x, n.y, P.shardL, 22, 130);
+    } else {   // lost soul — resources
+      const g = 30 + this.threat * 6;
+      this.run.gold += g; this.world.gainXp(20 + this.threat * 4); this.player.heal(20);
+      this.banner = `迷途之魂：+${g} 金幣・經驗・生命`; this.bannerT = 2.4;
+      this.world.particles.ring(n.x, n.y, P.manaL, 18, 110);
+    }
   },
 
   // ---- mini-bosses: a DISTINCT boss at 5 / 10 / 15 min (E1/E2) --------------
@@ -509,7 +533,10 @@ export const runScene = {
     this.updateEvents(dt);
     this.finalTick(dt);
     this.nearShrine = !!(this.shrinePos && dist(this.player.x, this.player.y, this.shrinePos.x, this.shrinePos.y) < 20);
+    this.nearNpc = null;
+    for (const n of this.npcs) { if (!n.used && dist(this.player.x, this.player.y, n.x, n.y) < 22) { this.nearNpc = n; break; } }
     if (this.nearShrine && pressed('interact')) { this.shopOpen = true; Sfx.play('uiClick'); }
+    else if (this.nearNpc && pressed('interact')) { this.useNpc(this.nearNpc); }
     else if (this.cleared && pressed('interact')) { this.finishRun(true); return; }   // leave as a win during the Reaper window
     if (this.levelQueue > 0 && !this.choice) this.openChoice();
   },
@@ -631,6 +658,7 @@ export const runScene = {
   render() {
     this.world.draw();
     if (this.shrinePos) this.drawShrine();
+    this.drawNpcs();
     this.drawEvents();
     vignette(0.42);
     drawLowHpWarning(this.player, this.t);
@@ -657,6 +685,20 @@ export const runScene = {
     const ns = worldToScreen(p.x, p.y - sp.h - 4);
     uiText('魂晶商店', ns.x, ns.y, { size: 11 * S, align: 'center', color: P.shardL, weight: '800' });
     if (this.nearShrine && !this.shopOpen) { const ps = worldToScreen(p.x, p.y + 8); uiText('按 E 開啟', ps.x, ps.y, { size: 11 * S, align: 'center', color: withAlpha('#fff', 0.6 + Math.sin(this.t * 6) * 0.3), weight: '800' }); }
+  },
+  drawNpcs() {
+    if (!this.npcs || !this.npcs.length) return;
+    const S = uiScale();
+    for (const n of this.npcs) {
+      if (n.used) continue;
+      const sp = getSprite(n.kind === 'well' ? 'hub_well' : 'wisp');
+      glowWorld(n.x, n.y - 6, 12, n.kind === 'well' ? P.shardL : P.manaL, 0.16 + Math.sin(this.t * 3 + n.x * 0.1) * 0.05);
+      drawShadow(n.x, n.y, sp.w * 0.28);
+      drawSprite(frameAt(sp, this.t), n.x, n.y, { ax: sp.ax, ay: sp.ay });
+      const ns = worldToScreen(n.x, n.y - sp.h - 2);
+      uiText(n.kind === 'well' ? '祈願水井' : '迷途之魂', ns.x, ns.y, { size: 10 * S, align: 'center', color: n.kind === 'well' ? P.shardL : P.manaL, weight: '700' });
+      if (this.nearNpc === n) { const ps = worldToScreen(n.x, n.y + 8); uiText('按 E', ps.x, ps.y, { size: 10 * S, align: 'center', color: withAlpha('#fff', 0.6 + Math.sin(this.t * 6) * 0.3), weight: '800' }); }
+    }
   },
   drawShopPanel() {
     const L = this.shopLayout(); const S = L.S;

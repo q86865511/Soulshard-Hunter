@@ -2,6 +2,7 @@
 import { rng, dist } from '../engine/math.js';
 import { WALL, FLOOR, TS } from './world.js';
 import { BIOMES } from '../art/biomes.js';
+import { BALANCE } from './balance.js';
 
 export function biomeForStage(stage) { return BIOMES[(stage - 1) % BIOMES.length]; }
 export function isBossStage(stage) { return stage % 5 === 0; }
@@ -15,7 +16,7 @@ function randFloor(tiles, tw, th) {
 // Bigger than any old stage, with more obstacle/event terrain + scattered hazards.
 export function generateWorld(seedBiome) {
   const biome = seedBiome || BIOMES[rng.int(0, BIOMES.length - 1)];
-  const tw = 104, th = 76;
+  const tw = BALANCE.MAP_W, th = BALANCE.MAP_H;
   const tiles = new Uint8Array(tw * th);
   const floorVar = new Uint8Array(tw * th);
   for (let y = 0; y < th; y++) for (let x = 0; x < tw; x++) {
@@ -26,43 +27,58 @@ export function generateWorld(seedBiome) {
   const start = { x: (tw / 2) * TS, y: (th / 2) * TS };
   const far = (px, py, d) => dist(px, py, start.x, start.y) > d;
   const carve = (tx, ty) => { if (tx > 1 && ty > 1 && tx < tw - 2 && ty < th - 2 && far(tx * TS, ty * TS, 96)) tiles[ty * tw + tx] = WALL; };
+  // counts scale with the (now larger) map area
+  const area = tw * th, k = area / 7904;
 
   // scattered obstacle blobs (open arena feel; kept clear of the spawn)
-  for (let i = 0; i < 36; i++) {
+  for (let i = 0; i < Math.round(36 * k); i++) {
     const cx = rng.int(4, tw - 5), cy = rng.int(4, th - 5);
     if (dist(cx * TS, cy * TS, start.x, start.y) < 120) continue;
     const r = rng.int(1, 3);
     for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) if (dx * dx + dy * dy <= r * r) carve(cx + dx, cy + dy);
   }
   // event terrain: pillar halls (rows of single pillars) give cover + kiting lanes
-  for (let k = 0; k < 5; k++) {
-    const ox = rng.int(8, tw - 14), oy = rng.int(8, th - 14), len = rng.int(4, 8), horiz = rng.chance(0.5);
+  for (let n = 0; n < Math.round(5 * k); n++) {
+    const ox = rng.int(8, tw - 14), oy = rng.int(8, th - 14), len = rng.int(4, 9), horiz = rng.chance(0.5);
     for (let i = 0; i < len; i++) carve(ox + (horiz ? i * 2 : 0), oy + (horiz ? 0 : i * 2));
+  }
+  // enclosure "rooms" with a doorway — extra terrain variety + cover (E1)
+  for (let r = 0; r < 5; r++) {
+    const rw = rng.int(5, 10), rh = rng.int(4, 8);
+    const ox = rng.int(3, tw - rw - 3), oy = rng.int(3, th - rh - 3);
+    if (dist((ox + rw / 2) * TS, (oy + rh / 2) * TS, start.x, start.y) < 150) continue;
+    const gap = rng.int(1, rw - 1), gy = rng.int(1, rh - 1);
+    for (let x = 0; x <= rw; x++) { if (x !== gap) { carve(ox + x, oy); carve(ox + x, oy + rh); } }
+    for (let y = 0; y <= rh; y++) { if (y !== gy) { carve(ox, oy + y); carve(ox + rw, oy + y); } }
   }
 
   // trap terrain: scattered hazard zones (lava / spikes / poison / thorns)
   const HKINDS = ['lava', 'spikes', 'poison', 'thorns'];
   const hazards = [];
-  for (let i = 0; i < 14; i++) {
+  for (let i = 0; i < Math.round(14 * k); i++) {
     const t = randFloor(tiles, tw, th);
-    if (t && far(t.x, t.y, 92)) hazards.push({ kind: HKINDS[rng.int(0, HKINDS.length - 1)], x: t.x, y: t.y, r: 13 + rng.int(0, 11) });
+    if (t && far(t.x, t.y, 92)) hazards.push({ kind: HKINDS[rng.int(0, HKINDS.length - 1)], x: t.x, y: t.y, r: 13 + rng.int(0, 12) });
   }
 
   // chests, hidden chest, shrine (in-run shop)
   const chests = [];
-  for (let i = 0; i < 7; i++) { const t = randFloor(tiles, tw, th); if (t && far(t.x, t.y, 80)) chests.push(t); }
+  for (let i = 0; i < Math.round(7 * k); i++) { const t = randFloor(tiles, tw, th); if (t && far(t.x, t.y, 80)) chests.push(t); }
   const secret = randFloor(tiles, tw, th);
   const shrine = randFloor(tiles, tw, th);
+
+  // wandering NPCs (E1): a wishing well + lost souls scattered across the map
+  const npcs = [];
+  for (const kind of ['well', 'soul', 'soul']) { const t = randFloor(tiles, tw, th); if (t && far(t.x, t.y, 90)) npcs.push({ kind, x: t.x, y: t.y, used: false }); }
 
   // biome decorations
   const decor = [];
   const decSprite = biome.decor === 'torch' ? 'torch' : 'dec_' + biome.decor;
-  for (let i = 0; i < 30; i++) { const t = randFloor(tiles, tw, th); if (t && far(t.x, t.y, 40)) decor.push({ sprite: decSprite, x: t.x, y: t.y, phase: rng.int(0, 2) }); }
+  for (let i = 0; i < Math.round(30 * k); i++) { const t = randFloor(tiles, tw, th); if (t && far(t.x, t.y, 40)) decor.push({ sprite: decSprite, x: t.x, y: t.y, phase: rng.int(0, 2) }); }
 
   return {
     tw, th, tiles, floorVar, decor, biome, boss: false,
     tileset: { floor: ['floor_' + biome.id, 'floor2_' + biome.id, 'floorx_' + biome.id], wall: 'wall_' + biome.id, wallTop: 'walltop_' + biome.id },
-    entrance: start, center: start, chests, secret, shrine, hazards,
+    entrance: start, center: start, chests, secret, shrine, hazards, npcs,
   };
 }
 
