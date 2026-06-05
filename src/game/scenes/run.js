@@ -8,11 +8,12 @@ import { Player } from '../player.js';
 import { newRun, bankRun, META, saveMeta } from '../state.js';
 import { setScene } from '../scene.js';
 import { refs } from './refs.js';
-import { Enemies, Equipment, Abilities } from '../content/registry.js';
+import { Enemies, Equipment, Abilities, Weapons, Characters } from '../content/registry.js';
 import { equipItem } from '../content/equipment.js';
 import { BALANCE } from '../balance.js';
 import { isUnlocked } from '../content/unlocks.js';
 import { STORY_QUESTS } from '../content/quests.js';
+import { Cheats } from '../cheats.js';
 import {
   camera, clear, vignette, uiText, uiRect, uiScale, view, addShake, drawSpriteUI, textWidth,
   drawSprite, drawShadow, glowWorld, worldToScreen, fillRectWorld, uiBar, setShakeScale,
@@ -569,6 +570,8 @@ export const runScene = {
   // ---- update --------------------------------------------------------------
   update(dt) {
     this.t += dt;
+    if (Cheats.toast > 0) Cheats.toast -= dt;
+    if (Cheats.enabled) this.cheatInput();           // F2 dev panel clicks
     if (settingsUI.open) { settingsUI.update(); return; }
     if (this.dead) {
       this.deathT += dt; this.world.particles.update(dt);
@@ -584,6 +587,7 @@ export const runScene = {
     if (this.showBuild) return;   // freeze the field while reviewing your build
     if (this.shopOpen) { this.updateShopPanel(); return; }   // modal shop also freezes the field
 
+    if (Cheats.enabled && Cheats.fast) dt *= 3;   // F2 time-warp
     this.run.time += dt;
     this.threat = 1 + Math.floor(this.run.time / BALANCE.THREAT_PERIOD);   // ~1 -> 13 over the 20-min level
     this.run.stage = this.threat; this.run.floor = this.threat;   // keep loot/score scaling alive
@@ -592,6 +596,7 @@ export const runScene = {
     const hpFrac = this.player.maxHp ? this.player.hp / this.player.maxHp : 1;
     setShakeScale(hpFrac < 0.25 ? 1.0 : 0.42);
     this.world.update(dt);
+    if (Cheats.enabled && Cheats.godmode && this.player) this.player.hp = this.player.maxHp;   // F2 invincibility
     this.aimCamera();
     if (this.bannerT > 0) this.bannerT -= dt;
     if (this.story) { this.story.t -= dt; if (this.story.t <= 0) this.story = null; else if (pressed('space') && this.story.t < this.story.dur - 0.6) this.story = null; }
@@ -772,6 +777,7 @@ export const runScene = {
     if (this.dead) { if (this.won) this.drawWon(); else this.drawDeath(); }
     if (this.paused) this.drawPause();
     settingsUI.draw();
+    this.drawCheatPanel();   // F2 dev overlay (on top of everything)
   },
 
   drawShrine() {
@@ -986,6 +992,55 @@ export const runScene = {
     const reveal = Math.floor(Math.min(st.text.length, (st.dur - st.t) / 0.03));   // typewriter reveal
     this.wrapText(st.text.slice(0, reveal), view.W / 2, by + 76 * S, view.W * 0.7, 14 * S, withAlpha('#d8e0f0', a));
     uiText('按 空白鍵 跳過', view.W / 2, by + bandH - 14 * S, { size: 11 * S, align: 'center', color: withAlpha('#fff', 0.4 * a) });
+  },
+
+  // ---- hidden dev cheat panel (F2) ----------------------------------------
+  cheatButtons() {
+    const S = uiScale();
+    const w = 98 * S, h = 22 * S, gap = 5 * S, x = view.W - w - 8 * S;
+    let y = 122 * S;
+    const items = [
+      { id: 'god', label: (Cheats.godmode ? '✓ ' : '') + '無敵' },
+      { id: 'fast', label: (Cheats.fast ? '✓ ' : '') + '加速 ×3' },
+      { id: 'gold', label: '+金幣/魂晶' },
+      { id: 'level', label: '升等' },
+      { id: 'spawn', label: '刷怪' },
+      { id: 'kill', label: '殺光雜兵' },
+      { id: 'unlock', label: '解鎖全部' },
+      { id: 'clear', label: '強制通關' },
+    ];
+    return items.map((it) => { const r = { ...it, x, y, w, h }; y += h + gap; return r; });
+  },
+  cheatInput() {
+    if (!mouse.justDown) return;
+    const mx = mouse.x * view.dpr, my = mouse.y * view.dpr;
+    for (const b of this.cheatButtons()) if (inside(mx, my, b)) { this.doCheat(b.id); break; }
+  },
+  doCheat(id) {
+    Sfx.play('uiClick');
+    const w = this.world;
+    if (id === 'god') Cheats.godmode = !Cheats.godmode;
+    else if (id === 'fast') Cheats.fast = !Cheats.fast;
+    else if (id === 'gold') { this.run.gold += 1000; this.run.shards += 100; this.banner = '作弊：+1000 金幣 / +100 魂晶'; this.bannerT = 1.4; }
+    else if (id === 'level') { this.levelQueue++; }
+    else if (id === 'spawn') { for (let i = 0; i < 8; i++) w.spawnRing(this.pickSpawnType(), { hpScale: this.diffMul, dmgScale: this.diffMul }); }
+    else if (id === 'kill') { for (const e of w.enemies) if (!e.boss) e.dead = true; this.banner = '作弊：清場'; this.bannerT = 1.2; }
+    else if (id === 'unlock') { META.unlocked.weapons = Weapons.ids(); META.unlocked.abilities = Abilities.ids(); META.unlocked.equipment = Equipment.ids(); META.unlocked.characters = Characters.ids(); saveMeta(); this.banner = '作弊：已解鎖全部內容'; this.bannerT = 1.6; }
+    else if (id === 'clear') { if (!this.cleared) this.clearLevel(); }
+  },
+  drawCheatPanel() {
+    const S = uiScale();
+    if (Cheats.toast > 0) uiText('☠ 開發者模式 ' + (Cheats.enabled ? '開啟' : '關閉'), view.W / 2, view.H * 0.12, { size: 18 * S, align: 'center', color: P.goldL, weight: '900' });
+    if (!Cheats.enabled) return;
+    const btns = this.cheatButtons();
+    const mx = mouse.x * view.dpr, my = mouse.y * view.dpr;
+    uiText('☠ DEV', btns[0].x + btns[0].w / 2, btns[0].y - 9 * S, { size: 10 * S, align: 'center', color: P.redL, weight: '800' });
+    for (const b of btns) {
+      const hov = inside(mx, my, b);
+      const on = (b.id === 'god' && Cheats.godmode) || (b.id === 'fast' && Cheats.fast);
+      uiRect(b.x, b.y, b.w, b.h, withAlpha(on ? '#2a5a3a' : (hov ? '#3a2a4a' : '#1a1430'), 0.95), { radius: 5 * S, stroke: on ? P.greenL : hov ? P.goldL : P.ink2, lw: 1.5 });
+      uiText(b.label, b.x + b.w / 2, b.y + b.h / 2 + 1 * S, { size: 11 * S, align: 'center', baseline: 'middle', color: '#fff', weight: '700' });
+    }
   },
 
   drawWon() {

@@ -30,6 +30,7 @@ import './art/gen/index.js';
 import './game/content/gen/index.js';
 
 import { refs } from './game/scenes/refs.js';
+import { initCheats } from './game/cheats.js';
 import './game/scenes/run.js';
 import './game/scenes/hub.js';
 import './game/scenes/title.js';
@@ -45,6 +46,7 @@ function boot() {
   initInput(canvas, () => ({ scale: 1 }));
   loadMeta();
   applySettings();
+  initCheats();
   setLoad(100);
 
   setScene(refs.title, {});
