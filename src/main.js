@@ -9,6 +9,7 @@ import { registryStats, Enemies } from './game/content/registry.js';
 
 // content + art registration (import for side effects)
 import './art/core.js';
+import './art/heroes.js';   // 原#17: unique hero body archetypes (must load before characters)
 import './art/icons.js';
 import './art/content_icons.js';
 import './art/weapons.js';

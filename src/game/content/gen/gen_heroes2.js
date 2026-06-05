@@ -6,7 +6,7 @@ import { Projectile } from '../../projectile.js';
 import { glowWorld, fillCircleWorld, drawSprite, lineWorld } from '../../../engine/renderer.js';
 import { getSprite, defineSprite, defineAnim, Painter } from '../../../engine/sprites.js';
 import { defineIcon, panel, sym } from '../../../art/icons.js';
-import { drawSlime, drawBat, drawWisp, drawBrute, drawHunter } from '../../../art/core.js';
+import { drawSlime, drawBat, drawWisp, drawBrute, drawHunter, drawHeroBody } from '../../../art/core.js';
 import { Sfx } from '../../../engine/audio.js';
 
 // gen_heroes2 — 5 new playable characters (hunter recolours). File-body form.
@@ -34,11 +34,11 @@ const H2_ART = {
 };
 
 // ---------- Sprites (recoloured hunter, 16x18, feet anchored) ----------
-defineAnim('char_h2_duelist',    16, 18, 4, (p, f) => { drawHunter(p, f, H2_ART.duelist);    p.outline(P.ink); }, { anchor: [8, 17], fps: 9 });
-defineAnim('char_h2_warlock',    16, 18, 4, (p, f) => { drawHunter(p, f, H2_ART.warlock);    p.outline(P.ink); }, { anchor: [8, 17], fps: 9 });
-defineAnim('char_h2_trapper',    16, 18, 4, (p, f) => { drawHunter(p, f, H2_ART.trapper);    p.outline(P.ink); }, { anchor: [8, 17], fps: 9 });
-defineAnim('char_h2_voidcaller', 16, 18, 4, (p, f) => { drawHunter(p, f, H2_ART.voidcaller); p.outline(P.ink); }, { anchor: [8, 17], fps: 9 });
-defineAnim('char_h2_warder',     16, 18, 4, (p, f) => { drawHunter(p, f, H2_ART.warder);     p.outline(P.ink); }, { anchor: [8, 17], fps: 9 });
+defineAnim('char_h2_duelist',    16, 18, 4, (p, f) => { drawHeroBody(p, f, 'h2_duelist',    H2_ART.duelist);    p.outline(P.ink); }, { anchor: [8, 17], fps: 9 });
+defineAnim('char_h2_warlock',    16, 18, 4, (p, f) => { drawHeroBody(p, f, 'h2_warlock',    H2_ART.warlock);    p.outline(P.ink); }, { anchor: [8, 17], fps: 9 });
+defineAnim('char_h2_trapper',    16, 18, 4, (p, f) => { drawHeroBody(p, f, 'h2_trapper',    H2_ART.trapper);    p.outline(P.ink); }, { anchor: [8, 17], fps: 9 });
+defineAnim('char_h2_voidcaller', 16, 18, 4, (p, f) => { drawHeroBody(p, f, 'h2_voidcaller', H2_ART.voidcaller); p.outline(P.ink); }, { anchor: [8, 17], fps: 9 });
+defineAnim('char_h2_warder',     16, 18, 4, (p, f) => { drawHeroBody(p, f, 'h2_warder',     H2_ART.warder);     p.outline(P.ink); }, { anchor: [8, 17], fps: 9 });
 
 // ---------- Characters ----------
 const C = (o) => Characters.register(o);

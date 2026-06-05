@@ -65,6 +65,14 @@ export function drawHunter(p, frame, opt = {}) {
   p.px(4, 6 + oy, mix(cloak, P.ink2, 0.4));
 }
 
+// Hero body registry (原#17): a character can register a UNIQUE body silhouette
+// (helmet / hat / mask, build, weapon) instead of a recoloured hunter. The palette
+// art = { cloak, cloakD, cloakL, trim, eye, skin } still drives colours, so each hero
+// reads distinctly even within a shared archetype. Falls back to drawHunter.
+export const HERO_ART = {};
+export function registerHeroBody(id, fn) { HERO_ART[id] = fn; }
+export function drawHeroBody(p, frame, id, art = {}) { (HERO_ART[id] || drawHunter)(p, frame, art); }
+
 function weaponWand(p, frame, oy) {
   // a short staff with a glowing shard, on the right hand
   p.line(12, 13 + oy, 15, 9 + oy, P.wood);

@@ -8,7 +8,7 @@
 //     unlock:{ type:'free'|'gold'|'achievement', cost?, condition?, hint? } }
 import { Characters } from './registry.js';
 import { defineAnim, hasSprite } from '../../engine/sprites.js';
-import { drawHunter } from '../../art/core.js';
+import { drawHunter, drawHeroBody } from '../../art/core.js';
 import { P } from '../../engine/palette.js';
 
 const C = (o) => Characters.register(o);
@@ -36,10 +36,11 @@ C({ id: 'shadow', name: '暗影刺客', desc: '閃避 +12%、幸運 +0.2。起�
   art: { cloak: P.purple, cloakD: P.purpleD, cloakL: P.purpleL, trim: P.manaL, eye: P.manaL },
   passive: (s) => { s.dodge += 0.12; s.luck += 0.2; }, unlock: { type: 'achievement', condition: 'kills_2000', hint: '累計擊殺 2000 解鎖' } });
 
-// generate each character's recoloured sprite
+// generate each character's sprite — UNIQUE body archetype per hero (原#17), tinted
+// by the character's palette; falls back to the hooded hunter if none is registered.
 for (const c of Characters.all()) {
   defineAnim(c.sprite, 16, 18, 4, (p, f) => {
-    drawHunter(p, f, c.art);
+    drawHeroBody(p, f, c.id, c.art);
     p.outline(P.ink);
   }, { anchor: [8, 17], fps: 9 });
 }
@@ -58,7 +59,8 @@ export const SKINS = [
 // magenta). hasSprite() makes generation idempotent.
 function ensureSkin(c, sk) {
   const name = `${c.sprite}__${sk.id}`;
-  if (!hasSprite(name)) defineAnim(name, 16, 18, 4, (p, f) => { drawHunter(p, f, { ...c.art, ...sk.art }); p.outline(P.ink); }, { anchor: [8, 17], fps: 9 });
+  // 原#17: skins recolour the hero's UNIQUE body archetype (not the generic hunter)
+  if (!hasSprite(name)) defineAnim(name, 16, 18, 4, (p, f) => { drawHeroBody(p, f, c.id, { ...c.art, ...sk.art }); p.outline(P.ink); }, { anchor: [8, 17], fps: 9 });
   return name;
 }
 // resolve (and ensure) the sprite name for a character + a skin id
