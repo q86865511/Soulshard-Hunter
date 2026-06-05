@@ -2,6 +2,7 @@
 import { rng, dist } from '../engine/math.js';
 import { WALL, FLOOR, TS } from './world.js';
 import { BIOMES } from '../art/biomes.js';
+import { DECOR_SETS, DECOR_CLUSTERS } from '../art/biome_decor.js';
 import { BALANCE } from './balance.js';
 
 export function biomeForStage(stage) { return BIOMES[(stage - 1) % BIOMES.length]; }
@@ -10,6 +11,24 @@ export function isBossStage(stage) { return stage % 5 === 0; }
 function randFloor(tiles, tw, th) {
   for (let i = 0; i < 80; i++) { const tx = rng.int(2, tw - 3), ty = rng.int(2, th - 3); if (tiles[ty * tw + tx] === FLOOR) return { x: (tx + 0.5) * TS, y: (ty + 0.5) * TS }; }
   return null;
+}
+// a floor tile adjacent to a wall (for props that line up against walls — built-up feel)
+function nearWallFloor(tiles, tw, th) {
+  for (let i = 0; i < 60; i++) {
+    const tx = rng.int(2, tw - 3), ty = rng.int(2, th - 3);
+    if (tiles[ty * tw + tx] !== FLOOR) continue;
+    if (tiles[ty * tw + tx - 1] === WALL || tiles[ty * tw + tx + 1] === WALL || tiles[(ty - 1) * tw + tx] === WALL || tiles[(ty + 1) * tw + tx] === WALL)
+      return { x: (tx + 0.5) * TS, y: (ty + 0.5) * TS };
+  }
+  return null;
+}
+// place a tight cluster of one feature sprite around an anchor (crystal patches, graveyards, ice fields…)
+function placeCluster(decor, tiles, tw, th, anchor, sprite, n) {
+  for (let j = 0; j < n; j++) {
+    const ox = anchor.x + (rng.next() - 0.5) * 72, oy = anchor.y + (rng.next() - 0.5) * 60;
+    const tx = Math.floor(ox / TS), ty = Math.floor(oy / TS);
+    if (tx > 1 && ty > 1 && tx < tw - 2 && ty < th - 2 && tiles[ty * tw + tx] === FLOOR) decor.push({ sprite, x: ox, y: oy, phase: rng.int(0, 2) });
+  }
 }
 
 // One big persistent battleground for the single-stage continuous-survival mode.
@@ -71,10 +90,15 @@ export function generateWorld(seedBiome) {
   const npcs = [];
   for (const kind of ['well', 'soul', 'soul', 'shard', 'forge']) { const t = randFloor(tiles, tw, th); if (t && far(t.x, t.y, 90)) npcs.push({ kind, x: t.x, y: t.y, used: false }); }
 
-  // biome decorations
+  // biome decorations — a rich mix of natural + man-made props: scattered singles,
+  // tight feature clusters, and a few lined up against walls (built-up feel).
   const decor = [];
-  const decSprite = biome.decor === 'torch' ? 'torch' : 'dec_' + biome.decor;
-  for (let i = 0; i < Math.round(30 * k); i++) { const t = randFloor(tiles, tw, th); if (t && far(t.x, t.y, 40)) decor.push({ sprite: decSprite, x: t.x, y: t.y, phase: rng.int(0, 2) }); }
+  const pool = DECOR_SETS[biome.id] || ['torch'];
+  const clusterPool = DECOR_CLUSTERS[biome.id] || pool;
+  const pick = (a) => a[rng.int(0, a.length - 1)];
+  for (let i = 0; i < Math.round(34 * k); i++) { const t = randFloor(tiles, tw, th); if (t && far(t.x, t.y, 40)) decor.push({ sprite: pick(pool), x: t.x, y: t.y, phase: rng.int(0, 2) }); }
+  for (let c = 0; c < Math.round(9 * k); c++) { const t = randFloor(tiles, tw, th); if (t && far(t.x, t.y, 70)) placeCluster(decor, tiles, tw, th, t, pick(clusterPool), rng.int(3, 6)); }
+  for (let i = 0; i < Math.round(14 * k); i++) { const t = nearWallFloor(tiles, tw, th); if (t && far(t.x, t.y, 50)) decor.push({ sprite: pick(pool), x: t.x, y: t.y, phase: rng.int(0, 2) }); }
 
   return {
     tw, th, tiles, floorVar, decor, biome, boss: false,
@@ -125,11 +149,15 @@ export function generateStage(stage) {
   const secret = (!boss && rng.chance(0.5)) ? randFloor(tiles, tw, th) : null;
   const shrine = (!boss && stage > 1 && rng.chance(0.6)) ? randFloor(tiles, tw, th) : null;
 
-  // biome decorations scattered on floor
+  // biome decorations — a mix of the biome's props (scattered + a couple clusters + wall-lined)
   const decor = [];
-  const decSprite = biome.decor === 'torch' ? 'torch' : 'dec_' + biome.decor;
-  const nDec = 10 + stage;
-  for (let i = 0; i < nDec; i++) { const t = randFloor(tiles, tw, th); if (t) decor.push({ sprite: decSprite, x: t.x, y: t.y, phase: rng.int(0, 2) }); }
+  const pool = DECOR_SETS[biome.id] || ['torch'];
+  const clusterPool = DECOR_CLUSTERS[biome.id] || pool;
+  const pick = (a) => a[rng.int(0, a.length - 1)];
+  const nDec = 12 + stage;
+  for (let i = 0; i < nDec; i++) { const t = randFloor(tiles, tw, th); if (t) decor.push({ sprite: pick(pool), x: t.x, y: t.y, phase: rng.int(0, 2) }); }
+  for (let c = 0; c < 4; c++) { const t = randFloor(tiles, tw, th); if (t) placeCluster(decor, tiles, tw, th, t, pick(clusterPool), rng.int(3, 5)); }
+  for (let i = 0; i < 6; i++) { const t = nearWallFloor(tiles, tw, th); if (t) decor.push({ sprite: pick(pool), x: t.x, y: t.y, phase: rng.int(0, 2) }); }
 
   return {
     tw, th, tiles, floorVar, decor, biome, boss,

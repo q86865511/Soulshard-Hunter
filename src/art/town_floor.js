@@ -54,6 +54,20 @@ defineSprite('town_wall', 16, 16, (p) => {
   p.hline(0, 15, 1, P.wallL);
 }, { anchor: [0, 0] });
 
+// Plaza gatepost — a stone pillar with a glowing soulshard lantern. Two of these
+// flank each 4-tile plaza doorway (replacing the tiny mis-sized arch). Anchored at base.
+defineSprite('town_gatepost', 12, 32, (p) => {
+  p.rect(1, 27, 10, 5, P.gray1); p.rect(1, 27, 10, 1, P.gray3);     // plinth
+  p.rect(2, 9, 8, 19, P.gray2);                                     // shaft
+  p.rect(2, 9, 3, 19, P.gray3);                                     // lit (left) face
+  p.rect(8, 9, 2, 19, darken(P.gray1, 0.12));                       // shade (right) face
+  p.vline(13, 26, 6, darken(P.gray1, 0.25));                        // flute groove
+  p.rect(0, 7, 12, 3, P.gray3); p.rect(0, 6, 12, 1, P.gray2);       // capital
+  p.rect(4, 3, 4, 4, P.bronze); p.px(4, 3, P.goldL);                // lantern bracket
+  p.ellipse(6, 4, 2, 2.4, P.shardD); p.ellipse(6, 4, 1.3, 1.7, P.shard); p.px(6, 3, P.shardL);  // glowing shard
+  p.outline(P.ink);
+}, { anchor: [6, 31] });
+
 // Front-facing top edge (one tile high above the floor, for depth).
 defineSprite('town_wall_top', 16, 8, (p) => {
   p.rect(0, 0, 16, 8, darken(P.wallD, 0.15));

@@ -14,6 +14,7 @@ import './art/icons.js';
 import './art/content_icons.js';
 import './art/weapons.js';
 import './art/biomes.js';
+import './art/biome_decor.js';   // round 6.1: rich per-biome decoration sets
 import './art/hub.js';
 import './art/lobby.js';
 // round-5 town art (multi-room hub: NPCs + room decor)

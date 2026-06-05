@@ -544,10 +544,14 @@ export function makeCamp() {
   put('hub_house', R.market, -3, -2); put('town_barrel', R.market, 3, 2); put('town_barrel', R.market, 4.5, 2.5);
   // PLAZA — lamps at the corners, torches, a banner
   put('hub_lamp', R.plaza, -5, 3, 0); put('hub_lamp', R.plaza, 5, 3, 1); put('hub_lamp', R.plaza, -5, -3, 1); put('hub_lamp', R.plaza, 5, -3, 0);
-  // task-6: archways marking ALL FOUR plaza entrances, aligned to the actual doorways
-  // (N→guild, S→garden, W→blacksmith, E→achievements) so the "gates" line up with the openings
-  put('town_arch', R.plaza, 0, -6.5); put('town_arch', R.plaza, 0, 6.5);
-  put('town_arch', R.plaza, -8, 0); put('town_arch', R.plaza, 8, 0);
+  // proper GATEWAYS: two stone gateposts flank each 4-tile plaza doorway, placed at the
+  // ACTUAL opening edges (N/S openings = cols 23-26 on rows 13/26 → flank cols 22.5/27.5;
+  // W/E openings = rows 18-21 on cols 16/32 → flank rows 17.5/22.5). Sized + aligned to the gaps.
+  const gates = [
+    [22.5, 13.5], [27.5, 13.5], [22.5, 26.5], [27.5, 26.5],   // N (→guild) + S (→garden)
+    [16.5, 17.5], [16.5, 22.5], [32.5, 17.5], [32.5, 22.5],   // W (→blacksmith) + E (→achievements)
+  ];
+  for (const [gx, gy] of gates) D.push({ sprite: 'town_gatepost', x: gx * TS, y: gy * TS, phase: 0 });
   // polished town tileset (soft flagstone joints) instead of the dungeon's dark grid
   const tileset = { floor: ['town_floor', 'town_floor2', 'town_floor3'], wall: 'town_wall', wallTop: 'town_wall_top' };
   return { tw, th, tiles, floorVar, decor: D, rooms, tileset };

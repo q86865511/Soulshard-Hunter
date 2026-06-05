@@ -11,35 +11,94 @@ export const BIOMES = [
   { id: 'void', name: '虛空裂界', floor: '#1c1430', floor2: '#241a40', line: '#120c20', wall: '#3a2a5a', wallD: '#261a40', wallL: '#5a4482', decor: 'voidcrystal', accent: P.purpleL, fog: 'rgba(40,20,70,0.06)' },
 ];
 
+// Per-biome FLOOR painters (v = 0 base / 1 alt / 2 accent). Each biome has its own
+// shape language so maps don't read as the same tiles recoloured.
+const FLOORS = {
+  crypt: (p, b, v) => {                                   // catacomb flagstone (beveled joints)
+    p.rect(0, 0, 16, 16, b.floor);
+    p.hline(0, 15, 0, lighten(b.floor, 0.10)); p.hline(0, 15, 15, b.line); p.vline(0, 15, 15, b.line);
+    if (v === 0) { p.px(4, 5, b.floor2); p.px(11, 9, darken(b.floor, 0.16)); p.line(2, 3, 5, 6, b.line); }
+    else if (v === 1) { p.rect(5, 7, 4, 3, darken(b.floor2, 0.06)); p.px(12, 4, b.floor2); }
+    else { p.px(7, 8, P.bone); p.px(8, 8, darken(P.bone, 0.15)); p.px(7, 9, darken(P.bone, 0.35)); p.line(3, 11, 9, 12, b.line); }
+  },
+  cavern: (p, b, v) => {                                  // rough rock + crystal glints (organic, no hard grid)
+    p.rect(0, 0, 16, 16, b.floor); p.shadeBottom(0.10);
+    p.px(3, 4, darken(b.floor, 0.18)); p.px(10, 3, lighten(b.floor, 0.10)); p.px(6, 11, darken(b.floor, 0.2)); p.px(13, 12, lighten(b.floor, 0.08)); p.px(2, 13, darken(b.floor, 0.15));
+    if (v === 1) { p.ellipse(8, 9, 3, 2, darken(b.floor2, 0.05)); p.px(7, 8, lighten(b.floor2, 0.12)); }
+    else if (v === 2) { p.line(11, 12, 12, 8, b.accent); p.line(11, 12, 10, 9, darken(b.accent, 0.3)); p.px(12, 7, lighten(b.accent, 0.3)); }
+  },
+  frost: (p, b, v) => {                                   // ice sheet (diagonal sheen + frost cracks)
+    p.rect(0, 0, 16, 16, b.floor);
+    p.line(2, 12, 12, 2, lighten(b.floor, 0.14));
+    p.hline(0, 15, 0, lighten(b.floor, 0.12)); p.hline(0, 15, 15, b.line); p.vline(0, 15, 15, b.line);
+    if (v === 0) { p.line(4, 5, 8, 9, lighten(b.floor, 0.2)); }
+    else if (v === 1) { p.px(11, 4, P.white); p.px(12, 5, P.ice); p.px(4, 12, P.white); }
+    else { p.ellipse(8, 10, 3, 1.6, lighten(b.floor, 0.22)); p.px(8, 10, P.white); }
+  },
+  inferno: (p, b, v) => {                                 // charred basalt + glowing magma cracks
+    p.rect(0, 0, 16, 16, b.floor); p.shadeBottom(0.12);
+    p.hline(0, 15, 15, b.line); p.vline(0, 15, 15, b.line);
+    if (v === 0) { p.line(3, 2, 6, 8, P.ember); p.line(6, 8, 5, 13, darken(P.ember, 0.35)); p.px(6, 8, P.emberL); }
+    else if (v === 1) { p.px(5, 5, darken(b.floor, 0.2)); p.px(11, 10, darken(b.floor, 0.25)); p.px(9, 4, P.ember); }
+    else { p.line(2, 9, 13, 11, P.ember); p.line(8, 3, 9, 14, darken(P.ember, 0.4)); p.px(8, 7, P.emberL); }
+  },
+  void: (p, b, v) => {                                    // void starfield + faint runes
+    p.rect(0, 0, 16, 16, b.floor); p.shadeBottom(0.08);
+    p.px(4, 5, P.manaL); p.px(11, 8, P.white); p.px(7, 12, P.purpleL);
+    if (v === 1) { p.px(13, 3, P.white); p.px(2, 10, P.manaL); p.line(8, 7, 9, 9, b.accent); }
+    else if (v === 2) { p.ring(8, 8, 3, darken(P.purpleL, 0.2)); p.px(8, 8, P.manaL); }
+  },
+};
+
+// Per-biome WALL painters (16x16 body + 16x8 front-face top).
+const WALLS = {
+  crypt: (p, b) => {                                      // mortared crypt brick
+    p.rect(0, 0, 16, 16, b.wall);
+    p.rect(0, 0, 16, 7, lighten(b.wall, 0.06)); p.rect(0, 8, 16, 7, b.wall);
+    p.hline(0, 15, 7, b.wallD); p.vline(0, 6, 8, b.wallD); p.vline(8, 15, 4, b.wallD); p.vline(8, 15, 12, b.wallD);
+    p.hline(0, 15, 0, b.wallL);
+  },
+  cavern: (p, b) => {                                     // jagged rock + crystal vein
+    p.rect(0, 0, 16, 16, b.wall);
+    p.px(3, 3, darken(b.wall, 0.2)); p.rect(9, 2, 4, 3, darken(b.wall, 0.15)); p.rect(2, 9, 5, 4, darken(b.wall, 0.18)); p.px(13, 11, lighten(b.wall, 0.1));
+    p.line(5, 14, 7, 2, b.accent); p.px(7, 2, lighten(b.accent, 0.3));
+    p.hline(0, 15, 0, b.wallL);
+  },
+  frost: (p, b) => {                                      // cracked ice block
+    p.rect(0, 0, 16, 16, b.wall);
+    p.line(2, 2, 6, 9, lighten(b.wall, 0.18)); p.line(10, 3, 13, 10, lighten(b.wall, 0.12));
+    p.hline(0, 15, 7, b.wallD);
+    p.hline(0, 15, 0, lighten(b.wallL, 0.1)); p.hline(0, 15, 1, b.wallL);
+    p.px(4, 15, b.wallL); p.px(11, 15, b.wallL);
+  },
+  inferno: (p, b) => {                                    // obsidian + ember veins
+    p.rect(0, 0, 16, 16, darken(b.wall, 0.05));
+    p.line(3, 2, 5, 9, P.ember); p.line(11, 4, 9, 13, darken(P.ember, 0.4)); p.px(4, 5, P.emberL);
+    p.hline(0, 15, 0, b.wallL);
+  },
+  void: (p, b) => {                                       // void-stone + energy seams
+    p.rect(0, 0, 16, 16, b.wall);
+    p.line(2, 4, 8, 7, P.purpleL); p.line(8, 7, 14, 11, darken(P.purpleL, 0.3)); p.px(8, 7, P.manaL);
+    p.px(4, 12, P.purpleL); p.px(12, 3, P.manaL);
+    p.hline(0, 15, 0, b.wallL);
+  },
+};
+const WALLTOPS = {
+  crypt: (p, b) => { p.rect(0, 0, 16, 8, darken(b.wallD, 0.2)); p.rect(0, 0, 16, 2, b.wallL); p.rect(0, 2, 16, 1, b.wall); for (let x = 2; x < 16; x += 5) p.vline(3, 7, x, darken(b.wallD, 0.3)); },
+  cavern: (p, b) => { p.rect(0, 0, 16, 8, darken(b.wallD, 0.2)); p.rect(0, 0, 16, 2, b.wallL); p.px(5, 3, b.accent); p.px(11, 4, lighten(b.accent, 0.2)); for (let x = 2; x < 16; x += 4) p.px(x, 6, darken(b.wallD, 0.3)); },
+  frost: (p, b) => { p.rect(0, 0, 16, 8, darken(b.wallD, 0.2)); p.rect(0, 0, 16, 3, lighten(b.wallL, 0.12)); p.px(3, 7, b.wallL); p.px(7, 7, b.wallL); p.px(11, 7, b.wallL); },
+  inferno: (p, b) => { p.rect(0, 0, 16, 8, darken(b.wallD, 0.25)); p.rect(0, 0, 16, 2, P.ember); p.rect(0, 2, 16, 1, darken(P.ember, 0.4)); for (let x = 2; x < 16; x += 5) p.px(x, 6, darken(b.wallD, 0.3)); },
+  void: (p, b) => { p.rect(0, 0, 16, 8, darken(b.wallD, 0.2)); p.rect(0, 0, 16, 2, P.purpleL); p.px(4, 4, P.manaL); p.px(11, 5, P.white); },
+};
+
 function tileset(b) {
   const id = b.id;
-  defineSprite('floor_' + id, 16, 16, (p) => {
-    p.rect(0, 0, 16, 16, b.floor);
-    p.hline(0, 15, 0, lighten(b.floor, 0.08)); p.hline(0, 15, 15, b.line); p.vline(0, 15, 15, b.line);
-    p.px(4, 5, b.floor2); p.px(11, 9, b.floor2); p.px(7, 12, darken(b.floor, 0.15));
-  }, { anchor: [0, 0] });
-  defineSprite('floor2_' + id, 16, 16, (p) => {
-    p.rect(0, 0, 16, 16, b.floor2);
-    p.hline(0, 15, 15, b.line); p.vline(0, 15, 15, b.line);
-    p.px(3, 3, b.floor); p.rect(6, 8, 3, 2, darken(b.floor2, 0.1)); p.px(12, 12, b.floor);
-  }, { anchor: [0, 0] });
-  defineSprite('floorx_' + id, 16, 16, (p) => {
-    p.rect(0, 0, 16, 16, b.floor);
-    p.hline(0, 15, 15, b.line); p.vline(0, 15, 15, b.line);
-    p.line(3, 2, 6, 8, b.line); p.line(6, 8, 5, 13, b.line); p.line(6, 8, 11, 10, b.line);
-  }, { anchor: [0, 0] });
-  defineSprite('wall_' + id, 16, 16, (p) => {
-    p.rect(0, 0, 16, 16, b.wall);
-    p.rect(0, 6, 16, 5, darken(b.wall, 0.08));
-    p.hline(0, 15, 5, b.wallD); p.hline(0, 15, 11, b.wallD);
-    p.vline(0, 5, 8, b.wallD); p.vline(6, 11, 4, b.wallD); p.vline(6, 11, 12, b.wallD); p.vline(12, 15, 8, b.wallD);
-    p.hline(0, 15, 0, b.wallL);
-  }, { anchor: [0, 0] });
-  defineSprite('walltop_' + id, 16, 8, (p) => {
-    p.rect(0, 0, 16, 8, darken(b.wallD, 0.2));
-    p.rect(0, 0, 16, 2, b.wallL); p.rect(0, 2, 16, 1, b.wall);
-    for (let x = 2; x < 16; x += 5) p.vline(3, 7, x, darken(b.wallD, 0.3));
-  }, { anchor: [0, 0] });
+  const F = FLOORS[id] || FLOORS.crypt, Wd = WALLS[id] || WALLS.crypt, Wt = WALLTOPS[id] || WALLTOPS.crypt;
+  defineSprite('floor_' + id, 16, 16, (p) => F(p, b, 0), { anchor: [0, 0] });
+  defineSprite('floor2_' + id, 16, 16, (p) => F(p, b, 1), { anchor: [0, 0] });
+  defineSprite('floorx_' + id, 16, 16, (p) => F(p, b, 2), { anchor: [0, 0] });
+  defineSprite('wall_' + id, 16, 16, (p) => Wd(p, b), { anchor: [0, 0] });
+  defineSprite('walltop_' + id, 16, 8, (p) => Wt(p, b), { anchor: [0, 0] });
 }
 BIOMES.forEach(tileset);
 
