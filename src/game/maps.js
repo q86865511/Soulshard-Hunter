@@ -41,7 +41,7 @@ export function generateWorld(seedBiome) {
   for (let y = 0; y < th; y++) for (let x = 0; x < tw; x++) {
     const border = x === 0 || y === 0 || x === tw - 1 || y === th - 1;
     tiles[y * tw + x] = border ? WALL : FLOOR;
-    floorVar[y * tw + x] = rng.next() < 0.12 ? (rng.next() < 0.4 ? 1 : 2) : 0;
+    floorVar[y * tw + x] = rng.next() < 0.07 ? 1 : 0;   // calm: only a subtle alt shade; feature regions (v2) are painted in blobs below
   }
   const start = { x: (tw / 2) * TS, y: (th / 2) * TS };
   const far = (px, py, d) => dist(px, py, start.x, start.y) > d;
@@ -50,7 +50,7 @@ export function generateWorld(seedBiome) {
   const area = tw * th, k = area / 7904;
 
   // scattered obstacle blobs (open arena feel; kept clear of the spawn)
-  for (let i = 0; i < Math.round(36 * k); i++) {
+  for (let i = 0; i < Math.round(48 * k); i++) {
     const cx = rng.int(4, tw - 5), cy = rng.int(4, th - 5);
     if (dist(cx * TS, cy * TS, start.x, start.y) < 120) continue;
     const r = rng.int(1, 3);
@@ -69,6 +69,24 @@ export function generateWorld(seedBiome) {
     const gap = rng.int(1, rw - 1), gy = rng.int(1, rh - 1);
     for (let x = 0; x <= rw; x++) { if (x !== gap) { carve(ox + x, oy); carve(ox + x, oy + rh); } }
     for (let y = 0; y <= rh; y++) { if (y !== gy) { carve(ox, oy + y); carve(ox + rw, oy + y); } }
+  }
+  // solid rock outcrops — chunky formations for cover/structure (kept off the spawn)
+  for (let n = 0; n < Math.round(8 * k); n++) {
+    const cx = rng.int(4, tw - 5), cy = rng.int(4, th - 5);
+    if (dist(cx * TS, cy * TS, start.x, start.y) < 150) continue;
+    const r = rng.int(2, 4);
+    for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) if (dx * dx + dy * dy <= r * r + rng.int(0, 2)) carve(cx + dx, cy + dy);
+  }
+  // distinct FEATURE-floor REGIONS (lava lakes / snow fields / crystal patches…): big flat
+  // colour blocks (floorVar = 2) giving the map clear ZONES instead of uniform texture.
+  for (let n = 0; n < Math.round(12 * k); n++) {
+    const cx = rng.int(3, tw - 4), cy = rng.int(3, th - 4);
+    if (dist(cx * TS, cy * TS, start.x, start.y) < 120) continue;
+    const r = rng.int(2, 5);
+    for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) {
+      const tx = cx + dx, ty = cy + dy;
+      if (dx * dx + dy * dy <= r * r + rng.int(0, r) && tx > 0 && ty > 0 && tx < tw - 1 && ty < th - 1 && tiles[ty * tw + tx] === FLOOR) floorVar[ty * tw + tx] = 2;
+    }
   }
 
   // trap terrain: scattered hazard zones (lava / spikes / poison / thorns)
@@ -117,7 +135,7 @@ export function generateStage(stage) {
   for (let y = 0; y < th; y++) for (let x = 0; x < tw; x++) {
     const border = x === 0 || y === 0 || x === tw - 1 || y === th - 1;
     tiles[y * tw + x] = border ? WALL : FLOOR;
-    floorVar[y * tw + x] = rng.next() < 0.12 ? (rng.next() < 0.4 ? 1 : 2) : 0;
+    floorVar[y * tw + x] = rng.next() < 0.07 ? 1 : 0;   // calm: only a subtle alt shade; feature regions (v2) are painted in blobs below
   }
   const start = { x: (tw / 2) * TS, y: (th / 2) * TS };
 
