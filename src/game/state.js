@@ -78,8 +78,8 @@ export function getMeta() { return META; }
 // ---- base numbers ----------------------------------------------------------
 export function makeBaseStats() {
   return {
-    maxHp: 100, hpRegen: 0,
-    speed: 80,
+    maxHp: 114, hpRegen: 0,
+    speed: 82,
     damageMult: 1, critChance: 0.05, critMult: 2,
     fireRateMult: 1, projSpeedMult: 1, projCountAdd: 0, pierceAdd: 0,
     knockbackMult: 1, homing: 0, area: 1,
@@ -115,6 +115,8 @@ export function newRun(opts = {}) {
     abilityLevels: {},
     equipment: { weapon: null, armor: null, trinket: null },
     inventory: [],
+    dmgBySource: {},        // 原#16: weapon/source -> cumulative damage dealt (results ranking)
+    bonds: [],              // 原#13: ids of bonds currently active this run
     startedAt: (typeof performance !== 'undefined' ? performance.now() : 0),
   };
   applyMeta(run);

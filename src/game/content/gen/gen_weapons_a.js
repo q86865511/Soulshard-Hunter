@@ -13,9 +13,9 @@ import { Sfx } from '../../../engine/audio.js';
 // File-body form (no import/export). All bindings provided by MEGA_HEADER.
 
 // ---- shared helpers --------------------------------------------------------
-function gNearestN(world, x, y, n, maxD = 720) {
+function gNearestN(world, x, y, n, maxD = 250) {   // 原#5: shorter range + line-of-sight
   const r = [];
-  for (const e of world.enemies) { if (e.dead || e.spawnT > 0) continue; const d = dist2(x, y, e.x, e.y); if (d < maxD * maxD) r.push([d, e]); }
+  for (const e of world.enemies) { if (e.dead || e.spawnT > 0) continue; const d = dist2(x, y, e.x, e.y); if (d < maxD * maxD && world.lineClear(x, y, e.x, e.y)) r.push([d, e]); }
   r.sort((a, b) => a[0] - b[0]);
   return r.slice(0, n).map((q) => q[1]);
 }

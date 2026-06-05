@@ -3,8 +3,8 @@
 // META.unlocked[kind]. Gameplay pools (level-up weapons/abilities, equipment rolls
 // and the shop) consult isUnlocked() so achievement unlocks are actually meaningful.
 export const LOCKED = {
-  weapons: ['w_homing', 'w_lightning'],
-  abilities: ['bigshot', 'glasscannon'],
+  weapons: ['w_homing', 'w_lightning', 'wc_turret', 'wc_beam'],                       // 原#6: more achievement-gated weapons
+  abilities: ['bigshot', 'glasscannon', 'ac_volatile_rounds', 'ac_soul_harvest', 'ac_riposte'],  // 原#6: gate the strong new passives
   equipment: ['cannon_staff'],
 };
 

@@ -8,7 +8,7 @@
 //     unlock:{ type:'free'|'gold'|'achievement', cost?, condition?, hint? } }
 import { Characters } from './registry.js';
 import { defineAnim, hasSprite } from '../../engine/sprites.js';
-import { drawHunter } from '../../art/core.js';
+import { drawHunter, drawHeroBody } from '../../art/core.js';
 import { P } from '../../engine/palette.js';
 
 const C = (o) => Characters.register(o);
@@ -36,10 +36,11 @@ C({ id: 'shadow', name: '暗影刺客', desc: '閃避 +12%、幸運 +0.2。起�
   art: { cloak: P.purple, cloakD: P.purpleD, cloakL: P.purpleL, trim: P.manaL, eye: P.manaL },
   passive: (s) => { s.dodge += 0.12; s.luck += 0.2; }, unlock: { type: 'achievement', condition: 'kills_2000', hint: '累計擊殺 2000 解鎖' } });
 
-// generate each character's recoloured sprite
+// generate each character's sprite — UNIQUE body archetype per hero (原#17), tinted
+// by the character's palette; falls back to the hooded hunter if none is registered.
 for (const c of Characters.all()) {
   defineAnim(c.sprite, 16, 18, 4, (p, f) => {
-    drawHunter(p, f, c.art);
+    drawHeroBody(p, f, c.id, c.art);
     p.outline(P.ink);
   }, { anchor: [8, 17], fps: 9 });
 }
@@ -52,13 +53,21 @@ export const SKINS = [
   { id: 'verdant', name: '翠影', price: 200, art: { cloak: P.green, cloakD: P.greenD, cloakL: P.greenL, trim: P.gold, eye: P.toxic } },
   { id: 'royal', name: '皇金', price: 350, art: { cloak: P.gold, cloakD: P.bronze, cloakL: '#ffe9a0', trim: P.purpleL, eye: P.emberL } },
   { id: 'void', name: '虛影', price: 350, art: { cloak: P.purple, cloakD: P.purpleD, cloakL: P.purpleL, trim: P.manaL, eye: P.manaL } },
+  // 原#7: more cosmetic skins
+  { id: 'frost', name: '霜寒', price: 250, art: { cloak: P.ice, cloakD: P.iceD, cloakL: P.white, trim: P.shardL, eye: P.blueL } },
+  { id: 'ember', name: '餘燼', price: 250, art: { cloak: P.ember, cloakD: P.redD, cloakL: P.emberL, trim: P.gold, eye: P.white } },
+  { id: 'phantom', name: '幽冥', price: 320, art: { cloak: P.shadow, cloakD: P.ink, cloakL: P.gray2, trim: P.purpleL, eye: P.toxic } },
+  { id: 'jade', name: '碧玉', price: 250, art: { cloak: P.toxic, cloakD: P.greenD, cloakL: P.greenL, trim: P.bone, eye: P.white } },
+  { id: 'crimson', name: '緋紅', price: 320, art: { cloak: P.blood, cloakD: P.redD, cloakL: P.redL, trim: P.gold, eye: P.emberL } },
+  { id: 'bone', name: '枯骨', price: 280, art: { cloak: P.bone, cloakD: P.gray2, cloakL: P.white, trim: P.ember, eye: P.redL } },
 ];
 // Skin variant sprites are generated LAZILY on first use — gen-content heroes are
 // registered after this module loads, so an eager loop would miss them (rendering
 // magenta). hasSprite() makes generation idempotent.
 function ensureSkin(c, sk) {
   const name = `${c.sprite}__${sk.id}`;
-  if (!hasSprite(name)) defineAnim(name, 16, 18, 4, (p, f) => { drawHunter(p, f, { ...c.art, ...sk.art }); p.outline(P.ink); }, { anchor: [8, 17], fps: 9 });
+  // 原#17: skins recolour the hero's UNIQUE body archetype (not the generic hunter)
+  if (!hasSprite(name)) defineAnim(name, 16, 18, 4, (p, f) => { drawHeroBody(p, f, c.id, { ...c.art, ...sk.art }); p.outline(P.ink); }, { anchor: [8, 17], fps: 9 });
   return name;
 }
 // resolve (and ensure) the sprite name for a character + a skin id

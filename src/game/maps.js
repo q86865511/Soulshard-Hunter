@@ -66,9 +66,10 @@ export function generateWorld(seedBiome) {
   const secret = randFloor(tiles, tw, th);
   const shrine = randFloor(tiles, tw, th);
 
-  // wandering NPCs (E1): a wishing well + lost souls scattered across the map
+  // wandering NPCs (E1 / 原#2): a wishing well, lost souls, a shard vein and a
+  // travelling smith — more variety, and the run scene refreshes them over time.
   const npcs = [];
-  for (const kind of ['well', 'soul', 'soul']) { const t = randFloor(tiles, tw, th); if (t && far(t.x, t.y, 90)) npcs.push({ kind, x: t.x, y: t.y, used: false }); }
+  for (const kind of ['well', 'soul', 'soul', 'shard', 'forge']) { const t = randFloor(tiles, tw, th); if (t && far(t.x, t.y, 90)) npcs.push({ kind, x: t.x, y: t.y, used: false }); }
 
   // biome decorations
   const decor = [];

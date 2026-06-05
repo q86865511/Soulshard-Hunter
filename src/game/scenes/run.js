@@ -10,6 +10,8 @@ import { setScene } from '../scene.js';
 import { refs } from './refs.js';
 import { Enemies, Equipment, Abilities, Weapons, Characters } from '../content/registry.js';
 import { equipItem } from '../content/equipment.js';
+import { BONDS, activeBonds, checkBonds } from '../content/bonds.js';
+import { exclusiveFor } from '../content/exclusives.js';
 import { BALANCE } from '../balance.js';
 import { isUnlocked } from '../content/unlocks.js';
 import { STORY_QUESTS, trackedQuestState, fmtQuestVal } from '../content/quests.js';
@@ -30,6 +32,24 @@ import { Sfx, Music } from '../../engine/audio.js';
 import { settingsUI } from '../ui/settings.js';
 
 const inside = (mx, my, r) => mx >= r.x && mx <= r.x + r.w && my >= r.y && my <= r.y + r.h;
+
+// 原#1: stat fields shown in equip before/after diffs, with display formatting.
+const STAT_LABELS = [
+  ['maxHp', '生命上限', 'int'], ['damageMult', '傷害', 'mult'], ['fireRateMult', '射速', 'mult'],
+  ['critChance', '暴擊率', 'pct'], ['critMult', '暴擊傷害', 'mult'], ['speed', '移速', 'int'],
+  ['defense', '減傷', 'int'], ['dodge', '閃避', 'pct'], ['lifesteal', '吸血', 'pct'],
+  ['projCountAdd', '投射物', 'plus'], ['pierceAdd', '穿透', 'plus'], ['area', '範圍', 'mult'],
+  ['projSpeedMult', '彈速', 'mult'], ['pickupRange', '拾取', 'int'], ['luck', '幸運', 'f2'],
+  ['hpRegen', '生命回復', 'f1'], ['goldMult', '金幣', 'mult'], ['xpMult', '經驗', 'mult'],
+];
+const fmtStat = (v, fmt) => {
+  if (fmt === 'mult') return '×' + (v || 0).toFixed(2);
+  if (fmt === 'pct') return Math.round((v || 0) * 100) + '%';
+  if (fmt === 'plus') return '+' + Math.round(v || 0);
+  if (fmt === 'f2') return (v || 0).toFixed(2);
+  if (fmt === 'f1') return (v || 0).toFixed(1);
+  return String(Math.round(v || 0));
+};
 
 // Stat-anvil POOL. Buying an anvil (C1) opens a paused 3-of-these random pick.
 const ANVIL_POOL = [
@@ -99,8 +119,10 @@ export const runScene = {
     for (const c of map.chests) this.world.addPickup('chest', c.x, c.y, 2);
     if (map.secret) this.world.addPickup('chest', map.secret.x, map.secret.y, 3, { hidden: true });
     this.shrinePos = null; this.shopOpen = false; this.nearShrine = false; this.shopFlashT = 0;
+    this.anvilBuys = 0; this.gearBuys = 0; this.shopChoice = null;   // 原#4: shop is global now (B key), not shrine-gated
     if (map.shrine) this.setupShrine(map.shrine);
     this.npcs = (map.npcs || []).map((n) => ({ ...n })); this.nearNpc = null;   // E1 interactive NPCs
+    this.interactCap = 7; this.nextInteractAt = 16; this.chestRefreshT = 30;     // 原#2: timed refresh
 
     // time-based threat + a rotating roster of only 1-3 active enemy types
     this.threat = 1;
@@ -148,16 +170,17 @@ export const runScene = {
     if (this.run.time > 3) { this.banner = '敵潮更替：' + picks.map((d) => d.name).join('、'); this.bannerT = 2.0; }
   },
 
-  setupShrine(pos) {
-    this.shrinePos = pos;
-    this.anvilBuys = 0; this.gearBuys = 0; this.shopChoice = null;   // #3: both anvils are 3-choice now
-  },
+  setupShrine(pos) { this.shrinePos = pos; this.shrineUsed = false; },
   // 3 random tier>=2 unlocked equipment defs for the 裝備鐵砧 three-pick (#3)
   rollGearChoice() {
-    const pool = Equipment.all().filter((d) => (d.tier ?? 1) >= 2 && isUnlocked(META, 'equipment', d.id));
-    const src = (pool.length ? pool : Equipment.all()).slice();
+    const pool = Equipment.all().filter((d) => (d.tier ?? 1) >= 2 && !d.exclusive && isUnlocked(META, 'equipment', d.id));
+    const src = (pool.length ? pool : Equipment.all().filter((d) => !d.exclusive)).slice();
     const pick = [];
     for (let i = 0; i < 3 && src.length; i++) pick.push(src.splice(rng.int(0, src.length - 1), 1)[0]);
+    // 原#18: sometimes the current hero's EXCLUSIVE weapon appears in their own anvil
+    const exId = exclusiveFor(this.run.characterId);
+    const exDef = exId && Equipment.get(exId);
+    if (exDef && pick.length && rng.chance(0.32) && !pick.some((d) => d.id === exId)) pick[rng.int(0, pick.length - 1)] = exDef;
     return pick;
   },
 
@@ -176,12 +199,69 @@ export const runScene = {
       try { b.f(this.player.stats, this.player); } catch (e) { /* */ }
       this.banner = `祈願水井：獲得「${b.n}」之祝福！`; this.bannerT = 2.6;
       this.world.particles.ring(n.x, n.y, P.shardL, 22, 130);
+    } else if (n.kind === 'shard') {   // 原#2/#4: shard vein — a burst of soulshards
+      const g = 14 + this.threat * 4;
+      this.run.shards += g;
+      this.banner = `魂晶礦脈：+${g} 魂晶`; this.bannerT = 2.2;
+      this.world.particles.ring(n.x, n.y, P.shardL, 20, 120);
+    } else if (n.kind === 'forge') {   // 原#2: travelling smith forges a free piece of gear
+      const d = this.rollGearChoice()[0] || this.world.rollEquipment(2);
+      if (d) { this.openEquipChoice(d); this.banner = '流浪鐵匠：免費鍛造一件裝備'; }
+      else this.banner = '流浪鐵匠暫無存貨';
+      this.bannerT = 2.2; this.world.particles.ring(n.x, n.y, P.emberL, 18, 110);
     } else {   // lost soul — resources
       const g = 30 + this.threat * 6;
       this.run.gold += g; this.world.gainXp(20 + this.threat * 4); this.player.heal(20);
       this.banner = `迷途之魂：+${g} 金幣・經驗・生命`; this.bannerT = 2.4;
       this.world.particles.ring(n.x, n.y, P.manaL, 18, 110);
     }
+  },
+
+  // 原#2: periodically spawn fresh interactables (and the odd chest) so the map
+  // never feels empty. Capped, and kept away from the player.
+  interactablesTick(dt) {
+    if (this.boss || this.finalBoss || this.cleared) return;
+    this.nextInteractAt = this.nextInteractAt ?? 16;
+    if (this.run.time >= this.nextInteractAt) {
+      if ((this.npcs || []).filter((n) => !n.used).length < (this.interactCap || 7)) this.spawnInteractable();
+      this.nextInteractAt = this.run.time + 13 + rng.next() * 12;
+    }
+    this.chestRefreshT = (this.chestRefreshT ?? 30) - dt;
+    if (this.chestRefreshT <= 0) {
+      this.chestRefreshT = 26 + rng.next() * 16;
+      if (this.world.pickups.filter((p) => p.type === 'chest' && !p.dead).length < 5) {
+        const t = this.world.randomFloorTile(rng);
+        if (dist(t.x, t.y, this.player.x, this.player.y) > 130) { this.world.addPickup('chest', t.x, t.y, 2); this.world.particles.ring(t.x, t.y, P.goldL, 12, 70); }
+      }
+    }
+  },
+  spawnInteractable(kind) {
+    const kinds = ['well', 'soul', 'soul', 'shard', 'forge'];
+    const k = kind || kinds[rng.int(0, kinds.length - 1)];
+    let pos = null;
+    for (let i = 0; i < 30; i++) { const t = this.world.randomFloorTile(rng); if (dist(t.x, t.y, this.player.x, this.player.y) > 150) { pos = t; break; } }
+    if (!pos) return;
+    this.npcs.push({ kind: k, x: pos.x, y: pos.y, used: false, fresh: 1.2 });
+    this.world.particles.ring(pos.x, pos.y, k === 'well' ? P.shardL : k === 'forge' ? P.emberL : P.manaL, 14, 90);
+  },
+
+  // 原#4/#2: the on-map altar no longer opens the shop (B does); instead it is a
+  // one-time blessing shrine that grants a small boon + soulshards.
+  useShrine() {
+    if (this.shrineUsed) { this.banner = '神龕已枯竭'; this.bannerT = 1.2; return; }
+    this.shrineUsed = true; Sfx.play('levelup');
+    const boons = [
+      { n: '力量', f: (s) => { s.damageMult *= 1.07; } },
+      { n: '迅捷', f: (s) => { s.fireRateMult *= 1.07; } },
+      { n: '堅韌', f: (s, p) => { s.maxHp += 20; p.heal(20); } },
+      { n: '銳利', f: (s) => { s.critChance += 0.04; } },
+      { n: '增幅', f: (s) => { s.area = (s.area || 1) * 1.08; } },
+    ];
+    const b = boons[rng.int(0, boons.length - 1)];
+    try { b.f(this.player.stats, this.player); } catch (e) { /* */ }
+    this.run.shards += 10 + this.threat * 2;
+    this.banner = `祝福神龕：獲得「${b.n}」之祝福 ＋ 魂晶`; this.bannerT = 2.6;
+    this.world.particles.ring(this.shrinePos.x, this.shrinePos.y, P.shardL, 24, 140);
   },
 
   // ---- mini-bosses: a DISTINCT boss at 5 / 10 / 15 min (E1/E2) --------------
@@ -226,7 +306,7 @@ export const runScene = {
   },
   eventCardRects() {
     const S = uiScale(); const n = this.eventChoice ? this.eventChoice.length : 3;
-    const cw = Math.min(210 * S, (view.W - 50 * S) / n - 16 * S); const ch = cw * 1.15, gap = 18 * S;
+    const cw = Math.min(212 * S, (view.W - 50 * S) / n - 16 * S); const ch = cw * 1.46, gap = 18 * S;   // 原#14: taller for portrait
     const totalW = n * cw + (n - 1) * gap, x0 = (view.W - totalW) / 2, y = (view.H - ch) / 2 + 6 * S;
     return Array.from({ length: n }, (_, i) => ({ x: x0 + i * (cw + gap), y, w: cw, h: ch }));
   },
@@ -240,22 +320,27 @@ export const runScene = {
   applyEvent(ev) {
     try { ev.apply(this); } catch (e) { /* */ }
     this.eventChoice = null;
-    this.banner = ev.host + '：' + ev.name; this.bannerT = 2.0;
+    this.banner = ev.name + ' · 「' + (ev.title || ev.name) + '」'; this.bannerT = 2.2;
     this.world.particles.ring(this.player.x, this.player.y, P.goldL, 24, 140); Sfx.play('levelup');
   },
   drawEventChoice() {
     const S = uiScale(); const rects = this.eventCardRects();
     uiRect(0, 0, view.W, view.H, withAlpha('#0b0d1a', 0.82));
-    uiText('小王戰利品 · 事件三選一', view.W / 2, rects[0].y - 30 * S, { size: 24 * S, align: 'center', color: P.goldL, weight: '900' });
+    uiText('小王戰利品 · 贊助者三選一', view.W / 2, rects[0].y - 30 * S, { size: 24 * S, align: 'center', color: P.goldL, weight: '900' });
     uiText('（點擊卡片或按 1 / 2 / 3）', view.W / 2, rects[0].y - 8 * S, { size: 12 * S, align: 'center', color: P.gray3 });
     const mx = mouse.x * view.dpr, my = mouse.y * view.dpr;
     rects.forEach((r, i) => {
       const ev = this.eventChoice[i]; const hov = inside(mx, my, r); const oy = hov ? -8 * S : 0;
       uiRect(r.x, r.y + oy, r.w, r.h, withAlpha('#241a3a', 0.98), { radius: 9 * S, stroke: hov ? P.goldL : withAlpha(P.goldL, 0.5), lw: hov ? 3 : 2 });
       uiRect(r.x, r.y + oy, r.w, 5 * S, P.goldL, { radius: 2 * S });
-      uiText(ev.host, r.x + r.w / 2, r.y + oy + 28 * S, { size: 12 * S, align: 'center', color: P.shardL, weight: '700' });
-      uiText(ev.name, r.x + r.w / 2, r.y + oy + 52 * S, { size: 17 * S, align: 'center', color: '#fff', weight: '900' });
-      this.wrapText(ev.desc, r.x + r.w / 2, r.y + oy + 78 * S, r.w - 22 * S, 12.5 * S, P.gray4);
+      // 原#14: character portrait
+      const psz = 46 * S; const sp = getSprite(iconOr(ev.icon, 'ability_power'));
+      uiRect(r.x + r.w / 2 - psz / 2 - 3 * S, r.y + oy + 16 * S, psz + 6 * S, psz + 6 * S, withAlpha('#10121f', 0.7), { radius: 8 * S, stroke: withAlpha(P.goldL, 0.5), lw: 1.5 });
+      drawSpriteUI(sp.frames[0], r.x + r.w / 2 - psz / 2, r.y + oy + 19 * S, psz / sp.w);
+      uiText(ev.role || '', r.x + r.w / 2, r.y + oy + psz + 32 * S, { size: 11 * S, align: 'center', color: P.shardL, weight: '700' });
+      uiText(ev.name, r.x + r.w / 2, r.y + oy + psz + 50 * S, { size: 15.5 * S, align: 'center', color: '#fff', weight: '900' });
+      uiText('「' + (ev.title || '') + '」', r.x + r.w / 2, r.y + oy + psz + 67 * S, { size: 12.5 * S, align: 'center', color: P.goldL, weight: '800' });
+      this.wrapText(ev.desc, r.x + r.w / 2, r.y + oy + psz + 86 * S, r.w - 22 * S, 11.5 * S, P.gray4);
       uiText(String(i + 1), r.x + 11 * S, r.y + oy + 22 * S, { size: 14 * S, color: withAlpha('#fff', 0.45), weight: '900' });
     });
   },
@@ -410,20 +495,22 @@ export const runScene = {
     if (!pool.length) pool = Enemies.upTo(this.tierCapNow()).filter((d) => !d.boss && d.id !== REAPER_ID);
     if (!pool.length) return;
     const def = pool[rng.int(0, pool.length - 1)];
-    const n = BALANCE.SURROUND_COUNT_BASE + Math.floor(this.threat / 2);
-    const hpScale = BALANCE.SURROUND_HP_MULT * (1 + this.threat * 0.12) * this.diffMul;
+    const n = BALANCE.SURROUND_COUNT_BASE + Math.floor(this.threat * 0.7);   // 原#9: more of them
+    const hpScale = BALANCE.SURROUND_HP_MULT * (1 + this.threat * 0.1) * this.diffMul;
     const dmgScale = BALANCE.SURROUND_DMG_MULT * this.diffMul;
+    const cx = this.player.x, cy = this.player.y;
     const ring = [];
     for (let i = 0; i < n; i++) {
       const a = (i / n) * TAU + rng.next() * 0.1;
-      const x = clamp(this.player.x + Math.cos(a) * BALANCE.SURROUND_RADIUS, TS * 2, this.world.pxW - TS * 2);
-      const y = clamp(this.player.y + Math.sin(a) * BALANCE.SURROUND_RADIUS, TS * 2, this.world.pxH - TS * 2);
+      const x = clamp(cx + Math.cos(a) * BALANCE.SURROUND_RADIUS, TS * 2, this.world.pxW - TS * 2);
+      const y = clamp(cy + Math.sin(a) * BALANCE.SURROUND_RADIUS, TS * 2, this.world.pxH - TS * 2);
       if (this.world.solidAt(x, y)) continue;
-      const e = this.world.spawnEnemy(def, x, y, { hpScale, dmgScale, quiet: true });
+      // 原#9: slow but very tanky — a wall you must cut through, not outrun
+      const e = this.world.spawnEnemy(def, x, y, { hpScale, dmgScale, speedScale: BALANCE.SURROUND_SPEED_MULT, quiet: true });
       if (e) { e.tint = P.purpleL; e.surround = true; ring.push(e); }
     }
-    this.surround = { enemies: ring, t: BALANCE.SURROUND_LIFE };
-    this.banner = '包圍！厚血怪向內收攏——清出缺口突圍'; this.bannerT = 3.2; Sfx.play('boss'); addShake(5);
+    this.surround = { enemies: ring, t: BALANCE.SURROUND_LIFE, cx, cy, lockR: BALANCE.SURROUND_RADIUS + 48, total: ring.length };
+    this.banner = '魂牢降臨！緩慢厚血的怪群封鎖此地 — 殺出血路才能脫身！'; this.bannerT = 3.6; Sfx.play('boss'); addShake(6);
   },
   // D3: the Higgs bomb now LINGERS — it lobs delayed blasts every couple seconds
   // to zone the player, instead of one big burst.
@@ -461,7 +548,19 @@ export const runScene = {
     if (this.surround) {
       this.surround.t -= dt;
       this.surround.enemies = this.surround.enemies.filter((e) => e && !e.dead);
-      if (this.surround.t <= 0 || !this.surround.enemies.length) this.surround = null;
+      // 原#9: arena lock — hold the player inside the kill-zone until the ring is cleared
+      if (BALANCE.SURROUND_MUST_CLEAR && this.surround.enemies.length) {
+        const p = this.player, sx = this.surround.cx, sy = this.surround.cy;
+        const dx = p.x - sx, dy = p.y - sy, d = Math.hypot(dx, dy);
+        if (d > this.surround.lockR) {
+          const k = this.surround.lockR / d; p.x = sx + dx * k; p.y = sy + dy * k; p.vx *= -0.3; p.vy *= -0.3;
+          if (Math.random() < 0.18) this.world.particles.text(p.x, p.y - 16, '魂牢封鎖', { color: P.purpleL, size: 10 });
+        }
+      }
+      if (this.surround.t <= 0 || !this.surround.enemies.length) {
+        if (this.surround.total && !this.surround.enemies.length) { this.banner = '突破魂牢！'; this.bannerT = 2.2; }
+        this.surround = null;
+      }
     }
     for (let i = this.evtStrikes.length - 1; i >= 0; i--) {
       const s = this.evtStrikes[i]; s.t -= dt;
@@ -476,10 +575,11 @@ export const runScene = {
       if (armed) strokeCircleWorld(m.x, m.y, m.r, withAlpha(P.red, 0.22), 1.5);
     }
     if (this.surround && this.surround.enemies.length) {
-      let cx = 0, cy = 0, k = 0;
-      for (const e of this.surround.enemies) { cx += e.x; cy += e.y; k++; }
-      cx /= k; cy /= k;
-      strokeCircleWorld(cx, cy, 30, withAlpha(P.purpleL, 0.3 + 0.15 * Math.sin(this.t * 5)), 2);
+      const sr = this.surround.lockR;
+      strokeCircleWorld(this.surround.cx, this.surround.cy, sr, withAlpha(P.purpleL, 0.16 + 0.1 * Math.sin(this.t * 4)), 2.5);
+      strokeCircleWorld(this.surround.cx, this.surround.cy, sr - 3, withAlpha(P.purpleL, 0.08), 1);
+      const ns = worldToScreen(this.surround.cx, this.surround.cy - sr - 6);
+      uiText('魂牢 · 剩餘 ' + this.surround.enemies.length + '／' + this.surround.total, ns.x, ns.y, { size: 11 * uiScale(), align: 'center', color: P.purpleL, weight: '800' });
     }
     for (const s of this.evtStrikes) {
       const k = 1 - clamp(s.t / s.max, 0, 1);
@@ -497,20 +597,23 @@ export const runScene = {
     const t = this.run.time;
     // gentler early cap that ramps with threat + time, so a fresh build has room to
     // level up before the swarm overwhelms it (the late game still gets dense).
-    const cap = Math.min(100, 7 + this.threat * 5 + Math.floor(t * 0.05));
+    // 原#3 + sim easing: soften the opening so a fresh build can get going
+    const grace = t < BALANCE.EARLY_GRACE ? 0.45 + 0.55 * (t / BALANCE.EARLY_GRACE) : 1;
+    const cap = Math.round(Math.min(BALANCE.SPAWN_CAP_MAX, (BALANCE.SPAWN_CAP_BASE + this.threat * BALANCE.SPAWN_CAP_PER_THREAT + Math.floor(t * 0.06)) * grace));
     if (this.spawnTimer <= 0 && this.world.enemies.length < cap && this.activeTypes.length) {
-      const group = 1 + Math.floor(this.threat / 2);
+      const group = 1 + Math.floor((this.threat / 2) * grace);
       // enemy hp/dmg grow with threat + time but the growth is CAPPED (no infinite pile-up);
       // difficulty multiplies on top of the capped growth.
       const tc = Math.min(t, 1200);
-      const hpScale = (1 + Math.min(5, (this.threat - 1) * 0.18 + tc * 0.003)) * this.diffMul;
-      const dmgScale = (1 + Math.min(2.6, (this.threat - 1) * 0.10 + tc * 0.002)) * this.diffMul;
+      const dmgGrace = t < BALANCE.EARLY_GRACE ? BALANCE.EARLY_DMG_GRACE + (1 - BALANCE.EARLY_DMG_GRACE) * (t / BALANCE.EARLY_GRACE) : 1;
+      const hpScale = (1 + Math.min(4.4, (this.threat - 1) * 0.15 + tc * 0.0028)) * this.diffMul;
+      const dmgScale = (1 + Math.min(2.2, (this.threat - 1) * 0.08 + tc * 0.0018)) * this.diffMul * dmgGrace;
       for (let i = 0; i < group; i++) {
         const def = this.pickSpawnType();
         const elite = this.threat >= 3 && rng.chance(0.03 + t * 0.0003);
         this.world.spawnRing(def, { hpScale, dmgScale, elite });
       }
-      this.spawnTimer = Math.max(0.6, 2.1 - this.threat * 0.06 - t * 0.004);
+      this.spawnTimer = Math.max(BALANCE.SPAWN_INTERVAL_MIN, (BALANCE.SPAWN_INTERVAL_BASE - this.threat * 0.06 - t * 0.004) / grace);
     }
   },
   // mostly the active roster, but occasionally inject a "special" (s_*) monster (D3)
@@ -556,6 +659,52 @@ export const runScene = {
     }
   },
 
+  // ---- equipment before/after diff (原#1) ----------------------------------
+  // Rows of [label, before, after, fmt] showing how swapping in `def` changes stats.
+  equipDiffRows(def) {
+    if (!def) return [];
+    const cur = this.player.stats;
+    if (def.slot === 'weapon') {   // signature weapon: compare the weapon stat block
+      const curId = this.run.equipment && this.run.equipment.weapon;
+      const cw = (curId && Equipment.get(curId) && Equipment.get(curId).weapon) || null;
+      const nw = def.weapon || {};
+      const rows = [
+        ['傷害', cw ? cw.damage || 0 : 0, nw.damage || 0, 'int'],
+        ['射速', cw ? cw.fireRate || 0 : 0, nw.fireRate || 0, 'f1'],
+        ['投射物', cw ? cw.projCount || 1 : 0, nw.projCount || 1, 'int'],
+        ['穿透', cw ? cw.pierce || 0 : 0, nw.pierce || 0, 'int'],
+      ];
+      return rows.filter((r) => Math.abs(r[2] - r[1]) > 1e-9);
+    }
+    // armor / trinket: trial = current stats, undo current slot item, apply candidate
+    const slot = def.slot;
+    const curDelta = (this.run.equipDelta && this.run.equipDelta[slot]) || {};
+    const trial = { ...cur };
+    for (const f in curDelta) trial[f] = (trial[f] || 0) - curDelta[f];
+    const fakeP = { stats: trial, hp: this.player.hp, heal() {} };
+    try { def.apply?.(fakeP); } catch (e) { /* */ }
+    const rows = [];
+    for (const [f, lab, fmt] of STAT_LABELS) { const b = cur[f] || 0, a = trial[f] || 0; if (Math.abs(a - b) > 1e-9) rows.push([lab, b, a, fmt]); }
+    return rows;
+  },
+  // Draw a compact before→after table. Returns the height consumed.
+  drawEquipDiff(x, y, w, def, S, opts = {}) {
+    const rows = this.equipDiffRows(def);
+    const title = opts.title !== undefined ? opts.title : '替換後變化';
+    if (title) uiText(title, x, y, { size: 11 * S, color: P.gray3, weight: '700' });
+    let yy = y + (title ? 15 * S : 0);
+    if (!rows.length) { uiText('（無屬性變化）', x, yy, { size: 10 * S, color: P.gray2 }); return yy + 12 * S - y; }
+    for (const [lab, b, a, fmt] of rows.slice(0, opts.max || 8)) {
+      const up = a > b; const col = up ? P.greenL : P.redL;
+      uiText(lab, x, yy, { size: 10.5 * S, color: P.gray4 });
+      uiText(fmtStat(b, fmt), x + (opts.lw || 92 * S), yy, { size: 10.5 * S, align: 'right', color: P.gray3 });
+      uiText('→', x + (opts.lw || 92 * S) + 8 * S, yy, { size: 10 * S, color: P.gray3 });
+      uiText(fmtStat(a, fmt), x + (opts.lw || 92 * S) + 56 * S, yy, { size: 10.5 * S, align: 'right', color: col, weight: '800' });
+      yy += 13.5 * S;
+    }
+    return yy - y;
+  },
+
   // ---- equip-pickup menu (B1): paused; equip (replace its slot) or discard ----
   openEquipChoice(def) {
     if (!def) return;
@@ -564,7 +713,7 @@ export const runScene = {
   },
   equipChoiceLayout() {
     const S = uiScale();
-    const w = Math.min(view.W * 0.82, 470 * S), h = 312 * S;
+    const w = Math.min(view.W * 0.82, 470 * S), h = 396 * S;   // 原#1: taller to fit the before/after diff
     const x = (view.W - w) / 2, y = (view.H - h) / 2;
     const bw = (w - 60 * S) / 2, by = y + h - 54 * S;
     return { S, x, y, w, h, equip: { x: x + 20 * S, y: by, w: bw, h: 40 * S }, discard: { x: x + w - 20 * S - bw, y: by, w: bw, h: 40 * S } };
@@ -606,6 +755,8 @@ export const runScene = {
       if (cur) { const csp = getSprite(iconOr(cur.icon, 'equip_leather_armor')); drawSpriteUI(csp.frames[0], cx + cellW / 2 - 11 * S, sy + 20 * S, (22 * S) / csp.w); }
       else uiText('（空）', cx + cellW / 2, sy + 36 * S, { size: 10 * S, align: 'center', color: P.gray2 });
     });
+    // 原#1: before/after stat comparison vs the item currently in this slot
+    this.drawEquipDiff(L.x + 24 * S, sy + 66 * S, L.w - 48 * S, def, S, { lw: 150 * S });
     const btn = (r, label, col) => { const hov = inside(mx, my, r); uiRect(r.x, r.y, r.w, r.h, withAlpha(hov ? '#243a5a' : '#1b2138', 0.97), { radius: 8 * S, stroke: hov ? col : P.ink2, lw: hov ? 3 : 2 }); uiText(label, r.x + r.w / 2, r.y + r.h / 2 + 1 * S, { size: 14 * S, align: 'center', baseline: 'middle', color: '#fff', weight: '800' }); };
     btn(L.equip, eq[def.slot] ? '替換並裝備' : '裝備到空格', P.goldL);
     btn(L.discard, '放棄', P.redL);
@@ -672,6 +823,7 @@ export const runScene = {
     if (pressed('pause') || pressed('escape')) { this.paused = true; Sfx.play('uiClick'); return; }
     if (pressed('map')) { this.showBuild = !this.showBuild; Sfx.play('uiClick'); }
     if (pressed('minimap')) { this.bigMap = !this.bigMap; Sfx.play('uiClick'); }
+    if (pressed('shop') && !this.shopChoice) { this.shopOpen = !this.shopOpen; Sfx.play('uiClick'); }   // 原#4: B opens the soulshard / anvil shop anywhere
     if (this.showBuild) return;   // freeze the field while reviewing your build
     if (this.shopOpen) { this.updateShopPanel(); return; }   // modal shop also freezes the field
 
@@ -694,17 +846,25 @@ export const runScene = {
     this.miniBossTick();
     this.eventsTick();
     this.updateEvents(dt);
+    this.interactablesTick(dt);   // 原#2: refresh map interactables over time
     this.finalTick(dt);
-    this.nearShrine = !!(this.shrinePos && dist(this.player.x, this.player.y, this.shrinePos.x, this.shrinePos.y) < 20);
+    this.nearShrine = !!(this.shrinePos && !this.shrineUsed && dist(this.player.x, this.player.y, this.shrinePos.x, this.shrinePos.y) < 20);
     this.nearNpc = null;
     for (const n of this.npcs) { if (!n.used && dist(this.player.x, this.player.y, n.x, n.y) < 22) { this.nearNpc = n; break; } }
-    if (this.nearShrine && pressed('interact')) { this.shopOpen = true; Sfx.play('uiClick'); }
+    if (this.nearShrine && pressed('interact')) { this.useShrine(); }
     else if (this.nearNpc && pressed('interact')) { this.useNpc(this.nearNpc); }
     else if (this.cleared && pressed('interact')) { this.finishRun(true); return; }   // leave as a win during the Reaper window
     // C2: surface a "can-fuse" hint (without revealing the recipe) on the rising edge
     const fr = fusionAvailable(this.run, this.player);
     if (fr && !this.fusionReady) { this.banner = '✦ 可進行武器合成 — 升級時將出現合成選項'; this.bannerT = 2.8; }
     this.fusionReady = fr;
+    // 原#13: re-evaluate bond synergies on a light throttle; announce newly completed ones
+    this.bondT = (this.bondT || 0) - dt;
+    if (this.bondT <= 0) {
+      this.bondT = 0.5;
+      const nb = checkBonds(this.run, this.player);
+      if (nb.length) { const b = nb[0]; this.banner = '★ 羈絆達成 · ' + b.name + '（' + b.bonusDesc + '）'; this.bannerT = 2.8; Sfx.play('levelup'); this.world.particles.ring(this.player.x, this.player.y, P.goldL, 26, 150); }
+    }
     if (this.levelQueue > 0 && !this.choice) this.openChoice();
   },
 
@@ -784,7 +944,7 @@ export const runScene = {
     // the paused 3-choice overlay (stat OR gear) (#3 / C1)
     let choiceCards = null;
     if (this.shopChoice) {
-      const cw = Math.min(160 * S, (w - 64 * S) / 3), ch = cw * 1.25, cg = 14 * S;
+      const cw = Math.min(166 * S, (w - 64 * S) / 3), ch = cw * 1.62, cg = 14 * S;   // 原#4: taller cards fit the diff
       const totW = 3 * cw + 2 * cg, cx0 = x + (w - totW) / 2, cy = y + h / 2 - ch / 2;
       choiceCards = this.shopChoice.opts.map((opt, i) => ({ x: cx0 + i * (cw + cg), y: cy, w: cw, h: ch, opt }));
     }
@@ -882,24 +1042,35 @@ export const runScene = {
   drawShrine() {
     const p = this.shrinePos; if (!p) return; const S = uiScale();
     const sp = getSprite('hub_altar');
-    glowWorld(p.x, p.y - 8, 14, P.shardL, 0.22 + Math.sin(this.t * 3) * 0.06);
+    const used = this.shrineUsed;
+    glowWorld(p.x, p.y - 8, 14, used ? P.gray2 : P.shardL, used ? 0.08 : 0.22 + Math.sin(this.t * 3) * 0.06);
     drawShadow(p.x, p.y, sp.w * 0.3);
-    drawSprite(frameAt(sp, this.t), p.x, p.y, { ax: sp.ax, ay: sp.ay });
+    drawSprite(frameAt(sp, this.t), p.x, p.y, { ax: sp.ax, ay: sp.ay, alpha: used ? 0.45 : 1 });
+    if (used) return;
     const ns = worldToScreen(p.x, p.y - sp.h - 4);
-    uiText('魂晶商店', ns.x, ns.y, { size: 11 * S, align: 'center', color: P.shardL, weight: '800' });
-    if (this.nearShrine && !this.shopOpen) { const ps = worldToScreen(p.x, p.y + 8); uiText('按 E 開啟', ps.x, ps.y, { size: 11 * S, align: 'center', color: withAlpha('#fff', 0.6 + Math.sin(this.t * 6) * 0.3), weight: '800' }); }
+    uiText('祝福神龕', ns.x, ns.y, { size: 11 * S, align: 'center', color: P.shardL, weight: '800' });
+    if (this.nearShrine) { const ps = worldToScreen(p.x, p.y + 8); uiText('按 E 祈福', ps.x, ps.y, { size: 11 * S, align: 'center', color: withAlpha('#fff', 0.6 + Math.sin(this.t * 6) * 0.3), weight: '800' }); }
   },
   drawNpcs() {
     if (!this.npcs || !this.npcs.length) return;
     const S = uiScale();
+    const KIND = {
+      well:  { sprite: 'hub_well',  label: '祈願水井', color: P.shardL },
+      soul:  { sprite: 'wisp',      label: '迷途之魂', color: P.manaL },
+      shard: { sprite: 'shard',     label: '魂晶礦脈', color: P.shardL },
+      forge: { sprite: 'npc_smith', label: '流浪鐵匠', color: P.emberL },
+    };
     for (const n of this.npcs) {
       if (n.used) continue;
-      const sp = getSprite(n.kind === 'well' ? 'hub_well' : 'wisp');
-      glowWorld(n.x, n.y - 6, 12, n.kind === 'well' ? P.shardL : P.manaL, 0.16 + Math.sin(this.t * 3 + n.x * 0.1) * 0.05);
-      drawShadow(n.x, n.y, sp.w * 0.28);
-      drawSprite(frameAt(sp, this.t), n.x, n.y, { ax: sp.ax, ay: sp.ay });
-      const ns = worldToScreen(n.x, n.y - sp.h - 2);
-      uiText(n.kind === 'well' ? '祈願水井' : '迷途之魂', ns.x, ns.y, { size: 10 * S, align: 'center', color: n.kind === 'well' ? P.shardL : P.manaL, weight: '700' });
+      const k = KIND[n.kind] || KIND.soul;
+      const sp = getSprite(k.sprite);
+      const scale = n.kind === 'shard' ? 1.6 : 1;
+      if (n.fresh > 0) n.fresh -= 1 / 60;
+      glowWorld(n.x, n.y - 6, 12 + (n.fresh > 0 ? 8 * n.fresh : 0), k.color, 0.16 + Math.sin(this.t * 3 + n.x * 0.1) * 0.05);
+      drawShadow(n.x, n.y, sp.w * 0.28 * scale);
+      drawSprite(frameAt(sp, this.t), n.x, n.y, { ax: sp.ax, ay: sp.ay, scale });
+      const ns = worldToScreen(n.x, n.y - sp.h * scale - 2);
+      uiText(k.label, ns.x, ns.y, { size: 10 * S, align: 'center', color: k.color, weight: '700' });
       if (this.nearNpc === n) { const ps = worldToScreen(n.x, n.y + 8); uiText('按 E', ps.x, ps.y, { size: 10 * S, align: 'center', color: withAlpha('#fff', 0.6 + Math.sin(this.t * 6) * 0.3), weight: '800' }); }
     }
   },
@@ -925,7 +1096,7 @@ export const runScene = {
     };
     buyCard(L.gearBuyCard, '鍛造裝備鐵砧', '三選一 史詩/稜彩裝備' + (this.gearBuys ? '　已鍛 ×' + this.gearBuys : ''), this.gearPrice(), P.goldL);
     buyCard(L.anvilBuyCard, '鍛造能力值鐵砧', '三選一 能力值強化' + (this.anvilBuys ? '　已鍛 ×' + this.anvilBuys : ''), this.anvilPrice(), P.shardL);
-    uiText('點擊購買　·　E / Esc 關閉', L.x + L.w / 2, L.y + L.h - 13 * S, { size: 11 * S, align: 'center', color: P.gray3 });
+    uiText('點擊購買　·　B / Esc 關閉', L.x + L.w / 2, L.y + L.h - 13 * S, { size: 11 * S, align: 'center', color: P.gray3 });
     if (this.shopFlashT > 0) { this.shopFlashT -= 1 / 60; uiText(this.shopFlash, L.x + L.w / 2, L.y + L.h - 30 * S, { size: 12 * S, align: 'center', color: P.redL, weight: '800' }); }
     // the paused 3-choice overlay — stat or gear (#3 / C1)
     if (this.shopChoice && L.choiceCards) {
@@ -941,7 +1112,9 @@ export const runScene = {
           drawSpriteUI(sp.frames[0], c.x + c.w / 2 - 16 * S, c.y + 12 * S, (32 * S) / sp.w);
           const slotName = o.slot === 'weapon' ? '專武' : o.slot === 'armor' ? '護甲' : '飾品';
           uiText(o.name + ' · ' + slotName, c.x + c.w / 2, c.y + 56 * S, { size: 12.5 * S, align: 'center', color: rar, weight: '800' });
-          this.wrapText(o.desc || '', c.x + c.w / 2, c.y + 74 * S, c.w - 16 * S, 11 * S, P.gray4);
+          const nLines = this.wrapText(o.desc || '', c.x + c.w / 2, c.y + 74 * S, c.w - 16 * S, 10.5 * S, P.gray4);
+          // 原#1/#4: before/after diff vs the current item in this slot
+          this.drawEquipDiff(c.x + 10 * S, c.y + 80 * S + nLines * 13 * S, c.w - 20 * S, o, S, { title: '替換後', lw: c.w - 78 * S, max: 5 });
         } else {
           uiText(o.name, c.x + c.w / 2, c.y + 30 * S, { size: 13 * S, align: 'center', color: '#fff', weight: '800' });
           this.wrapText(o.desc, c.x + c.w / 2, c.y + 52 * S, c.w - 16 * S, 11 * S, P.emberL);
@@ -1011,8 +1184,38 @@ export const runScene = {
     }
     let hov = null;
     for (const ic of hudIcons) if (mx >= ic.x && mx <= ic.x + ic.w && my >= ic.y && my <= ic.y + ic.h) hov = ic;
-    if (hov) this.drawTooltip(hov, mx, my, S);
-    else uiText('Tab：build　·　M：放大地圖' + (this.fusionReady ? '　·　✦ 可合成' : ''), view.W - 12 * S, view.H - 10 * S, { size: 10 * S, align: 'right', color: withAlpha(this.fusionReady ? P.goldL : '#fff', this.fusionReady ? 0.7 : 0.28) });
+    if (hov) { this.drawTooltip(hov, mx, my, S); return; }
+    // 原#8: hover over a world interactable (chest / well / soul / shrine / ground loot) to see its name + effect
+    const wi = this.hoverWorldInfo(mx, my, S);
+    if (wi) this.drawWorldTip(wi, mx, my, S);
+    else uiText('Tab：build　·　B：商店　·　M：放大地圖' + (this.fusionReady ? '　·　✦ 可合成' : ''), view.W - 12 * S, view.H - 10 * S, { size: 10 * S, align: 'right', color: withAlpha(this.fusionReady ? P.goldL : '#fff', this.fusionReady ? 0.7 : 0.28) });
+  },
+  // 原#8: nearest hoverable world interactable to the cursor (screen-space hit test)
+  hoverWorldInfo(mx, my, S) {
+    const cands = [];
+    for (const n of (this.npcs || [])) if (!n.used) cands.push({ x: n.x, y: n.y, name: n.kind === 'well' ? '祈願水井' : n.kind === 'shard' ? '魂晶礦脈' : n.kind === 'forge' ? '流浪鐵匠' : '迷途之魂', desc: n.kind === 'well' ? '飲下祝福，永久獲得一項隨機能力提升。' : n.kind === 'shard' ? '敲取魂晶礦，獲得大量魂晶。' : n.kind === 'forge' ? '流浪鐵匠免費替你打造一件裝備。' : '回收散落的魂力：金幣、經驗與生命。', color: n.kind === 'well' ? P.shardL : n.kind === 'forge' ? P.emberL : P.manaL });
+    if (this.shrinePos && !this.shrineUsed) cands.push({ x: this.shrinePos.x, y: this.shrinePos.y, name: '祝福神龕', desc: '一次性祈福：隨機能力提升並獲得魂晶。', color: P.shardL });
+    for (const pk of this.world.pickups) {
+      if (pk.dead) continue;
+      if (pk.type === 'chest' && (!pk.hidden || pk.revealed)) cands.push({ x: pk.x, y: pk.y, name: '寶箱', desc: '開啟可得裝備、道具或魂晶。', color: P.goldL });
+      else if (pk.type === 'equip' && pk.def) cands.push({ x: pk.x, y: pk.y, name: pk.def.name + '（裝備）', desc: pk.def.desc || '', color: P.goldL });
+      else if (pk.type === 'item' && pk.def) cands.push({ x: pk.x, y: pk.y, name: pk.def.name + '（道具）', desc: pk.def.desc || '', color: P.emberL });
+    }
+    let best = null, bd = (26 * S) * (26 * S);
+    for (const c of cands) { const ss = worldToScreen(c.x, c.y); const d = (ss.x - mx) ** 2 + (ss.y - my) ** 2; if (d < bd) { bd = d; best = c; } }
+    return best;
+  },
+  drawWorldTip(info, mx, my, S) {
+    const W = 196 * S; const lines = []; let line = '';
+    for (const ch of (info.desc || '')) { if (textWidth(line + ch, 10.5 * S, '500') > W - 16 * S && line) { lines.push(line); line = ch; } else line += ch; }
+    if (line) lines.push(line);
+    const H = (28 + lines.length * 13) * S;
+    let x = mx + 16 * S, y = my + 10 * S;
+    if (x + W > view.W) x = view.W - W - 6 * S;
+    if (y + H > view.H) y = view.H - H - 6 * S;
+    uiRect(x, y, W, H, withAlpha('#10121f', 0.96), { radius: 6 * S, stroke: info.color || P.shardL, lw: 2 });
+    uiText(info.name, x + 8 * S, y + 17 * S, { size: 12 * S, color: '#fff', weight: '800' });
+    lines.forEach((l, i) => uiText(l, x + 8 * S, y + 31 * S + i * 13 * S, { size: 10.5 * S, color: P.gray4, weight: '500' }));
   },
   drawTooltip(ic, mx, my, S) {
     const def = ic.def; if (!def) return;
@@ -1188,42 +1391,65 @@ export const runScene = {
     uiText('點擊 / 空白鍵 返回城鎮', cx, view.H * 0.95, { size: 15 * S, align: 'center', color: withAlpha('#ffd479', 0.5 + blink * 0.5), weight: '700' });
   },
 
-  // 原#1: results-screen build + effect-numbers + this-run unlocks summary
+  // 原#1/#13/#16: results-screen build (hover for details) + damage ranking + bonds + unlocks
   drawResultSummary(topY) {
     const S = uiScale();
-    const w = Math.min(view.W * 0.92, 680 * S), h = Math.min(view.H * 0.5, 318 * S);
+    const w = Math.min(view.W * 0.94, 720 * S), h = Math.min(view.H * 0.58, 404 * S);
     const x = (view.W - w) / 2, y = topY;
     uiRect(x, y, w, h, withAlpha('#0e1322', 0.92), { radius: 8 * S, stroke: P.ink2, lw: 2 });
     const sz = 26 * S, gap = 5 * S;
+    this.resultIcons = [];
     const cell = (bx, by, sp, stroke, badge, bcol) => { uiRect(bx, by, sz, sz, withAlpha('#10121f', 0.82), { radius: 4 * S, stroke, lw: 2 }); drawSpriteUI(sp.frames[0], bx + 3 * S, by + 3 * S, (sz - 6 * S) / sp.w); if (badge) uiText(badge, bx + sz - 3 * S, by + sz - 3 * S, { size: 9 * S, align: 'right', color: bcol, weight: '800' }); };
-    // LEFT — build
+    // LEFT — build (hover any icon for its effect)
     const colL = x + 18 * S; let yL = y + 24 * S;
-    uiText('本局配置', colL, yL, { size: 13 * S, color: P.shardL, weight: '800' }); yL += 17 * S;
+    uiText('本局配置', colL, yL, { size: 13 * S, color: P.shardL, weight: '800' });
+    uiText('滑鼠移到圖示看效果', colL + 86 * S, yL, { size: 9.5 * S, color: P.gray3 }); yL += 17 * S;
     uiText('武器', colL, yL, { size: 10 * S, color: P.gray3 }); yL += 13 * S;
-    this.player.weapons.forEach((inst, i) => { const bx = colL + i * (sz + gap); cell(bx, yL, getSprite(iconOr(inst.def.icon, 'weapon_w_soulbolt')), inst.def.evolved ? P.goldL : P.ink2, inst.def.evolved ? '★' : 'L' + inst.level, inst.def.evolved ? P.goldL : P.shardL); });
-    yL += sz + 11 * S;
+    this.player.weapons.forEach((inst, i) => { const bx = colL + i * (sz + gap); cell(bx, yL, getSprite(iconOr(inst.def.icon, 'weapon_w_soulbolt')), inst.def.evolved ? P.goldL : P.ink2, inst.def.evolved ? '★' : 'L' + inst.level, inst.def.evolved ? P.goldL : P.shardL); this.resultIcons.push({ x: bx, y: yL, w: sz, h: sz, kind: 'weapon', def: inst.def, level: inst.level }); });
+    yL += sz + 10 * S;
     const abils = this.run.abilities || [];
     uiText('被動 ×' + abils.length, colL, yL, { size: 10 * S, color: P.manaL }); yL += 13 * S;
-    const per = 8; abils.slice(0, 16).forEach((id, i) => { const bx = colL + (i % per) * (sz + gap), by = yL + Math.floor(i / per) * (sz + gap); const ab = Abilities.get(id); const stk = (this.run.abilityLevels && this.run.abilityLevels[id]) || 1; cell(bx, by, getSprite(iconOr('ability_' + id, 'ability_power')), ab && ab.cursed ? P.redL : P.ink2, stk > 1 ? '×' + stk : '', P.goldL); });
-    yL += (Math.ceil(Math.min(abils.length, 16) / per) || 1) * (sz + gap) + 12 * S;
+    const per = 8; abils.slice(0, 16).forEach((id, i) => { const bx = colL + (i % per) * (sz + gap), by = yL + Math.floor(i / per) * (sz + gap); const ab = Abilities.get(id); const stk = (this.run.abilityLevels && this.run.abilityLevels[id]) || 1; cell(bx, by, getSprite(iconOr('ability_' + id, 'ability_power')), ab && ab.cursed ? P.redL : P.ink2, stk > 1 ? '×' + stk : '', P.goldL); if (ab) this.resultIcons.push({ x: bx, y: by, w: sz, h: sz, kind: 'ability', id, def: ab, level: stk }); });
+    yL += (Math.ceil(Math.min(abils.length, 16) / per) || 1) * (sz + gap) + 10 * S;
     const eq = this.run.equipment || {};
     uiText('裝備', colL, yL, { size: 10 * S, color: P.goldL });
-    [['weapon'], ['armor'], ['trinket']].forEach(([slot], i) => { const bx = colL + 44 * S + i * (sz + gap); const d = eq[slot] && Equipment.get(eq[slot]); if (d) cell(bx, yL - 12 * S, getSprite(iconOr(d.icon, 'equip_leather_armor')), P.goldL, '', ''); else { uiRect(bx, yL - 12 * S, sz, sz, withAlpha('#10121f', 0.82), { radius: 4 * S, stroke: P.ink2, lw: 1 }); uiText('—', bx + sz / 2, yL - 12 * S + sz / 2 + 4 * S, { size: 11 * S, align: 'center', color: P.gray2 }); } });
-    // RIGHT — effect numbers (what the build actually grants)
-    const colR = x + w * 0.5; let yR = y + 24 * S;
-    uiText('數值效果（參考）', colR, yR, { size: 13 * S, color: P.emberL, weight: '800' }); yR += 18 * S;
-    const st = this.player.stats;
-    const stats = [['傷害', '×' + (st.damageMult || 1).toFixed(2)], ['射速', '×' + (st.fireRateMult || 1).toFixed(2)], ['暴擊率', Math.round((st.critChance || 0) * 100) + '%'], ['暴擊傷害', '×' + (st.critMult || 2).toFixed(1)], ['投射物', '+' + (st.projCountAdd || 0)], ['穿透', '+' + (st.pierceAdd || 0)], ['範圍', '×' + (st.area || 1).toFixed(2)], ['移速', String(Math.round(st.speed || 0))], ['減傷', String(st.defense || 0)], ['閃避', Math.round((st.dodge || 0) * 100) + '%'], ['吸血', Math.round((st.lifesteal || 0) * 100) + '%'], ['生命上限', String(this.player.maxHp)]];
-    for (const [k, v] of stats) { if (yR > y + h - 54 * S) break; uiText(k, colR, yR, { size: 11.5 * S, color: P.gray3 }); uiText(v, colR + 108 * S, yR, { size: 11.5 * S, color: P.shardL, weight: '800' }); yR += 14.5 * S; }
+    [['weapon'], ['armor'], ['trinket']].forEach(([slot], i) => { const bx = colL + 44 * S + i * (sz + gap); const d = eq[slot] && Equipment.get(eq[slot]); if (d) { cell(bx, yL - 12 * S, getSprite(iconOr(d.icon, 'equip_leather_armor')), P.goldL, '', ''); this.resultIcons.push({ x: bx, y: yL - 12 * S, w: sz, h: sz, kind: 'equip', def: d }); } else { uiRect(bx, yL - 12 * S, sz, sz, withAlpha('#10121f', 0.82), { radius: 4 * S, stroke: P.ink2, lw: 1 }); uiText('—', bx + sz / 2, yL - 12 * S + sz / 2 + 4 * S, { size: 11 * S, align: 'center', color: P.gray2 }); } });
+    yL += sz + 2 * S;
+    // bonds (原#13)
+    const bonds = activeBonds(this.run);
+    if (bonds.length) { this.clipShop('羈絆 · ' + bonds.map((b) => b.name).join('、'), colL, yL, w * 0.44, 10 * S, P.goldL, '700'); yL += 14 * S; }
+    // RIGHT — damage ranking (原#16)
+    const colR = x + w * 0.47; let yR = y + 24 * S; const rw = w * 0.5 - 18 * S;
+    uiText('傷害排行', colR, yR, { size: 13 * S, color: P.emberL, weight: '800' });
+    uiText('來源 · 佔比', x + w - 18 * S, yR, { size: 9.5 * S, align: 'right', color: P.gray3 }); yR += 18 * S;
+    const dmgEntries = Object.entries(this.run.dmgBySource || {}).filter((e) => e[1] > 0).sort((a, b) => b[1] - a[1]);
+    const total = dmgEntries.reduce((s, e) => s + e[1], 0) || 1;
+    const maxV = dmgEntries.length ? dmgEntries[0][1] : 1;
+    const fmtDmg = (v) => v >= 10000 ? (v / 1000).toFixed(1) + 'k' : String(Math.round(v));
+    if (!dmgEntries.length) uiText('（本局無傷害紀錄）', colR, yR, { size: 11 * S, color: P.gray3 });
+    dmgEntries.slice(0, 9).forEach(([name, v], i) => {
+      if (yR > y + h - 30 * S) return;
+      const frac = v / maxV, pct = Math.round((v / total) * 100);
+      const rankCol = i === 0 ? P.goldL : i === 1 ? P.shardL : i === 2 ? P.emberL : '#cfd6ee';
+      uiRect(colR, yR + 2 * S, rw, 13 * S, withAlpha('#15192c', 0.85), { radius: 3 * S });
+      uiRect(colR, yR + 2 * S, rw * frac, 13 * S, withAlpha(rankCol, 0.3), { radius: 3 * S });
+      uiText((i + 1) + '. ' + name, colR + 5 * S, yR + 11 * S, { size: 10.5 * S, color: '#fff', weight: i === 0 ? '800' : '600' });
+      uiText(fmtDmg(v) + ' · ' + pct + '%', colR + rw - 5 * S, yR + 11 * S, { size: 10 * S, align: 'right', color: rankCol, weight: '700' });
+      yR += 17 * S;
+    });
     // unlocks — bottom strip
     const un = this.newlyUnlocked || [], nc = this.newCharacters || [];
-    let oy = y + h - 42 * S;
+    let oy = y + h - 40 * S;
     uiText('★ 本局解鎖', colL, oy, { size: 12 * S, color: P.goldL, weight: '800' }); oy += 15 * S;
     const items = [];
     for (const ac of un) items.push('成就「' + (ac.realName || ac.name) + '」' + (ac.rewardLabel ? ' → ' + ac.rewardLabel : ''));
     for (const c of nc) items.push('角色「' + c.name + '」');
     if (!items.length) uiText('（本局沒有新解鎖）', colL + 4 * S, oy, { size: 11 * S, color: P.gray3 });
     else { items.slice(0, 2).forEach((t, i) => this.clipShop(t, colL + 4 * S, oy + i * 13 * S, w - 40 * S, 11 * S)); if (items.length > 2) uiText('…等 ' + items.length + ' 項', x + w - 18 * S, oy, { size: 10 * S, align: 'right', color: P.gray3 }); }
+    // hover tooltip over any build icon (原#16: 滑鼠看效果)
+    const mx = mouse.x * view.dpr, my = mouse.y * view.dpr;
+    let hov = null; for (const ic of this.resultIcons) if (inside(mx, my, ic)) hov = ic;
+    if (hov) this.drawTooltip(hov, mx, my, S);
   },
 
   wrapText(str, cx, y, maxw, size, color = '#c8cfe8') {

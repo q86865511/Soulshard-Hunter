@@ -41,8 +41,17 @@ export class World {
     this.particles = new Particles();
     this.player = null;
     this.time = 0;
+    this._curSrc = null;    // 原#16: damage-attribution scope (set around weapon/ability calls)
     // scene hooks
     this.onLevelUp = null; this.onEnemyKilled = null; this.onCollectGold = null; this.onEquipPickup = null;
+  }
+
+  // 原#16: accumulate damage dealt by a named source (weapon/ability/etc.) for the
+  // end-of-run damage ranking. Called from enemy.hurt + status DoT.
+  attributeDamage(src, dmg) {
+    if (!src || !this.run || !(dmg > 0)) return;
+    const m = this.run.dmgBySource || (this.run.dmgBySource = {});
+    m[src] = (m[src] || 0) + dmg;
   }
 
   loadMap(map) {
@@ -130,7 +139,7 @@ export class World {
     const t = this.randomFloorTile(rng);
     return this.spawnEnemy(defOrId, t.x, t.y, { ...opts, quiet: true });
   }
-  addProjectile(p) { this.projectiles.push(p); }
+  addProjectile(p) { if (!p.src) p.src = this._curSrc; this.projectiles.push(p); }   // 原#16: stamp damage source
   addPickup(type, x, y, value = 1, opts = {}) { this.pickups.push(new Pickup({ type, x, y, value, ...opts })); }
   addBeam(x0, y0, x1, y1, color = P.emberL) { this.beams.push({ x0, y0, x1, y1, color, life: 0.14, max: 0.14 }); }
 
@@ -145,7 +154,11 @@ export class World {
     const luck = this.player?.stats?.luck ?? 0;
     const dropM = BALANCE.DROP_CHANCE_MULT;
     if (e.shard && Math.random() < e.shard * (1 + luck) * BALANCE.SHARD_DROP_MULT) this.addPickup('shard', e.x, e.y, e.boss ? 5 : 1);
+    else if (!e.boss && Math.random() < BALANCE.MOB_SHARD_BASE * (1 + luck * 0.5)) this.addPickup('shard', e.x, e.y, 1);   // 原#4: small mobs also drop shards
     if (Math.random() < (e.boss ? 1 : (0.03 + luck * 0.03) * dropM)) this.addPickup('heart', e.x, e.y, e.boss ? 30 : 15);
+    // 原#11: a slain thief coughs up everything it stole from you
+    if (e.stolenGold > 0) this.addPickup('gold', e.x, e.y, e.stolenGold);
+    if (e.stolenXp > 0) this.addPickup('xp', e.x, e.y, e.stolenXp);
 
     const dq = this.run.dropQuality || 0;
     if (e.boss) {
@@ -251,7 +264,7 @@ export class World {
         if (e.def.deathBlast) this.bombBlast(e);
         this.dropLoot(e);
         this.run.kills = (this.run.kills || 0) + 1;
-        if (this.player) for (const h of this.player.hooks.kill) h(e, this);
+        if (this.player) { this._curSrc = '被動技能'; for (const h of this.player.hooks.kill) h(e, this); this._curSrc = null; }   // 原#16
         if (this.onEnemyKilled) this.onEnemyKilled(e);
       }
     }
@@ -272,7 +285,7 @@ export class World {
           if (e.dead || e.spawnT > 0 || p.hitSet.has(e)) continue;
           if (circleHit(p.x, p.y, p.radius, e.x, e.y, e.radius * (e.scale * 0.7 + 0.3))) {
             const ang = Math.atan2(p.vy, p.vx);
-            e.hurt(p.damage, Math.cos(ang) * p.knockback, Math.sin(ang) * p.knockback, this, p.crit);
+            e.hurt(p.damage, Math.cos(ang) * p.knockback, Math.sin(ang) * p.knockback, this, p.crit, p.src);
             p.hitSet.add(e);
             this.particles.hit(p.x, p.y, ang + Math.PI, p.color);
             const ls = Math.min(BALANCE.LIFESTEAL_CAP, (player?.stats.lifesteal ?? 0) * BALANCE.LIFESTEAL_MULT);
@@ -304,7 +317,7 @@ export class World {
       if (dist2(x, y, e.x, e.y) < rr * rr) {
         const ang = Math.atan2(e.y - y, e.x - x);
         const kb = opts.knockback ?? 40;
-        e.hurt(damage, Math.cos(ang) * kb, Math.sin(ang) * kb, this, opts.crit);
+        e.hurt(damage, Math.cos(ang) * kb, Math.sin(ang) * kb, this, opts.crit, opts.src || this._curSrc);
         if (opts.status && Math.random() < (opts.status.chance ?? 1)) applyStatus(e, opts.status.type, this, opts.status);   // D6
         hits++;
       }
@@ -329,15 +342,17 @@ export class World {
     if (damage > 0) this.dealAreaDamage(x, y, radius, damage, opts);
   }
 
-  nearestEnemy(x, y, maxDist = Infinity) {
+  nearestEnemy(x, y, maxDist = Infinity, opts = {}) {
     let best = null, bd = maxDist * maxDist;
     for (const e of this.enemies) {
       if (e.dead || e.spawnT > 0) continue;
       const d = dist2(x, y, e.x, e.y);
-      if (d < bd) { bd = d; best = e; }
+      if (d < bd && (!opts.los || this.lineClear(x, y, e.x, e.y))) { bd = d; best = e; }
     }
     return best;
   }
+  // 原#5: weapon auto-target — closest foe within AIM_RANGE, skipping any behind a wall.
+  aimTarget(x, y) { return this.nearestEnemy(x, y, BALANCE.AIM_RANGE, { los: BALANCE.AIM_LOS }); }
 
   // ---- trap terrain --------------------------------------------------------
   updateHazards(dt) {

@@ -46,6 +46,7 @@ export function tickStatus(target, dt, world) {
         e.acc += e.dps * dt;
         if (e.acc >= 1) {
           const d = Math.floor(e.acc); e.acc -= d;
+          if (world && typeof target.die !== 'function') world.attributeDamage('持續傷害', d);   // 原#16: DoT on enemies only
           target.hp -= d;
           if (target.flash !== undefined) target.flash = Math.max(target.flash, 0.05);
           if (world && world.particles && Math.random() < 0.5)

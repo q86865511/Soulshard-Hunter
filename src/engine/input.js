@@ -25,7 +25,7 @@ const KEYMAP = {
   ArrowRight: 'right', KeyD: 'right',
   Space: 'space', Enter: 'enter', Escape: 'escape',
   ShiftLeft: 'dash', ShiftRight: 'dash',
-  KeyE: 'interact', KeyQ: 'swap', KeyR: 'reload', KeyF: 'ability', KeyP: 'pause', Tab: 'map', KeyM: 'minimap',
+  KeyE: 'interact', KeyQ: 'swap', KeyR: 'reload', KeyF: 'ability', KeyP: 'pause', Tab: 'map', KeyM: 'minimap', KeyB: 'shop',
   Digit1: 'slot1', Digit2: 'slot2', Digit3: 'slot3', Digit4: 'slot4',
 };
 

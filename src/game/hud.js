@@ -21,31 +21,47 @@ export function drawHud(run, player) {
   const W = view.W;
   const pad = 12 * S;
   const clamp01 = (v) => Math.max(0, Math.min(1, v));
-  const barW = Math.min(232 * S, W * 0.36);
-  const barH = 16 * S;
+  const barW = Math.min(236 * S, W * 0.36);
+  const barH = 18 * S;
+  const hpX = pad + 22 * S, hpW = barW - 22 * S;        // room for a heart icon at the left
+  const pulse = Math.sin((player.t || 0) * 6) * 0.5 + 0.5;
 
-  // HP bar (with a glossy top highlight over the filled portion)
+  // 原#10: a subtle backing panel ties the vitals cluster together
+  uiRect(pad - 5 * S, pad - 5 * S, barW + 62 * S, barH + 32 * S, withAlpha('#0b0d1a', 0.42), { radius: 8 * S, stroke: withAlpha('#000', 0.3), lw: 1 });
+
+  // heart icon
+  const hsp = getSprite('heart');
+  drawSpriteUI(hsp.frames[0], pad, pad + 2 * S, (16 * S) / hsp.w);
+
+  // HP bar (rounded, glossy, segmented every 50 HP)
   const hpFrac = clamp01(player.hp / player.maxHp);
   const hpCol = hpFrac > 0.5 ? P.red : hpFrac > 0.25 ? P.ember : P.redL;
-  uiBar(pad, pad, barW, barH, hpFrac, { fg: hpCol, bg: '#2a0e14', border: P.ink, glow: true });
-  if (hpFrac > 0.02) uiRect(pad + 2 * S, pad + 2 * S, (barW - 4 * S) * hpFrac, 3 * S, withAlpha('#ffffff', 0.22), { radius: 2 * S });
-  uiText(`${Math.ceil(player.hp)} / ${player.maxHp}`, pad + barW / 2, pad + barH / 2 + 1 * S,
-    { size: 11 * S, align: 'center', baseline: 'middle', weight: '800', color: '#fff' });
+  uiBar(hpX, pad, hpW, barH, hpFrac, { fg: hpCol, bg: '#2a0e14', border: P.ink, glow: true });
+  if (hpFrac > 0.02) uiRect(hpX + 2 * S, pad + 2 * S, (hpW - 4 * S) * hpFrac, 3 * S, withAlpha('#ffffff', 0.26), { radius: 2 * S });
+  const segs = Math.min(14, Math.floor((player.maxHp || 100) / 50));
+  for (let i = 1; i <= segs; i++) { const sx = hpX + hpW * (i * 50 / player.maxHp); if (sx < hpX + hpW - 2 * S) uiRect(sx, pad + 3 * S, Math.max(1, S), barH - 6 * S, withAlpha('#000', 0.32)); }
+  uiText(`${Math.ceil(player.hp)} / ${player.maxHp}`, hpX + hpW / 2, pad + barH / 2 + 1 * S,
+    { size: 11 * S, align: 'center', baseline: 'middle', weight: '800', color: '#fff', shadowColor: withAlpha('#000', 0.75) });
 
   // level badge (character level is uncapped per design — shown plainly)
   const lvX = pad + barW + 8 * S;
-  uiRect(lvX, pad, 48 * S, barH, withAlpha('#1a2348', 0.95), { radius: 5 * S, stroke: P.manaL, lw: 1.5 });
-  uiText('Lv ' + run.level, lvX + 24 * S, pad + barH / 2 + 1 * S, { size: 12 * S, align: 'center', baseline: 'middle', color: P.manaL, weight: '900' });
+  uiRect(lvX, pad, 50 * S, barH, withAlpha('#1a2348', 0.95), { radius: 6 * S, stroke: P.manaL, lw: 1.5 });
+  uiRect(lvX, pad, 50 * S, 3 * S, withAlpha(P.manaL, 0.4), { radius: 2 * S });
+  uiText('Lv ' + run.level, lvX + 25 * S, pad + barH / 2 + 1 * S, { size: 12 * S, align: 'center', baseline: 'middle', color: P.manaL, weight: '900' });
 
-  // XP bar
-  uiBar(pad, pad + barH + 3 * S, barW, 6 * S, clamp01(run.xp / run.xpNext), { fg: P.manaL, bg: '#16183a', border: P.ink });
+  // XP bar (with a gem + soft glow)
+  const xpY = pad + barH + 4 * S;
+  const xsp = getSprite('xp');
+  drawSpriteUI(xsp.frames[0], pad + 4 * S, xpY - 2 * S, (11 * S) / xsp.w);
+  uiBar(hpX, xpY, hpW, 7 * S, clamp01(run.xp / run.xpNext), { fg: P.manaL, bg: '#16183a', border: P.ink, glow: true });
 
-  // dash cooldown
+  // dash cooldown — fills as it recharges; the bar pulses when ready
   const dashReady = (player.dashCd ?? 0) <= 0;
-  uiText('衝刺', pad, pad + barH + 24 * S, { size: 10 * S, color: dashReady ? P.shardL : '#8a91b4', weight: '700' });
-  uiBar(pad + 30 * S, pad + barH + 16 * S, 48 * S, 6 * S,
-    dashReady ? 1 : 1 - player.dashCd / (player.stats.dashCd || 0.85),
-    { fg: dashReady ? P.shardL : P.gray2, bg: '#16183a', border: P.ink });
+  const dyy = pad + barH + 15 * S;
+  uiText('衝刺', pad, dyy + 7 * S, { size: 10 * S, color: dashReady ? P.shardL : '#8a91b4', weight: '700' });
+  const dFrac = dashReady ? 1 : 1 - player.dashCd / (player.stats.dashCd || 0.85);
+  uiBar(pad + 30 * S, dyy, 48 * S, 7 * S, dFrac, { fg: dashReady ? P.shardL : P.gray2, bg: '#16183a', border: P.ink });
+  if (dashReady) uiRect(pad + 30 * S, dyy, 48 * S, 7 * S, withAlpha(P.shardL, 0.12 + 0.12 * pulse), { radius: 3 * S });
 
   // player status chips (D6 feedback)
   if (player.status) {

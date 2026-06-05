@@ -12,7 +12,7 @@ export const BALANCE = {
   MINIBOSS_TIMES: [5 * 60, 10 * 60, 15 * 60], // a DISTINCT mini-boss every 5 min
   BIGBOSS_TIME: 20 * 60,                     // the level's final boss at 20:00
   REAPER_DELAY: 30,                          // killable Reaper 30s after big boss dies
-  THREAT_PERIOD: 100,                        // sec per +1 threat (1 -> ~13 over 20 min)
+  THREAT_PERIOD: 112,                        // sec per +1 threat (sim: slower ramp for a fairer curve)
   // The Reaper is the hidden ENDGAME superboss — a huge DPS check that only a heavily
   // stacked build can out-damage (hpScale = (BASE + threat*PER) * diffMul). Damage is
   // high but tempered so a stacked/defensive build survives a few hits (not a one-shot).
@@ -26,17 +26,19 @@ export const BALANCE = {
   FUSE_MAXED_WEAPONS: 2,
   FUSE_PASSIVES: 1,
 
-  // ---- player nerfs (D1 / 原#6) -----------------------------------------
-  PLAYER_DAMAGE_MULT: 0.78,                  // global scale on ALL player weapon damage
+  // ---- player nerfs (D1 / 原#6, 原#12 power-creep pass) ------------------
+  PLAYER_DAMAGE_MULT: 0.85,                  // global scale on player weapon damage (sim-tuned; was 0.78, too low vs denser spawns)
   ABILITY_DAMAGE_MULT: 0.8,                  // global scale on passive/ability damage
-  LIFESTEAL_MULT: 0.45,                      // lifesteal effectiveness (was too strong)
-  LIFESTEAL_CAP: 0.20,                       // hard cap on effective lifesteal fraction
+  LIFESTEAL_MULT: 0.40,                      // 原#12: lifesteal toned down (was 0.45) — eased after sim
+  LIFESTEAL_CAP: 0.15,                       // 原#12: hard cap lowered (was 0.20)
   DODGE_MULT: 0.5,                           // dodge effectiveness (was too strong)
-  DODGE_CAP: 0.35,                           // hard cap on effective dodge chance
+  DODGE_CAP: 0.32,                           // 原#12: dodge cap lowered (was 0.35)
+  REGEN_MULT: 0.72,                          // 原#12: hpRegen scale (sim: regen/lifesteal builds dominated the top end)
+  DEFENSE_MULT: 0.9,                         // 原#12: flat-defense scale (eased from 0.85 after sim)
 
   // ---- enemy buffs (D1 / 原#6, E3 / 原#17) ------------------------------
-  ENEMY_HP_MULT: 1.35,                       // trash-mob HP up
-  ENEMY_DMG_MULT: 1.3,                        // trash-mob damage up (eased from 1.4 for fair early game)
+  ENEMY_HP_MULT: 1.15,                       // trash-mob HP (sim-tuned baseline; diffMul scales it up for D2+)
+  ENEMY_DMG_MULT: 1.0,                        // trash-mob damage baseline (sim: contact-density was killing fresh builds; diffMul adds D2+ bite)
   BOSS_HP_MULT: 1.3,                         // boss HP up (on top of per-boss scaling)
   BOSS_DMG_MULT: 1.35,                       // boss damage up
   ENEMY_SPEEDUP_PER_MIN: 0.05,               // enemies move faster over time (D4)
@@ -45,7 +47,9 @@ export const BALANCE = {
   // ---- loot / economy (D1 / 原#6, C3 / 原#21) ---------------------------
   GOLD_DROP_MULT: 0.5,                        // gold per kill (was 0.62)
   DROP_CHANCE_MULT: 0.6,                      // equip/item/heart drop chance off mobs
-  SHARD_DROP_MULT: 0.95,                      // soulshard drop rate
+  SHARD_DROP_MULT: 1.2,                       // 原#4: soulshard drop rate up (was 0.95)
+  MOB_SHARD_BASE: 0.06,                       // 原#4: any mob has this base chance to drop a shard
+  MOB_SHARD_BOSS: 0.0,                        // bosses use their own e.shard; no base bonus
 
   // ---- soulshard shop (C1 / C3) — prices LOWERED, esp. the stat anvils -----
   ANVIL_BASE_PRICE: 26,                       // base soulshard cost of a stat anvil (was 40-55)
@@ -58,15 +62,33 @@ export const BALANCE = {
   RANGED_SPAWN_WEIGHT: 0.4,                   // ranged enemies far less likely to spawn
   MAX_ENEMY_BURST: 3,                         // cap non-boss shooter burst (D5 bullet density)
 
-  // ---- surround monsters (D2 / 原#5) ------------------------------------
+  // ---- surround monsters (D2 / 原#5, 原#9 must-clear) -------------------
   SURROUND_PERIOD: [40, 26],                  // [base, +random] sec between surround events
-  SURROUND_COUNT_BASE: 9,                     // ring size base (+threat)
-  SURROUND_HP_MULT: 7,                        // surround mobs are VERY tanky
-  SURROUND_DMG_MULT: 0.9,
-  SURROUND_RADIUS: 200,                       // starting ring radius
-  SURROUND_CLOSE_SPEED: 12,                   // px/sec the ring contracts
-  SURROUND_MIN_RADIUS: 52,                    // ring stops contracting here
-  SURROUND_LIFE: 16,                          // event duration (sec)
+  SURROUND_COUNT_BASE: 13,                    // 原#9: bigger ring (was 9) (+threat)
+  SURROUND_HP_MULT: 6,                        // surround mobs are tanky (eased a touch from 7 — there are more of them)
+  SURROUND_DMG_MULT: 0.85,
+  SURROUND_RADIUS: 210,                       // starting ring radius
+  SURROUND_SPEED_MULT: 0.45,                  // 原#9: surround mobs crawl slowly (must be killed, not outrun)
+  SURROUND_MUST_CLEAR: true,                  // 原#9: event ends only when the ring is cleared (or the safety timeout)
+  SURROUND_LIFE: 30,                          // 原#9: safety timeout so it can never soft-lock (was 16)
+
+  // ---- auto-aim (原#5): shorter range + line-of-sight ------------------
+  AIM_RANGE: 300,                             // max auto-target distance (sim: 250 let swarms close in; still << old ~700)
+  AIM_LOS: true,                              // skip targets with a wall between them and the player
+
+  // ---- anti-AFK (原#15): idle players bleed a little -------------------
+  AFK_GRACE: 6,                               // seconds of standing still before the drain starts
+  AFK_DRAIN_FRAC: 0.012,                      // per-second HP loss as a fraction of maxHp while idle
+  AFK_DRAIN_MIN: 1,                           // ...but at least this many HP/sec
+
+  // ---- spawn pacing (原#3): a touch denser, but eased early after sim --
+  SPAWN_CAP_BASE: 7,                          // base concurrent-enemy cap (sim: 9 was too crowded early)
+  SPAWN_CAP_PER_THREAT: 4.8,                  // +cap per threat level
+  SPAWN_CAP_MAX: 115,                         // hard ceiling
+  SPAWN_INTERVAL_BASE: 2.0,                   // base seconds between spawn groups
+  SPAWN_INTERVAL_MIN: 0.55,                   // fastest spawn interval
+  EARLY_GRACE: 110,                           // sec of softened spawns + hits at run start (sim: opening was lethal)
+  EARLY_DMG_GRACE: 0.5,                        // enemy contact/projectile damage scaled to this at t=0, ramping to 1 by EARLY_GRACE (sim: cut early-death rate)
 
   // ---- Higgs zoning bombard (D3 / 原#7) ---------------------------------
   HIGGS_DURATION: 11,                         // the bombard event lasts this long

@@ -32,6 +32,12 @@ const REWARDS = [
   { id: 'threat_5', name: '威脅升級', desc: '達到威脅 5 級', check: (s) => (s.bestStage || 0) >= 5, prog: (s) => [s.bestStage || 0, 5], reward: U('abilities', 'glasscannon'), rewardLabel: '被動「玻璃大砲」' },
   { id: 'boss_1', name: '首領終結者', desc: '擊敗 1 名首領', check: (s) => (s.bossKills || 0) >= 1, prog: (s) => [s.bossKills || 0, 1], reward: U('weapons', 'w_lightning'), rewardLabel: '武器「連鎖閃電」' },
   { id: 'boss_10', name: '首領剋星', desc: '擊敗 10 名首領', check: (s) => (s.bossKills || 0) >= 10, prog: (s) => [s.bossKills || 0, 10], reward: U('equipment', 'cannon_staff'), rewardLabel: '裝備「加農法杖」' },
+  // 原#6: more achievement-unlockable content (the new workflow weapons/abilities)
+  { id: 'unlock_volatile', name: '爆裂研究', desc: '累計擊敗 3 名首領', check: (s) => (s.bossKills || 0) >= 3, prog: (s) => [s.bossKills || 0, 3], reward: U('abilities', 'ac_volatile_rounds'), rewardLabel: '被動「揮發彈頭」' },
+  { id: 'unlock_harvest', name: '靈魂學徒', desc: '單局存活 5 分鐘', check: (s) => (s.bestTime || 0) >= 300, prog: (s) => [Math.min(s.bestTime || 0, 300), 300], reward: U('abilities', 'ac_soul_harvest'), rewardLabel: '被動「靈魂收割」' },
+  { id: 'unlock_riposte', name: '不屈鬥志', desc: '累計倒下 10 次仍不放棄', check: (s) => (s.deaths || 0) >= 10, prog: (s) => [s.deaths || 0, 10], reward: U('abilities', 'ac_riposte'), rewardLabel: '被動「絕地反擊」' },
+  { id: 'unlock_turret', name: '軍械工程', desc: '累計通關 1 次', check: (s) => (s.clears || 0) >= 1, prog: (s) => [s.clears || 0, 1], reward: U('weapons', 'wc_turret'), rewardLabel: '武器「守護砲塔」' },
+  { id: 'unlock_beam', name: '聚能研究', desc: '達到威脅 8 級', check: (s) => (s.bestStage || 0) >= 8, prog: (s) => [s.bestStage || 0, 8], reward: U('weapons', 'wc_beam'), rewardLabel: '武器「聚能光束」' },
 ];
 
 // ---- generated tier families -----------------------------------------------

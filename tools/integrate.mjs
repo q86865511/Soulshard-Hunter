@@ -49,6 +49,7 @@ import { getSprite, defineSprite, defineAnim, Painter } from '../../../engine/sp
 import { defineIcon, panel, sym } from '../../../art/icons.js';
 import { drawSlime, drawBat, drawWisp, drawBrute, drawHunter } from '../../../art/core.js';
 import { Sfx } from '../../../engine/audio.js';
+import { BALANCE } from '../../balance.js';
 
 `;
 
