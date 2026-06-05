@@ -4,10 +4,11 @@ import { World, makeCamp, TS } from '../world.js';
 import { refs } from './refs.js';
 import { setScene } from '../scene.js';
 import { newRun, META, saveMeta, WEAPONS } from '../state.js';
-import { Talents, Facilities, Characters } from '../content/registry.js';
+import { Talents, Facilities, Characters, Weapons } from '../content/registry.js';
 import { TALENT_BRANCHES } from '../content/talents.js';
 import { ACHIEVEMENTS, achievementProgress } from '../content/achievements.js';
-import { STORY_QUESTS, chapterState, claimChapter } from '../content/quests.js';
+import { STORY_QUESTS, chapterState, claimChapter, guildQuests, trackQuest, claimQuest, trackedQuestState, fmtQuestVal } from '../content/quests.js';
+import { SKINS, skinnedSprite, skinSpriteName } from '../content/characters.js';
 import { BIOMES } from '../../art/biomes.js';
 import {
   camera, uiText, uiRect, uiScale, view, drawSprite, drawShadow, drawSpriteUI,
@@ -36,13 +37,13 @@ export const hubScene = {
       { id: 'sortie', sprite: 'portal', label: '出擊傳送門', color: P.manaL, x: cx, y: 5 * TS },
       { id: 'achievements', sprite: 'hub_trophy', label: '成就殿堂', color: P.goldL, x: (CW - 10) * TS, y: 6 * TS },
       { id: 'facilities', sprite: 'hub_forge', label: '設施工坊', color: P.emberL, x: (CW - 8) * TS, y: cy },
+      { id: 'wardrobe', sprite: 'npc_smith', label: '造型坊', color: P.purpleL, x: cx + 4 * TS, y: cy + 3 * TS },
     ];
     this.panel = null; this.near = null; this.t = 0;
     this.panelScroll = 0; this.panelMaxScroll = 0;
     this.flash = ''; this.flashT = 0;
     this.sortPage = 0; this.selBiome = null; this.selDiff = 1;   // sortie: char page + level + difficulty
-    const ch = Characters.get(META.selectedCharacter || 'hunter');
-    this.heroSprite = ch ? ch.sprite : 'player';
+    this.heroSprite = skinnedSprite(META, META.selectedCharacter || 'hunter');
     Music.start('hub');
   },
 
@@ -101,6 +102,7 @@ export const hubScene = {
     else if (this.panel === 'facilities') this.updateFacilities(mx, my);
     else if (this.panel === 'sortie') this.updateSortie(mx, my);
     else if (this.panel === 'quests') this.updateQuests(mx, my);
+    else if (this.panel === 'wardrobe') this.updateWardrobe(mx, my);
   },
 
   // ---- purchase logic ------------------------------------------------------
@@ -209,9 +211,9 @@ export const hubScene = {
   curBiome(L) { return this.selBiome || (L.levels.length ? L.levels[L.levels.length - 1].id : BIOMES[0].id); },
   maxDiff(biomeId) { return ((META.levels && META.levels.diff && META.levels.diff[biomeId]) || 0) + 1; },
   selectChar(c) {
-    if (META.unlocked.characters.includes(c.id)) { META.selectedCharacter = c.id; saveMeta(); Sfx.play('uiClick'); }
+    if (META.unlocked.characters.includes(c.id)) { META.selectedCharacter = c.id; this.heroSprite = skinnedSprite(META, c.id); saveMeta(); Sfx.play('uiClick'); }
     else if (c.unlock.type === 'gold') {
-      if (META.gold >= c.unlock.cost) { META.gold -= c.unlock.cost; META.unlocked.characters.push(c.id); META.selectedCharacter = c.id; saveMeta(); this.feedback('解鎖 ' + c.name); }
+      if (META.gold >= c.unlock.cost) { META.gold -= c.unlock.cost; META.unlocked.characters.push(c.id); META.selectedCharacter = c.id; this.heroSprite = skinnedSprite(META, c.id); saveMeta(); this.feedback('解鎖 ' + c.name); }
       else this.feedback('金幣不足');
     } else this.feedback(c.unlock.hint || '尚未解鎖');
   },
@@ -264,13 +266,67 @@ export const hubScene = {
     uiText(String(META.gold), view.W - 84 * S, 30 * S, { size: 18 * S, color: P.goldL, weight: '800' });
     uiText('1 天賦　2 設施　3 成就　4 任務　空白 出擊　Esc 設定', view.W / 2, view.H - 16 * S, { size: 12 * S, align: 'center', color: P.gray3 });
     if (this.flashT > 0) uiText(this.flash, view.W / 2, view.H * 0.8, { size: 18 * S, align: 'center', color: withAlpha(P.goldL, Math.min(1, this.flashT)), weight: '800' });
+    if (!this.panel) this.drawQuestTracker();   // #2 persistent left-side tracker
 
     if (this.panel === 'talents') this.drawTalents();
     else if (this.panel === 'facilities') this.drawFacilities();
     else if (this.panel === 'sortie') this.drawSortie();
     else if (this.panel === 'achievements') this.drawAchievements();
     else if (this.panel === 'quests') this.drawQuests();
+    else if (this.panel === 'wardrobe') this.drawWardrobe();
     settingsUI.draw();
+  },
+
+  // #2: persistent tracked-quest panel (top-left of the hub)
+  drawQuestTracker() {
+    const S = uiScale(); const q = trackedQuestState(META); if (!q) return;
+    const x = 12 * S, y = 12 * S, w = 200 * S, h = 50 * S;
+    uiRect(x, y, w, h, withAlpha('#0b0d1a', 0.66), { radius: 6 * S, stroke: withAlpha(P.goldL, 0.6), lw: 1.5 });
+    uiText('追蹤任務 · ' + q.title, x + 8 * S, y + 16 * S, { size: 11 * S, color: P.goldL, weight: '800' });
+    if (q.sub) uiText(q.sub, x + 8 * S, y + 30 * S, { size: 9.5 * S, color: P.gray3 });
+    uiBar(x + 8 * S, y + 37 * S, w - 16 * S, 5 * S, q.frac || 0, { fg: q.done ? P.greenL : P.shardL, bg: '#16183a', border: P.ink });
+    if (q.goal) uiText(fmtQuestVal(q.prog, q.fmt) + '/' + fmtQuestVal(q.goal, q.fmt), x + w - 8 * S, y + 34 * S, { size: 9 * S, align: 'right', color: P.gray3 });
+  },
+
+  // ---- 造型坊 wardrobe (#5): buy + equip alternate skins for the selected hero --
+  wardrobeLayout() {
+    const f = this.panelFrame(); const S = f.S;
+    const opts = [{ id: null, name: '原色', price: 0 }, ...SKINS];
+    const cols = 3, cw = Math.min(130 * S, (f.w - 48 * S) / cols - 10 * S), ch = 96 * S, gap = 12 * S;
+    const top = f.y + 150 * S;
+    const cards = opts.map((o, i) => ({ o, x: f.x + 24 * S + (i % cols) * (cw + gap), y: top + Math.floor(i / cols) * (ch + gap), w: cw, h: ch }));
+    return { f, cards };
+  },
+  updateWardrobe(mx, my) {
+    if (!mouse.justDown) return;
+    const cid = META.selectedCharacter || 'hunter';
+    for (const c of this.wardrobeLayout().cards) if (inside(mx, my, c)) { this.pickSkin(cid, c.o); return; }
+  },
+  pickSkin(cid, o) {
+    const key = o.id ? cid + ':' + o.id : null;
+    const owned = !o.id || (META.ownedSkins || []).includes(key);
+    if (owned) { if (o.id) META.skins[cid] = o.id; else delete META.skins[cid]; this.heroSprite = skinnedSprite(META, cid); saveMeta(); Sfx.play('uiClick'); this.feedback('套用造型：' + o.name); }
+    else if (META.gold >= o.price) { META.gold -= o.price; (META.ownedSkins = META.ownedSkins || []).push(key); META.skins[cid] = o.id; this.heroSprite = skinnedSprite(META, cid); saveMeta(); this.feedback('購買造型：' + o.name); }
+    else this.feedback('金幣不足');
+  },
+  drawWardrobe() {
+    const f = this.drawPanelFrame('造 型 坊'); const S = f.S;
+    const mx = mouse.x * view.dpr, my = mouse.y * view.dpr;
+    const cid = META.selectedCharacter || 'hunter'; const ch = Characters.get(cid);
+    uiText('角色：' + (ch ? ch.name : cid) + '　·　以金幣購買並套用同一英雄的不同外觀', f.x + f.w / 2, f.y + 50 * S, { size: 12 * S, align: 'center', color: P.gray3 });
+    const psp = getSprite(skinnedSprite(META, cid)), pscale = 4 * S;
+    drawSpriteUI(psp.frames[0], f.x + f.w / 2 - psp.w * pscale / 2, f.y + 64 * S, pscale);
+    for (const c of this.wardrobeLayout().cards) {
+      const o = c.o, key = o.id ? cid + ':' + o.id : null;
+      const owned = !o.id || (META.ownedSkins || []).includes(key);
+      const equipped = (o.id || null) === (META.skins[cid] || null);
+      const hover = inside(mx, my, c);
+      uiRect(c.x, c.y, c.w, c.h, withAlpha(equipped ? '#243a5a' : '#1b2138', 0.96), { radius: 7 * S, stroke: equipped ? P.shardL : hover ? P.gray3 : P.ink2, lw: equipped ? 3 : 2 });
+      const sp = getSprite(skinSpriteName(cid, o.id)), sc = 2.6 * S;
+      drawSpriteUI(sp.frames[0], c.x + c.w / 2 - sp.w * sc / 2, c.y + 8 * S, sc, { alpha: owned ? 1 : 0.4 });
+      uiText(o.name, c.x + c.w / 2, c.y + c.h - 22 * S, { size: 12 * S, align: 'center', color: owned ? '#fff' : P.gray3, weight: '800' });
+      uiText(equipped ? '● 使用中' : owned ? '套用' : ('🔒 ' + o.price + ' 金'), c.x + c.w / 2, c.y + c.h - 7 * S, { size: 9 * S, align: 'center', color: equipped ? P.shardL : owned ? P.gray3 : (META.gold >= o.price ? P.goldL : P.gray3), weight: '700' });
+    }
   },
 
   drawPanelFrame(title) {
@@ -372,6 +428,18 @@ export const hubScene = {
         uiText('🔒 ' + label, card.x + card.w / 2, card.y + card.h - 7 * S, { size: 9 * S, align: 'center', color: afford ? P.goldL : P.gray3, weight: '700' });
       } else if (selected) uiText('● 已選', card.x + card.w / 2, card.y + card.h - 7 * S, { size: 9 * S, align: 'center', color: P.shardL, weight: '800' });
     }
+    // #1: hovered (or selected) hero info — ability / difference + starting weapon
+    let infoC = Characters.get(META.selectedCharacter);
+    for (const card of L.cards) if (inside(mx, my, card)) { infoC = card.c; break; }
+    if (infoC) {
+      const iy = L.pgY - 52 * S, wpn = Weapons.get(infoC.startWeapon);
+      const ulocked = META.unlocked.characters.includes(infoC.id);
+      uiText('▸ ' + infoC.name + (ulocked ? '' : '（未解鎖）'), f.x + 24 * S, iy, { size: 13 * S, color: P.shardL, weight: '800' });
+      uiText('起始武器：' + (wpn ? wpn.name : infoC.startWeapon), f.x + f.w - 24 * S, iy, { size: 11 * S, align: 'right', color: P.goldL, weight: '700' });
+      let line = '', yy = iy + 16 * S, lines = 0; const maxw = f.w - 48 * S, size = 11 * S;
+      for (const ch of (infoC.desc || '')) { if (textWidth(line + ch, size, '500') > maxw && line) { uiText(line, f.x + 24 * S, yy, { size, color: P.gray4, weight: '500' }); line = ch; yy += 14 * S; if (++lines >= 2) { line = ''; break; } } else line += ch; }
+      if (line) uiText(line, f.x + 24 * S, yy, { size, color: P.gray4, weight: '500' });
+    }
     const arrow = (r, t, on) => { uiRect(r.x, r.y, r.w, r.h, withAlpha('#1b2138', 0.96), { radius: 5 * S, stroke: on ? P.gray3 : P.ink2, lw: 2 }); uiText(t, r.x + r.w / 2, r.y + r.h / 2 + 1 * S, { size: 14 * S, align: 'center', baseline: 'middle', color: on ? '#fff' : P.gray2, weight: '900' }); };
     arrow(L.prev, '‹', this.sortPage > 0);
     arrow(L.next, '›', this.sortPage < L.pages - 1);
@@ -400,39 +468,57 @@ export const hubScene = {
 
   questLayout() {
     const f = this.panelFrame(); const S = f.S;
-    return { f, claim: { x: f.x + f.w / 2 - 100 * S, y: f.y + f.h - 60 * S, w: 200 * S, h: 42 * S } };
+    const mainClaim = { x: f.x + 24 * S, y: f.y + 116 * S, w: 150 * S, h: 30 * S };
+    const mainTrack = { x: f.x + 182 * S, y: f.y + 116 * S, w: 112 * S, h: 30 * S };
+    const list = guildQuests(META).slice(0, 7);   // fit without scrolling
+    const rowH = 38 * S, top = f.y + 192 * S;
+    const rows = list.map((q, i) => { const y = top + i * (rowH + 6 * S); return { q, y, h: rowH, track: { x: f.x + f.w - 196 * S, y: y + 6 * S, w: 84 * S, h: 26 * S }, claim: { x: f.x + f.w - 104 * S, y: y + 6 * S, w: 84 * S, h: 26 * S } }; });
+    return { f, mainClaim, mainTrack, rows };
   },
   updateQuests(mx, my) {
     if (!mouse.justDown) return;
+    const L = this.questLayout();
     const cur = chapterState(META, META.questIndex || 0);
-    if (!cur || !cur.done) return;
-    if (inside(mx, my, this.questLayout().claim)) { const q = claimChapter(META); if (q) { saveMeta(); this.feedback('完成 ' + q.title); } }
+    if (cur && cur.done && inside(mx, my, L.mainClaim)) { const q = claimChapter(META); if (q) { saveMeta(); this.feedback('完成 ' + q.title); } return; }
+    if (inside(mx, my, L.mainTrack)) { trackQuest(META, 'story'); saveMeta(); Sfx.play('uiClick'); return; }
+    for (const r of L.rows) {
+      if (inside(mx, my, r.track)) { trackQuest(META, r.q.id); saveMeta(); this.feedback('追蹤：' + r.q.title); return; }
+      if (inside(mx, my, r.claim)) { if (claimQuest(META, r.q.id)) { saveMeta(); this.feedback('領取：' + r.q.title); } else this.feedback('尚未達成'); return; }
+    }
   },
   drawQuests() {
-    const f = this.drawPanelFrame('故 事 · 任 務');
-    const S = f.S;
-    const i = META.questIndex || 0;
-    let y = f.y + 70 * S;
-    for (let j = 0; j < i && j < STORY_QUESTS.length; j++) { uiText('✓ ' + STORY_QUESTS[j].title, f.x + 24 * S, y, { size: 12 * S, color: P.greenL, weight: '700' }); y += 17 * S; }
-    const cur = chapterState(META, i);
-    if (!cur) { uiText('所有篇章已完成 — 你已成為魂晶之主。', f.x + f.w / 2, f.y + f.h / 2, { size: 15 * S, align: 'center', color: P.goldL, weight: '800' }); return; }
-    const q = cur.q;
-    y += 10 * S;
-    uiText(q.title, f.x + 24 * S, y, { size: 17 * S, color: '#fff', weight: '900' }); y += 24 * S;
-    // wrapped story text
-    { let line = '', yy = y; const maxw = f.w - 48 * S, size = 12.5 * S;
-      for (const ch of q.story) { if (textWidth(line + ch, size, '500') > maxw && line) { uiText(line, f.x + 24 * S, yy, { size, color: P.gray4, weight: '500' }); line = ch; yy += size + 4; } else line += ch; }
-      if (line) { uiText(line, f.x + 24 * S, yy, { size, color: P.gray4, weight: '500' }); yy += size + 4; }
-      y = yy + 10 * S; }
-    uiText('任務目標：' + q.desc, f.x + 24 * S, y, { size: 13 * S, color: P.shardL, weight: '800' }); y += 18 * S;
-    const bw = f.w - 48 * S, frac = cur.prog / cur.goal;
-    uiBar(f.x + 24 * S, y, bw, 10 * S, frac, { fg: cur.done ? P.greenL : P.shardL, bg: '#16183a', border: P.ink });
-    const fmt = q.fmt === 'time' ? (v) => Math.floor(v / 60) + ':' + String(Math.floor(v % 60)).padStart(2, '0') : (v) => String(v);
-    uiText(fmt(cur.prog) + ' / ' + fmt(cur.goal), f.x + f.w - 24 * S, y + 9 * S, { size: 11 * S, align: 'right', color: P.gray3 });
-    const mx = mouse.x * view.dpr, my = mouse.y * view.dpr;
-    const L = this.questLayout(); const can = cur.done; const hov = inside(mx, my, L.claim);
-    uiRect(L.claim.x, L.claim.y, L.claim.w, L.claim.h, withAlpha(can ? (hov ? '#2a6a3a' : '#1f5030') : '#2a2030', 0.96), { radius: 8 * S, stroke: can ? P.greenL : P.gray1, lw: 2 });
-    uiText(can ? ('領取獎勵　+' + q.reward + ' 金幣') : '尚未達成', L.claim.x + L.claim.w / 2, L.claim.y + L.claim.h / 2 + 1 * S, { size: 13 * S, align: 'center', baseline: 'middle', color: can ? '#fff' : P.gray3, weight: '800' });
+    const f = this.drawPanelFrame('故 事 · 任 務'); const S = f.S;
+    const mx = mouse.x * view.dpr, my = mouse.y * view.dpr; const L = this.questLayout();
+    // mainline (claim + track)
+    uiText('主線', f.x + 24 * S, f.y + 52 * S, { size: 13 * S, color: P.goldL, weight: '800' });
+    const cur = chapterState(META, META.questIndex || 0);
+    if (cur) {
+      uiText(cur.q.title, f.x + 24 * S, f.y + 72 * S, { size: 15 * S, color: '#fff', weight: '900' });
+      uiText('目標：' + cur.q.desc, f.x + 24 * S, f.y + 90 * S, { size: 11 * S, color: P.shardL, weight: '700' });
+      uiBar(f.x + 24 * S, f.y + 98 * S, f.w - 48 * S, 8 * S, cur.goal ? cur.prog / cur.goal : 1, { fg: cur.done ? P.greenL : P.shardL, bg: '#16183a', border: P.ink });
+      const can = cur.done, hov = inside(mx, my, L.mainClaim);
+      uiRect(L.mainClaim.x, L.mainClaim.y, L.mainClaim.w, L.mainClaim.h, withAlpha(can ? (hov ? '#2a6a3a' : '#1f5030') : '#2a2030', 0.96), { radius: 7 * S, stroke: can ? P.greenL : P.gray1, lw: 2 });
+      uiText(can ? ('領取　+' + cur.q.reward + ' 金') : '尚未達成', L.mainClaim.x + L.mainClaim.w / 2, L.mainClaim.y + L.mainClaim.h / 2 + 1 * S, { size: 12 * S, align: 'center', baseline: 'middle', color: can ? '#fff' : P.gray3, weight: '800' });
+      const trk = (META.trackedQuest || 'story') === 'story', th = inside(mx, my, L.mainTrack);
+      uiRect(L.mainTrack.x, L.mainTrack.y, L.mainTrack.w, L.mainTrack.h, withAlpha(trk || th ? '#243a5a' : '#1b2138', 0.96), { radius: 7 * S, stroke: trk ? P.shardL : P.ink2, lw: trk ? 3 : 2 });
+      uiText(trk ? '● 追蹤中' : '追蹤主線', L.mainTrack.x + L.mainTrack.w / 2, L.mainTrack.y + L.mainTrack.h / 2 + 1 * S, { size: 11 * S, align: 'center', baseline: 'middle', color: trk ? P.shardL : '#fff', weight: '800' });
+    } else uiText('主線已全數完成 — 你已成為魂晶之主。', f.x + 24 * S, f.y + 80 * S, { size: 13 * S, color: P.goldL, weight: '800' });
+    // guild bounties (side + triggered hidden)
+    uiText('任務公會 · 一般／隱藏任務（點選追蹤同步至左側）', f.x + 24 * S, f.y + 176 * S, { size: 12 * S, color: P.shardL, weight: '800' });
+    if (!L.rows.length) uiText('目前沒有可接的任務（達成特定條件可解鎖隱藏任務）', f.x + 24 * S, f.y + 200 * S, { size: 11 * S, color: P.gray3 });
+    for (const r of L.rows) {
+      const q = r.q, p = Math.min(q.goal, q.prog(META.stats || {})), done = p >= q.goal;
+      const trk = META.trackedQuest === q.id, hidden = q.id[0] === 'h';
+      uiRect(f.x + 24 * S, r.y, f.w - 48 * S, r.h, withAlpha(trk ? '#243a5a' : '#1b2138', 0.95), { radius: 6 * S, stroke: trk ? P.shardL : (hidden ? P.purpleL : P.ink2), lw: trk ? 2 : 1 });
+      uiText(q.title, f.x + 34 * S, r.y + 15 * S, { size: 12 * S, color: hidden ? P.purpleL : '#fff', weight: '800' });
+      uiText(q.desc + '（' + fmtQuestVal(p, q.fmt) + '/' + fmtQuestVal(q.goal, q.fmt) + '）', f.x + 34 * S, r.y + 30 * S, { size: 10 * S, color: done ? P.greenL : P.gray4 });
+      const tH = inside(mx, my, r.track);
+      uiRect(r.track.x, r.track.y, r.track.w, r.track.h, withAlpha(trk || tH ? '#243a5a' : '#1b2138', 0.96), { radius: 5 * S, stroke: trk ? P.shardL : P.ink2, lw: 1 });
+      uiText(trk ? '● 追蹤' : '追蹤', r.track.x + r.track.w / 2, r.track.y + r.track.h / 2 + 1 * S, { size: 10 * S, align: 'center', baseline: 'middle', color: trk ? P.shardL : '#fff', weight: '700' });
+      const cH = inside(mx, my, r.claim);
+      uiRect(r.claim.x, r.claim.y, r.claim.w, r.claim.h, withAlpha(done ? (cH ? '#2a6a3a' : '#1f5030') : '#2a2030', 0.96), { radius: 5 * S, stroke: done ? P.greenL : P.gray1, lw: 1 });
+      uiText(done ? ('領 +' + q.reward) : '進行中', r.claim.x + r.claim.w / 2, r.claim.y + r.claim.h / 2 + 1 * S, { size: 10 * S, align: 'center', baseline: 'middle', color: done ? '#fff' : P.gray3, weight: '700' });
+    }
   },
 
   drawAchievements() {
@@ -451,7 +537,7 @@ export const hubScene = {
       const done = got.includes(a.id);
       const name = (a.hidden && !done) ? '？？？' : (a.realName || a.name);
       let desc = (a.hidden && !done) ? '隱藏成就 — 達成後揭曉' : a.desc;
-      if (!done && !a.hidden && a.prog) { const pg = a.prog(META.stats || {}); desc += `（${Math.min(pg[0], pg[1])}/${pg[1]}）`; }   // live progress (A2)
+      if (!done && !a.hidden && a.prog) { const pg = a.prog(META.stats || {}, META); desc += `（${Math.min(pg[0], pg[1])}/${pg[1]}）`; }   // live progress (A2)
       uiRect(x, y, cardW, cardH, withAlpha(done ? '#1d2c1d' : '#1b2138', 0.96), { radius: 7 * S, stroke: done ? P.goldL : P.ink2, lw: 2 });
       uiText(done ? '★' : '☆', x + 12 * S, y + 23 * S, { size: 17 * S, color: done ? P.goldL : P.gray2, weight: '900' });
       uiText(name, x + 34 * S, y + 20 * S, { size: 12.5 * S, color: done ? '#fff' : P.gray3, weight: '800' });

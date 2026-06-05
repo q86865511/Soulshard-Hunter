@@ -12,7 +12,7 @@ import { Enemies, Equipment, Abilities, Weapons, Characters } from '../content/r
 import { equipItem } from '../content/equipment.js';
 import { BALANCE } from '../balance.js';
 import { isUnlocked } from '../content/unlocks.js';
-import { STORY_QUESTS } from '../content/quests.js';
+import { STORY_QUESTS, trackedQuestState, fmtQuestVal } from '../content/quests.js';
 import { EVENTS } from '../content/events.js';
 import { Cheats } from '../cheats.js';
 import {
@@ -150,19 +150,15 @@ export const runScene = {
 
   setupShrine(pos) {
     this.shrinePos = pos;
-    this.shopGear = this.rollShopGear();
-    this.anvilBuys = 0; this.anvilChoice = null;
+    this.anvilBuys = 0; this.gearBuys = 0; this.shopChoice = null;   // #3: both anvils are 3-choice now
   },
-  rollShopGear() {
-    // tier >= 2 gear, incl. weapon-slot "signature weapons" (now real auto-fire weapons)
+  // 3 random tier>=2 unlocked equipment defs for the 裝備鐵砧 three-pick (#3)
+  rollGearChoice() {
     const pool = Equipment.all().filter((d) => (d.tier ?? 1) >= 2 && isUnlocked(META, 'equipment', d.id));
     const src = (pool.length ? pool : Equipment.all()).slice();
-    const offers = [];
-    for (let i = 0; i < 4 && src.length; i++) {
-      const d = src.splice(rng.int(0, src.length - 1), 1)[0];
-      offers.push({ def: d, price: Math.round((d.price || 60) * BALANCE.GEAR_MARKUP), bought: false });
-    }
-    return offers;
+    const pick = [];
+    for (let i = 0; i < 3 && src.length; i++) pick.push(src.splice(rng.int(0, src.length - 1), 1)[0]);
+    return pick;
   },
 
   // ---- interactive NPCs (E1) ----------------------------------------------
@@ -718,24 +714,39 @@ export const runScene = {
     for (let ty = 0; ty < m.th; ty++) for (let tx = 0; tx < m.tw; tx++) { x.fillStyle = m.tiles[ty * m.tw + tx] !== 0 ? '#2e3450' : '#171a2c'; x.fillRect(tx, ty, 1, 1); }
     this.minimap = c;
   },
-  // G1: minimap sits to the LEFT of the top-right gold/shard counters, beautified.
+  // shared marker set so the small map and the big (M) map always match (#4)
+  plotMinimap(dot, sc) {
+    const en = this.world.enemies;
+    for (let i = 0; i < en.length && i < 220; i++) dot(en[i].x, en[i].y, withAlpha(en[i].boss ? P.redL : (en[i].surround ? P.purpleL : P.red), 0.85), (en[i].boss ? 5 : en[i].surround ? 3 : 2.5) * sc);
+    for (const pk of this.world.pickups) if (pk.type === 'chest' && (!pk.hidden || pk.revealed)) dot(pk.x, pk.y, P.goldL, 3 * sc);
+    if (this.shrinePos) dot(this.shrinePos.x, this.shrinePos.y, P.shardL, 3.5 * sc);
+    for (const n of (this.npcs || [])) if (!n.used) dot(n.x, n.y, n.kind === 'well' ? P.shardL : P.manaL, 3.5 * sc);
+    if (this.bossRef && !this.bossRef.dead) dot(this.bossRef.x, this.bossRef.y, P.redL, 5 * sc);
+    dot(this.player.x, this.player.y, '#ffffff', 4 * sc);
+  },
+  // #4: minimap sits at the top-LEFT, below the HP / XP / dash UI, slightly enlarged.
   drawMinimap() {
     if (!this.minimap) return;
     const S = uiScale(); const m = this.map;
-    const mw = 120 * S, mh = mw * m.th / m.tw;
-    const mx = view.W - mw - 92 * S, my = 12 * S;
+    const mw = 144 * S, mh = mw * m.th / m.tw;
+    const mx = 12 * S, my = 66 * S;
     uiRect(mx - 4, my - 4, mw + 8, mh + 8, withAlpha('#0b0d1a', 0.72), { radius: 6 * S, stroke: P.shardL, lw: 2 });
     uiRect(mx - 4, my - 4, mw + 8, 3 * S, withAlpha(P.shardL, 0.5), { radius: 2 * S });
     drawSpriteUI(this.minimap, mx, my, mw / m.tw);
     const pxW = m.tw * TS, pxH = m.th * TS;
     const dot = (wx, wy, col, sz) => { const dx = mx + (wx / pxW) * mw, dy = my + (wy / pxH) * mh; uiRect(dx - sz / 2, dy - sz / 2, sz, sz, col, { radius: sz / 2 }); };
-    const en = this.world.enemies;
-    for (let i = 0; i < en.length && i < 90; i++) dot(en[i].x, en[i].y, withAlpha(en[i].boss ? P.redL : P.red, 0.8), (en[i].boss ? 4 : 2) * S);
-    for (const pk of this.world.pickups) if (pk.type === 'chest' && (!pk.hidden || pk.revealed)) dot(pk.x, pk.y, P.goldL, 3 * S);
-    if (this.shrinePos) dot(this.shrinePos.x, this.shrinePos.y, P.shardL, 3 * S);
-    for (const n of (this.npcs || [])) if (!n.used) dot(n.x, n.y, n.kind === 'well' ? P.shardL : P.manaL, 3 * S);
-    if (this.bossRef && !this.bossRef.dead) dot(this.bossRef.x, this.bossRef.y, P.redL, 5 * S);
-    dot(this.player.x, this.player.y, '#ffffff', 4 * S);
+    this.plotMinimap(dot, S);
+  },
+  // #2: persistent tracked-quest panel on the left, below the minimap
+  drawQuestTracker() {
+    if (this.dead || this.choice || this.equipChoice || this.eventChoice || this.shopOpen || this.paused) return;
+    const S = uiScale(); const q = trackedQuestState(META); if (!q) return;
+    const x = 12 * S, y = 196 * S, w = 158 * S, h = 46 * S;
+    uiRect(x, y, w, h, withAlpha('#0b0d1a', 0.6), { radius: 5 * S, stroke: withAlpha(P.goldL, 0.6), lw: 1.5 });
+    uiText('任務 · ' + q.title, x + 8 * S, y + 15 * S, { size: 10.5 * S, color: P.goldL, weight: '800' });
+    if (q.sub) uiText(q.sub, x + 8 * S, y + 28 * S, { size: 9 * S, color: P.gray3 });
+    uiBar(x + 8 * S, y + 34 * S, w - 16 * S, 5 * S, q.frac || 0, { fg: q.done ? P.greenL : P.shardL, bg: '#16183a', border: P.ink });
+    if (q.goal) uiText(fmtQuestVal(q.prog, q.fmt) + '/' + fmtQuestVal(q.goal, q.fmt), x + w - 8 * S, y + 31 * S, { size: 9 * S, align: 'right', color: P.gray3 });
   },
 
   // M: a big semi-transparent minimap floating in the centre of the screen
@@ -748,12 +759,7 @@ export const runScene = {
     drawSpriteUI(this.minimap, mx, my, mw / m.tw, { alpha: 0.5 });
     const pxW = m.tw * TS, pxH = m.th * TS;
     const dot = (wx, wy, col, sz) => { const dx = mx + (wx / pxW) * mw, dy = my + (wy / pxH) * mh; uiRect(dx - sz / 2, dy - sz / 2, sz, sz, col, { radius: sz / 2 }); };
-    const en = this.world.enemies;
-    for (let i = 0; i < en.length && i < 200; i++) dot(en[i].x, en[i].y, withAlpha(en[i].boss ? P.redL : P.red, 0.85), (en[i].boss ? 6 : 3) * S);
-    for (const pk of this.world.pickups) if (pk.type === 'chest' && (!pk.hidden || pk.revealed)) dot(pk.x, pk.y, P.goldL, 5 * S);
-    if (this.shrinePos) dot(this.shrinePos.x, this.shrinePos.y, P.shardL, 5 * S);
-    if (this.finalZone) dot(this.finalZone.cx, this.finalZone.cy, P.manaL, 7 * S);
-    dot(this.player.x, this.player.y, '#ffffff', 6 * S);
+    this.plotMinimap(dot, S * 1.6);   // same markers as the small map, larger
     uiText('放大地圖　·　M 關閉', view.W / 2, my - 12 * S, { size: 12 * S, align: 'center', color: withAlpha(P.shardL, 0.85), weight: '700' });
   },
 
@@ -772,58 +778,55 @@ export const runScene = {
     const close = { x: x + w - 38 * S, y: y + 10 * S, w: 28 * S, h: 28 * S };
     const colW = (w - 60 * S) / 2;
     const gearX = x + 24 * S, anvilX = x + 36 * S + colW;
-    const cardH = 56 * S, gap = 9 * S, top = y + 86 * S;
-    const showGear = !this.run.purist;
-    const gearCards = [];
-    if (showGear) this.shopGear.forEach((offer, i) => gearCards.push({ x: gearX, y: top + i * (cardH + gap), w: colW, h: cardH, offer }));
-    const aX = showGear ? anvilX : x + w / 2 - colW / 2;
-    const anvilBuyCard = { x: aX, y: top, w: colW, h: cardH * 1.3 };
-    // the paused 3-choice overlay shown after buying an anvil (C1)
+    const cardH = 56 * S, top = y + 100 * S;
+    const gearBuyCard = { x: gearX, y: top, w: colW, h: cardH * 1.4 };
+    const anvilBuyCard = { x: anvilX, y: top, w: colW, h: cardH * 1.4 };
+    // the paused 3-choice overlay (stat OR gear) (#3 / C1)
     let choiceCards = null;
-    if (this.anvilChoice) {
-      const cw = Math.min(150 * S, (w - 64 * S) / 3), ch = cw * 1.2, cg = 14 * S;
+    if (this.shopChoice) {
+      const cw = Math.min(160 * S, (w - 64 * S) / 3), ch = cw * 1.25, cg = 14 * S;
       const totW = 3 * cw + 2 * cg, cx0 = x + (w - totW) / 2, cy = y + h / 2 - ch / 2;
-      choiceCards = this.anvilChoice.map((opt, i) => ({ x: cx0 + i * (cw + cg), y: cy, w: cw, h: ch, opt }));
+      choiceCards = this.shopChoice.opts.map((opt, i) => ({ x: cx0 + i * (cw + cg), y: cy, w: cw, h: ch, opt }));
     }
-    return { S, x, y, w, h, close, gearCards, anvilBuyCard, choiceCards, gearX, anvilX: aX, colW, top, showGear };
+    return { S, x, y, w, h, close, gearBuyCard, anvilBuyCard, choiceCards, gearX, anvilX, colW, top };
   },
   anvilPrice() { return Math.round(BALANCE.ANVIL_BASE_PRICE * Math.pow(BALANCE.ANVIL_PRICE_GROWTH, this.anvilBuys || 0)); },
+  gearPrice() { return Math.round(BALANCE.GEAR_ANVIL_BASE_PRICE * Math.pow(BALANCE.GEAR_ANVIL_GROWTH, this.gearBuys || 0)); },
   updateShopPanel() {
     const mx = mouse.x * view.dpr, my = mouse.y * view.dpr;
     const L = this.shopLayout();
-    if (this.anvilChoice) {                       // choosing: only the 3 cards are live (game stays paused)
-      if (mouse.justDown && L.choiceCards) for (const c of L.choiceCards) if (inside(mx, my, c)) { this.pickAnvil(c.opt); return; }
+    if (this.shopChoice) {                        // choosing: only the 3 cards are live (game stays paused)
+      if (mouse.justDown && L.choiceCards) for (const c of L.choiceCards) if (inside(mx, my, c)) { this.pickShop(c.opt); return; }
       return;
     }
     if (pressed('escape') || pressed('interact') || pressed('map')) { this.shopOpen = false; return; }
     if (mouse.justDown) {
       if (inside(mx, my, L.close)) { this.shopOpen = false; return; }
-      for (const c of L.gearCards) if (inside(mx, my, c)) { this.buyGear(c.offer); return; }
+      if (inside(mx, my, L.gearBuyCard)) { this.buyGearAnvil(); return; }
       if (inside(mx, my, L.anvilBuyCard)) { this.buyAnvil(); return; }
       if (!inside(mx, my, L)) this.shopOpen = false;
     }
-  },
-  buyGear(offer) {
-    if (!offer || offer.bought || this.run.purist) return;
-    if (this.run.shards < offer.price) { this.flashShop('魂晶不足'); return; }
-    this.run.shards -= offer.price; offer.bought = true; this.run.gearTaken = true;
-    equipItem(this.player, this.run, offer.def);
-    Sfx.play('equip');
   },
   buyAnvil() {
     const price = this.anvilPrice();
     if (this.run.shards < price) { this.flashShop('魂晶不足'); return; }
     this.run.shards -= price; this.anvilBuys = (this.anvilBuys || 0) + 1;
-    const pool = ANVIL_POOL.slice(), pick = [];           // 3 distinct random anvils to choose from
+    const pool = ANVIL_POOL.slice(), pick = [];
     for (let i = 0; i < 3 && pool.length; i++) pick.push(pool.splice(rng.int(0, pool.length - 1), 1)[0]);
-    this.anvilChoice = pick;
-    Sfx.play('buy');
+    this.shopChoice = { kind: 'stat', opts: pick }; Sfx.play('buy');
   },
-  pickAnvil(opt) {
-    try { opt.apply(this.player.stats, this.player); } catch (e) { /* */ }
-    this.run.anvilCount = (this.run.anvilCount || 0) + 1;
-    this.anvilChoice = null; Sfx.play('levelup');
-    this.maybeBoon();
+  buyGearAnvil() {
+    const price = this.gearPrice();
+    if (this.run.shards < price) { this.flashShop('魂晶不足'); return; }
+    const pick = this.rollGearChoice();
+    if (!pick.length) { this.flashShop('已無裝備可鍛'); return; }
+    this.run.shards -= price; this.gearBuys = (this.gearBuys || 0) + 1;
+    this.shopChoice = { kind: 'gear', opts: pick }; Sfx.play('buy');
+  },
+  pickShop(opt) {
+    if (this.shopChoice.kind === 'stat') { try { opt.apply(this.player.stats, this.player); } catch (e) { /* */ } this.run.anvilCount = (this.run.anvilCount || 0) + 1; this.shopChoice = null; this.maybeBoon(); }
+    else { equipItem(this.player, this.run, opt); this.run.gearTaken = true; this.shopChoice = null; }
+    Sfx.play('levelup');
   },
   // hidden path: buy lots of anvils and NEVER take gear -> a one-time random boon
   maybeBoon() {
@@ -860,6 +863,7 @@ export const runScene = {
     drawHud(this.run, this.player);
     this.drawStageHud();
     this.drawMinimap();
+    this.drawQuestTracker();
     this.drawBanner();
     this.drawInfo();
     this.drawBigMinimap();
@@ -909,29 +913,39 @@ export const runScene = {
     uiText(String(this.run.shards), L.x + L.w - 132 * S, L.y + 30 * S, { size: 16 * S, color: P.shardL, weight: '800' });
     uiRect(L.close.x, L.close.y, L.close.w, L.close.h, withAlpha('#3a2030', 0.9), { radius: 6 * S, stroke: P.redD, lw: 2 });
     uiText('✕', L.close.x + L.close.w / 2, L.close.y + L.close.h / 2 + 1 * S, { size: 16 * S, align: 'center', baseline: 'middle', color: P.redL, weight: '900' });
-    if (L.showGear) uiText('史詩・稜彩裝備', L.gearX, L.top - 14 * S, { size: 13 * S, color: P.goldL, weight: '800' });
+    uiText('裝備鐵砧（三選一）', L.gearX, L.top - 14 * S, { size: 13 * S, color: P.goldL, weight: '800' });
     uiText('能力值鐵砧（三選一）', L.anvilX, L.top - 14 * S, { size: 13 * S, color: P.shardL, weight: '800' });
-    if (this.run.purist) uiText('純能力值之道：不再販售裝備', L.x + L.w / 2, L.y + 54 * S, { size: 11 * S, align: 'center', color: P.purpleL, weight: '700' });
-    else uiText('整局不取裝備、專注鐵砧，或有奇遇…', L.x + L.w / 2, L.y + 54 * S, { size: 10 * S, align: 'center', color: P.gray3 });
-    for (const c of L.gearCards) this.drawShopCard(c, 'gear', mx, my, S);
-    // anvil purchase card -> opens the paused 3-choice
-    { const c = L.anvilBuyCard, hover = inside(mx, my, c), price = this.anvilPrice(), afford = this.run.shards >= price;
-      uiRect(c.x, c.y, c.w, c.h, withAlpha('#1b2138', 0.96), { radius: 7 * S, stroke: hover ? P.shardL : P.ink2, lw: hover ? 3 : 2 });
-      uiText('鍛造能力值鐵砧', c.x + 10 * S, c.y + 20 * S, { size: 13 * S, color: '#fff', weight: '800' });
-      uiText('購入後三選一強化' + (this.anvilBuys ? '　已鍛 ×' + this.anvilBuys : ''), c.x + 10 * S, c.y + 38 * S, { size: 10 * S, color: P.gray4 });
-      uiText('魂晶 ' + price, c.x + c.w - 10 * S, c.y + c.h - 9 * S, { size: 12 * S, align: 'right', color: afford ? P.shardL : P.redL, weight: '800' });
-    }
+    uiText('鍛造鐵砧後三選一：史詩/稜彩裝備，或能力值強化', L.x + L.w / 2, L.y + 56 * S, { size: 10 * S, align: 'center', color: P.gray3 });
+    const buyCard = (c, title, sub, price, accent) => {
+      const hover = inside(mx, my, c), afford = this.run.shards >= price;
+      uiRect(c.x, c.y, c.w, c.h, withAlpha('#1b2138', 0.96), { radius: 7 * S, stroke: hover ? accent : P.ink2, lw: hover ? 3 : 2 });
+      uiText(title, c.x + 10 * S, c.y + 22 * S, { size: 13 * S, color: '#fff', weight: '800' });
+      uiText(sub, c.x + 10 * S, c.y + 40 * S, { size: 10 * S, color: P.gray4 });
+      uiText('魂晶 ' + price, c.x + c.w - 10 * S, c.y + c.h - 9 * S, { size: 12 * S, align: 'right', color: afford ? accent : P.redL, weight: '800' });
+    };
+    buyCard(L.gearBuyCard, '鍛造裝備鐵砧', '三選一 史詩/稜彩裝備' + (this.gearBuys ? '　已鍛 ×' + this.gearBuys : ''), this.gearPrice(), P.goldL);
+    buyCard(L.anvilBuyCard, '鍛造能力值鐵砧', '三選一 能力值強化' + (this.anvilBuys ? '　已鍛 ×' + this.anvilBuys : ''), this.anvilPrice(), P.shardL);
     uiText('點擊購買　·　E / Esc 關閉', L.x + L.w / 2, L.y + L.h - 13 * S, { size: 11 * S, align: 'center', color: P.gray3 });
     if (this.shopFlashT > 0) { this.shopFlashT -= 1 / 60; uiText(this.shopFlash, L.x + L.w / 2, L.y + L.h - 30 * S, { size: 12 * S, align: 'center', color: P.redL, weight: '800' }); }
-    // the paused 3-choice overlay (C1)
-    if (this.anvilChoice && L.choiceCards) {
-      uiRect(L.x, L.y, L.w, L.h, withAlpha('#0b0d1a', 0.74), { radius: 10 * S });
-      uiText('選擇一項能力值強化', view.W / 2, L.choiceCards[0].y - 22 * S, { size: 16 * S, align: 'center', color: P.shardL, weight: '900' });
+    // the paused 3-choice overlay — stat or gear (#3 / C1)
+    if (this.shopChoice && L.choiceCards) {
+      const gear = this.shopChoice.kind === 'gear';
+      uiRect(L.x, L.y, L.w, L.h, withAlpha('#0b0d1a', 0.76), { radius: 10 * S });
+      uiText(gear ? '選擇一件裝備' : '選擇一項能力值強化', view.W / 2, L.choiceCards[0].y - 22 * S, { size: 16 * S, align: 'center', color: gear ? P.goldL : P.shardL, weight: '900' });
       for (const c of L.choiceCards) {
-        const hover = inside(mx, my, c);
-        uiRect(c.x, c.y, c.w, c.h, withAlpha('#1b2840', 0.98), { radius: 8 * S, stroke: hover ? P.shardL : withAlpha(P.shardL, 0.5), lw: hover ? 3 : 2 });
-        uiText(c.opt.name, c.x + c.w / 2, c.y + 26 * S, { size: 13 * S, align: 'center', color: '#fff', weight: '800' });
-        this.wrapText(c.opt.desc, c.x + c.w / 2, c.y + 46 * S, c.w - 16 * S, 11 * S, P.emberL);
+        const hover = inside(mx, my, c); const o = c.opt;
+        const rar = gear ? ((o.tier || 1) >= 3 ? P.goldL : (o.tier || 1) === 2 ? P.purpleL : P.shardL) : P.shardL;
+        uiRect(c.x, c.y, c.w, c.h, withAlpha('#1b2840', 0.98), { radius: 8 * S, stroke: hover ? rar : withAlpha(rar, 0.5), lw: hover ? 3 : 2 });
+        if (gear) {
+          const sp = getSprite(iconOr(o.icon, 'equip_leather_armor'));
+          drawSpriteUI(sp.frames[0], c.x + c.w / 2 - 16 * S, c.y + 12 * S, (32 * S) / sp.w);
+          const slotName = o.slot === 'weapon' ? '專武' : o.slot === 'armor' ? '護甲' : '飾品';
+          uiText(o.name + ' · ' + slotName, c.x + c.w / 2, c.y + 56 * S, { size: 12.5 * S, align: 'center', color: rar, weight: '800' });
+          this.wrapText(o.desc || '', c.x + c.w / 2, c.y + 74 * S, c.w - 16 * S, 11 * S, P.gray4);
+        } else {
+          uiText(o.name, c.x + c.w / 2, c.y + 30 * S, { size: 13 * S, align: 'center', color: '#fff', weight: '800' });
+          this.wrapText(o.desc, c.x + c.w / 2, c.y + 52 * S, c.w - 16 * S, 11 * S, P.emberL);
+        }
       }
     }
   },

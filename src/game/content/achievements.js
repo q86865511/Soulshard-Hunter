@@ -47,18 +47,19 @@ const FAMILIES = [
   ...fam('reaper', '弒神', (g) => `累計擊殺死神 ${g} 次`, (s) => s.reaperKills || 0, [1, 3, 5, 10]),
   ...fam('mini', '獵王', (g) => `累計擊殺小王 ${g} 隻`, (s) => s.miniBossKills || 0, [3, 10, 30, 60, 120]),
   ...fam('fall', '不屈', (g) => `累計倒下 ${g} 次仍不放棄`, (s) => s.deaths || 0, [5, 25, 75, 150]),
-  ...fam('open', '開拓', (g) => `解鎖 ${g} 個關卡`, (s, m) => (m.levels && m.levels.unlocked) || 1, [2, 3, 4, 5]),
-  ...fam('roster', '群英', (g) => `解鎖 ${g} 名角色`, (s, m) => (m.unlocked && m.unlocked.characters || []).length, [3, 6, 10, 14, 17]),
-  ...fam('armory', '軍火', (g) => `解鎖 ${g} 把武器`, (s, m) => (m.unlocked && m.unlocked.weapons || []).length, [5, 10, 16, 24]),
-  ...fam('codex', '博識', (g) => `解鎖 ${g} 個被動`, (s, m) => (m.unlocked && m.unlocked.abilities || []).length, [10, 20, 35, 45]),
-  ...fam('wardrobe', '蒐藏', (g) => `解鎖 ${g} 件裝備`, (s, m) => (m.unlocked && m.unlocked.equipment || []).length, [8, 16, 24, 32]),
+  ...fam('open', '開拓', (g) => `解鎖 ${g} 個關卡`, (s, m) => (m && m.levels && m.levels.unlocked) || 1, [2, 3, 4, 5]),
+  ...fam('roster', '群英', (g) => `解鎖 ${g} 名角色`, (s, m) => ((m && m.unlocked && m.unlocked.characters) || []).length, [3, 6, 10, 14, 17]),
+  ...fam('armory', '軍火', (g) => `解鎖 ${g} 把武器`, (s, m) => ((m && m.unlocked && m.unlocked.weapons) || []).length, [5, 10, 16, 24]),
+  ...fam('codex', '博識', (g) => `解鎖 ${g} 個被動`, (s, m) => ((m && m.unlocked && m.unlocked.abilities) || []).length, [10, 20, 35, 45]),
+  ...fam('wardrobe', '蒐藏', (g) => `解鎖 ${g} 件裝備`, (s, m) => ((m && m.unlocked && m.unlocked.equipment) || []).length, [8, 16, 24, 32]),
 ];
 
 // ---- per-biome clears -------------------------------------------------------
+const dClr = (m, id) => (m && m.levels && m.levels.diff && m.levels.diff[id]) || 0;
 const BIOME_ACH = [];
 for (const b of BIOMES) {
-  BIOME_ACH.push({ id: `clr_${b.id}`, name: `征服 · ${b.name}`, desc: `通關「${b.name}」`, check: (s, m) => ((m.levels && m.levels.diff && m.levels.diff[b.id]) || 0) >= 1, prog: (s, m) => [Math.min(1, (m.levels && m.levels.diff && m.levels.diff[b.id]) || 0), 1] });
-  BIOME_ACH.push({ id: `clr3_${b.id}`, name: `精通 · ${b.name}`, desc: `以難度 3+ 通關「${b.name}」`, check: (s, m) => ((m.levels && m.levels.diff && m.levels.diff[b.id]) || 0) >= 3, prog: (s, m) => [(m.levels && m.levels.diff && m.levels.diff[b.id]) || 0, 3] });
+  BIOME_ACH.push({ id: `clr_${b.id}`, name: `征服 · ${b.name}`, desc: `通關「${b.name}」`, check: (s, m) => dClr(m, b.id) >= 1, prog: (s, m) => [Math.min(1, dClr(m, b.id)), 1] });
+  BIOME_ACH.push({ id: `clr3_${b.id}`, name: `精通 · ${b.name}`, desc: `以難度 3+ 通關「${b.name}」`, check: (s, m) => dClr(m, b.id) >= 3, prog: (s, m) => [dClr(m, b.id), 3] });
 }
 
 // ---- hidden goals -----------------------------------------------------------

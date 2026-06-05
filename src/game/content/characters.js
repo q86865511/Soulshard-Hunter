@@ -7,7 +7,7 @@
 //     passive(stats),                            // applied to base stats at run start
 //     unlock:{ type:'free'|'gold'|'achievement', cost?, condition?, hint? } }
 import { Characters } from './registry.js';
-import { defineAnim } from '../../engine/sprites.js';
+import { defineAnim, hasSprite } from '../../engine/sprites.js';
 import { drawHunter } from '../../art/core.js';
 import { P } from '../../engine/palette.js';
 
@@ -42,6 +42,34 @@ for (const c of Characters.all()) {
     drawHunter(p, f, c.art);
     p.outline(P.ink);
   }, { anchor: [8, 17], fps: 9 });
+}
+
+// alternate cosmetic SKINS (#5): a recolour applicable to any hero. Buying one in
+// the hub 造型坊 unlocks the variant sprite `char_<id>__<skinId>`.
+export const SKINS = [
+  { id: 'flame', name: '烈焰', price: 200, art: { cloak: P.red, cloakD: P.redD, cloakL: P.redL, trim: P.gold, eye: P.emberL } },
+  { id: 'tide', name: '碧波', price: 200, art: { cloak: P.blue, cloakD: P.blueD, cloakL: P.blueL, trim: P.shardL, eye: P.iceD } },
+  { id: 'verdant', name: '翠影', price: 200, art: { cloak: P.green, cloakD: P.greenD, cloakL: P.greenL, trim: P.gold, eye: P.toxic } },
+  { id: 'royal', name: '皇金', price: 350, art: { cloak: P.gold, cloakD: P.bronze, cloakL: '#ffe9a0', trim: P.purpleL, eye: P.emberL } },
+  { id: 'void', name: '虛影', price: 350, art: { cloak: P.purple, cloakD: P.purpleD, cloakL: P.purpleL, trim: P.manaL, eye: P.manaL } },
+];
+// Skin variant sprites are generated LAZILY on first use — gen-content heroes are
+// registered after this module loads, so an eager loop would miss them (rendering
+// magenta). hasSprite() makes generation idempotent.
+function ensureSkin(c, sk) {
+  const name = `${c.sprite}__${sk.id}`;
+  if (!hasSprite(name)) defineAnim(name, 16, 18, 4, (p, f) => { drawHunter(p, f, { ...c.art, ...sk.art }); p.outline(P.ink); }, { anchor: [8, 17], fps: 9 });
+  return name;
+}
+// resolve (and ensure) the sprite name for a character + a skin id
+export function skinSpriteName(charId, skinId) {
+  const c = Characters.get(charId); if (!c) return 'player';
+  const sk = skinId && SKINS.find((s) => s.id === skinId);
+  return sk ? ensureSkin(c, sk) : c.sprite;
+}
+// resolve the sprite for a character given the player's equipped skin (meta.skins)
+export function skinnedSprite(meta, charId) {
+  return skinSpriteName(charId, meta && meta.skins && meta.skins[charId]);
 }
 
 // unlock achievement-gated characters based on lifetime stats

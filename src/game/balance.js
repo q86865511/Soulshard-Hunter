@@ -50,7 +50,8 @@ export const BALANCE = {
   // ---- soulshard shop (C1 / C3) — prices LOWERED, esp. the stat anvils -----
   ANVIL_BASE_PRICE: 26,                       // base soulshard cost of a stat anvil (was 40-55)
   ANVIL_PRICE_GROWTH: 1.2,                    // price multiplier per anvil bought (was 1.3)
-  GEAR_MARKUP: 1.3,                           // shop gear price multiplier (was 1.6)
+  GEAR_ANVIL_BASE_PRICE: 60,                  // base soulshard cost of an equipment anvil (#3: 3-choice)
+  GEAR_ANVIL_GROWTH: 1.25,
 
   // ---- ranged vs melee composition (D4 / 原#15, D5 / 原#16) -------------
   RANGED_FIRE_MULT: 1.55,                     // ranged-enemy fire cooldowns lengthened

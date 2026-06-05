@@ -1,7 +1,7 @@
 // Global game state: persistent meta-progression (save) + per-run state.
 import { P } from '../engine/palette.js';
 import { Talents, Facilities, Characters } from './content/registry.js';
-import { checkCharacterUnlocks } from './content/characters.js';
+import { checkCharacterUnlocks, skinnedSprite } from './content/characters.js';
 import { checkAchievements, reconcileUnlocks } from './content/achievements.js';
 import { Audio } from '../engine/audio.js';
 import { setShakeEnabled } from '../engine/renderer.js';
@@ -22,6 +22,10 @@ const DEFAULT_META = () => ({
   achievements: [],      // unlocked achievement ids
   questIndex: 0,         // current story-quest chapter
   levels: { unlocked: 1, diff: {} },   // # of biomes unlocked + highest cleared difficulty per biome
+  skins: {},             // characterId -> equipped skinId (#5)
+  ownedSkins: [],        // purchased "charId:skinId"
+  trackedQuest: 'story', // #2 quest shown on the left-side tracker
+  questClaims: {},       // claimed bounty ids
   flags: {},
 });
 
@@ -51,6 +55,10 @@ export function loadMeta() {
       if (typeof META.questIndex !== 'number') META.questIndex = 0;
       if (!META.unlocked || typeof META.unlocked !== 'object') META.unlocked = DEFAULT_META().unlocked;
       for (const k of ['abilities','equipment','weapons','characters']) if (!Array.isArray(META.unlocked[k])) META.unlocked[k] = DEFAULT_META().unlocked[k];
+      if (!META.skins || typeof META.skins !== 'object') META.skins = {};
+      if (!Array.isArray(META.ownedSkins)) META.ownedSkins = [];
+      if (typeof META.trackedQuest !== 'string') META.trackedQuest = 'story';
+      if (!META.questClaims || typeof META.questClaims !== 'object') META.questClaims = {};
       META.version = SAVE_VERSION;
     }
   } catch (e) { console.warn('load save failed', e); META = DEFAULT_META(); }
@@ -101,7 +109,7 @@ export function newRun(opts = {}) {
     level: 1, xp: 0, xpNext: 20, kills: 0, score: 0, bossKills: 0,
     stats: makeBaseStats(),
     characterId: char ? char.id : 'hunter',
-    characterSprite: char ? char.sprite : 'player',
+    characterSprite: char ? skinnedSprite(META, char.id) : 'player',
     startWeapons: [char ? char.startWeapon : 'w_soulbolt'],
     abilities: [],
     abilityLevels: {},

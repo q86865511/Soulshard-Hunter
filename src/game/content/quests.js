@@ -21,12 +21,61 @@ export const STORY_QUESTS = [
   { id: 's15', title: '終章 · 魂晶之主', story: '萬千魂晶終歸於一人之手。你直視深淵盡頭——那裡只剩你的倒影。', desc: '達到威脅 13 級', prog: (s) => s.bestStage || 0, goal: 13, reward: 4000 },
 ];
 
+// 一般任務 (regular bounties) — accepted/tracked from the guild, claimed once done.
+export const SIDE_QUESTS = [
+  { id: 'b_hunt', title: '懸賞 · 清剿', desc: '累計擊殺 300 名敵人', prog: (s) => s.kills || 0, goal: 300, reward: 120 },
+  { id: 'b_survive', title: '懸賞 · 堅守', desc: '單局存活 6 分鐘', fmt: 'time', prog: (s) => s.bestTime || 0, goal: 360, reward: 150 },
+  { id: 'b_boss', title: '懸賞 · 獵首', desc: '累計擊敗 6 名首領', prog: (s) => s.bossKills || 0, goal: 6, reward: 200 },
+  { id: 'b_mini', title: '懸賞 · 屠戮小王', desc: '累計擊殺 15 隻小王', prog: (s) => s.miniBossKills || 0, goal: 15, reward: 220 },
+  { id: 'b_gold', title: '懸賞 · 致富', desc: '金庫累計 8000 金幣', prog: (s) => s.totalGold || 0, goal: 8000, reward: 260 },
+  { id: 'b_threat', title: '懸賞 · 深入', desc: '達到威脅 7 級', prog: (s) => s.bestStage || 0, goal: 7, reward: 240 },
+];
+// 隱藏任務 — only appear in the guild once their trigger condition is met.
+export const HIDDEN_QUESTS = [
+  { id: 'h_reaper', title: '隱藏 · 弒神之證', desc: '再次擊殺死神', prog: (s) => s.reaperKills || 0, goal: 2, reward: 500, trigger: (m) => (m.stats.reaperKills || 0) >= 1 },
+  { id: 'h_clear', title: '隱藏 · 征服者', desc: '累計通關 5 次', prog: (s) => s.clears || 0, goal: 5, reward: 600, trigger: (m) => (m.stats.clears || 0) >= 1 },
+  { id: 'h_legend', title: '隱藏 · 傳奇之證', desc: '單局分數突破 50000', prog: (s) => s.bestScore || 0, goal: 50000, reward: 800, trigger: (m) => (m.stats.bestScore || 0) >= 20000 },
+];
+
 export function chapterState(meta, i) {
   const q = STORY_QUESTS[i];
   if (!q) return null;
   const p = Math.min(q.goal, q.prog(meta.stats || {}));
   return { q, prog: p, goal: q.goal, done: p >= q.goal };
 }
+
+const allBounties = () => [...SIDE_QUESTS, ...HIDDEN_QUESTS];
+// guild list: side quests + any triggered hidden quests, minus already-claimed ones
+export function guildQuests(meta) {
+  const claims = meta.questClaims || {};
+  return allBounties().filter((q) => !claims[q.id] && (!q.trigger || q.trigger(meta)));
+}
+function bountyState(meta, q) {
+  const p = Math.min(q.goal, q.prog(meta.stats || {}));
+  return { q, prog: p, goal: q.goal, done: p >= q.goal, fmt: q.fmt };
+}
+export function trackQuest(meta, id) { meta.trackedQuest = id; }
+export function claimQuest(meta, id) {
+  const q = allBounties().find((x) => x.id === id); if (!q) return false;
+  const st = bountyState(meta, q);
+  if (!st.done || (meta.questClaims && meta.questClaims[id])) return false;
+  meta.questClaims = meta.questClaims || {};
+  meta.questClaims[id] = true; meta.gold += q.reward;
+  if (meta.trackedQuest === id) meta.trackedQuest = 'story';
+  return true;
+}
+// the quest shown on the persistent left-side tracker (default = story mainline)
+export function trackedQuestState(meta) {
+  const id = meta.trackedQuest || 'story';
+  if (id !== 'story') {
+    const q = allBounties().find((x) => x.id === id);
+    if (q) { const st = bountyState(meta, q); return { title: q.title, sub: q.desc, prog: st.prog, goal: st.goal, frac: q.goal ? st.prog / q.goal : 1, fmt: q.fmt, done: st.done }; }
+  }
+  const st = chapterState(meta, meta.questIndex || 0);
+  if (!st) return { title: '主線 · 全章完成', sub: '你已成為魂晶之主', frac: 1, done: true };
+  return { title: st.q.title, sub: st.q.desc, prog: st.prog, goal: st.goal, frac: st.goal ? st.prog / st.goal : 1, fmt: st.q.fmt, done: st.done };
+}
+export function fmtQuestVal(v, fmt) { return fmt === 'time' ? Math.floor(v / 60) + ':' + String(Math.floor(v % 60)).padStart(2, '0') : String(Math.floor(v)); }
 
 // claim the current chapter's reward (if its objective is met) and advance
 export function claimChapter(meta) {
