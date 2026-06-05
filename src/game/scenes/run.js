@@ -21,20 +21,24 @@ import { pressed, mouse } from '../../engine/input.js';
 import { rng, dist, clamp, TAU } from '../../engine/math.js';
 import { P, withAlpha } from '../../engine/palette.js';
 import { getSprite, frameAt, iconOr } from '../../engine/sprites.js';
-import { getRunChoices, applyChoice, choiceStyle, MAX_WEAPONS, MAX_PASSIVES } from '../progression.js';
+import { getRunChoices, applyChoice, choiceStyle, fusionAvailable, MAX_WEAPONS, MAX_PASSIVES } from '../progression.js';
 import { Sfx, Music } from '../../engine/audio.js';
 import { settingsUI } from '../ui/settings.js';
 
 const inside = (mx, my, r) => mx >= r.x && mx <= r.x + r.w && my >= r.y && my <= r.y + r.h;
 
-// LoL-Arena-style stat anvils sold at the in-run shop (repeatable; price climbs).
-const ANVILS = [
-  { name: '力量鐵砧', desc: '傷害 ×1.08', price: 45, apply: (s) => { s.damageMult *= 1.08; } },
-  { name: '迅捷鐵砧', desc: '射速 ×1.06', price: 45, apply: (s) => { s.fireRateMult *= 1.06; } },
-  { name: '堅韌鐵砧', desc: '生命上限 +14', price: 42, apply: (s, p) => { s.maxHp += 14; p.heal(14); } },
-  { name: '銳利鐵砧', desc: '暴擊率 +4%', price: 50, apply: (s) => { s.critChance += 0.04; } },
-  { name: '疾風鐵砧', desc: '移速 ×1.04', price: 40, apply: (s) => { s.speed *= 1.04; } },
-  { name: '壁壘鐵砧', desc: '減傷 +1', price: 55, apply: (s) => { s.defense += 1; } },
+// Stat-anvil POOL. Buying an anvil (C1) opens a paused 3-of-these random pick.
+const ANVIL_POOL = [
+  { name: '力量鐵砧', desc: '傷害 ×1.08', apply: (s) => { s.damageMult *= 1.08; } },
+  { name: '迅捷鐵砧', desc: '射速 ×1.07', apply: (s) => { s.fireRateMult *= 1.07; } },
+  { name: '堅韌鐵砧', desc: '生命上限 +16', apply: (s, p) => { s.maxHp += 16; p.heal(16); } },
+  { name: '銳利鐵砧', desc: '暴擊率 +4%', apply: (s) => { s.critChance += 0.04; } },
+  { name: '疾風鐵砧', desc: '移速 ×1.05', apply: (s) => { s.speed *= 1.05; } },
+  { name: '壁壘鐵砧', desc: '減傷 +1', apply: (s) => { s.defense += 1; } },
+  { name: '貫穿鐵砧', desc: '穿透 +1', apply: (s) => { s.pierceAdd = (s.pierceAdd || 0) + 1; } },
+  { name: '增幅鐵砧', desc: '範圍 ×1.10', apply: (s) => { s.area = (s.area || 1) * 1.1; } },
+  { name: '吸血鐵砧', desc: '吸血 +2%', apply: (s) => { s.lifesteal = (s.lifesteal || 0) + 0.02; } },
+  { name: '狂暴鐵砧', desc: '暴擊傷害 +0.3', apply: (s) => { s.critMult = (s.critMult || 2) + 0.3; } },
 ];
 
 // A level lasts 20 minutes (E2): a DISTINCT mini-boss every 5 min, the level's
@@ -135,7 +139,7 @@ export const runScene = {
   setupShrine(pos) {
     this.shrinePos = pos;
     this.shopGear = this.rollShopGear();
-    this.shopAnvils = ANVILS.map((a) => ({ ...a, buys: 0 }));
+    this.anvilBuys = 0; this.anvilChoice = null;
   },
   rollShopGear() {
     // tier >= 2 gear, incl. weapon-slot "signature weapons" (now real auto-fire weapons)
@@ -144,7 +148,7 @@ export const runScene = {
     const offers = [];
     for (let i = 0; i < 4 && src.length; i++) {
       const d = src.splice(rng.int(0, src.length - 1), 1)[0];
-      offers.push({ def: d, price: Math.round((d.price || 60) * 1.6), bought: false });
+      offers.push({ def: d, price: Math.round((d.price || 60) * BALANCE.GEAR_MARKUP), bought: false });
     }
     return offers;
   },
@@ -538,6 +542,10 @@ export const runScene = {
     if (this.nearShrine && pressed('interact')) { this.shopOpen = true; Sfx.play('uiClick'); }
     else if (this.nearNpc && pressed('interact')) { this.useNpc(this.nearNpc); }
     else if (this.cleared && pressed('interact')) { this.finishRun(true); return; }   // leave as a win during the Reaper window
+    // C2: surface a "can-fuse" hint (without revealing the recipe) on the rising edge
+    const fr = fusionAvailable(this.run, this.player);
+    if (fr && !this.fusionReady) { this.banner = '✦ 可進行武器合成 — 升級時將出現合成選項'; this.bannerT = 2.8; }
+    this.fusionReady = fr;
     if (this.levelQueue > 0 && !this.choice) this.openChoice();
   },
 
@@ -598,37 +606,55 @@ export const runScene = {
     const gearX = x + 24 * S, anvilX = x + 36 * S + colW;
     const cardH = 56 * S, gap = 9 * S, top = y + 86 * S;
     const showGear = !this.run.purist;
-    const gearCards = [], anvilCards = [];
+    const gearCards = [];
     if (showGear) this.shopGear.forEach((offer, i) => gearCards.push({ x: gearX, y: top + i * (cardH + gap), w: colW, h: cardH, offer }));
     const aX = showGear ? anvilX : x + w / 2 - colW / 2;
-    this.shopAnvils.forEach((anvil, i) => anvilCards.push({ x: aX, y: top + i * (cardH + gap), w: colW, h: cardH, anvil }));
-    return { S, x, y, w, h, close, gearCards, anvilCards, gearX, anvilX: aX, colW, top, showGear };
+    const anvilBuyCard = { x: aX, y: top, w: colW, h: cardH * 1.3 };
+    // the paused 3-choice overlay shown after buying an anvil (C1)
+    let choiceCards = null;
+    if (this.anvilChoice) {
+      const cw = Math.min(150 * S, (w - 64 * S) / 3), ch = cw * 1.2, cg = 14 * S;
+      const totW = 3 * cw + 2 * cg, cx0 = x + (w - totW) / 2, cy = y + h / 2 - ch / 2;
+      choiceCards = this.anvilChoice.map((opt, i) => ({ x: cx0 + i * (cw + cg), y: cy, w: cw, h: ch, opt }));
+    }
+    return { S, x, y, w, h, close, gearCards, anvilBuyCard, choiceCards, gearX, anvilX: aX, colW, top, showGear };
   },
+  anvilPrice() { return Math.round(BALANCE.ANVIL_BASE_PRICE * Math.pow(BALANCE.ANVIL_PRICE_GROWTH, this.anvilBuys || 0)); },
   updateShopPanel() {
-    if (pressed('escape') || pressed('interact') || pressed('map')) { this.shopOpen = false; return; }
     const mx = mouse.x * view.dpr, my = mouse.y * view.dpr;
     const L = this.shopLayout();
+    if (this.anvilChoice) {                       // choosing: only the 3 cards are live (game stays paused)
+      if (mouse.justDown && L.choiceCards) for (const c of L.choiceCards) if (inside(mx, my, c)) { this.pickAnvil(c.opt); return; }
+      return;
+    }
+    if (pressed('escape') || pressed('interact') || pressed('map')) { this.shopOpen = false; return; }
     if (mouse.justDown) {
       if (inside(mx, my, L.close)) { this.shopOpen = false; return; }
       for (const c of L.gearCards) if (inside(mx, my, c)) { this.buyGear(c.offer); return; }
-      for (const c of L.anvilCards) if (inside(mx, my, c)) { this.buyAnvil(c.anvil); return; }
+      if (inside(mx, my, L.anvilBuyCard)) { this.buyAnvil(); return; }
       if (!inside(mx, my, L)) this.shopOpen = false;
     }
   },
   buyGear(offer) {
     if (!offer || offer.bought || this.run.purist) return;
     if (this.run.shards < offer.price) { this.flashShop('魂晶不足'); return; }
-    this.run.shards -= offer.price; offer.bought = true;
+    this.run.shards -= offer.price; offer.bought = true; this.run.gearTaken = true;
     equipItem(this.player, this.run, offer.def);
     Sfx.play('equip');
   },
-  buyAnvil(anvil) {
-    const price = Math.round(anvil.price * Math.pow(1.3, anvil.buys || 0));
+  buyAnvil() {
+    const price = this.anvilPrice();
     if (this.run.shards < price) { this.flashShop('魂晶不足'); return; }
-    this.run.shards -= price; anvil.buys = (anvil.buys || 0) + 1;
-    try { anvil.apply(this.player.stats, this.player); } catch (e) { /* */ }
-    this.run.anvilCount = (this.run.anvilCount || 0) + 1;
+    this.run.shards -= price; this.anvilBuys = (this.anvilBuys || 0) + 1;
+    const pool = ANVIL_POOL.slice(), pick = [];           // 3 distinct random anvils to choose from
+    for (let i = 0; i < 3 && pool.length; i++) pick.push(pool.splice(rng.int(0, pool.length - 1), 1)[0]);
+    this.anvilChoice = pick;
     Sfx.play('buy');
+  },
+  pickAnvil(opt) {
+    try { opt.apply(this.player.stats, this.player); } catch (e) { /* */ }
+    this.run.anvilCount = (this.run.anvilCount || 0) + 1;
+    this.anvilChoice = null; Sfx.play('levelup');
     this.maybeBoon();
   },
   // hidden path: buy lots of anvils and NEVER take gear -> a one-time random boon
@@ -711,13 +737,30 @@ export const runScene = {
     uiRect(L.close.x, L.close.y, L.close.w, L.close.h, withAlpha('#3a2030', 0.9), { radius: 6 * S, stroke: P.redD, lw: 2 });
     uiText('✕', L.close.x + L.close.w / 2, L.close.y + L.close.h / 2 + 1 * S, { size: 16 * S, align: 'center', baseline: 'middle', color: P.redL, weight: '900' });
     if (L.showGear) uiText('史詩・稜彩裝備', L.gearX, L.top - 14 * S, { size: 13 * S, color: P.goldL, weight: '800' });
-    uiText('能力值鐵砧', L.anvilX, L.top - 14 * S, { size: 13 * S, color: P.shardL, weight: '800' });
+    uiText('能力值鐵砧（三選一）', L.anvilX, L.top - 14 * S, { size: 13 * S, color: P.shardL, weight: '800' });
     if (this.run.purist) uiText('純能力值之道：不再販售裝備', L.x + L.w / 2, L.y + 54 * S, { size: 11 * S, align: 'center', color: P.purpleL, weight: '700' });
     else uiText('整局不取裝備、專注鐵砧，或有奇遇…', L.x + L.w / 2, L.y + 54 * S, { size: 10 * S, align: 'center', color: P.gray3 });
     for (const c of L.gearCards) this.drawShopCard(c, 'gear', mx, my, S);
-    for (const c of L.anvilCards) this.drawShopCard(c, 'anvil', mx, my, S);
+    // anvil purchase card -> opens the paused 3-choice
+    { const c = L.anvilBuyCard, hover = inside(mx, my, c), price = this.anvilPrice(), afford = this.run.shards >= price;
+      uiRect(c.x, c.y, c.w, c.h, withAlpha('#1b2138', 0.96), { radius: 7 * S, stroke: hover ? P.shardL : P.ink2, lw: hover ? 3 : 2 });
+      uiText('鍛造能力值鐵砧', c.x + 10 * S, c.y + 20 * S, { size: 13 * S, color: '#fff', weight: '800' });
+      uiText('購入後三選一強化' + (this.anvilBuys ? '　已鍛 ×' + this.anvilBuys : ''), c.x + 10 * S, c.y + 38 * S, { size: 10 * S, color: P.gray4 });
+      uiText('魂晶 ' + price, c.x + c.w - 10 * S, c.y + c.h - 9 * S, { size: 12 * S, align: 'right', color: afford ? P.shardL : P.redL, weight: '800' });
+    }
     uiText('點擊購買　·　E / Esc 關閉', L.x + L.w / 2, L.y + L.h - 13 * S, { size: 11 * S, align: 'center', color: P.gray3 });
     if (this.shopFlashT > 0) { this.shopFlashT -= 1 / 60; uiText(this.shopFlash, L.x + L.w / 2, L.y + L.h - 30 * S, { size: 12 * S, align: 'center', color: P.redL, weight: '800' }); }
+    // the paused 3-choice overlay (C1)
+    if (this.anvilChoice && L.choiceCards) {
+      uiRect(L.x, L.y, L.w, L.h, withAlpha('#0b0d1a', 0.74), { radius: 10 * S });
+      uiText('選擇一項能力值強化', view.W / 2, L.choiceCards[0].y - 22 * S, { size: 16 * S, align: 'center', color: P.shardL, weight: '900' });
+      for (const c of L.choiceCards) {
+        const hover = inside(mx, my, c);
+        uiRect(c.x, c.y, c.w, c.h, withAlpha('#1b2840', 0.98), { radius: 8 * S, stroke: hover ? P.shardL : withAlpha(P.shardL, 0.5), lw: hover ? 3 : 2 });
+        uiText(c.opt.name, c.x + c.w / 2, c.y + 26 * S, { size: 13 * S, align: 'center', color: '#fff', weight: '800' });
+        this.wrapText(c.opt.desc, c.x + c.w / 2, c.y + 46 * S, c.w - 16 * S, 11 * S, P.emberL);
+      }
+    }
   },
   drawShopCard(c, kind, mx, my, S) {
     const hover = inside(mx, my, c);
@@ -782,7 +825,7 @@ export const runScene = {
     let hov = null;
     for (const ic of hudIcons) if (mx >= ic.x && mx <= ic.x + ic.w && my >= ic.y && my <= ic.y + ic.h) hov = ic;
     if (hov) this.drawTooltip(hov, mx, my, S);
-    else uiText('Tab：build　·　M：放大地圖', view.W - 12 * S, view.H - 10 * S, { size: 10 * S, align: 'right', color: withAlpha('#fff', 0.28) });
+    else uiText('Tab：build　·　M：放大地圖' + (this.fusionReady ? '　·　✦ 可合成' : ''), view.W - 12 * S, view.H - 10 * S, { size: 10 * S, align: 'right', color: withAlpha(this.fusionReady ? P.goldL : '#fff', this.fusionReady ? 0.7 : 0.28) });
   },
   drawTooltip(ic, mx, my, S) {
     const def = ic.def; if (!def) return;

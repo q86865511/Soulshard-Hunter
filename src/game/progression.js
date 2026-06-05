@@ -55,6 +55,14 @@ export function getRunChoices(run, player, n = 3) {
   return picks;
 }
 
+// Whether a weapon fusion is currently possible (used for the "can-fuse" hint —
+// the recipe itself is never spelled out). Mirrors the gating in getRunChoices.
+export function fusionAvailable(run, player) {
+  const maxed = player.weapons.filter((w) => !w.def.evolved && !w.def.equipped && isWeaponMaxed(w));
+  if (!maxed.some((w) => w.def.evolveInto)) return false;
+  return maxed.length >= BALANCE.FUSE_MAXED_WEAPONS || (run.abilities || []).length >= BALANCE.FUSE_PASSIVES;
+}
+
 export function applyChoice(run, player, world, c) {
   if (c.kind === 'ability') applyAbility(run, player, world, c.def);
   else if (c.kind === 'weapon') player.addWeapon(c.id, world);

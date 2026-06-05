@@ -40,7 +40,12 @@ export const BALANCE = {
   // ---- loot / economy (D1 / 原#6, C3 / 原#21) ---------------------------
   GOLD_DROP_MULT: 0.5,                        // gold per kill (was 0.62)
   DROP_CHANCE_MULT: 0.6,                      // equip/item/heart drop chance off mobs
-  SHARD_DROP_MULT: 0.85,                      // soulshard drop rate
+  SHARD_DROP_MULT: 0.95,                      // soulshard drop rate
+
+  // ---- soulshard shop (C1 / C3) — prices LOWERED, esp. the stat anvils -----
+  ANVIL_BASE_PRICE: 26,                       // base soulshard cost of a stat anvil (was 40-55)
+  ANVIL_PRICE_GROWTH: 1.2,                    // price multiplier per anvil bought (was 1.3)
+  GEAR_MARKUP: 1.3,                           // shop gear price multiplier (was 1.6)
 
   // ---- ranged vs melee composition (D4 / 原#15, D5 / 原#16) -------------
   RANGED_FIRE_MULT: 1.55,                     // ranged-enemy fire cooldowns lengthened
