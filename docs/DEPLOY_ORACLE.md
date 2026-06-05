@@ -103,7 +103,9 @@ sudo -u postgres psql -c "CREATE USER soulshard WITH PASSWORD 'STRONGPW';"
 sudo -u postgres psql -c "CREATE DATABASE soulshard OWNER soulshard;"
 
 cd ~/soulshard/server
-cp .env.example .env && nano .env     # set DATABASE_URL, JWT_SECRET, CORS_ORIGIN
+cp .env.example .env && nano .env     # set DATABASE_URL, CORS_ORIGIN, and a STRONG JWT_SECRET
+# JWT_SECRET must be >=32 random chars or the server REFUSES to boot (every token would be forgeable). Generate one:
+#   node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"
 npm install --omit=dev
 ```
 Create `/etc/systemd/system/soulshard.service`:
@@ -115,6 +117,7 @@ After=network.target postgresql.service
 [Service]
 WorkingDirectory=/home/ubuntu/soulshard/server
 EnvironmentFile=/home/ubuntu/soulshard/server/.env
+Environment=NODE_ENV=production
 ExecStart=/usr/bin/node src/server.js
 Restart=always
 User=ubuntu

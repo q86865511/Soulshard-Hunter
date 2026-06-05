@@ -6,11 +6,11 @@
 // These values are tuned for being inflicted ON THE PLAYER: chance-gated and
 // gentler than the player's own offensive versions, so contact doesn't snowball
 // into an unrecoverable slow/DoT death-spiral. Spec D6: "avoid stacking too lethal".
-const SLOW = { type: 'slow', mult: 0.72, dur: 1.3, chance: 0.5 };
+const SLOW = { type: 'slow', mult: 0.72, dur: 0.6, chance: 0.5 };   // round-6: shorter than the 0.7s hit i-frame so swarm contact can't pin the player permanently
 const POISON = { type: 'poison', dps: 4, dur: 3, chance: 0.5 };
 const BURN = { type: 'burn', dps: 5, dur: 2, chance: 0.5 };
 // bosses: a bit stronger DoT and more reliable
-const B_SLOW = { type: 'slow', mult: 0.65, dur: 1.6, chance: 0.7 };
+const B_SLOW = { type: 'slow', mult: 0.65, dur: 0.8, chance: 0.7 };   // round-6: shorter so it can't stack into a permanent pin
 const B_POISON = { type: 'poison', dps: 6, dur: 3.5, chance: 0.7 };
 const B_BURN = { type: 'burn', dps: 7, dur: 2.5, chance: 0.7 };
 

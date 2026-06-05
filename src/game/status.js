@@ -44,7 +44,7 @@ export function tickStatus(target, dt, world) {
       if (e.t <= 0) { delete st[k]; continue; }
       if (k === 'slow') slowMult *= e.mult;
       else if (CONTROL[k]) controlled = true;
-      else if (DOT[k] && e.dps) {
+      else if (DOT[k] && e.dps && !(target.invuln > 0)) {   // i-frames / immunity (shield/aegis set invuln) now block DoT too; e.t still counts down so it expires
         e.acc += e.dps * dt;
         if (e.acc >= 1) {
           const d = Math.floor(e.acc); e.acc -= d;

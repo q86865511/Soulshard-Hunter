@@ -13,7 +13,7 @@ const nowMs = () => (typeof Date !== 'undefined' && Date.now) ? Date.now() : 0;
 
 function shuffle(a) { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
 
-function rollOffers(meta) {
+function rollOffers(meta, resetTimer = true) {
   const normal = shuffle(SKINS.filter((s) => !s.hidden).map((s) => s.id));
   const hidden = SKINS.filter((s) => s.hidden).map((s) => s.id);
   const offers = normal.slice(0, SKINSHOP_SLOTS);
@@ -21,7 +21,7 @@ function rollOffers(meta) {
   meta.skinShop = meta.skinShop || { roll: 0, offers: [], nextRoll: 0 };
   meta.skinShop.offers = offers;
   meta.skinShop.roll = (meta.skinShop.roll || 0) + 1;
-  meta.skinShop.nextRoll = nowMs() + SKINSHOP_REFRESH_MS;
+  if (resetTimer) meta.skinShop.nextRoll = nowMs() + SKINSHOP_REFRESH_MS;   // only the free auto-restock resets the 30-min deadline
   return offers;
 }
 
@@ -36,7 +36,7 @@ export function ensureSkinOffers(meta) {
 export function rerollSkinShop(meta) {
   if ((meta.gold || 0) < SKINSHOP_REROLL_COST) return false;
   meta.gold -= SKINSHOP_REROLL_COST;
-  rollOffers(meta);
+  rollOffers(meta, false);   // paid reroll refreshes stock but does NOT extend the free 30-min deadline
   return true;
 }
 

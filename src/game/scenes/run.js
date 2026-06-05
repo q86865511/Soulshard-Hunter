@@ -139,7 +139,7 @@ export const runScene = {
 
     // special "harasser" events (mushrooms / surround ring (D2) / Higgs zoning (D3))
     this.evtMines = []; this.evtStrikes = []; this.surround = null; this.higgs = null;
-    this.nextEventAt = 40;
+    this.nextEventAt = BALANCE.SURROUND_PERIOD[0];   // first event time from config (was hardcoded 40)
 
     // difficulty scaling + finale (final boss -> killable Reaper, E2)
     this.diffMul = 1 + (Math.max(1, this.run.difficulty || 1) - 1) * 0.35;
@@ -464,12 +464,15 @@ export const runScene = {
     }
   },
 
+  // opening-softener factor at the current time (mirrors spawnTick) — events use it too
+  earlyDmgGrace() { const t = this.run.time; return t < BALANCE.EARLY_GRACE ? BALANCE.EARLY_DMG_GRACE + (1 - BALANCE.EARLY_DMG_GRACE) * (t / BALANCE.EARLY_GRACE) : 1; },
   // ---- special harasser events: mushrooms / surround ring (D2) / Higgs (D3) -
   eventsTick() {
     if (this.boss || this.finalBoss || this.cleared) return;
     if (this.run.time >= this.nextEventAt) {
       this.triggerEvent();
-      this.nextEventAt = this.run.time + (34 + rng.next() * 26) * BALANCE.SPECIAL_EVENT_FREQ_MULT;
+      const [evBase, evRand] = BALANCE.SURROUND_PERIOD;   // wire the (previously dead) config
+      this.nextEventAt = this.run.time + (evBase + rng.next() * evRand) * BALANCE.SPECIAL_EVENT_FREQ_MULT;
     }
   },
   triggerEvent() {
@@ -500,7 +503,7 @@ export const runScene = {
     const def = pool[rng.int(0, pool.length - 1)];
     const n = BALANCE.SURROUND_COUNT_BASE + Math.floor(this.threat * 0.5);
     const hpScale = BALANCE.SURROUND_HP_MULT * (1 + this.threat * 0.1) * this.diffMul;
-    const dmgScale = BALANCE.SURROUND_DMG_MULT * this.diffMul;
+    const dmgScale = BALANCE.SURROUND_DMG_MULT * this.diffMul * this.earlyDmgGrace();   // honour the opening softener
     const cx = this.player.x, cy = this.player.y;
     const ring = [];
     for (let i = 0; i < n; i++) {
@@ -512,8 +515,9 @@ export const runScene = {
       const e = this.world.spawnEnemy(def, x, y, { hpScale, dmgScale, speedScale: BALANCE.SURROUND_SPEED_MULT, quiet: true });
       if (e) { e.tint = P.purpleL; e.surround = true; ring.push(e); }
     }
-    this.surround = { enemies: ring, t: BALANCE.SURROUND_LIFE, cx, cy, lockR: BALANCE.SURROUND_RADIUS + 48, total: ring.length, breached: false, wasWall: false };
-    this.banner = '魂牢降臨！怪群收攏包圍 — 殺出缺口（×' + BALANCE.SURROUND_BREACH_KILLS + '）或貼牆突圍！'; this.bannerT = 3.6; Sfx.play('boss'); addShake(6);
+    const breachNeed = Math.min(BALANCE.SURROUND_BREACH_KILLS, ring.length);   // never require more kills than actually spawned (some ring slots land on walls)
+    this.surround = { enemies: ring, t: BALANCE.SURROUND_LIFE, cx, cy, lockR: BALANCE.SURROUND_RADIUS + 48, total: ring.length, breachNeed, breached: false, wasWall: false };
+    this.banner = '魂牢降臨！怪群收攏包圍 — 殺出缺口（×' + breachNeed + '）或貼牆突圍！'; this.bannerT = 3.6; Sfx.play('boss'); addShake(6);
   },
   // D3: the Higgs bomb now LINGERS — it lobs delayed blasts every couple seconds
   // to zone the player, instead of one big burst.
@@ -543,7 +547,7 @@ export const runScene = {
           const a = rng.next() * TAU, r = rng.next() * 72;
           const x = clamp(this.player.x + Math.cos(a) * r, TS * 2, this.world.pxW - TS * 2);
           const y = clamp(this.player.y + Math.sin(a) * r, TS * 2, this.world.pxH - TS * 2);
-          this.evtStrikes.push({ x, y, t: 1.0, max: 1.0, r: BALANCE.HIGGS_RADIUS, dmg: BALANCE.HIGGS_DMG + Math.min(this.threat, 12) });
+          this.evtStrikes.push({ x, y, t: 1.0, max: 1.0, r: BALANCE.HIGGS_RADIUS, dmg: (BALANCE.HIGGS_DMG + Math.min(this.threat, 12)) * this.earlyDmgGrace() });
         }
       }
       if (this.higgs.t <= 0) this.higgs = null;
@@ -559,11 +563,11 @@ export const runScene = {
       for (const o of SURROUND_PROBES) if (this.world.solidAt(p.x + o[0], p.y + o[1])) { wall = true; break; }
       sur.wallT = wall ? (sur.wallT || 0) + dt : 0;   // bal: require a SUSTAINED wall-press, not a 1-frame brush
       const wallBreach = sur.wallT >= 0.6;
-      if (killed >= BALANCE.SURROUND_BREACH_KILLS || wallBreach) { sur.breached = true; sur.wasWall = sur.wasWall || wallBreach; }
+      if (killed >= sur.breachNeed || wallBreach) { sur.breached = true; sur.wasWall = sur.wasWall || wallBreach; }
       // the ring tightens — the lock radius creeps inward so the circle visibly collapses
       sur.lockR = Math.max(BALANCE.SURROUND_LOCK_MIN, sur.lockR - BALANCE.SURROUND_CLOSE_SPEED * dt);
       // hold the player in the kill-zone until they breach (or the ring empties / times out)
-      if (BALANCE.SURROUND_MUST_CLEAR && sur.enemies.length && !sur.breached) {
+      if (BALANCE.SURROUND_MUST_CLEAR && sur.enemies.length >= 2 && !sur.breached) {
         const dx = p.x - sx, dy = p.y - sy, d = Math.hypot(dx, dy);
         if (d > sur.lockR) {
           const k = sur.lockR / d; p.x = sx + dx * k; p.y = sy + dy * k; p.vx *= -0.3; p.vy *= -0.3;
@@ -593,7 +597,7 @@ export const runScene = {
       strokeCircleWorld(this.surround.cx, this.surround.cy, sr, withAlpha(P.purpleL, 0.16 + 0.1 * Math.sin(this.t * 4)), 2.5);
       strokeCircleWorld(this.surround.cx, this.surround.cy, sr - 3, withAlpha(P.purpleL, 0.08), 1);
       const ns = worldToScreen(this.surround.cx, this.surround.cy - sr - 6);
-      const need = Math.max(0, BALANCE.SURROUND_BREACH_KILLS - (this.surround.total - this.surround.enemies.length));
+      const need = Math.max(0, (this.surround.breachNeed || BALANCE.SURROUND_BREACH_KILLS) - (this.surround.total - this.surround.enemies.length));
       const msg = need > 0 ? ('魂牢 · 殺出缺口還需 ×' + need + '（或貼牆）') : '魂牢 · 缺口已開，快突圍！';
       uiText(msg, ns.x, ns.y, { size: 11 * uiScale(), align: 'center', color: P.purpleL, weight: '800' });
     }
@@ -801,9 +805,8 @@ export const runScene = {
   },
   abandon() {
     this.run.score = Math.floor(this.run.kills * 12 + this.run.stage * 400 + this.run.time);
-    META.stats.bestStage = Math.max(META.stats.bestStage || 0, this.run.stage);
-    META.stats.bestScore = Math.max(META.stats.bestScore || 0, this.run.score);
-    Music.stop(); bankRun(this.run); Sfx.play('portal');
+    Music.stop(); Sfx.play('portal');
+    if (!this.dead && !this.banked) { this.banked = true; bankRun(this.run); }   // bank at most once (bankRun already applies bestStage/bestScore)
     setScene(refs.hub, {});
   },
   drawPause() {

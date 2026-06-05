@@ -154,8 +154,8 @@ export class World {
     const luck = this.player?.stats?.luck ?? 0;
     const dropM = BALANCE.DROP_CHANCE_MULT;
     const sMul = this.player?.stats?.shardMult ?? 1;   // wire the (previously inert) shard-income stat into the payload
-    if (e.shard && Math.random() < e.shard * (1 + luck) * BALANCE.SHARD_DROP_MULT) this.addPickup('shard', e.x, e.y, Math.max(1, Math.round((e.boss ? 5 : 1) * sMul)));
-    else if (!e.boss && Math.random() < BALANCE.MOB_SHARD_BASE * (1 + luck * 0.5)) this.addPickup('shard', e.x, e.y, Math.max(1, Math.round(1 * sMul)));   // 原#4: small mobs also drop shards
+    if (e.shard && Math.random() < e.shard * (1 + luck) * BALANCE.SHARD_DROP_MULT) this.addPickup('shard', e.x, e.y, Math.max(1, Math.floor((e.boss ? 5 : 1) * sMul + Math.random())));   // stochastic round so fractional shardMult carries instead of rounding away
+    else if (!e.boss && Math.random() < BALANCE.MOB_SHARD_BASE * (1 + luck * 0.5)) this.addPickup('shard', e.x, e.y, Math.max(1, Math.floor(sMul + Math.random())));   // 原#4: small mobs also drop shards
     if (Math.random() < (e.boss ? 1 : (0.03 + luck * 0.03) * dropM)) this.addPickup('heart', e.x, e.y, e.boss ? 30 : 15);
     // 原#11: a slain thief coughs up everything it stole from you
     if (e.stolenGold > 0) this.addPickup('gold', e.x, e.y, e.stolenGold);
@@ -306,8 +306,8 @@ export class World {
         }
       } else if (player && !player.dead) {
         if (circleHit(p.x, p.y, p.radius, player.x, player.y, player.radius)) {
-          player.takeDamage(p.damage, Math.atan2(p.vy, p.vx), this);
-          if (p.statusOnHit && Math.random() < (p.statusOnHit.chance ?? 1)) applyStatus(player, p.statusOnHit.type, this, p.statusOnHit);   // D6 (enemy ranged status)
+          const landed = player.takeDamage(p.damage, Math.atan2(p.vy, p.vx), this);
+          if (landed && p.statusOnHit && Math.random() < (p.statusOnHit.chance ?? 1)) applyStatus(player, p.statusOnHit.type, this, p.statusOnHit);   // D6 (enemy ranged status — only on a real hit)
           if (p.pierce > 0) p.pierce--; else p.dead = true;
         }
       }

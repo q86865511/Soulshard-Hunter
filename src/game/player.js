@@ -95,7 +95,7 @@ export class Player {
         if (inst.def.update) inst.def.update(world, this, inst, dt);
         if (inst.def.cooldown) {
           inst.t -= dt;
-          if (inst.t <= 0) { inst.def.fire(world, this, inst); inst.t = (inst.def.cooldown(inst.level) || 1) / (haste * (fm ? fm.haste : 1)); }
+          if (inst.t <= 0) { inst.def.fire(world, this, inst); const eff = Math.min(BALANCE.FIRE_RATE_CAP, haste * (fm ? fm.haste : 1)); inst.t = (inst.def.cooldown(inst.level) || 1) / eff; }
         }
       } catch (e) { /* a buggy weapon must never freeze the loop or strand forge buffs */ }
       finally {
@@ -108,10 +108,12 @@ export class Player {
   heal(a) { this.hp = Math.min(this.stats.maxHp, this.hp + a); }
   addTimedBuff(dur, onStart, onEnd, color = '#fff') { try { onStart?.(this); } catch (e) { /* */ } this.timedBuffs.push({ t: dur, onEnd, color }); }
 
+  // returns true only if the hit actually LANDED (so on-hit status riders respect
+  // i-frames / dash / dodge instead of pinning the player with permanent slow+DoT)
   takeDamage(dmg, ang, world) {
-    if (this.dead || this.invuln > 0 || this.dashT > 0) return;
+    if (this.dead || this.invuln > 0 || this.dashT > 0) return false;
     const dodge = Math.min(BALANCE.DODGE_CAP, (this.stats.dodge ?? 0) * BALANCE.DODGE_MULT);
-    if (Math.random() < dodge) { world.particles.text(this.x, this.y - 14, '閃避', { color: P.shardL, size: 13 }); return; }
+    if (Math.random() < dodge) { world.particles.text(this.x, this.y - 14, '閃避', { color: P.shardL, size: 13 }); return false; }
     let d = Math.max(1, dmg - (this.stats.defense ?? 0) * BALANCE.DEFENSE_MULT);   // 原#12: defense toned down
     d = Math.max(1, Math.round(d * (1 - (this.stats.armorMult ?? 0))));
     this.hp -= d; this.invuln = 0.7; this.flash = 0.18;
@@ -124,6 +126,7 @@ export class Player {
     world._curSrc = null;
     if (world.onPlayerHit) world.onPlayerHit(d);
     if (this.hp <= 0) { this.hp = 0; this.die(world); }
+    return true;
   }
 
   die(world) {

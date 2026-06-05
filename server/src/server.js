@@ -46,7 +46,7 @@ export function computeScore(c) {
 // ---- validation schemas ---------------------------------------------------
 const registerSchema = z.object({
   username: z.string().min(3).max(24).regex(/^[A-Za-z0-9_]+$/, 'letters, digits, underscore only'),
-  password: z.string().min(6).max(72),   // bcrypt silently truncates beyond 72 bytes — cap so the whole password counts
+  password: z.string().min(6).max(160).refine((s) => Buffer.byteLength(s, 'utf8') <= 72, 'password too long (max 72 bytes)'),   // bcrypt truncates at 72 BYTES — reject rather than silently cut multibyte
   email: z.string().email().max(160).optional().nullable(),
 });
 const loginSchema = z.object({ username: z.string().min(1), password: z.string().min(1) });
@@ -68,7 +68,7 @@ const runLimit = { preHandler: auth, config: { rateLimit: { max: 30, timeWindow:
 
 // ---- app factory ----------------------------------------------------------
 export async function buildApp(pool, { logger = false, rateMax = 120 } = {}) {
-  const app = Fastify({ logger, bodyLimit: 1_500_000 });   // save blobs can be ~100KB+
+  const app = Fastify({ logger, bodyLimit: 1_500_000, trustProxy: 'loopback' });   // trustProxy: see the real client IP behind Caddy so rate limits are per-IP (not one global bucket)
   await app.register(cors, { origin: CORS_ORIGIN, credentials: true });
   await app.register(rateLimit, { max: rateMax, timeWindow: '1 minute' });
 
@@ -119,7 +119,7 @@ export async function buildApp(pool, { logger = false, rateMax = 120 } = {}) {
     const r = await pool.query(
       `INSERT INTO saves(user_id, meta, save_version, updated_at) VALUES($1,$2,$3,now())
        ON CONFLICT (user_id) DO UPDATE SET meta=$2, save_version=$3, updated_at=now()
-       WHERE COALESCE((saves.meta->>'savedAt')::bigint, 0) <= COALESCE(($2->>'savedAt')::bigint, 0)`,
+       WHERE COALESCE((saves.meta->>'saveSeq')::bigint, 0) <= COALESCE(($2->>'saveSeq')::bigint, 0)`,
       [req.user.uid, p.data.meta, p.data.saveVersion]);
     return { ok: true, applied: r.rowCount > 0 };
   });
@@ -146,12 +146,17 @@ export async function buildApp(pool, { logger = false, rateMax = 120 } = {}) {
     if (q.period === 'week') where.push(`r.created_at >= now() - interval '7 days'`);
     else if (q.period === 'day') where.push(`r.created_at >= now() - interval '1 day'`);
     const limit = clampInt(q.limit || 25, 1, 100);
+    // best-per-player board: DISTINCT ON keeps each user's single best row (within the
+    // active filters), so one player can't flood the visible leaderboard with dupes.
     const sql = `
-      SELECT u.username, r.score, r.stage, r.kills, r.character, r.biome,
-             r.difficulty, r.time_s, r.cleared, r.reaper, r.coop_size, r.created_at
-      FROM runs r JOIN users u ON u.id = r.user_id
-      ${where.length ? 'WHERE ' + where.join(' AND ') : ''}
-      ORDER BY r.score DESC
+      SELECT t.username, t.score, t.stage, t.kills, t.character, t.biome, t.difficulty, t.time_s, t.cleared, t.reaper, t.coop_size, t.created_at FROM (
+        SELECT DISTINCT ON (r.user_id) u.username, r.score, r.stage, r.kills, r.character, r.biome,
+               r.difficulty, r.time_s, r.cleared, r.reaper, r.coop_size, r.created_at, r.user_id
+        FROM runs r JOIN users u ON u.id = r.user_id
+        ${where.length ? 'WHERE ' + where.join(' AND ') : ''}
+        ORDER BY r.user_id, r.score DESC
+      ) t
+      ORDER BY t.score DESC
       LIMIT ${limit}`;
     const r = await pool.query(sql, args);
     return { rows: r.rows };
@@ -164,13 +169,18 @@ export async function buildApp(pool, { logger = false, rateMax = 120 } = {}) {
 if (!process.env.SOULSHARD_NO_LISTEN) {
   const PORT = Number(process.env.PORT || 8787);
   const HOST = process.env.HOST || '0.0.0.0';
-  const insecure = JWT_SECRET === 'dev-insecure-secret-change-me' || JWT_SECRET.length < 32;
+  // Fail CLOSED on a weak/placeholder secret regardless of NODE_ENV (a forgotten
+  // NODE_ENV must never let a deploy run with forgeable tokens). Local dev opts out
+  // explicitly with ALLOW_INSECURE_JWT=1.
+  const KNOWN_BAD = new Set(['dev-insecure-secret-change-me', 'change-me-to-a-long-random-string', '']);
+  const insecure = KNOWN_BAD.has(JWT_SECRET) || JWT_SECRET.length < 32;
   if (insecure) {
-    if (process.env.NODE_ENV === 'production' && process.env.ALLOW_INSECURE_JWT !== '1') {
-      console.error('[fatal] JWT_SECRET is unset/insecure in production. Set a strong secret (>=32 chars), or ALLOW_INSECURE_JWT=1 to override.');
+    if (process.env.ALLOW_INSECURE_JWT === '1') {
+      console.warn('[warn] JWT_SECRET is insecure — DEV ONLY; every token is forgeable. Never use this in production.');
+    } else {
+      console.error('[fatal] JWT_SECRET is unset/insecure. Set a strong secret (>=32 random chars), or ALLOW_INSECURE_JWT=1 for local dev only.');
       process.exit(1);
     }
-    console.warn('[warn] JWT_SECRET is insecure — OK for local dev, NEVER for production.');
   }
   const { pool, initSchema } = await import('./db.js');
   try {

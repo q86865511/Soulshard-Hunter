@@ -7,6 +7,7 @@
 //     weapon?: { ...weapon stats }   // when slot==='weapon'
 //     apply?(player)                 // when slot==='armor'|'trinket' }
 import { Equipment } from './registry.js';
+import { BALANCE } from '../balance.js';
 import { P } from '../../engine/palette.js';
 import { Projectile } from '../projectile.js';
 
@@ -28,8 +29,8 @@ function makeEquipWeaponDef(eq) {
       for (let i = 0; i < count; i++) {
         const off = count > 1 ? (i / (count - 1) - 0.5) * spread * count : 0;
         const a = base + off + (Math.random() - 0.5) * 0.04;
-        const crit = Math.random() < Math.min(0.6, p.stats.critChance || 0);   // BALANCE.CRIT_CAP
-        const dmg = (w.damage || 8) * (p.stats.damageMult || 1) * (crit ? (p.stats.critMult || 2) : 1) * (0.92 + Math.random() * 0.16);
+        const crit = Math.random() < Math.min(BALANCE.CRIT_CAP, p.stats.critChance || 0);
+        const dmg = (w.damage || 8) * BALANCE.PLAYER_DAMAGE_MULT * (p.stats.damageMult || 1) * (crit ? (p.stats.critMult || 2) : 1) * (0.92 + Math.random() * 0.16);   // apply the global nerf (was skipped — signature weapons hit ~18% over baseline)
         world.addProjectile(new Projectile({
           x: p.x, y: p.y, vx: Math.cos(a) * (w.projSpeed || 200), vy: Math.sin(a) * (w.projSpeed || 200),
           damage: dmg, crit, faction: 'player', sprite: w.projSprite || 'bolt', color: w.projColor || P.shard,

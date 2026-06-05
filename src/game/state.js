@@ -10,6 +10,10 @@ import { Net, queueCloudSave, postRunResult } from '../net/api.js';   // cloud s
 
 const SAVE_KEY = 'soulshard.save.v1';
 const SAVE_VERSION = 2;
+// Save-version migration ladder: SAVE_MIGRATIONS[v](parsed) transforms a v-save in place to v+1.
+// Empty today (round-6 changes are additive, covered by the backfills in loadMeta) — the seam
+// exists so the NEXT non-additive schema change has a home instead of corrupting old saves.
+const SAVE_MIGRATIONS = {};
 
 const DEFAULT_META = () => ({
   version: SAVE_VERSION,
@@ -51,6 +55,8 @@ export function loadMeta() {
     const raw = localStorage.getItem(SAVE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
+      let _sv = (typeof parsed.version === 'number') ? parsed.version : 1;   // run the migration ladder before merging
+      while (_sv < SAVE_VERSION) { try { if (SAVE_MIGRATIONS[_sv]) SAVE_MIGRATIONS[_sv](parsed); } catch (e) { /* */ } _sv++; }
       META = Object.assign(DEFAULT_META(), parsed);
       META.stats = Object.assign(DEFAULT_META().stats, parsed.stats || {});
       META.unlocked = Object.assign(DEFAULT_META().unlocked, parsed.unlocked || {});
@@ -81,6 +87,7 @@ export function loadMeta() {
       if (!META.npc.met || typeof META.npc.met !== 'object') META.npc.met = {};
       for (const k of ['charClears']) if (!META.stats[k] || typeof META.stats[k] !== 'object') META.stats[k] = {};
       for (const k of ['noDmgClears', 'bestCharLevel', 'bondsTriggered', 'forgeUpgrades', 'npcTalks']) if (typeof META.stats[k] !== 'number') META.stats[k] = 0;
+      if (typeof META.saveSeq !== 'number') META.saveSeq = 0;
       META.version = SAVE_VERSION;
     }
   } catch (e) { console.warn('load save failed', e); META = DEFAULT_META(); }
@@ -89,7 +96,8 @@ export function loadMeta() {
 }
 
 export function saveMeta() {
-  try { META.savedAt = Date.now(); localStorage.setItem(SAVE_KEY, JSON.stringify(META)); }   // savedAt = monotonic marker for cloud-vs-local conflict resolution
+  // saveSeq = strictly-increasing, clock-safe conflict key for cloud-vs-local; savedAt is a tie-break only
+  try { META.saveSeq = (META.saveSeq || 0) + 1; META.savedAt = Date.now(); localStorage.setItem(SAVE_KEY, JSON.stringify(META)); }
   catch (e) { console.warn('save failed', e); }
   queueCloudSave(getMeta, SAVE_VERSION);   // debounced cloud push if logged in (no-op otherwise)
 }
@@ -121,8 +129,10 @@ export async function syncFromCloud() {
     const r = await Net.getSave();
     const cloud = r && r.meta;
     if (cloud) {
-      const cloudSeq = cloud.savedAt || 0, localSeq = (META && META.savedAt) || 0;
-      if (cloudSeq >= localSeq) { return importMeta(cloud) ? { ok: true, pulled: true } : { ok: false }; }
+      // reconcile by saveSeq (clock-safe), savedAt only as tie-break
+      const cs = cloud.saveSeq || 0, ls = META.saveSeq || 0;
+      const cloudNewer = cs > ls || (cs === ls && (cloud.savedAt || 0) > (META.savedAt || 0));
+      if (cloudNewer) { return importMeta(cloud) ? { ok: true, pulled: true } : { ok: false }; }
       await Net.putSave(getMeta(), SAVE_VERSION);   // local is newer → keep it, push up
       return { ok: true, pushed: true, keptLocal: true };
     }

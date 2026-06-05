@@ -22,6 +22,19 @@ function nearWallFloor(tiles, tw, th) {
   }
   return null;
 }
+// flood-fill FLOOR reachability from the spawn; seal any pocket the player can't reach
+// back to WALL (so chests/shrine/NPCs/enemies never land in an isolated room).
+function sealUnreachable(tiles, tw, th, sx, sy) {
+  const N = tw * th, reach = new Uint8Array(N), q = [sy * tw + sx];
+  if (tiles[q[0]] !== FLOOR) return; reach[q[0]] = 1;
+  let head = 0;
+  while (head < q.length) {
+    const i = q[head++], x = i % tw, y = (i / tw) | 0;
+    const push = (nx, ny) => { if (nx >= 0 && ny >= 0 && nx < tw && ny < th) { const j = ny * tw + nx; if (!reach[j] && tiles[j] === FLOOR) { reach[j] = 1; q.push(j); } } };
+    push(x - 1, y); push(x + 1, y); push(x, y - 1); push(x, y + 1);
+  }
+  for (let i = 0; i < N; i++) if (tiles[i] === FLOOR && !reach[i]) tiles[i] = WALL;
+}
 // place a tight cluster of one feature sprite around an anchor (crystal patches, graveyards, ice fields…)
 function placeCluster(decor, tiles, tw, th, anchor, sprite, n) {
   for (let j = 0; j < n; j++) {
@@ -77,6 +90,8 @@ export function generateWorld(seedBiome) {
     const r = rng.int(2, 4);
     for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) if (dx * dx + dy * dy <= r * r + rng.int(0, 2)) carve(cx + dx, cy + dy);
   }
+  // after ALL wall passes: seal any unreachable pocket so POIs/enemies can't spawn isolated
+  sealUnreachable(tiles, tw, th, Math.floor(tw / 2), Math.floor(th / 2));
   // distinct FEATURE-floor REGIONS (lava lakes / snow fields / crystal patches…): big flat
   // colour blocks (floorVar = 2) giving the map clear ZONES instead of uniform texture.
   for (let n = 0; n < Math.round(12 * k); n++) {
@@ -151,6 +166,7 @@ export function generateStage(stage) {
       }
     }
   }
+  sealUnreachable(tiles, tw, th, Math.floor(tw / 2), Math.floor(th / 2));   // keep the arena fully connected
 
   // exit portal far from the start
   let exit = { x: (tw - 3) * TS, y: (th - 3) * TS };

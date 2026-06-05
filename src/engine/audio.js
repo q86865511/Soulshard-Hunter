@@ -179,6 +179,11 @@ function getTrackEl(key) {
     failedTracks.add(key);   // only THIS track falls back to synth
     if (key === curTrackKey && musicPlaying) { curTrackEl = null; curTrackKey = null; startProc(procModeFor(mode)); }   // don't sit in silence — kick the synth now
   });
+  // play-once tracks (victory/death) would otherwise end into permanent silence —
+  // hand back to the (calm) procedural synth when they finish.
+  if (NO_LOOP.has(key)) a.addEventListener('ended', () => {
+    if (key === curTrackKey && musicPlaying) { curTrackEl = null; curTrackKey = null; startProc(key === 'death' ? 'hub' : procModeFor(mode)); }
+  });
   a.src = encodeURI(MUSIC_DIR + TRACK_FILES[key]);
   trackEls[key] = a;
   return a;

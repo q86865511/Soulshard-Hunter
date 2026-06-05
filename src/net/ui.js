@@ -4,6 +4,10 @@
 // nicer here than hand-drawn canvas widgets. Everything is offline-tolerant.
 import { Net } from './api.js';
 import { syncFromCloud } from '../game/state.js';
+import { getScene } from '../game/scene.js';
+import { refs } from '../game/scenes/refs.js';
+
+const inRun = () => { try { return getScene() === refs.run; } catch (e) { return false; } };
 
 const $ = (tag, props = {}, kids = []) => {
   const e = document.createElement(tag);
@@ -117,6 +121,7 @@ export function openAuth() {
   tabReg.addEventListener('click', () => setTab('register'));
 
   const doSubmit = async () => {
+    if (inRun()) { msg.textContent = '請先結束本局再登入（避免覆蓋進度）'; return; }   // logging in swaps META — don't do it mid-run
     const u = user.value.trim(), p = pass.value;
     if (!u || !p) { msg.textContent = '請填寫帳號與密碼'; return; }
     submit.disabled = true; msg.className = 'net-msg'; msg.textContent = '連線中…';

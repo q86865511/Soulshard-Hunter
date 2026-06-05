@@ -223,7 +223,7 @@ export const hubScene = {
     if ((this.panel === 'smith' || this.panel === 'guild' || this.panel === 'wardrobe') && mouse.justDown) {
       for (const tb of this.tabRects(frame)) if (inside(mx, my, tb)) { this.tab = tb.i; this.panelScroll = 0; Sfx.play('uiClick'); return; }
     }
-    if (mouse.wheel && ['talents', 'facilities', 'achievements', 'smith', 'personal', 'wardrobe'].includes(this.panel)) {
+    if (mouse.wheel && ['talents', 'facilities', 'achievements', 'smith', 'personal', 'wardrobe', 'guild'].includes(this.panel)) {
       this.panelScroll = clamp((this.panelScroll || 0) + mouse.wheel * 0.5, 0, this.panelMaxScroll || 0);
     }
     if (this.panel === 'talents') this.updateTalents(mx, my);

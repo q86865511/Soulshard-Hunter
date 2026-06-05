@@ -17,7 +17,7 @@ export const BALANCE = {
   // stacked build can out-damage (hpScale = (BASE + threat*PER) * diffMul). Damage is
   // high but tempered so a stacked/defensive build survives a few hits (not a one-shot).
   REAPER_HP_BASE: 8, REAPER_HP_PER_THREAT: 1.4,
-  REAPER_DMG_BASE: 1.45, REAPER_DMG_PER_THREAT: 0.045,
+  REAPER_DMG_BASE: 1.35, REAPER_DMG_PER_THREAT: 0.03,   // round-6: ease the late-game near-one-shot contact (was 1.45 / 0.045); still a DPS check
 
   // ---- weapons / fusion (user clarification) ----------------------------
   WEAPON_MAX_LEVEL: 7,                       // weapons cap at level 7 ("maxed")
@@ -35,6 +35,7 @@ export const BALANCE = {
   DODGE_CAP: 0.32,                           // 原#12: dodge cap lowered (was 0.35)
   REGEN_MULT: 0.6,                           // round-6: regen builds out-healed the swarm — base now sits just under the AFK idle drain
   CRIT_CAP: 0.6,                             // round-6: cap total crit chance (uncapped stacking → guaranteed crit compounding critMult)
+  FIRE_RATE_CAP: 2.4,                         // round-6: cap the effective fire-rate multiplier (haste×forge×frenzy×tempo could compound past ×15)
   DEFENSE_MULT: 0.9,                         // 原#12: flat-defense scale (eased from 0.85 after sim)
 
   // ---- enemy buffs (D1 / 原#6, E3 / 原#17) ------------------------------

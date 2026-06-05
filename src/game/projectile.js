@@ -32,7 +32,7 @@ export class Projectile {
     if (this.homing > 0 && this.faction === 'player') {
       let best = null, bd = 9999 * 9999;
       for (const e of world.enemies) {
-        if (e.dead || this.hitSet.has(e)) continue;
+        if (e.dead || e.spawnT > 0 || this.hitSet.has(e)) continue;   // ignore spawn-invulnerable foes (matches resolveCombat/dealAreaDamage)
         const d = dist2(this.x, this.y, e.x, e.y);
         if (d < bd) { bd = d; best = e; }
       }

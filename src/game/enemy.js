@@ -20,7 +20,7 @@ export class Enemy {
     const hpScale = (opts.hpScale ?? 1) * (this.elite ? 3.2 : 1);
     const dmgScale = (opts.dmgScale ?? 1) * (this.elite ? 1.5 : 1);
     const gHp = this.boss ? BALANCE.BOSS_HP_MULT : BALANCE.ENEMY_HP_MULT;     // D1/E3 global buffs
-    const gDmg = this.boss ? BALANCE.BOSS_DMG_MULT : BALANCE.ENEMY_DMG_MULT;
+    const gDmg = this.boss ? (def.dmgMult ?? BALANCE.BOSS_DMG_MULT) : BALANCE.ENEMY_DMG_MULT;   // a boss def can opt out of the global boss-dmg mult (e.g. reaper owns its own REAPER_DMG_* knobs)
     this.maxHp = Math.max(1, Math.round((def.hp ?? 20) * hpScale * gHp));
     this.hp = this.maxHp;
     this.speed = (def.speed ?? 30) * (opts.speedScale ?? 1) * (this.elite ? 0.85 : 1);
@@ -231,8 +231,8 @@ export class Enemy {
     // contact damage (a hard-CC'd enemy can't bite)
     if (this.spawnT <= 0 && player && !player.dead && this.touchCd <= 0 && !controlled) {
       if (toP < this.radius * this.scale * 0.7 + player.radius) {
-        player.takeDamage(this.damage, ang, world);
-        if (this.hitStatus && Math.random() < (this.hitStatus.chance ?? 1)) applyStatus(player, this.hitStatus.type, world, this.hitStatus);   // D6: on-touch status
+        const landed = player.takeDamage(this.damage, ang, world);
+        if (landed && this.hitStatus && Math.random() < (this.hitStatus.chance ?? 1)) applyStatus(player, this.hitStatus.type, world, this.hitStatus);   // D6: on-touch status (only on a real hit — respects i-frames/dash/dodge)
         if (this.steal && !this.fleeing) this.doSteal(world, player);   // 原#11: grab loot then bolt
         this.touchCd = 0.55;
         this.vx -= Math.cos(ang) * 40; this.vy -= Math.sin(ang) * 40; // small recoil
