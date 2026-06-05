@@ -5,6 +5,10 @@ Dev guide for working on this repo. Read this before editing.
 ## What it is
 A single-player, Vampire-Survivors-style pixel roguelike. **Vanilla HTML5 Canvas + ES Modules, no build step, no external assets.** All pixel art is procedurally generated in code; all SFX/music are WebAudio-synthesised. Walk-only control — weapons auto-target and fire.
 
+## Current state (rounds 1–4 done)
+A run = one biome, **20 min**, at a chosen difficulty. Threat ramps 1→~13; distinct mini-bosses at 5/10/15 min; biome final boss at 20:00 → clear unlocks the next biome + difficulty; a killable Reaper descends 30 s later. Content registry now holds **21 heroes · 30 weapons · 53 passives · 28 items · 48 enemies · 11 skins · 13 bonds · 8 exclusive weapons · 16 patron events**.
+Systems in place: status effects, bonds/synergies, character-exclusive weapons, unique per-hero body art, damage attribution + results ranking, B-key shop with before/after equip diffs, refreshing map interactables + hover tooltips, "soul-jail" must-clear surround, anti-AFK drain, achievement-gated unlocks, hub scrollbars. Balance is **sim-tuned** (~270 headless runs). Per-round detail lives in **`docs/changelog/`** (newest = `ROUND4.md`); keep that the single home for version notes — don't scatter changelog `.md` files in the repo root.
+
 ## Run / test
 - **Serve:** `node tools/serve.mjs` → http://localhost:5173 (a no-cache static server — do NOT use `python -m http.server`; it serves STALE ES modules after edits and silently breaks testing). `.claude/launch.json` exposes it as preview server "game".
 - **Self-test in the browser:** `window.__DBG` exposes `snap()`, `reg()` (registry counts), `startRun()`, `autoplay(secs)`, `gallery()`, `enemyIds()`, `scene()`, `meta()`.
@@ -67,7 +71,7 @@ A run = **one biome, 20 minutes** (`BALANCE.LEVEL_TIME`) at a chosen **difficult
 ## Workflow content pipeline
 Content was mass-produced by multi-agent Workflows (generate → adversarial review). A workflow returns `{result:{packs:[{key,code,ids,spriteNames,ok}]}}`; normalize to `{result:packs}` then run **`node tools/integrate.mjs <file.json>`** — it decodes HTML entities, prepends the import header, writes `src/art/gen/*` + `src/game/content/gen/*`, and rebuilds the fault-isolated dynamic-import indexes by scanning the dirs. Re-run to integrate new output.
 
-## Round-4 systems (原#1–19 follow-up — see ROUND4.md)
+## Round-4 systems (原#1–19 follow-up — see docs/changelog/ROUND4.md)
 - **B key = shop** (`input.js KeyB→'shop'`): the soulshard/anvil shop opens anywhere, not via a map shrine (the shrine is now a one-time blessing altar). Equip pickups + anvil gear show a **before/after stat diff** (`run.js equipDiffRows`/`drawEquipDiff`; `equipment.js` records each slot's stat delta).
 - **Bonds (羈絆)** `content/bonds.js`: build-combo synergies, one-shot applied via `checkBonds(run, player)` (throttled in `run.update`); shown in build/results panels.
 - **Exclusive weapons** `content/exclusives.js`: `{exclusive:true}` weapon-slot gear injected only into the owner's anvil (`CHAR_EXCLUSIVE`, `rollGearChoice`).
@@ -76,7 +80,7 @@ Content was mass-produced by multi-agent Workflows (generate → adversarial rev
 - **Damage attribution**: `world._curSrc` is set around weapon/ability/DoT calls; `enemy.hurt`/status DoT call `world.attributeDamage(src,dmg)` → `run.dmgBySource` (results ranking).
 - **Special monsters**: `enemy.steal{gold,xp}` (grab+flee, dropped back on death) + `def.deathBlast` (hurts the player); see `gen/gen_special2.js`.
 - **Anti-AFK**: idle past `BALANCE.AFK_GRACE` drains a little HP (`player.update`).
-- New `BALANCE` knobs: `AIM_RANGE`/`AIM_LOS` (shorter LOS auto-aim), `AFK_*`, `SPAWN_*`, `EARLY_GRACE`/`EARLY_DMG_GRACE` (opening softener), `SURROUND_*` (must-clear 魂牢). Sim-tuned (`ROUND4.md`).
+- New `BALANCE` knobs: `AIM_RANGE`/`AIM_LOS` (shorter LOS auto-aim), `AFK_*`, `SPAWN_*`, `EARLY_GRACE`/`EARLY_DMG_GRACE` (opening softener), `SURROUND_*` (must-clear 魂牢). Sim-tuned (`docs/changelog/ROUND4.md`).
 
 ## Gotchas
 - `KeyM` = **minimap**, `KeyB` = **shop** (not mute — mute lives in the settings menu). `Tab` = build page. Mouse `wheel` is wired (`mouse.wheel`); hub long panels have a draggable scrollbar.
