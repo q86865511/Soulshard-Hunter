@@ -12,6 +12,7 @@ import { Enemies, Equipment, Abilities } from '../content/registry.js';
 import { equipItem } from '../content/equipment.js';
 import { BALANCE } from '../balance.js';
 import { isUnlocked } from '../content/unlocks.js';
+import { STORY_QUESTS } from '../content/quests.js';
 import {
   camera, clear, vignette, uiText, uiRect, uiScale, view, addShake, drawSpriteUI, textWidth,
   drawSprite, drawShadow, glowWorld, worldToScreen, fillRectWorld, uiBar, setShakeScale,
@@ -121,6 +122,9 @@ export const runScene = {
     Music.setMode('run');
     this.banner = map.biome.name + ' · 難度 ' + (this.run.difficulty || 1);
     this.bannerT = 2.6;
+    // G3: a brief cinematic recounting the current story chapter
+    const q = STORY_QUESTS[META.questIndex || 0];
+    this.story = q ? { title: q.title, text: q.story, t: 6.5, dur: 6.5 } : null;
   },
 
   tierCapNow() { return Math.min(4, 1 + Math.floor(this.threat / 2)); },
@@ -590,6 +594,7 @@ export const runScene = {
     this.world.update(dt);
     this.aimCamera();
     if (this.bannerT > 0) this.bannerT -= dt;
+    if (this.story) { this.story.t -= dt; if (this.story.t <= 0) this.story = null; else if (pressed('space') && this.story.t < this.story.dur - 0.6) this.story = null; }
 
     this.spawnTick(dt);
     this.miniBossTick();
@@ -615,18 +620,23 @@ export const runScene = {
     for (let ty = 0; ty < m.th; ty++) for (let tx = 0; tx < m.tw; tx++) { x.fillStyle = m.tiles[ty * m.tw + tx] !== 0 ? '#2e3450' : '#171a2c'; x.fillRect(tx, ty, 1, 1); }
     this.minimap = c;
   },
+  // G1: minimap sits to the LEFT of the top-right gold/shard counters, beautified.
   drawMinimap() {
     if (!this.minimap) return;
     const S = uiScale(); const m = this.map;
-    const mw = 132 * S, mh = mw * m.th / m.tw, mx = view.W - mw - 14 * S, my = 84 * S;
-    uiRect(mx - 3, my - 3, mw + 6, mh + 6, withAlpha('#0b0d1a', 0.6), { radius: 4 * S, stroke: P.ink2, lw: 2 });
+    const mw = 120 * S, mh = mw * m.th / m.tw;
+    const mx = view.W - mw - 92 * S, my = 12 * S;
+    uiRect(mx - 4, my - 4, mw + 8, mh + 8, withAlpha('#0b0d1a', 0.72), { radius: 6 * S, stroke: P.shardL, lw: 2 });
+    uiRect(mx - 4, my - 4, mw + 8, 3 * S, withAlpha(P.shardL, 0.5), { radius: 2 * S });
     drawSpriteUI(this.minimap, mx, my, mw / m.tw);
     const pxW = m.tw * TS, pxH = m.th * TS;
     const dot = (wx, wy, col, sz) => { const dx = mx + (wx / pxW) * mw, dy = my + (wy / pxH) * mh; uiRect(dx - sz / 2, dy - sz / 2, sz, sz, col, { radius: sz / 2 }); };
     const en = this.world.enemies;
-    for (let i = 0; i < en.length && i < 80; i++) dot(en[i].x, en[i].y, withAlpha(P.red, 0.75), 2 * S);
+    for (let i = 0; i < en.length && i < 90; i++) dot(en[i].x, en[i].y, withAlpha(en[i].boss ? P.redL : P.red, 0.8), (en[i].boss ? 4 : 2) * S);
     for (const pk of this.world.pickups) if (pk.type === 'chest' && (!pk.hidden || pk.revealed)) dot(pk.x, pk.y, P.goldL, 3 * S);
     if (this.shrinePos) dot(this.shrinePos.x, this.shrinePos.y, P.shardL, 3 * S);
+    for (const n of (this.npcs || [])) if (!n.used) dot(n.x, n.y, n.kind === 'well' ? P.shardL : P.manaL, 3 * S);
+    if (this.bossRef && !this.bossRef.dead) dot(this.bossRef.x, this.bossRef.y, P.redL, 5 * S);
     dot(this.player.x, this.player.y, '#ffffff', 4 * S);
   },
 
@@ -755,6 +765,7 @@ export const runScene = {
     this.drawBanner();
     this.drawInfo();
     this.drawBigMinimap();
+    if (this.story && this.story.t > 0) this.drawStory();
     if (this.shopOpen) this.drawShopPanel();
     if (this.choice) this.drawChoice();
     if (this.equipChoice) this.drawEquipChoice();
@@ -960,6 +971,21 @@ export const runScene = {
     if (this.bannerT <= 0) return;
     const S = uiScale(); const a = Math.min(1, this.bannerT);
     uiText(this.banner, view.W / 2, view.H * 0.2, { size: 28 * S, align: 'center', color: withAlpha('#ffe9a0', a), weight: '900', shadowColor: withAlpha('#000', a * 0.8) });
+  },
+  // G3: a cinematic letterbox recounting the current story chapter at run start
+  drawStory() {
+    const S = uiScale(); const st = this.story;
+    const a = Math.min(1, Math.min((st.dur - st.t) / 0.6, st.t / 1.0));   // fade in 0.6s / out 1s
+    if (a <= 0) return;
+    const bandH = view.H * 0.34, by = view.H * 0.5 - bandH / 2;
+    uiRect(0, by, view.W, bandH, withAlpha('#05060c', 0.82 * a));
+    uiRect(0, by, view.W, 2 * S, withAlpha(P.shardL, 0.5 * a));
+    uiRect(0, by + bandH - 2 * S, view.W, 2 * S, withAlpha(P.shardL, 0.5 * a));
+    uiText('第 ' + ((META.questIndex || 0) + 1) + ' 章', view.W / 2, by + 22 * S, { size: 12 * S, align: 'center', color: withAlpha(P.shardL, a), weight: '700' });
+    uiText(st.title, view.W / 2, by + 44 * S, { size: 24 * S, align: 'center', color: withAlpha(P.goldL, a), weight: '900', shadowColor: withAlpha('#000', a) });
+    const reveal = Math.floor(Math.min(st.text.length, (st.dur - st.t) / 0.03));   // typewriter reveal
+    this.wrapText(st.text.slice(0, reveal), view.W / 2, by + 76 * S, view.W * 0.7, 14 * S, withAlpha('#d8e0f0', a));
+    uiText('按 空白鍵 跳過', view.W / 2, by + bandH - 14 * S, { size: 11 * S, align: 'center', color: withAlpha('#fff', 0.4 * a) });
   },
 
   drawWon() {

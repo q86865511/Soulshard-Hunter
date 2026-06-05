@@ -57,6 +57,12 @@ export function drawHunter(p, frame, opt = {}) {
   // arms (subtle)
   p.rect(2, 11 + oy, 2, 3, cloakD);
   p.rect(12, 11 + oy, 2, 3, cloakD);
+  // G2 polish: belt, a chest stud, and rim/contour light (all palette-derived so
+  // every character's colours still read correctly)
+  p.hline(4, 11, 14 + oy, darken(P.wood, 0.15));
+  p.px(7, 12 + oy, trim); p.px(8, 12 + oy, trim);
+  p.px(10, 4 + oy, cloakL); p.px(11, 5 + oy, cloakL);
+  p.px(4, 6 + oy, mix(cloak, P.ink2, 0.4));
 }
 
 function weaponWand(p, frame, oy) {

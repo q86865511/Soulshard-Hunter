@@ -20,26 +20,46 @@ export function drawHud(run, player) {
   hudIcons.length = 0;
   const W = view.W;
   const pad = 12 * S;
-  const barW = Math.min(220 * S, W * 0.34);
-  const barH = 15 * S;
+  const clamp01 = (v) => Math.max(0, Math.min(1, v));
+  const barW = Math.min(232 * S, W * 0.36);
+  const barH = 16 * S;
 
-  // HP bar
-  const hpFrac = player.hp / player.maxHp;
+  // HP bar (with a glossy top highlight over the filled portion)
+  const hpFrac = clamp01(player.hp / player.maxHp);
   const hpCol = hpFrac > 0.5 ? P.red : hpFrac > 0.25 ? P.ember : P.redL;
   uiBar(pad, pad, barW, barH, hpFrac, { fg: hpCol, bg: '#2a0e14', border: P.ink, glow: true });
+  if (hpFrac > 0.02) uiRect(pad + 2 * S, pad + 2 * S, (barW - 4 * S) * hpFrac, 3 * S, withAlpha('#ffffff', 0.22), { radius: 2 * S });
   uiText(`${Math.ceil(player.hp)} / ${player.maxHp}`, pad + barW / 2, pad + barH / 2 + 1 * S,
-    { size: 11 * S, align: 'center', baseline: 'middle', weight: '800' });
+    { size: 11 * S, align: 'center', baseline: 'middle', weight: '800', color: '#fff' });
 
-  // XP bar + level
-  uiBar(pad, pad + barH + 3 * S, barW, 6 * S, run.xp / run.xpNext, { fg: P.manaL, bg: '#16183a', border: P.ink });
-  uiText('Lv.' + run.level, pad + barW + 9 * S, pad + barH - 1 * S, { size: 14 * S, color: P.manaL, weight: '800' });
+  // level badge (character level is uncapped per design — shown plainly)
+  const lvX = pad + barW + 8 * S;
+  uiRect(lvX, pad, 48 * S, barH, withAlpha('#1a2348', 0.95), { radius: 5 * S, stroke: P.manaL, lw: 1.5 });
+  uiText('Lv ' + run.level, lvX + 24 * S, pad + barH / 2 + 1 * S, { size: 12 * S, align: 'center', baseline: 'middle', color: P.manaL, weight: '900' });
 
-  // dash cooldown pip
+  // XP bar
+  uiBar(pad, pad + barH + 3 * S, barW, 6 * S, clamp01(run.xp / run.xpNext), { fg: P.manaL, bg: '#16183a', border: P.ink });
+
+  // dash cooldown
   const dashReady = (player.dashCd ?? 0) <= 0;
-  uiText('衝刺', pad, pad + barH + 22 * S, { size: 10 * S, color: '#8a91b4' });
-  uiBar(pad + 28 * S, pad + barH + 15 * S, 46 * S, 5 * S,
+  uiText('衝刺', pad, pad + barH + 24 * S, { size: 10 * S, color: dashReady ? P.shardL : '#8a91b4', weight: '700' });
+  uiBar(pad + 30 * S, pad + barH + 16 * S, 48 * S, 6 * S,
     dashReady ? 1 : 1 - player.dashCd / (player.stats.dashCd || 0.85),
     { fg: dashReady ? P.shardL : P.gray2, bg: '#16183a', border: P.ink });
+
+  // player status chips (D6 feedback)
+  if (player.status) {
+    const order = ['stun', 'knockup', 'slow', 'burn', 'poison', 'bleed'];
+    const SC = { stun: ['暈', '#ffe066'], knockup: ['飛', '#ffe066'], slow: ['緩', P.ice], burn: ['燃', P.emberL], poison: ['毒', P.toxic], bleed: ['血', P.redL] };
+    let sx = pad + 88 * S; const sy = pad + barH + 14 * S;
+    for (const k of order) {
+      if (!player.status[k]) continue;
+      const [lab, col] = SC[k];
+      uiRect(sx, sy, 18 * S, 14 * S, withAlpha(col, 0.22), { radius: 4 * S, stroke: col, lw: 1 });
+      uiText(lab, sx + 9 * S, sy + 8 * S, { size: 10 * S, align: 'center', baseline: 'middle', color: col, weight: '800' });
+      sx += 21 * S;
+    }
+  }
 
   // (stage / biome / timer are drawn by the run scene's drawStageHud)
   // top-right counters
