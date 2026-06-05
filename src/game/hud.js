@@ -2,7 +2,7 @@
 import { uiText, uiBar, uiRect, uiScale, view, drawSpriteUI, textWidth } from '../engine/renderer.js';
 import { getSprite, iconOr } from '../engine/sprites.js';
 import { P, withAlpha } from '../engine/palette.js';
-import { Items, Abilities } from './content/registry.js';
+import { Abilities } from './content/registry.js';
 
 // hit-test rects for the on-screen weapon/ability/item icons, refreshed each
 // frame by drawHud — the run scene reads these to show hover tooltips.
@@ -73,19 +73,7 @@ export function drawHud(run, player) {
     });
   }
 
-  // inventory slots (bottom-center, used with 1-4)
-  const slots = 4;
-  const sw = 34 * S;
-  const totalW = slots * sw + (slots - 1) * 5 * S;
-  const bx0 = view.W / 2 - totalW / 2;
-  const by = view.H - pad - sw;
-  for (let i = 0; i < slots; i++) {
-    const x = bx0 + i * (sw + 5 * S);
-    uiRect(x, by, sw, sw, withAlpha('#10121f', 0.66), { radius: 4 * S, stroke: P.ink2, lw: 2 });
-    uiText(String(i + 1), x + 4 * S, by + 12 * S, { size: 10 * S, color: withAlpha('#fff', 0.5), weight: '800' });
-    const id = run.inventory && run.inventory[i];
-    if (id) { const def = Items.get(id); if (def) { const sp = getSprite(def.icon); drawSpriteUI(sp.frames[0], x + 6 * S, by + 8 * S, (22 * S) / sp.w); hudIcons.push({ x, y: by, w: sw, h: sw, kind: 'item', def, slot: i + 1 }); } }
-  }
+  // (B2: the old 4 stored-item slots are gone — ground items auto-use on pickup)
 }
 
 // red flash + vignette when low on HP

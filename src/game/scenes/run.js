@@ -66,6 +66,8 @@ export const runScene = {
       else if (e === this.reaperRef) this.onReaperDead(e);
       else if (e.boss) this.onBossDead(e);
     };
+    this.world.onEquipPickup = (def) => this.openEquipChoice(def);
+    this.equipChoice = null; this.equipQueue = [];
     this.buildWorld();
   },
 
@@ -461,6 +463,62 @@ export const runScene = {
     }
   },
 
+  // ---- equip-pickup menu (B1): paused; equip (replace its slot) or discard ----
+  openEquipChoice(def) {
+    if (!def) return;
+    if (this.equipChoice) { this.equipQueue.push(def); return; }
+    this.equipChoice = { def }; Sfx.play('uiClick');
+  },
+  equipChoiceLayout() {
+    const S = uiScale();
+    const w = Math.min(view.W * 0.82, 470 * S), h = 312 * S;
+    const x = (view.W - w) / 2, y = (view.H - h) / 2;
+    const bw = (w - 60 * S) / 2, by = y + h - 54 * S;
+    return { S, x, y, w, h, equip: { x: x + 20 * S, y: by, w: bw, h: 40 * S }, discard: { x: x + w - 20 * S - bw, y: by, w: bw, h: 40 * S } };
+  },
+  updateEquipChoice() {
+    const L = this.equipChoiceLayout(); const mx = mouse.x * view.dpr, my = mouse.y * view.dpr;
+    if (pressed('space') || pressed('enter')) { this.resolveEquip(true); return; }
+    if (pressed('escape')) { this.resolveEquip(false); return; }
+    if (mouse.justDown) {
+      if (inside(mx, my, L.equip)) this.resolveEquip(true);
+      else if (inside(mx, my, L.discard)) this.resolveEquip(false);
+    }
+  },
+  resolveEquip(take) {
+    const def = this.equipChoice && this.equipChoice.def;
+    if (take && def) { equipItem(this.player, this.run, def); Sfx.play('equip'); this.banner = '已裝備：' + def.name; this.bannerT = 1.6; }
+    else Sfx.play('uiClick');
+    this.equipChoice = this.equipQueue.length ? { def: this.equipQueue.shift() } : null;
+  },
+  drawEquipChoice() {
+    const L = this.equipChoiceLayout(); const S = L.S; const def = this.equipChoice.def;
+    const mx = mouse.x * view.dpr, my = mouse.y * view.dpr;
+    uiRect(0, 0, view.W, view.H, withAlpha('#0b0d1a', 0.78));
+    uiRect(L.x, L.y, L.w, L.h, withAlpha('#161a30', 0.99), { radius: 10 * S, stroke: P.goldL, lw: 2 });
+    uiText('撿到裝備', L.x + L.w / 2, L.y + 26 * S, { size: 18 * S, align: 'center', color: '#fff', weight: '900' });
+    const sp = getSprite(iconOr(def.icon, 'equip_leather_armor'));
+    drawSpriteUI(sp.frames[0], L.x + L.w / 2 - 16 * S, L.y + 38 * S, (32 * S) / sp.w);
+    const slotName = def.slot === 'weapon' ? '專武' : def.slot === 'armor' ? '護甲' : '飾品';
+    uiText(def.name + '　·　' + slotName, L.x + L.w / 2, L.y + 88 * S, { size: 14 * S, align: 'center', color: P.goldL, weight: '800' });
+    this.wrapText(def.desc || '', L.x + L.w / 2, L.y + 106 * S, L.w - 44 * S, 11 * S, P.gray4);
+    // current equipment by category (依類別分區)
+    const eq = this.run.equipment || {};
+    const slots = [['weapon', '專武'], ['armor', '護甲'], ['trinket', '飾品']];
+    const cellW = (L.w - 60 * S) / 3, sy = L.y + 150 * S;
+    slots.forEach(([slot, label], i) => {
+      const cx = L.x + 24 * S + i * (cellW + 6 * S); const cur = eq[slot] && Equipment.get(eq[slot]); const isTarget = def.slot === slot;
+      uiRect(cx, sy, cellW, 52 * S, withAlpha('#10121f', 0.85), { radius: 6 * S, stroke: isTarget ? P.goldL : P.ink2, lw: isTarget ? 2 : 1 });
+      uiText(label + (isTarget ? ' ◀' : ''), cx + cellW / 2, sy + 13 * S, { size: 10 * S, align: 'center', color: isTarget ? P.goldL : P.gray3, weight: '700' });
+      if (cur) { const csp = getSprite(iconOr(cur.icon, 'equip_leather_armor')); drawSpriteUI(csp.frames[0], cx + cellW / 2 - 11 * S, sy + 20 * S, (22 * S) / csp.w); }
+      else uiText('（空）', cx + cellW / 2, sy + 36 * S, { size: 10 * S, align: 'center', color: P.gray2 });
+    });
+    const btn = (r, label, col) => { const hov = inside(mx, my, r); uiRect(r.x, r.y, r.w, r.h, withAlpha(hov ? '#243a5a' : '#1b2138', 0.97), { radius: 8 * S, stroke: hov ? col : P.ink2, lw: hov ? 3 : 2 }); uiText(label, r.x + r.w / 2, r.y + r.h / 2 + 1 * S, { size: 14 * S, align: 'center', baseline: 'middle', color: '#fff', weight: '800' }); };
+    btn(L.equip, eq[def.slot] ? '替換並裝備' : '裝備到空格', P.goldL);
+    btn(L.discard, '放棄', P.redL);
+    uiText('空白鍵裝備　·　Esc 放棄', L.x + L.w / 2, L.y + L.h - 8 * S, { size: 10 * S, align: 'center', color: P.gray3 });
+  },
+
   // ---- death --------------------------------------------------------------
   // If the level was already cleared, dying still shows the victory (banked once).
   onDeath() { this.finishRun(this.cleared); },
@@ -514,6 +572,7 @@ export const runScene = {
     }
     if (this.paused) { this.updatePause(); return; }
     if (this.choice) { this.updateChoice(); return; }
+    if (this.equipChoice) { this.updateEquipChoice(); return; }   // B1 equip menu pauses the field
     if (pressed('pause') || pressed('escape')) { this.paused = true; Sfx.play('uiClick'); return; }
     if (pressed('map')) { this.showBuild = !this.showBuild; Sfx.play('uiClick'); }
     if (pressed('minimap')) { this.bigMap = !this.bigMap; Sfx.play('uiClick'); }
@@ -697,6 +756,7 @@ export const runScene = {
     this.drawBigMinimap();
     if (this.shopOpen) this.drawShopPanel();
     if (this.choice) this.drawChoice();
+    if (this.equipChoice) this.drawEquipChoice();
     if (this.dead) { if (this.won) this.drawWon(); else this.drawDeath(); }
     if (this.paused) this.drawPause();
     settingsUI.draw();
@@ -812,7 +872,7 @@ export const runScene = {
 
   // ---- info: hover tooltips + Tab build panel (R11) ------------------------
   drawInfo() {
-    if (this.choice || this.dead || this.paused || settingsUI.open) return;
+    if (this.choice || this.equipChoice || this.dead || this.paused || settingsUI.open) return;
     const S = uiScale();
     const mx = mouse.x * view.dpr, my = mouse.y * view.dpr;
     if (this.showBuild) {

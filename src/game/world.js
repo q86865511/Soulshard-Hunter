@@ -40,7 +40,7 @@ export class World {
     this.player = null;
     this.time = 0;
     // scene hooks
-    this.onLevelUp = null; this.onEnemyKilled = null; this.onCollectGold = null;
+    this.onLevelUp = null; this.onEnemyKilled = null; this.onCollectGold = null; this.onEquipPickup = null;
   }
 
   loadMap(map) {
@@ -163,13 +163,17 @@ export class World {
       case 'shard': run.shards += payload; this.particles.text(x, y - 8, '魂晶+' + payload, { color: P.shardL, size: 12 }); Sfx.play('shard'); break;
       case 'heart': this.player.heal(payload); this.particles.text(x, y - 10, '+' + payload, { color: P.redL, size: 12 }); Sfx.play('heart'); break;
       case 'xp': this.gainXp(payload); break;
-      case 'item':
-        if ((run.inventory.length) < 6) { run.inventory.push(payload.id); this.particles.text(x, y - 12, '獲得 ' + payload.name, { color: P.shardL, size: 12 }); Sfx.play('pickup'); }
-        else this.particles.text(x, y - 12, '背包已滿', { color: P.redL, size: 12 });
+      case 'item': {   // B2: ground items are used the instant they're picked up (no storage)
+        const def = payload;
+        this.particles.text(x, y - 12, def.name, { color: P.shardL, size: 12, weight: '800' });
+        if (def.desc) this.particles.text(x, y - 24, def.desc, { color: P.gray4, size: 10 });
+        try { def.use && def.use(this, this.player, run); } catch (e) { /* */ }
+        Sfx.play('pickup');
         break;
-      case 'equip':
-        equipItem(this.player, run, payload);
-        this.particles.text(x, y - 12, '裝備 ' + payload.name, { color: P.goldL, size: 13, weight: '800' });
+      }
+      case 'equip':    // B1: open a paused choose-to-equip menu (falls back to auto-equip)
+        if (this.onEquipPickup) this.onEquipPickup(payload);
+        else equipItem(this.player, run, payload);
         this.particles.ring(x, y, P.goldL, 14, 80);
         Sfx.play('equip');
         break;

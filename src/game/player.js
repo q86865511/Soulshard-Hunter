@@ -158,8 +158,6 @@ export class Player {
 
     this.updateWeapons(dt, world);
 
-    for (let i = 0; i < 4; i++) if (pressed('slot' + (i + 1))) world.useItem(i);
-
     if ((this.stats.hpRegen ?? 0) > 0 && this.hp < this.stats.maxHp) {
       this.regenAcc += this.stats.hpRegen * dt;
       if (this.regenAcc >= 1) { const n = Math.floor(this.regenAcc); this.heal(n); this.regenAcc -= n; }
