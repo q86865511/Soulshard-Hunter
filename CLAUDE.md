@@ -1,0 +1,68 @@
+# CLAUDE.md — Soulshard Hunter (魂晶獵手)
+
+Dev guide for working on this repo. Read this before editing.
+
+## What it is
+A single-player, Vampire-Survivors-style pixel roguelike. **Vanilla HTML5 Canvas + ES Modules, no build step, no external assets.** All pixel art is procedurally generated in code; all SFX/music are WebAudio-synthesised. Walk-only control — weapons auto-target and fire.
+
+## Run / test
+- **Serve:** `node tools/serve.mjs` → http://localhost:5173 (a no-cache static server — do NOT use `python -m http.server`; it serves STALE ES modules after edits and silently breaks testing). `.claude/launch.json` exposes it as preview server "game".
+- **Self-test in the browser:** `window.__DBG` exposes `snap()`, `reg()` (registry counts), `startRun()`, `autoplay(secs)`, `gallery()`, `enemyIds()`, `scene()`, `meta()`.
+- **IMPORTANT — headless preview throttles `requestAnimationFrame`**, so `__DBG.autoplay` barely ticks and screenshots can be stale. Instead drive the sim manually from `preview_eval`:
+  ```js
+  const s = __DBG.scene(); s.player.takeDamage = () => {};      // godmode for inspection
+  for (let i = 0; i < 9000; i++) { if (s.choice) s.choice = null; s.update(1/60); }
+  ```
+  Then read `s.run` / `s.world`. Call `s.render()` **sparsely** — it's expensive; rendering every tick can exceed the eval timeout. To screenshot a panel, set the field (`s.showBuild=true`, `s.bigMap=true`, a hub `s.panel='sortie'`) then call `s.render()` once.
+- `window.__GAME_ERROR__` + the `#fatal` overlay surface uncaught errors.
+- After editing, **reload the page** before testing — `preview_eval` runs the in-memory module, not your new file.
+
+## Architecture
+```
+index.html                  Canvas + loader + global error trap
+src/
+  main.js                   boot: wire engine/content/scenes; 120Hz fixed-step loop
+  engine/                   game-agnostic
+    loop.js (fixed-step)  math.js  input.js (keys+mouse+wheel)
+    renderer.js (camera / world<->screen / UI / shake)
+    palette.js  sprites.js (Painter API + sprite registry)  particles.js  audio.js
+  art/                      procedural sprites (defineSprite/defineAnim)
+    core.js icons.js content_icons.js hub.js biomes.js weapons.js
+    gen/                    ← workflow-generated art (auto-loaded, fault-isolated)
+  game/
+    state.js                save/META, run lifecycle, base stats (makeBaseStats)
+    scene.js  scenes/       title / hub / run (+ refs.js decoupler)
+    world.js                tilemap collision, entities, combat, hazards, loot
+    player.js  enemy.js  projectile.js  pickup.js  hud.js  progression.js  maps.js
+    content/
+      registry.js           ← THE integration seam (Enemies/Items/Equipment/Abilities/Talents/Facilities/Weapons/Characters)
+      enemies/abilities/items/equipment/talents/facilities/weapons/characters/achievements/quests.js
+      gen/                  ← workflow-generated content (auto-loaded)
+tools/  serve.mjs  integrate.mjs  (_wf_*/_*.mjs are gitignored scratch)
+```
+
+## Core loop (run.js)
+A run = **one biome, 30 minutes** (`LEVEL_TIME`) at a chosen **difficulty** (`run.difficulty`/`diffMul`).
+- **Threat** `this.threat` ramps 1→~13 over 30 min and drives enemy tier + scaling. Only **1-3 enemy types** active at once (`rotateTypes`). Mid-run **boss events** (`spawnBossEvent`).
+- **Hazards** = `world.hazards` (HAZ table). **Special events** (`eventsTick`/`updateEvents`/`drawEvents`): mushrooms / shrink-zone / bombard.
+- **Finale:** last 4 min = closing ring (`finalTick`/`finalZone`); at 30:00 the biome's `FINAL_BOSS` spawns; killing it → `onLevelClear` (unlock next biome + difficulty, `META.levels`).
+- **Caps (no infinite pile-up):** weapons 6 / passives 14 (`MAX_WEAPONS`/`MAX_PASSIVES` in progression.js); enemy hp/dmg + hazard/event damage scaling are clamped.
+- Attack **tempo** ramps slow→fast (`world.playerTempo`/`enemyTempo`). Screen shake is dampened (`setShakeScale`, full only <25% HP).
+
+## Conventions when extending
+- **Content is data-driven** — register via `registry.js`. Never hard-code content in gameplay code; read from the registries.
+- **New enemy:** `defineAnim('<sprite>', w, h, frames, (p,f)=>{ ...; p.outline(P.ink); }, {anchor:[ax,ay],fps})` then `Enemies.register({ id, sprite, ai:'chase|flyer|shooter|charger|wander', hp, speed, damage, radius, xp, gold, attack?, boss?, ... })`. Bosses (`boss:true`) auto-run the multi-phase system in enemy.js.
+- **New weapon (auto-fire):** `Weapons.register({ id, icon:'weapon_<id>', tier, weight, maxLevel, cooldown(l), fire(world,p,inst), update?, draw?, levelDesc?, evolveInto?, evolveReq? })`. Evolves at maxLevel when the player owns `evolveReq` passive.
+- **Icons:** `defineIcon('weapon_<id>'|'item_<id>'|'equip_<id>'|'ability_<id>', bgHex, (p)=>{...})`. **Character sprite:** `defineAnim('char_<id>',16,18,4,(p,f)=>{ drawHunter(p,f,art); p.outline(P.ink); },...)`.
+- **Pixel API (`Painter`):** `px/rect/hline/vline/line/circle/ellipse/ring/mirrorX/outline/shadeBottom/replace`, shared palette `P`, `sym` icon primitives. Missing sprites render a magenta placeholder (no crash); use `iconOr(name, fallback)`.
+- **Stats** live in `makeBaseStats()` (state.js). Only write stat fields that exist there, or you'll get `NaN`.
+- Equipment slots: `armor`/`trinket` apply stat mods; `weapon`-slot equips become a real **signature auto-weapon** via `makeEquipWeaponDef` (equipItem). Weapon-slot equips are sold in the in-run shop, not dropped.
+
+## Workflow content pipeline
+Content was mass-produced by multi-agent Workflows (generate → adversarial review). A workflow returns `{result:{packs:[{key,code,ids,spriteNames,ok}]}}`; normalize to `{result:packs}` then run **`node tools/integrate.mjs <file.json>`** — it decodes HTML entities, prepends the import header, writes `src/art/gen/*` + `src/game/content/gen/*`, and rebuilds the fault-isolated dynamic-import indexes by scanning the dirs. Re-run to integrate new output.
+
+## Gotchas
+- `KeyM` = **minimap** (not mute — mute lives in the settings menu). `Tab` = build page. Mouse `wheel` is wired (`mouse.wheel`).
+- Save: key `soulshard.save.v1`, `SAVE_VERSION` + migration in `loadMeta`; reset backs up to `…v1.bak`.
+- `node --check <file>` only checks syntax (won't resolve imports) — fine for a quick parse check; real validation = reload + the manual-pump test above.
+- Git: commit messages via `git commit -F <file>` (PowerShell here-strings mangle `->`/parens). End commits with the Co-Authored-By trailer.

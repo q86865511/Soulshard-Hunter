@@ -10,7 +10,7 @@ const inside = (mx, my, r) => mx >= r.x && mx <= r.x + r.w && my >= r.y && my <=
 export const settingsUI = {
   open: false, onClose: null, confirmReset: false,
   show(onClose) { this.open = true; this.onClose = onClose || null; this.confirmReset = false; Sfx.play('uiClick'); },
-  hide() { this.open = false; saveMeta(); const cb = this.onClose; this.onClose = null; if (cb) cb(); },
+  hide() { this.open = false; this.confirmReset = false; saveMeta(); const cb = this.onClose; this.onClose = null; if (cb) cb(); },
 
   layout() {
     const S = uiScale();
@@ -37,9 +37,10 @@ export const settingsUI = {
       }
     }
     if (mouse.justDown) {
+      if (!inside(mx, my, L.reset)) this.confirmReset = false;
       for (const r of L.rows) if (r.type === 'toggle' && inside(mx, my, r)) { META.settings[r.key] = !META.settings[r.key]; applySettings(); saveMeta(); Sfx.play('uiClick'); }
       if (inside(mx, my, L.reset)) {
-        if (this.confirmReset) { resetMeta(); applySettings(); this.confirmReset = false; Sfx.play('death'); }
+        if (this.confirmReset) { const K = 'soulshard.save.v1'; try { localStorage.setItem(K + '.bak', localStorage.getItem(K) || ''); } catch (e) {} resetMeta(); applySettings(); this.confirmReset = false; Sfx.play('death'); }
         else { this.confirmReset = true; Sfx.play('uiClick'); }
       } else if (inside(mx, my, L.close)) this.hide();
     }

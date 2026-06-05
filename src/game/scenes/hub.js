@@ -11,11 +11,11 @@ import { STORY_QUESTS, chapterState, claimChapter } from '../content/quests.js';
 import { BIOMES } from '../../art/biomes.js';
 import {
   camera, uiText, uiRect, uiScale, view, drawSprite, drawShadow, drawSpriteUI,
-  worldToScreen, vignette, textWidth, glowWorld, uiBar,
+  worldToScreen, vignette, textWidth, glowWorld, uiBar, ctxRaw,
 } from '../../engine/renderer.js';
 import { getSprite, frameAt, iconOr } from '../../engine/sprites.js';
 import { moveAxis, pressed, mouse } from '../../engine/input.js';
-import { dist } from '../../engine/math.js';
+import { dist, clamp } from '../../engine/math.js';
 import { P, withAlpha } from '../../engine/palette.js';
 import { Sfx, Music } from '../../engine/audio.js';
 import { settingsUI } from '../ui/settings.js';
@@ -36,6 +36,7 @@ export const hubScene = {
       { id: 'facilities', sprite: 'hub_forge', label: '設施工坊', color: P.emberL, x: (CW - 8) * TS, y: cy },
     ];
     this.panel = null; this.near = null; this.t = 0;
+    this.panelScroll = 0; this.panelMaxScroll = 0;
     this.flash = ''; this.flashT = 0;
     this.sortPage = 0; this.selBiome = null; this.selDiff = 1;   // sortie: char page + level + difficulty
     const ch = Characters.get(META.selectedCharacter || 'hunter');
@@ -76,7 +77,7 @@ export const hubScene = {
     if (pressed('slot3')) open = 'achievements';
     if (pressed('slot4')) open = 'quests';
     if (pressed('space')) open = 'sortie';
-    if (open) { this.panel = open; Sfx.play('uiClick'); }
+    if (open) { this.panel = open; this.panelScroll = 0; this.panelMaxScroll = 0; Sfx.play('uiClick'); }
   },
 
   feedback(msg) { this.flash = msg; this.flashT = 1.4; Sfx.play('buy'); },
@@ -89,6 +90,10 @@ export const hubScene = {
     if (mouse.justDown) {
       if (inside(mx, my, frame.close)) { this.panel = null; return; }
       if (!inside(mx, my, frame)) { this.panel = null; return; }
+    }
+    // wheel scrolling for the fixed-grid panels (sortie pages itself; quests is short)
+    if (mouse.wheel && (this.panel === 'talents' || this.panel === 'facilities' || this.panel === 'achievements')) {
+      this.panelScroll = clamp((this.panelScroll || 0) + mouse.wheel * 0.5, 0, this.panelMaxScroll || 0);
     }
     if (this.panel === 'talents') this.updateTalents(mx, my);
     else if (this.panel === 'facilities') this.updateFacilities(mx, my);
@@ -145,7 +150,7 @@ export const hubScene = {
         const nodeW = Math.min(colW - 22 * S, 168 * S);
         const nodeH = 66 * S;
         const x = f.x + ci * colW + (colW - nodeW) / 2;
-        const y = f.y + 84 * S + ri * (nodeH + 12 * S);
+        const y = f.y + 84 * S + ri * (nodeH + 12 * S) - (this.panelScroll || 0);
         nodes.push({ def, x, y, w: nodeW, h: nodeH, color: br.color });
       });
     });
@@ -163,7 +168,7 @@ export const hubScene = {
     const cols = 3; const cardW = (f.w - 40 * S - (cols - 1) * 16 * S) / cols; const cardH = 92 * S;
     const cards = list.map((def, i) => {
       const c = i % cols, r = Math.floor(i / cols);
-      return { def, x: f.x + 20 * S + c * (cardW + 16 * S), y: f.y + 70 * S + r * (cardH + 14 * S), w: cardW, h: cardH };
+      return { def, x: f.x + 20 * S + c * (cardW + 16 * S), y: f.y + 70 * S + r * (cardH + 14 * S) - (this.panelScroll || 0), w: cardW, h: cardH };
     });
     return { f, cards };
   },
@@ -289,6 +294,11 @@ export const hubScene = {
     });
     const mx = mouse.x * view.dpr, my = mouse.y * view.dpr;
     const { nodes } = this.talentNodes();
+    // content bottom (un-clamped) → derive scroll range for this panel
+    let bottom = f.y + 84 * S;
+    for (const n of nodes) bottom = Math.max(bottom, n.y + n.h + (this.panelScroll || 0));
+    this.panelMaxScroll = Math.max(0, bottom - (f.y + f.h - 24 * S));
+    const ctx = ctxRaw(); ctx.save(); ctx.beginPath(); ctx.rect(f.x, f.y + 58 * S, f.w, f.h - 74 * S); ctx.clip();
     for (const n of nodes) {
       const def = n.def; const cur = META.talents[def.id] || 0; const st = this.talentState(def);
       const hover = inside(mx, my, n);
@@ -307,7 +317,9 @@ export const hubScene = {
       const col = st === 'max' ? P.greenL : st === 'locked' ? P.gray3 : st === 'poor' ? P.redL : P.goldL;
       uiText(label, n.x + n.w - 8 * S, n.y + n.h - 9 * S, { size: 11 * S, align: 'right', color: col, weight: '800' });
     }
-    uiText('點擊節點花費金幣升級　·　Esc 關閉', f.x + f.w / 2, f.y + f.h - 14 * S, { size: 11 * S, align: 'center', color: P.gray3 });
+    ctx.restore();
+    const hint = this.panelMaxScroll > 0 ? '點擊節點花費金幣升級　·　▲▼ 滾輪捲動　·　Esc 關閉' : '點擊節點花費金幣升級　·　Esc 關閉';
+    uiText(hint, f.x + f.w / 2, f.y + f.h - 14 * S, { size: 11 * S, align: 'center', color: P.gray3 });
   },
 
   drawFacilities() {
@@ -315,6 +327,10 @@ export const hubScene = {
     const S = f.S;
     const mx = mouse.x * view.dpr, my = mouse.y * view.dpr;
     const { cards } = this.facilityCards();
+    let bottom = f.y + 70 * S;
+    for (const c of cards) bottom = Math.max(bottom, c.y + c.h + (this.panelScroll || 0));
+    this.panelMaxScroll = Math.max(0, bottom - (f.y + f.h - 24 * S));
+    const ctx = ctxRaw(); ctx.save(); ctx.beginPath(); ctx.rect(f.x, f.y + 58 * S, f.w, f.h - 74 * S); ctx.clip();
     for (const c of cards) {
       const def = c.def; const cur = META.facilities[def.id] || 0; const st = this.facilityState(def);
       const hover = inside(mx, my, c);
@@ -328,7 +344,9 @@ export const hubScene = {
       const col = st === 'max' ? P.greenL : st === 'poor' ? P.redL : P.goldL;
       uiText(label, c.x + c.w - 10 * S, c.y + c.h - 10 * S, { size: 12 * S, align: 'right', color: col, weight: '800' });
     }
-    uiText('點擊設施花費金幣建造/升級　·　Esc 關閉', f.x + f.w / 2, f.y + f.h - 14 * S, { size: 11 * S, align: 'center', color: P.gray3 });
+    ctx.restore();
+    const hint = this.panelMaxScroll > 0 ? '點擊設施花費金幣建造/升級　·　▲▼ 滾輪捲動　·　Esc 關閉' : '點擊設施花費金幣建造/升級　·　Esc 關閉';
+    uiText(hint, f.x + f.w / 2, f.y + f.h - 14 * S, { size: 11 * S, align: 'center', color: P.gray3 });
   },
 
   drawSortie() {
@@ -421,10 +439,13 @@ export const hubScene = {
     const cols = 2;
     const cardW = (f.w - 40 * S - (cols - 1) * 14 * S) / cols, cardH = 54 * S;
     const got = META.achievements || [];
+    const rows = Math.ceil(ACHIEVEMENTS.length / cols);
+    const bottom = f.y + 72 * S + rows * (cardH + 9 * S);
+    this.panelMaxScroll = Math.max(0, bottom - (f.y + f.h - 24 * S));
+    const ctx = ctxRaw(); ctx.save(); ctx.beginPath(); ctx.rect(f.x, f.y + 58 * S, f.w, f.h - 74 * S); ctx.clip();
     ACHIEVEMENTS.forEach((a, i) => {
       const c = i % cols, r = Math.floor(i / cols);
-      const x = f.x + 20 * S + c * (cardW + 14 * S), y = f.y + 72 * S + r * (cardH + 9 * S);
-      if (y + cardH > f.y + f.h - 30 * S) return;
+      const x = f.x + 20 * S + c * (cardW + 14 * S), y = f.y + 72 * S + r * (cardH + 9 * S) - (this.panelScroll || 0);
       const done = got.includes(a.id);
       const name = (a.hidden && !done) ? '？？？' : (a.realName || a.name);
       const desc = (a.hidden && !done) ? '隱藏成就 — 達成後揭曉' : a.desc;
@@ -433,8 +454,10 @@ export const hubScene = {
       uiText(name, x + 34 * S, y + 20 * S, { size: 12.5 * S, color: done ? '#fff' : P.gray3, weight: '800' });
       this.clip1(desc, x + 34 * S, y + 38 * S, cardW - 42 * S, 10 * S, done ? P.gray4 : P.gray2);
     });
+    ctx.restore();
     const prog = achievementProgress(META);
-    uiText(`已解鎖 ${prog.unlocked} / ${prog.total}　·　Esc 關閉`, f.x + f.w / 2, f.y + f.h - 14 * S, { size: 12 * S, align: 'center', color: P.goldL, weight: '700' });
+    const tail = this.panelMaxScroll > 0 ? '　·　▲▼ 滾輪捲動' : '';
+    uiText(`已解鎖 ${prog.unlocked} / ${prog.total}${tail}　·　Esc 關閉`, f.x + f.w / 2, f.y + f.h - 14 * S, { size: 12 * S, align: 'center', color: P.goldL, weight: '700' });
   },
 
   centerWrap(str, cx, y, maxw, size, color) {

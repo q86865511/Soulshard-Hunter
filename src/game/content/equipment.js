@@ -8,8 +8,38 @@
 //     apply?(player)                 // when slot==='armor'|'trinket' }
 import { Equipment } from './registry.js';
 import { P } from '../../engine/palette.js';
+import { Projectile } from '../projectile.js';
 
 const E = (o) => Equipment.register(o);
+
+// Turn a weapon-slot equip's `weapon` stat block into a real auto-fire weapon
+// (a "signature weapon"). One generic def drives every weapon-slot equip; it
+// aims at the nearest foe and respects the player's damage/crit/pierce stats.
+function makeEquipWeaponDef(eq) {
+  const w = eq.weapon || {};
+  return {
+    id: 'equipw', icon: eq.icon, name: w.name || eq.name, equipped: true,
+    cooldown: () => Math.max(0.14, 1 / (w.fireRate || 1.5)),
+    fire(world, p, inst) {
+      const count = w.projCount || 1;
+      const tgt = world.nearestEnemy ? world.nearestEnemy(p.x, p.y, 720) : null;
+      const base = tgt ? Math.atan2(tgt.y - p.y, tgt.x - p.x) : Math.atan2(p.faceY || 0, p.faceX || 1);
+      const spread = w.spread || 0;
+      for (let i = 0; i < count; i++) {
+        const off = count > 1 ? (i / (count - 1) - 0.5) * spread * count : 0;
+        const a = base + off + (Math.random() - 0.5) * 0.04;
+        const crit = Math.random() < (p.stats.critChance || 0);
+        const dmg = (w.damage || 8) * (p.stats.damageMult || 1) * (crit ? (p.stats.critMult || 2) : 1) * (0.92 + Math.random() * 0.16);
+        world.addProjectile(new Projectile({
+          x: p.x, y: p.y, vx: Math.cos(a) * (w.projSpeed || 200), vy: Math.sin(a) * (w.projSpeed || 200),
+          damage: dmg, crit, faction: 'player', sprite: w.projSprite || 'bolt', color: w.projColor || P.shard,
+          radius: w.projRadius || 3, pierce: (w.pierce || 0) + (p.stats.pierceAdd || 0), knockback: w.knockback || 16,
+          life: w.projLife || 1.4, scale: w.projScale || 1,
+        }));
+      }
+    },
+  };
+}
 
 // ---- weapons ---------------------------------------------------------------
 E({
@@ -53,9 +83,11 @@ export function equipItem(player, run, def) {
   if (!def) return;
   if (run) run.gearTaken = true;   // taking ANY gear disqualifies the stat-purist boon
   if (def.slot === 'weapon') {
-    player.weapon = { ...def.weapon };
-    run.weapon = player.weapon;
     run.equipment.weapon = def.id;
+    if (player.weapons) {   // add as a real auto-fire signature weapon (replacing any previous one)
+      player.weapons = player.weapons.filter((inst) => !inst.def.equipped);
+      player.weapons.push({ def: makeEquipWeaponDef(def), level: 1, t: 0, st: {} });
+    }
   } else {
     try { def.apply?.(player); } catch (e) { console.warn('equip apply failed', def.id, e); }
     run.equipment[def.slot] = def.id;

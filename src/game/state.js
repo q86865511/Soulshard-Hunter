@@ -7,8 +7,10 @@ import { Audio } from '../engine/audio.js';
 import { setShakeEnabled } from '../engine/renderer.js';
 
 const SAVE_KEY = 'soulshard.save.v1';
+const SAVE_VERSION = 2;
 
 const DEFAULT_META = () => ({
+  version: SAVE_VERSION,
   gold: 0,
   talents: {},           // talentId -> level
   facilities: {},        // facilityId -> level
@@ -42,6 +44,14 @@ export function loadMeta() {
       META.settings = Object.assign(DEFAULT_META().settings, parsed.settings || {});
       META.levels = Object.assign(DEFAULT_META().levels, parsed.levels || {});
       META.levels.diff = Object.assign({}, (parsed.levels && parsed.levels.diff) || {});
+      // --- save migration: guarantee nested shapes exist for older/partial saves ---
+      META.levels = META.levels || { unlocked: 1, diff: {} };
+      META.levels.diff = META.levels.diff || {};
+      META.achievements = Array.isArray(META.achievements) ? META.achievements : [];
+      if (typeof META.questIndex !== 'number') META.questIndex = 0;
+      if (!META.unlocked || typeof META.unlocked !== 'object') META.unlocked = DEFAULT_META().unlocked;
+      for (const k of ['abilities','equipment','weapons','characters']) if (!Array.isArray(META.unlocked[k])) META.unlocked[k] = DEFAULT_META().unlocked[k];
+      META.version = SAVE_VERSION;
     }
   } catch (e) { console.warn('load save failed', e); META = DEFAULT_META(); }
   return META;

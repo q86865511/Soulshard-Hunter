@@ -17,9 +17,9 @@ function eligibleAbilities(run) {
 export function getRunChoices(run, player, n = 3) {
   const pool = [];
   for (const inst of player.weapons) {
-    if (!inst.def.evolved && inst.level < (inst.def.maxLevel || 8)) pool.push({ kind: 'weaponup', id: inst.def.id, def: inst.def, weight: 9, level: inst.level });
+    if (!inst.def.evolved && !inst.def.equipped && inst.level < (inst.def.maxLevel || 8)) pool.push({ kind: 'weaponup', id: inst.def.id, def: inst.def, weight: 9, level: inst.level });
   }
-  if (player.weapons.length < MAX_WEAPONS) {
+  if (player.weapons.filter((w) => !w.def.equipped).length < MAX_WEAPONS) {   // signature (equip) weapons don't count toward the cap
     for (const w of weaponPool()) if (!player.hasWeapon(w.id)) pool.push({ kind: 'weapon', id: w.id, def: w, weight: (w.weight ?? 5) * 0.8 });
   }
   const atPassiveCap = (run.abilities || []).length >= MAX_PASSIVES;

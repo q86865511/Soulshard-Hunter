@@ -128,8 +128,8 @@ export const runScene = {
     this.shopAnvils = ANVILS.map((a) => ({ ...a, buys: 0 }));
   },
   rollShopGear() {
-    // weapon-slot equipment is inert in the auto-fire system — never sell it (shard trap)
-    const pool = Equipment.all().filter((d) => (d.tier ?? 1) >= 2 && d.slot !== 'weapon');
+    // tier >= 2 gear, incl. weapon-slot "signature weapons" (now real auto-fire weapons)
+    const pool = Equipment.all().filter((d) => (d.tier ?? 1) >= 2);
     const src = (pool.length ? pool : Equipment.all()).slice();
     const offers = [];
     for (let i = 0; i < 4 && src.length; i++) {
@@ -190,7 +190,9 @@ export const runScene = {
     if (!def) { this.onLevelClear(); return; }
     const hpScale = (4 + this.threat * 0.6) * this.diffMul;
     const dmgScale = (1.4 + this.threat * 0.05) * this.diffMul;
-    this.finalBossRef = this.world.spawnEnemy(def, c.x, c.y - 30, { hpScale, dmgScale, quiet: true });
+    let bx = c.x, by = c.y - 30;
+    if (this.world.solidAt(bx, by)) { bx = c.x; by = c.y; }   // never spawn inside a wall
+    this.finalBossRef = this.world.spawnEnemy(def, bx, by, { hpScale, dmgScale, quiet: true });
     this.bossRef = this.finalBossRef; this.boss = true; this.finalBoss = true;
     this.evtMines = []; this.evtStrikes = []; this.zone = null;
     this.banner = '最終首領 · ' + (def.name || 'BOSS') + ' 降臨！'; this.bannerT = 3.6;
@@ -701,7 +703,8 @@ export const runScene = {
     const cell = (bx, by, sp, stroke, badge, bcol) => { uiRect(bx, by, sz, sz, withAlpha('#10121f', 0.82), { radius: 4 * S, stroke, lw: 2 }); drawSpriteUI(sp.frames[0], bx + 3 * S, by + 3 * S, (sz - 6 * S) / sp.w); if (badge) uiText(badge, bx + sz - 3 * S, by + sz - 3 * S, { size: 9 * S, align: 'right', color: bcol, weight: '800' }); };
     // left column: weapons + passives
     const colL = x + 24 * S; let yL = y + 70 * S;
-    head('武器', colL, yL, P.shardL, this.player.weapons.length + ' / ' + MAX_WEAPONS, this.player.weapons.length >= MAX_WEAPONS ? P.redL : P.gray3); yL += 14 * S;
+    const wCount = this.player.weapons.filter((w) => !w.def.equipped).length;
+    head('武器', colL, yL, P.shardL, wCount + ' / ' + MAX_WEAPONS, wCount >= MAX_WEAPONS ? P.redL : P.gray3); yL += 14 * S;
     this.player.weapons.forEach((inst, i) => {
       const bx = colL + i * (sz + gap);
       cell(bx, yL, getSprite(iconOr(inst.def.icon, 'weapon_w_soulbolt')), inst.def.evolved ? P.goldL : P.ink2, inst.def.evolved ? '★' : 'L' + inst.level, inst.def.evolved ? P.goldL : P.shardL);
