@@ -11,6 +11,7 @@ import { refs } from './refs.js';
 import { Enemies, Equipment, Abilities, Weapons, Characters } from '../content/registry.js';
 import { equipItem } from '../content/equipment.js';
 import { BONDS, activeBonds, checkBonds } from '../content/bonds.js';
+import { exclusiveFor } from '../content/exclusives.js';
 import { BALANCE } from '../balance.js';
 import { isUnlocked } from '../content/unlocks.js';
 import { STORY_QUESTS, trackedQuestState, fmtQuestVal } from '../content/quests.js';
@@ -172,10 +173,14 @@ export const runScene = {
   setupShrine(pos) { this.shrinePos = pos; this.shrineUsed = false; },
   // 3 random tier>=2 unlocked equipment defs for the 裝備鐵砧 three-pick (#3)
   rollGearChoice() {
-    const pool = Equipment.all().filter((d) => (d.tier ?? 1) >= 2 && isUnlocked(META, 'equipment', d.id));
-    const src = (pool.length ? pool : Equipment.all()).slice();
+    const pool = Equipment.all().filter((d) => (d.tier ?? 1) >= 2 && !d.exclusive && isUnlocked(META, 'equipment', d.id));
+    const src = (pool.length ? pool : Equipment.all().filter((d) => !d.exclusive)).slice();
     const pick = [];
     for (let i = 0; i < 3 && src.length; i++) pick.push(src.splice(rng.int(0, src.length - 1), 1)[0]);
+    // 原#18: sometimes the current hero's EXCLUSIVE weapon appears in their own anvil
+    const exId = exclusiveFor(this.run.characterId);
+    const exDef = exId && Equipment.get(exId);
+    if (exDef && pick.length && rng.chance(0.32) && !pick.some((d) => d.id === exId)) pick[rng.int(0, pick.length - 1)] = exDef;
     return pick;
   },
 
@@ -301,7 +306,7 @@ export const runScene = {
   },
   eventCardRects() {
     const S = uiScale(); const n = this.eventChoice ? this.eventChoice.length : 3;
-    const cw = Math.min(210 * S, (view.W - 50 * S) / n - 16 * S); const ch = cw * 1.15, gap = 18 * S;
+    const cw = Math.min(212 * S, (view.W - 50 * S) / n - 16 * S); const ch = cw * 1.46, gap = 18 * S;   // 原#14: taller for portrait
     const totalW = n * cw + (n - 1) * gap, x0 = (view.W - totalW) / 2, y = (view.H - ch) / 2 + 6 * S;
     return Array.from({ length: n }, (_, i) => ({ x: x0 + i * (cw + gap), y, w: cw, h: ch }));
   },
@@ -315,22 +320,27 @@ export const runScene = {
   applyEvent(ev) {
     try { ev.apply(this); } catch (e) { /* */ }
     this.eventChoice = null;
-    this.banner = ev.host + '：' + ev.name; this.bannerT = 2.0;
+    this.banner = ev.name + ' · 「' + (ev.title || ev.name) + '」'; this.bannerT = 2.2;
     this.world.particles.ring(this.player.x, this.player.y, P.goldL, 24, 140); Sfx.play('levelup');
   },
   drawEventChoice() {
     const S = uiScale(); const rects = this.eventCardRects();
     uiRect(0, 0, view.W, view.H, withAlpha('#0b0d1a', 0.82));
-    uiText('小王戰利品 · 事件三選一', view.W / 2, rects[0].y - 30 * S, { size: 24 * S, align: 'center', color: P.goldL, weight: '900' });
+    uiText('小王戰利品 · 贊助者三選一', view.W / 2, rects[0].y - 30 * S, { size: 24 * S, align: 'center', color: P.goldL, weight: '900' });
     uiText('（點擊卡片或按 1 / 2 / 3）', view.W / 2, rects[0].y - 8 * S, { size: 12 * S, align: 'center', color: P.gray3 });
     const mx = mouse.x * view.dpr, my = mouse.y * view.dpr;
     rects.forEach((r, i) => {
       const ev = this.eventChoice[i]; const hov = inside(mx, my, r); const oy = hov ? -8 * S : 0;
       uiRect(r.x, r.y + oy, r.w, r.h, withAlpha('#241a3a', 0.98), { radius: 9 * S, stroke: hov ? P.goldL : withAlpha(P.goldL, 0.5), lw: hov ? 3 : 2 });
       uiRect(r.x, r.y + oy, r.w, 5 * S, P.goldL, { radius: 2 * S });
-      uiText(ev.host, r.x + r.w / 2, r.y + oy + 28 * S, { size: 12 * S, align: 'center', color: P.shardL, weight: '700' });
-      uiText(ev.name, r.x + r.w / 2, r.y + oy + 52 * S, { size: 17 * S, align: 'center', color: '#fff', weight: '900' });
-      this.wrapText(ev.desc, r.x + r.w / 2, r.y + oy + 78 * S, r.w - 22 * S, 12.5 * S, P.gray4);
+      // 原#14: character portrait
+      const psz = 46 * S; const sp = getSprite(iconOr(ev.icon, 'ability_power'));
+      uiRect(r.x + r.w / 2 - psz / 2 - 3 * S, r.y + oy + 16 * S, psz + 6 * S, psz + 6 * S, withAlpha('#10121f', 0.7), { radius: 8 * S, stroke: withAlpha(P.goldL, 0.5), lw: 1.5 });
+      drawSpriteUI(sp.frames[0], r.x + r.w / 2 - psz / 2, r.y + oy + 19 * S, psz / sp.w);
+      uiText(ev.role || '', r.x + r.w / 2, r.y + oy + psz + 32 * S, { size: 11 * S, align: 'center', color: P.shardL, weight: '700' });
+      uiText(ev.name, r.x + r.w / 2, r.y + oy + psz + 50 * S, { size: 15.5 * S, align: 'center', color: '#fff', weight: '900' });
+      uiText('「' + (ev.title || '') + '」', r.x + r.w / 2, r.y + oy + psz + 67 * S, { size: 12.5 * S, align: 'center', color: P.goldL, weight: '800' });
+      this.wrapText(ev.desc, r.x + r.w / 2, r.y + oy + psz + 86 * S, r.w - 22 * S, 11.5 * S, P.gray4);
       uiText(String(i + 1), r.x + 11 * S, r.y + oy + 22 * S, { size: 14 * S, color: withAlpha('#fff', 0.45), weight: '900' });
     });
   },
