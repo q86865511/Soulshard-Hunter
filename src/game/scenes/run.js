@@ -128,7 +128,8 @@ export const runScene = {
     this.shopAnvils = ANVILS.map((a) => ({ ...a, buys: 0 }));
   },
   rollShopGear() {
-    const pool = Equipment.all().filter((d) => (d.tier ?? 1) >= 2);
+    // weapon-slot equipment is inert in the auto-fire system — never sell it (shard trap)
+    const pool = Equipment.all().filter((d) => (d.tier ?? 1) >= 2 && d.slot !== 'weapon');
     const src = (pool.length ? pool : Equipment.all()).slice();
     const offers = [];
     for (let i = 0; i < 4 && src.length; i++) {
@@ -328,9 +329,13 @@ export const runScene = {
   // ---- choices -------------------------------------------------------------
   onLevelUp() { this.levelQueue++; },
   openChoice() {
-    this.levelQueue--;
     const options = getRunChoices(this.run, this.player);
-    if (!options.length) return;
+    this.levelQueue--;
+    if (!options.length) {   // fully capped — don't waste the level-up, grant a heal
+      this.player.heal(this.player.maxHp * 0.15);
+      this.world.particles.text(this.player.x, this.player.y - 16, '已達上限 · 回復生命', { color: P.redL, size: 12 });
+      return;
+    }
     this.choice = { options, hover: -1 };
   },
   cardRects() {

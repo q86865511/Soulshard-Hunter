@@ -43,10 +43,8 @@ GA({
   id: 'g_chainlight', name: '連鎖閃電', tier: 2, weight: 3, maxStacks: 4,
   desc: '命中時有機率對附近敵人釋放連鎖閃電',
   apply: (p, run, lvl) => {
-    let lv = lvl || 1;
-    if (lvl > 1) return; // hook registered once; level tracked via closure below
-    const lvRef = { v: lvl || 1 };
-    // re-read current stack level on each apply by mutating shared ref
+    if (lvl > 1) { if (p.extraChainRef) p.extraChainRef.v = lvl; return; }  // bump the shared level ref
+    const lvRef = { v: 1 }; p.extraChainRef = lvRef;
     p.hooks.hit.push((e, dmg, w) => {
       if (Math.random() > 0.32 + lvRef.v * 0.05) return;
       const tgt = w.nearestEnemy(e.x, e.y, 80);
@@ -55,9 +53,6 @@ GA({
       w.particles.ring(tgt.x, tgt.y, P.blueL, 8, 70);
       w.dealAreaDamage(tgt.x, tgt.y, (tgt.radius || 6) + 4, 9 + lvRef.v * 6, { knockback: 30 });
     });
-    p.extraChainRef = lvRef;
-    p.hooks.update.push((pl) => { if (pl.extraChainRef) pl.extraChainRef.v = lvRef.v; });
-    void lv;
   },
 });
 

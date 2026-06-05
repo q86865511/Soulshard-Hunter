@@ -127,7 +127,7 @@ function boot() {
   startLoop({
     fixed: 1 / 120,          // 120 Hz simulation: smoother + lower input latency
     update: (dt) => {
-      if (pressed('mute')) Audio.toggleMute();
+      // (mute is in the settings menu now — M is the minimap)
       updateActive(dt);
       updateCamera(dt);
       endFrameInput();

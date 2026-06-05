@@ -27,7 +27,7 @@ Enemies.register({
   tint: P.purpleL,
   attack: {
     range: 230,
-    cooldown: 1.15,
+    cooldown: 1.45,
     projSpeed: 130,
     projDamage: 16,
     projColor: P.purpleL,

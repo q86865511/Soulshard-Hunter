@@ -25,8 +25,8 @@ A({ id: 'lifesteal', name: '吸血鬼牙', tier: 2, weight: 4, maxStacks: 4, des
 A({ id: 'homing', name: '追蹤魂彈', tier: 2, weight: 4, maxStacks: 3, desc: '子彈追蹤敵人', apply: (p) => p.stats.homing += 2.2 });
 A({ id: 'luck', name: '幸運符', tier: 2, weight: 4, maxStacks: 4, desc: '幸運 +0.15（掉落/魂晶）', apply: (p) => p.stats.luck += 0.15 });
 A({
-  id: 'bigshot', name: '巨型魂晶', tier: 2, weight: 4, maxStacks: 3, desc: '彈體 +30%、傷害 +12%',
-  apply: (p) => { p.weapon.projScale = (p.weapon.projScale || 1) * 1.3; p.weapon.projRadius = (p.weapon.projRadius || 3) * 1.3; p.stats.damageMult *= 1.12; },
+  id: 'bigshot', name: '巨型魂晶', tier: 2, weight: 4, maxStacks: 3, desc: '範圍 +12%、傷害 +12%',
+  apply: (p) => { p.stats.area = (p.stats.area || 1) * 1.12; p.stats.damageMult *= 1.12; },
 });
 A({
   id: 'thorns', name: '荊棘護甲', tier: 2, weight: 4, maxStacks: 3, desc: '受擊時對周圍造成傷害',

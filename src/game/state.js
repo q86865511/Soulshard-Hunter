@@ -40,6 +40,8 @@ export function loadMeta() {
       META.stats = Object.assign(DEFAULT_META().stats, parsed.stats || {});
       META.unlocked = Object.assign(DEFAULT_META().unlocked, parsed.unlocked || {});
       META.settings = Object.assign(DEFAULT_META().settings, parsed.settings || {});
+      META.levels = Object.assign(DEFAULT_META().levels, parsed.levels || {});
+      META.levels.diff = Object.assign({}, (parsed.levels && parsed.levels.diff) || {});
     }
   } catch (e) { console.warn('load save failed', e); META = DEFAULT_META(); }
   return META;
@@ -123,6 +125,8 @@ export function bankRun(run) {
   META.stats.kills += run.kills;
   META.stats.totalGold += run.gold;
   META.stats.bestFloor = Math.max(META.stats.bestFloor, run.floor);
+  META.stats.bestStage = Math.max(META.stats.bestStage || 0, run.stage || run.floor || 1);
+  META.stats.bestScore = Math.max(META.stats.bestScore || 0, run.score || 0);
   META.stats.bestTime = Math.max(META.stats.bestTime || 0, Math.floor(run.time || 0));
   META.stats.bossKills = (META.stats.bossKills || 0) + (run.bossKills || 0);
   META.stats.deaths += 1;
