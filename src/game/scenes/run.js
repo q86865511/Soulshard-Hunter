@@ -282,13 +282,13 @@ export const runScene = {
     const def = pool[rng.int(0, pool.length - 1)];
     this.usedMiniBosses.push(def.id);
     const hpScale = (2 + this.threat * 0.4) * this.diffMul;     // tougher each time, but below the final boss
-    const dmgScale = (1.2 + this.threat * 0.05) * this.diffMul;
+    const dmgScale = (1.2 + this.threat * 0.10) * this.diffMul;  // bal: boss bite escalates with threat (was 0.05 → late bosses were sponges)
     let bx = this.player.x, by = this.player.y, tries = 0;
     do { const a = rng.next() * TAU; bx = clamp(this.player.x + Math.cos(a) * 170, TS * 2, this.world.pxW - TS * 2); by = clamp(this.player.y + Math.sin(a) * 170, TS * 2, this.world.pxH - TS * 2); tries++; } while (this.world.solidAt(bx, by) && tries < 10);
     this.bossRef = this.world.spawnEnemy(def, bx, by, { hpScale, dmgScale, quiet: true });
     this.boss = true; this.bossDead = false;
     this.banner = `小王 ${this.miniIdx}／${BALANCE.MINIBOSS_TIMES.length}：${def.name || 'BOSS'} 現身！`; this.bannerT = 3.0;
-    addShake(8); Sfx.play('boss'); Music.setMode('boss');
+    addShake(8); Sfx.play('boss'); Music.setMode('miniboss');
   },
   onBossDead(e) {
     this.boss = false; this.bossDead = true; this.bossRef = null;
@@ -387,7 +387,7 @@ export const runScene = {
   // ---- finale: final boss at 20:00 -> clear -> killable Reaper +30s (E2) ----
   finalTick(dt) {
     const t = this.run.time;
-    if (!this.finalBoss && !this.cleared && t >= LEVEL_TIME) this.spawnFinalBoss();
+    if (!this.finalBoss && !this.cleared && !this.boss && t >= LEVEL_TIME) this.spawnFinalBoss();   // don't spawn the finale on top of a still-living mini-boss
     if (this.cleared && !this.reaperSpawned && t >= this.reaperAt) this.spawnReaper();
   },
   spawnFinalBoss() {
@@ -395,7 +395,7 @@ export const runScene = {
     if (!def) { let bs = Enemies.filter((d) => d.boss && d.id !== REAPER_ID && !this.usedMiniBosses.includes(d.id)); if (!bs.length) bs = Enemies.filter((d) => d.boss && d.id !== REAPER_ID); def = bs.length ? bs[rng.int(0, bs.length - 1)] : null; }
     if (!def) { this.clearLevel(); return; }
     const hpScale = (4 + this.threat * 0.6) * this.diffMul;
-    const dmgScale = (1.4 + this.threat * 0.05) * this.diffMul;
+    const dmgScale = (1.4 + this.threat * 0.10) * this.diffMul;  // bal: final boss escalates with threat (was 0.05)
     let bx = this.player.x, by = this.player.y, tries = 0;
     do { const a = rng.next() * TAU; bx = clamp(this.player.x + Math.cos(a) * 200, TS * 2, this.world.pxW - TS * 2); by = clamp(this.player.y + Math.sin(a) * 200, TS * 2, this.world.pxH - TS * 2); tries++; } while (this.world.solidAt(bx, by) && tries < 12);
     this.finalBossRef = this.world.spawnEnemy(def, bx, by, { hpScale, dmgScale, quiet: true });
@@ -437,7 +437,7 @@ export const runScene = {
     this.reaperRef = this.world.spawnEnemy(def, bx, by, { hpScale, dmgScale, quiet: true });
     this.bossRef = this.reaperRef; this.boss = true;
     this.banner = '☠ 死神降臨！斬殺祂以證明你的力量'; this.bannerT = 4.0;
-    addShake(12); Sfx.play('boss'); Music.setMode('boss');
+    addShake(12); Sfx.play('boss'); Music.setMode('reaper');
   },
   onReaperDead(e) {
     this.boss = false; this.reaperRef = null; this.reaperSlain = true;
@@ -455,7 +455,7 @@ export const runScene = {
     this.run.score = Math.floor(this.run.kills * 12 + this.run.stage * 400 + this.run.time + (this.run.difficulty || 1) * 600 + (this.reaperSlain ? 5000 : 0));
     META.stats.bestStage = Math.max(META.stats.bestStage || 0, this.run.stage);
     META.stats.bestScore = Math.max(META.stats.bestScore || 0, this.run.score);
-    Music.stop(); if (won) { addShake(8); Sfx.play('levelup'); }
+    if (won) { addShake(8); Sfx.play('levelup'); Music.setMode('victory'); } else { Music.setMode('death'); }
     if (!this.banked) {
       this.banked = true;
       const r = bankRun(this.run) || {};
@@ -554,10 +554,12 @@ export const runScene = {
       sur.enemies = sur.enemies.filter((e) => e && !e.dead);
       const killed = sur.total - sur.enemies.length;
       const p = this.player, sx = sur.cx, sy = sur.cy;
-      // task-4 breach: carved a gap (killed >= breach) OR backed into a wall (撞牆)
+      // task-4 breach: carved a gap (killed >= breach) OR pressed into a wall (撞牆) for ~0.6s
       let wall = false;
       for (const o of SURROUND_PROBES) if (this.world.solidAt(p.x + o[0], p.y + o[1])) { wall = true; break; }
-      if (killed >= BALANCE.SURROUND_BREACH_KILLS || wall) { sur.breached = true; sur.wasWall = sur.wasWall || wall; }
+      sur.wallT = wall ? (sur.wallT || 0) + dt : 0;   // bal: require a SUSTAINED wall-press, not a 1-frame brush
+      const wallBreach = sur.wallT >= 0.6;
+      if (killed >= BALANCE.SURROUND_BREACH_KILLS || wallBreach) { sur.breached = true; sur.wasWall = sur.wasWall || wallBreach; }
       // the ring tightens — the lock radius creeps inward so the circle visibly collapses
       sur.lockR = Math.max(BALANCE.SURROUND_LOCK_MIN, sur.lockR - BALANCE.SURROUND_CLOSE_SPEED * dt);
       // hold the player in the kill-zone until they breach (or the ring empties / times out)
@@ -604,7 +606,7 @@ export const runScene = {
 
   // continuous spawning from the current 1-3 active enemy types
   spawnTick(dt) {
-    if (this.boss || this.finalBoss) return;   // pause the swarm during a boss / the finale
+    if (this.boss || this.finalBoss || this.cleared) return;   // pause the swarm during a boss / the finale / the post-clear Reaper window
     this.typeRotT -= dt;
     if (this.typeRotT <= 0) this.rotateTypes();
     this.spawnTimer -= dt;
@@ -621,7 +623,7 @@ export const runScene = {
       const tc = Math.min(t, 1200);
       const dmgGrace = t < BALANCE.EARLY_GRACE ? BALANCE.EARLY_DMG_GRACE + (1 - BALANCE.EARLY_DMG_GRACE) * (t / BALANCE.EARLY_GRACE) : 1;
       const hpScale = (1 + Math.min(4.4, (this.threat - 1) * 0.15 + tc * 0.0028)) * this.diffMul;
-      const dmgScale = (1 + Math.min(2.2, (this.threat - 1) * 0.08 + tc * 0.0018)) * this.diffMul * dmgGrace;
+      const dmgScale = (1 + Math.min(3.0, (this.threat - 1) * 0.10 + tc * 0.0022)) * this.diffMul * dmgGrace;  // bal: late trash keeps scaling (was min 2.2 / 0.08 / 0.0018)
       for (let i = 0; i < group; i++) {
         const def = this.pickSpawnType();
         const elite = this.threat >= 3 && rng.chance(0.03 + t * 0.0003);

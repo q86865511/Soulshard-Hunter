@@ -1,0 +1,38 @@
+# One-command local/cloud stack: Postgres + the API.
+# Local:   docker compose up --build         → API on http://localhost:8787
+# The game frontend keeps running from `node tools/serve.mjs` (port 5173).
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: soulshard
+      POSTGRES_PASSWORD: soulshard
+      POSTGRES_DB: soulshard
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U soulshard"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    ports:
+      - "5432:5432"   # expose for local inspection; remove in production
+
+  api:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://soulshard:soulshard@db:5432/soulshard
+      JWT_SECRET: ${JWT_SECRET:?set a strong JWT_SECRET first, e.g. export JWT_SECRET=$(openssl rand -hex 48)}
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:5173,http://127.0.0.1:5173}
+      NODE_ENV: production
+      PORT: "8787"
+    ports:
+      - "8787:8787"
+
+volumes:
+  pgdata:

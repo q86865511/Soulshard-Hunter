@@ -16,10 +16,10 @@ import { BALANCE } from '../../balance.js';
 
 // Resilient BALANCE reference: the integrator's MEGA_HEADER strips the import
 // above, so bind to the live object if present, else mirror the two used keys.
-const WC_BAL = (typeof BALANCE !== 'undefined') ? BALANCE : { PLAYER_DAMAGE_MULT: 0.78, AIM_RANGE: 250 };
+const WC_BAL = (typeof BALANCE !== 'undefined') ? BALANCE : { PLAYER_DAMAGE_MULT: 0.85, AIM_RANGE: 250, CRIT_CAP: 0.6 };
 
 // ---- shared helpers (defined ONCE) ----------------------------------------
-function wcRoll(p, base){ const crit = Math.random() < (p.stats.critChance||0); return { dmg: base*WC_BAL.PLAYER_DAMAGE_MULT*(p.stats.damageMult||1)*(crit?(p.stats.critMult||2):1)*(0.92+Math.random()*0.16), crit }; }
+function wcRoll(p, base){ const crit = Math.random() < Math.min(WC_BAL.CRIT_CAP||0.6, p.stats.critChance||0); return { dmg: base*WC_BAL.PLAYER_DAMAGE_MULT*(p.stats.damageMult||1)*(crit?(p.stats.critMult||2):1)*(0.92+Math.random()*0.16), crit }; }
 function wcAim(world,x,y,n){ n=n||1; const r=[]; for(const e of world.enemies){ if(e.dead||e.spawnT>0) continue; const d=dist2(x,y,e.x,e.y); if(d<WC_BAL.AIM_RANGE*WC_BAL.AIM_RANGE && world.lineClear(x,y,e.x,e.y)) r.push([d,e]); } r.sort((a,b)=>a[0]-b[0]); return r.slice(0,n).map(q=>q[1]); }
 const wcFace = (p)=>Math.atan2(p.faceY||0, p.faceX||1);
 
@@ -259,7 +259,7 @@ Weapons.register({
   id: 'wc_beam', name: '聚能光束', icon: 'weapon_wc_beam', tier: 3, weight: 6, maxLevel: 6,
   update(world, p, inst, dt) {
     const l = inst.level;
-    inst.st.cd = inst.st.cd || new Map();
+    inst.st.cd = inst.st.cd || new WeakMap();   // WeakMap: per-enemy hit cooldowns, GC'd with the enemy
     inst.st.t = (inst.st.t || 0) - dt;
     const range = WC_BAL.AIM_RANGE + l * 10;
     if (inst.st.t <= 0) {

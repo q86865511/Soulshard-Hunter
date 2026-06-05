@@ -14,6 +14,20 @@ const TYPES = {
 
 http.createServer((req, res) => {
   let p = decodeURIComponent((req.url || '/').split('?')[0]);
+  // dev-only: accept a base64 canvas capture and write it to disk for inspection
+  // (headless preview tabs are background-throttled, so preview_screenshot stalls).
+  if (req.method === 'POST' && p === '/__shot') {
+    let body = '';
+    req.on('data', (c) => { body += c; });
+    req.on('end', () => {
+      try {
+        const b64 = body.replace(/^data:image\/\w+;base64,/, '');
+        fs.writeFileSync(path.join(root, '_shot.png'), Buffer.from(b64, 'base64'));
+        res.writeHead(200, { 'Access-Control-Allow-Origin': '*' }); res.end('ok');
+      } catch (e) { res.writeHead(500); res.end(String(e)); }
+    });
+    return;
+  }
   if (p === '/' || p === '') p = '/index.html';
   const fp = path.join(root, path.normalize(p));
   if (!fp.startsWith(root)) { res.writeHead(403); res.end('forbidden'); return; }

@@ -18,3 +18,7 @@ tools/_wf_*
 
 # local-only Claude harness files
 .claude/settings.local.json
+
+# round 6: dev screenshot capture (tools/serve.mjs POST /__shot) + server secrets
+_shot.png
+server/.env

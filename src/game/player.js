@@ -91,13 +91,17 @@ export class Player {
         snap = { dm: s.damageMult, cc: s.critChance, cm: s.critMult, pa: s.pierceAdd, ar: s.area };
         s.damageMult *= fm.dmgMul; s.critChance += fm.crit; s.critMult += fm.critMult; s.pierceAdd += fm.pierce; s.area *= fm.areaMul;
       }
-      if (inst.def.update) inst.def.update(world, this, inst, dt);
-      if (inst.def.cooldown) {
-        inst.t -= dt;
-        if (inst.t <= 0) { try { inst.def.fire(world, this, inst); } catch (e) { /* ignore */ } inst.t = (inst.def.cooldown(inst.level) || 1) / (haste * (fm ? fm.haste : 1)); }
+      try {
+        if (inst.def.update) inst.def.update(world, this, inst, dt);
+        if (inst.def.cooldown) {
+          inst.t -= dt;
+          if (inst.t <= 0) { inst.def.fire(world, this, inst); inst.t = (inst.def.cooldown(inst.level) || 1) / (haste * (fm ? fm.haste : 1)); }
+        }
+      } catch (e) { /* a buggy weapon must never freeze the loop or strand forge buffs */ }
+      finally {
+        if (snap) { s.damageMult = snap.dm; s.critChance = snap.cc; s.critMult = snap.cm; s.pierceAdd = snap.pa; s.area = snap.ar; }
+        world._curSrc = null;
       }
-      if (snap) { s.damageMult = snap.dm; s.critChance = snap.cc; s.critMult = snap.cm; s.pierceAdd = snap.pa; s.area = snap.ar; }
-      world._curSrc = null;
     }
   }
 
@@ -182,7 +186,7 @@ export class Player {
     else this.idleT = (this.idleT || 0) + dt;
     if (this.idleT > BALANCE.AFK_GRACE && world.time > 3) {
       this.afkAcc = (this.afkAcc || 0) + Math.max(BALANCE.AFK_DRAIN_MIN, this.stats.maxHp * BALANCE.AFK_DRAIN_FRAC) * dt;
-      if (this.afkAcc >= 1) { const n = Math.floor(this.afkAcc); this.afkAcc -= n; this.hp -= n; if (Math.random() < 0.3) world.particles.text(this.x, this.y - 18, '怠惰', { color: P.toxic, size: 10 }); if (this.hp <= 0) { this.hp = 0; this.die(world); } }
+      if (this.afkAcc >= 1) { const n = Math.floor(this.afkAcc); this.afkAcc -= n; this.hp -= n; if (world.onPlayerHit) world.onPlayerHit(n); if (Math.random() < 0.3) world.particles.text(this.x, this.y - 18, '怠惰', { color: P.toxic, size: 10 }); if (this.hp <= 0) { this.hp = 0; this.die(world); } }
     }
     world._curSrc = '被動技能';   // 原#16: attribute orbit/aura-style passive damage
     for (const h of this.hooks.update) h(this, dt, world);

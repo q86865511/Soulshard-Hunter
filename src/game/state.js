@@ -6,6 +6,7 @@ import { checkAchievements, reconcileUnlocks } from './content/achievements.js';
 import { restockSkinShop } from './content/skinshop.js';
 import { Audio } from '../engine/audio.js';
 import { setShakeEnabled } from '../engine/renderer.js';
+import { Net, queueCloudSave, postRunResult } from '../net/api.js';   // cloud save + leaderboard (offline-first)
 
 const SAVE_KEY = 'soulshard.save.v1';
 const SAVE_VERSION = 2;
@@ -88,13 +89,47 @@ export function loadMeta() {
 }
 
 export function saveMeta() {
-  try { localStorage.setItem(SAVE_KEY, JSON.stringify(META)); }
+  try { META.savedAt = Date.now(); localStorage.setItem(SAVE_KEY, JSON.stringify(META)); }   // savedAt = monotonic marker for cloud-vs-local conflict resolution
   catch (e) { console.warn('save failed', e); }
+  queueCloudSave(getMeta, SAVE_VERSION);   // debounced cloud push if logged in (no-op otherwise)
 }
 
 export function resetMeta() { META = DEFAULT_META(); saveMeta(); }
 
 export function getMeta() { return META; }
+
+// Replace the in-memory + local save with a cloud blob (used right after login),
+// reusing loadMeta()'s migration path so partial/old cloud saves are normalised.
+export function importMeta(obj) {
+  if (!obj || typeof obj !== 'object') return false;
+  try {
+    const prev = localStorage.getItem(SAVE_KEY);
+    if (prev) localStorage.setItem(SAVE_KEY + '.precloud.bak', prev);   // recoverable backup before clobbering local
+    localStorage.setItem(SAVE_KEY, JSON.stringify(obj));
+  } catch (e) { return false; }   // couldn't stage the blob → report failure (don't claim success)
+  loadMeta();
+  applySettings();
+  return true;
+}
+
+// After login: reconcile cloud vs local by the savedAt marker so a logged-in player
+// never silently loses NEWER guest progress to an OLDER cloud save (and vice-versa).
+// A .precloud.bak is written before any overwrite, so the result is always recoverable.
+export async function syncFromCloud() {
+  if (!Net.isLoggedIn()) return { ok: false };
+  try {
+    const r = await Net.getSave();
+    const cloud = r && r.meta;
+    if (cloud) {
+      const cloudSeq = cloud.savedAt || 0, localSeq = (META && META.savedAt) || 0;
+      if (cloudSeq >= localSeq) { return importMeta(cloud) ? { ok: true, pulled: true } : { ok: false }; }
+      await Net.putSave(getMeta(), SAVE_VERSION);   // local is newer → keep it, push up
+      return { ok: true, pushed: true, keptLocal: true };
+    }
+    await Net.putSave(getMeta(), SAVE_VERSION);      // fresh account → seed it with local progress
+    return { ok: true, pushed: true };
+  } catch (e) { return { ok: false, error: e && e.message }; }
+}
 
 // ---- base numbers ----------------------------------------------------------
 export function makeBaseStats() {
@@ -174,7 +209,7 @@ export function bankRun(run) {
   META.stats.reaperKills = (META.stats.reaperKills || 0) + (run.reaperKills || 0);
   META.stats.miniBossKills = (META.stats.miniBossKills || 0) + (run.miniKills || 0);
   if (run.cleared) META.stats.clears = (META.stats.clears || 0) + 1;
-  META.stats.deaths += 1;
+  if (!run.cleared) META.stats.deaths += 1;   // only a genuine loss is a death (was unconditional → every win counted as a death)
   // round-5 extra stats (task 2) + guild XP (task 5-3)
   META.stats.bestCharLevel = Math.max(META.stats.bestCharLevel || 0, run.level || 1);
   META.stats.bondsTriggered = (META.stats.bondsTriggered || 0) + ((run.bonds && run.bonds.length) || 0);
@@ -198,5 +233,18 @@ export function bankRun(run) {
   try { newAch = checkAchievements(META) || []; } catch (e) { /* ignore */ }
   try { restockSkinShop(META); } catch (e) { /* ignore */ }   // 5-6: fresh clothing-store stock next visit
   saveMeta();
+  // upload the run to the shared leaderboard (best-effort; score recomputed server-side)
+  try {
+    postRunResult({
+      kills: run.kills || 0,
+      stage: run.stage || run.floor || 1,
+      time_s: Math.floor(run.time || 0),
+      difficulty: run.difficulty || 1,
+      cleared: !!run.cleared,
+      reaper: !!(run.reaperKills > 0 || run.reaperSlain),
+      character: run.characterId || null,
+      biome: run.biomeId || null,
+    });
+  } catch (e) { /* ignore */ }
   return { newAchievements: newAch, newCharacters: newChars };   // for the results screen (原#1)
 }

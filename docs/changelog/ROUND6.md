@@ -1,0 +1,120 @@
+# Soulshard Hunter — 第六輪改版報告（Round 6）
+
+本輪聚焦三件事 + 一輪測試/平衡：
+
+1. **美化大廳地板**（醜陋的深色格線網格 → 拋光石板）
+2. **接入真實錄製配樂**（`assets/music/` 的 12 首 MP3，依遊戲狀態切換）
+3. **開始製作線上多人版本**——依 `docs/MULTIPLAYER_PLAN.md` 完成 **Phase 1：雲端地基**（帳號 + 雲端存檔 + 共享排行榜）
+4. **多代理 Workflow 測試 + 難度強化**（玩家希望遊戲「困難」）
+
+> 工程備註：沿用專案慣例——**程式碼/平衡稽核走 Workflow**（多名測試代理 → 對抗式逐條驗證 → 綜整），
+> **實機驗證走瀏覽器內 `preview_eval`**（代理無法直接驅動 Canvas）。後端另寫了**真正可跑的端對端測試**
+> （Fastify `inject()` + 記憶體 pool，18/18 通過），並用「假資料庫」啟動器在瀏覽器跑通**註冊→雲端存檔→上傳成績→排行榜**全鏈路。
+
+---
+
+## 1. 大廳地板美化
+
+**問題（玩家回報）：** 大廳地板顏色死板、每格右下角的深色「格線溝縫」（`floorLine #191b2e` 疊在 `#23263f` 上）形成一張很醜的網格，再加上每房間的色塊暈染（alpha 0.12）讓畫面更糊。
+
+**作法（只動城鎮、不碰 5 個生態地城）：**
+- 新增 `src/art/town_floor.js`：一組**拋光石板** sprite（`town_floor` / `town_floor2` / `town_floor3`）。基色提亮為藍石 `#39406a`，**溝縫改成極淡的接縫**（`#313761`，僅比基色深一點點）＋ 左上受光斜面，讀起來像「鋪好的石板」而非「黑色裂縫」；偶爾（~5%）出現一塊**魂晶徽紋鑲嵌**石板增添細節。另配一組乾淨的切石牆 `town_wall` / `town_wall_top`。
+- `world.js makeCamp()` 回傳值加上 `tileset` 指向上述 sprite——**生態地城仍用各自的 tileset，完全不受影響**（已驗證：crypt 局內仍是 `floor_crypt`）。
+- `scenes/hub.js`：每房間色塊暈染 alpha **0.12 → 0.05**，並擴大柔光半徑，改成「氛圍打光」而非「平塗色塊」。
+
+---
+
+## 2. 錄製配樂接入（12 首 MP3）
+
+`assets/music/` 放入 12 首實際樂曲（檔名含中文 + 空白，已用 `encodeURI` 正確載入；`tools/serve.mjs` 早已支援 `.mp3`）。
+
+**作法（`src/engine/audio.js`）：** 新增一層**串流式 HTMLAudio 播放器**——
+- 用 `<audio>` **串流**而非 `decodeAudioData`（避免把最大 12MB 的檔案整包解進記憶體）；只在需要某軌時才**惰性建立**該 `<audio>`，所以同時只下載當前曲目。
+- 狀態 → 曲目對照：
+
+| 狀態 | 曲目 |
+| --- | --- |
+| 標題 | 標題_Veil of Ashes |
+| 大廳 | 大廳_Hearthwell Bells |
+| 出擊（依生態） | 幽影地穴 / 水晶洞窟 / 霜寒冰原 / 熔岩深淵 / 虛空裂界 |
+| 小王 | 小頭目_Brass Sirens |
+| 最終首領 | 生態域主宰_Brass Furnace |
+| 死神 | 死神_Gravewheel Pulse |
+| 通關結算 | 勝利結算_Brass Banquet（播一次不循環） |
+| 死亡 | 死亡_Piano Blackout（播一次不循環） |
+
+- 切換狀態時**交叉淡入淡出**；尊重設定選單的音量/靜音（透過既有 `Audio.apply()` 同時控制 HTMLAudio 與原合成器）。
+- **保留原本的程序合成音樂作為後備**：任一 MP3 載入失敗（`mp3Ok=false`）即自動回退到合成器，遊戲不會沒聲音。
+- 瀏覽器自動播放限制：首次使用者手勢（`Audio.resume`）會重新觸發當前曲目播放。
+- 一個小坑已修：模組匯出的 `export const Audio` 會**遮蔽全域 `Audio` 建構子**，故改用 `document.createElement('audio')`。
+
+實機驗證：標題→`標題`、大廳→`大廳`、crypt 局內→`幽影地穴`、通關→`勝利結算`、死亡→`死亡`，皆正確切換且 `audio/mpeg` 正常串流。
+
+---
+
+## 3. 線上多人 Phase 1：雲端地基
+
+依 `docs/MULTIPLAYER_PLAN.md`「先地基、後合作」的既定決策，本輪完成 **Phase 1**（不含即時合作，零 netcode，可獨立上線）。
+
+### 後端（新資料夾 `server/`）
+- **Node + Fastify + PostgreSQL**，JWT 登入（bcryptjs 雜湊）、zod 輸入驗證、rate-limit、CORS。
+- 端點：`/api/register`・`/api/login`・`/api/me`・`GET|PUT /api/save`（整包 META 存成 JSONB）・`POST /api/runs`・`GET /api/leaderboard`（可依生態/難度/角色/週期/筆數篩選）・`/api/health`。
+- **伺服器權威計分（防作弊）：** `/api/runs` **忽略客戶端宣稱的分數**，用 `kills/stage/time/difficulty/reaper` 在伺服器**重算**（公式同 `run.js`）並對每個欄位設上限。
+- 啟動時 `CREATE TABLE IF NOT EXISTS`（冪等）；附 `Dockerfile` + `docker-compose.yml`（一鍵起 Postgres + API）。
+- **可測試重構：** `buildApp(pool)` 工廠不自行 listen，正式環境才自啟；附 `test/smoke.mjs`（Fastify `inject()` + 記憶體 pool）**18/18 通過**（註冊/重複/驗證/JWT 守門/存檔往返/分數重算/排行榜排序+篩選）。
+
+### 前端（最小侵入、離線優先）
+- `src/net/api.js`：fetch 包裝 + JWT 儲存；**未登入或連不上伺服器時全部安靜 no-op**，遊戲照樣用 localStorage（訪客模式）。dev（:5173）自動指向 `localhost:8787`，正式環境走同源 `/api`。
+- `src/net/ui.js`：右下角**帳號列**（登入/註冊/登出 + 🏆 排行榜）＋ 兩個 HTML overlay（登入/註冊表單、可篩選排行榜表格）。用真實 `<input>`（密碼遮罩）與可捲動表格，比 Canvas 手刻更合適。
+- `state.js` 三個接點：`loadMeta`/`importMeta`/`syncFromCloud`（登入後拉雲端存檔；新帳號則把本機進度上傳）、`saveMeta`（**防抖**同步上雲）、`bankRun`（完局上傳成績）。全部 best-effort，失敗不影響遊戲。
+
+實機驗證（用 `server/test/dev-fakedb.mjs` 起記憶體後端）：瀏覽器**註冊 → JWT 儲存 → 雲端存檔同步 → 完局上傳 → 排行榜顯示**全鏈路打通（CORS、JWT header、分數重算 2704 = 42×12+400+3×600 皆正確）。
+
+### 部署
+新增 `docs/DEPLOY_ORACLE.md`：Oracle OCI Always-Free（Ampere A1 / Ubuntu）一步步部署——**兩層防火牆**（雲端 Security List + VM iptables）、Docker 或 systemd 起後端、**Caddy 反向代理 + 自動 TLS** 同時供應靜態前端與 `/api`、端對端驗收。
+
+### Phase 2（即時合作）— 尚未動工
+仍依 `MULTIPLAYER_PLAN.md` §Phase 2 規劃（`players[]` 重構、輸入解耦、快照序列化、headless 伺服器模擬、ws 大廳、預測/內插）。本輪只建地基，**不半成品開工 Phase 2**。
+
+---
+
+## 4. 多代理測試 + 難度強化
+
+**Workflow `soulshard-qa`：64 個代理、~3.25M tokens、804 次工具呼叫**——10 名測試員各認領一個子系統（含本輪新增的 audio/net/server），逐條 **對抗式驗證**，再綜整出修正清單與「變難」方案。共 **53 項發現、52 項確認**。
+
+### 修掉的確認 bug（重點）
+| 嚴重度 | 子系統 | 問題 | 修法 |
+| --- | --- | --- | --- |
+| 高 | 核心戰鬥 | **連鎖爆炸/擊殺鉤** 殺死「陣列中較前」的怪時，那些怪被 filter 掉卻沒掉落/沒計分/沒觸發 on-kill（密集怪潮+炸彈怪下經常發生） | 死亡處理改成 **drain-to-fixed-point**（反覆掃到沒有未處理的死怪），再 filter |
+| 高 | 進度 | **每次通關都被記成一次死亡** → 灌水死亡數、誤觸「死 N 次」成就/被動 | `deaths` 只在 `!run.cleared` 時 +1 |
+| 高 | 進度 | **10 件內容被 LOCKED 但沒有任何解鎖來源**（永久拿不到，並連帶卡住兩個羈絆） | 在 achievements.js 補 10 條 `U(kind,id)` 解鎖成就；evolved 武器移出 LOCKED |
+| 高 | 音樂(新) | **放棄出擊回大廳時，生態曲殘留在大廳曲下方全音量播放**（交叉淡入清掉了 stopTrack 的淡出計時器） | 追蹤 `fadingEl`，crossfade 清計時器時先暫停它 |
+| 高 | 雲端(新) | **登入會用較舊的雲端存檔覆蓋較新的本機(訪客)進度**，且無備份 | 用 `savedAt` 單調標記比較新舊；覆蓋前寫 `.precloud.bak` |
+| 高 | 雲端(新) | **防抖存檔計時器跨帳號共用** → 可能把 A 的存檔推到 B 的雲端 | 換帳號即清計時器，並在送出時綁定當時的 token |
+| 高 | 伺服器(新) | 生產環境用 **committed 預設 JWT secret** 仍可開機（只警告） | 生產環境遇弱 secret **拒絕開機**；`jwt.verify` 鎖 `HS256`；compose 要求 secret |
+| 中 | 核心戰鬥 | 武器 `update()` **未被 try 包住**（只有 fire 有）→ 拋例外會**凍結整個遊戲迴圈**並讓鍛造增益殘留 | update 也包 try，數值還原移到 `finally` |
+| 中 | 跑圖 | 最終首領可能**疊在還活著的小王身上**生成，殺掉殘留小王會清掉 boss 狀態、解放怪潮 | finale 生成條件加 `&& !this.boss` |
+| 中 | 狀態 | DoT 重新施加會**把更強的 DoT 降級**（與「可疊加」描述矛盾）；玩家 DoT/掛機流血**不計入受傷**（可偽造無傷通關） | 重施取較強值；玩家 DoT/掛機傷害走 `onPlayerHit` |
+| 中 | 音樂(新) | 單一 MP3 載入失敗會**讓全部曲目停用**；失敗後不啟動後備 → 靜音 | 改 **per-track 失敗 Set**；當前曲失敗即啟動合成器後備 |
+| 中 | 雲端(新) | 過期 JWT 仍顯示已登入、背景同步默默失敗 | `isLoggedIn` 解析 exp；過期即登出 + toast |
+| 中 | 伺服器(新) | `/runs`、`/save` 用全域 120/min；`PUT /save` 無視版本盲蓋；密碼 >72 byte 被 bcrypt 截斷 | 各自 rate-limit；存檔用 `savedAt` 條件式更新；密碼上限 72 |
+| 低 | 多處 | 持久環繞/雷射武器的 **per-enemy 冷卻 Map 不回收**（長局記憶體膨脹） | 改 `WeakMap`（死怪自動回收） |
+
+（更低優先的純美化項目——大廳幻影捲軸、設施重置不回退武器解鎖等——本輪略過，列為已知小項。）
+
+### 難度強化（玩家希望「困難」）
+綜整稽核的關鍵洞察：**有些「平衡」問題其實是 bug**——**約 14 把 gen 武器漏掉了全域減傷 `PLAYER_DAMAGE_MULT`**、`ABILITY_DAMAGE_MULT`/`shardMult` 是**沒接線的死旋鈕**、**暴擊率無上限**（可堆到必爆與爆傷相乘）。先補這些漏洞，再讓怪更壯更痛、收緊回復/經濟，**難度集中在中後期與 meta 天花板，開局維持可玩**。
+
+| 項目 | 變更 | 用意 |
+| --- | --- | --- |
+| **武器減傷漏洞** | gen_weapons_a/b 的 roll **補上 `PLAYER_DAMAGE_MULT`** | 半數武器原本多打 ~18%，繞過了整個 sim 調校基準——補回對齊 |
+| **暴擊上限** | 新增 `CRIT_CAP 0.6`，所有暴擊判定夾住 | 無上限暴擊會與爆傷相乘、被 meta 推到必爆 |
+| **meta 傷害/暴擊/回復** | 天賦/設施 per-level 數值下修（傷害 4%→2.5%、利刃 6%→3.5%、暴擊精通 4%→2.5%、回復 0.3/0.4→0.2、戰術桌 4%→2%、`REGEN_MULT 0.72→0.6`） | 永久 meta 原可把輸出/回復翻倍、抹平難度；下修後仍是優勢但不再壓平天花板 |
+| **怪物傷害** | `ENEMY_DMG_MULT 1.08→1.15`；基礎怪 per-hit 成長上限 `2.2→3.0`、係數提高 | 接觸真正會痛，後期不再飽和（開局仍由 grace 緩衝） |
+| **首領傷害** | 小王/最終首領 dmgScale per-threat `0.05→0.10` | 首領血量隨關卡放大但傷害原本幾乎不漲＝海綿；現在會逐關升壓 |
+| **威脅天花板** | `THREAT_PERIOD 112→99` | 原本只到威脅 11（非文件宣稱的 ~13）→ 現在到 13，後期生成/首領/包圍同步升壓 |
+| **魂牢(D2+)** | 突圍門檻 `2→4` 殺、貼牆需**持續 0.6s**（非一幀）、收圈更快、滿額接觸傷害 | 招牌「必清」原本 1~2 秒就能溜走 |
+| **經濟** | `ANVIL_PRICE_GROWTH 1.2→1.35`；接上 `shardMult`（原本失效） | 收緊單局無上限堆能力值；魂晶收入�invil升價配套 |
+| **開局** | `EARLY_GRACE 140→120`（其餘維持） | 中期咬合稍早報到，開局仍可建立 build |
+
+> **平衡驗證方式：** 後端 `inject()` 端對端 **18/18 通過**；前端以 **瀏覽器內手動 pump**（godmode 完整性 6000+ tick **零例外**；非 godmode 站樁存活 D1 28s / D3 20s 證明「怪會咬人且 D3 比 D1 難」；kite+撿取 AI 多輪採樣）驗證**沒有崩潰、難度方向正確、D1 開局較前一輪只小幅提高**（難度主要落在中後期/meta，維持可通關）。`ABILITY_DAMAGE_MULT` 經實測會與武器漏洞修正**疊加過度**而把 D1 開局打太硬，故**刻意保留為未接線的預留旋鈕**。精細的 D1 通關曲線建議以真人試玩再微調。

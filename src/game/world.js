@@ -153,8 +153,9 @@ export class World {
     if (e.xp > 0) this.addPickup('xp', e.x, e.y, Math.round(e.xp * (this.player?.stats?.xpMult ?? 1)));
     const luck = this.player?.stats?.luck ?? 0;
     const dropM = BALANCE.DROP_CHANCE_MULT;
-    if (e.shard && Math.random() < e.shard * (1 + luck) * BALANCE.SHARD_DROP_MULT) this.addPickup('shard', e.x, e.y, e.boss ? 5 : 1);
-    else if (!e.boss && Math.random() < BALANCE.MOB_SHARD_BASE * (1 + luck * 0.5)) this.addPickup('shard', e.x, e.y, 1);   // 原#4: small mobs also drop shards
+    const sMul = this.player?.stats?.shardMult ?? 1;   // wire the (previously inert) shard-income stat into the payload
+    if (e.shard && Math.random() < e.shard * (1 + luck) * BALANCE.SHARD_DROP_MULT) this.addPickup('shard', e.x, e.y, Math.max(1, Math.round((e.boss ? 5 : 1) * sMul)));
+    else if (!e.boss && Math.random() < BALANCE.MOB_SHARD_BASE * (1 + luck * 0.5)) this.addPickup('shard', e.x, e.y, Math.max(1, Math.round(1 * sMul)));   // 原#4: small mobs also drop shards
     if (Math.random() < (e.boss ? 1 : (0.03 + luck * 0.03) * dropM)) this.addPickup('heart', e.x, e.y, e.boss ? 30 : 15);
     // 原#11: a slain thief coughs up everything it stole from you
     if (e.stolenGold > 0) this.addPickup('gold', e.x, e.y, e.stolenGold);
@@ -255,17 +256,24 @@ export class World {
     this.resolveCombat();
     if (this.hazards.length) this.updateHazards(dt);
 
-    // process enemy deaths
-    for (const e of this.enemies) {
-      if (e.dead && !e.processed) {
-        e.processed = true;
-        this.particles.death(e.x, e.y, e.def.bloodColor || P.green);
-        Sfx.play('kill');
-        if (e.def.deathBlast) this.bombBlast(e);
-        this.dropLoot(e);
-        this.run.kills = (this.run.kills || 0) + 1;
-        if (this.player) { this._curSrc = '被動技能'; for (const h of this.player.hooks.kill) h(e, this); this._curSrc = null; }   // 原#16
-        if (this.onEnemyKilled) this.onEnemyKilled(e);
+    // process enemy deaths — drain to a fixed point so chain kills (deathBlast /
+    // on-kill hooks) that landed at an already-iterated index still get fully
+    // processed (loot + XP/gold + kill count + hooks) before the dead are filtered.
+    let again = true;
+    while (again) {
+      again = false;
+      for (const e of this.enemies) {
+        if (e.dead && !e.processed) {
+          e.processed = true;
+          this.particles.death(e.x, e.y, e.def.bloodColor || P.green);
+          Sfx.play('kill');
+          if (e.def.deathBlast) this.bombBlast(e);
+          this.dropLoot(e);
+          this.run.kills = (this.run.kills || 0) + 1;
+          if (this.player) { this._curSrc = '被動技能'; for (const h of this.player.hooks.kill) h(e, this); this._curSrc = null; }   // 原#16
+          if (this.onEnemyKilled) this.onEnemyKilled(e);
+          again = true;
+        }
       }
     }
 
@@ -311,6 +319,9 @@ export class World {
   // area damage to enemies (used by abilities, explosions, bosses)
   dealAreaDamage(x, y, radius, damage, opts = {}) {
     let hits = 0;
+    // NOTE: BALANCE.ABILITY_DAMAGE_MULT is a RESERVED knob — left un-applied on purpose.
+    // The prior balance was sim-tuned with it inactive; activating it on top of the
+    // round-6 weapon-parity fix over-nerfed player DPS (swarm overwhelmed D1). Keep raw.
     for (const e of this.enemies) {
       if (e.dead || e.spawnT > 0) continue;
       const rr = radius + e.radius;
@@ -537,5 +548,7 @@ export function makeCamp() {
   // (N→guild, S→garden, W→blacksmith, E→achievements) so the "gates" line up with the openings
   put('town_arch', R.plaza, 0, -6.5); put('town_arch', R.plaza, 0, 6.5);
   put('town_arch', R.plaza, -8, 0); put('town_arch', R.plaza, 8, 0);
-  return { tw, th, tiles, floorVar, decor: D, rooms };
+  // polished town tileset (soft flagstone joints) instead of the dungeon's dark grid
+  const tileset = { floor: ['town_floor', 'town_floor2', 'town_floor3'], wall: 'town_wall', wallTop: 'town_wall_top' };
+  return { tw, th, tiles, floorVar, decor: D, rooms, tileset };
 }

@@ -54,6 +54,17 @@ const REWARDS = [
   { id: 'r5_shocknova', name: '雷霆收藏', desc: '累計出擊 30 次', check: (s) => (s.runs || 0) >= 30, prog: (s) => [s.runs || 0, 30], reward: U('items', 'it_shock_nova'), rewardLabel: '道具「震雷新星」' },
   { id: 'r5_coincache', name: '城鎮之友', desc: '與 6 位城鎮居民交談', check: (s) => (s.npcTalks || 0) >= 6, prog: (s) => [s.npcTalks || 0, 6], reward: U('items', 'ic_coin_cache'), rewardLabel: '道具「藏金匣」' },
   { id: 'r5_dragonscale', name: '龍鱗匠', desc: '累計通關 8 次', check: (s) => (s.clears || 0) >= 8, prog: (s) => [s.clears || 0, 8], reward: U('equipment', 'g_dragon_scale'), rewardLabel: '裝備「龍鱗甲」' },
+  // round-6: unlock sources for content that previously had NO grant path (was permanently unobtainable)
+  { id: 'r6_ricochet', name: '跳彈工藝', desc: '累計擊殺 2500 名敵人', check: (s) => (s.kills || 0) >= 2500, prog: (s) => [s.kills || 0, 2500], reward: U('weapons', 'g_ricochet'), rewardLabel: '武器「跳彈」' },
+  { id: 'r6_wc_ricochet', name: '連跳研究', desc: '累計擊殺 6000 名敵人', check: (s) => (s.kills || 0) >= 6000, prog: (s) => [s.kills || 0, 6000], reward: U('weapons', 'wc_ricochet'), rewardLabel: '武器「連跳彈」' },
+  { id: 'r6_glaser', name: '鐳射工程', desc: '達到威脅 11 級', check: (s) => (s.bestStage || 0) >= 11, prog: (s) => [s.bestStage || 0, 11], reward: U('equipment', 'g_laser'), rewardLabel: '裝備「鐳射砲」' },
+  { id: 'r6_doom', name: '末日散射', desc: '單局分數達 60000', check: (s) => (s.bestScore || 0) >= 60000, prog: (s) => [s.bestScore || 0, 60000], reward: U('equipment', 'ep_doom_scatter'), rewardLabel: '史詩裝備「末日散射」' },
+  { id: 'r6_prism', name: '稜光鍛造', desc: '累計通關 12 次', check: (s) => (s.clears || 0) >= 12, prog: (s) => [s.clears || 0, 12], reward: U('equipment', 'ep_prism_lance'), rewardLabel: '史詩裝備「稜光長槍」' },
+  { id: 'r6_infernobomb', name: '煉獄軍火', desc: '累計擊敗 30 名首領', check: (s) => (s.bossKills || 0) >= 30, prog: (s) => [s.bossKills || 0, 30], reward: U('items', 'g_inferno_bomb'), rewardLabel: '道具「煉獄炸彈」' },
+  { id: 'r6_toxic', name: '毒術蒐藏', desc: '累計擊殺 50 隻小王', check: (s) => (s.miniBossKills || 0) >= 50, prog: (s) => [s.miniBossKills || 0, 50], reward: U('items', 'ic_toxic_flask'), rewardLabel: '道具「劇毒燒瓶」' },
+  { id: 'r6_static', name: '靜電力場', desc: '單局角色等級達 30', check: (s) => (s.bestCharLevel || 0) >= 30, prog: (s) => [s.bestCharLevel || 0, 30], reward: U('abilities', 'ac_static_field'), rewardLabel: '被動「靜電力場」' },
+  { id: 'r6_blink', name: '閃現大師', desc: '累計出擊 50 次', check: (s) => (s.runs || 0) >= 50, prog: (s) => [s.runs || 0, 50], reward: U('abilities', 'g_blink_master'), rewardLabel: '被動「閃現大師」' },
+  { id: 'r6_titan', name: '泰坦詛咒', desc: '累計擊殺死神 5 次', check: (s) => (s.reaperKills || 0) >= 5, prog: (s) => [s.reaperKills || 0, 5], reward: U('abilities', 'curse_titan'), rewardLabel: '詛咒被動「泰坦詛咒」（並啟用嗜血/玻璃羈絆）' },
 ];
 // helper: highest single-hero clear count (for "clear N times with one hero")
 function maxCharClears(s) { const c = s && s.charClears; if (!c) return 0; let m = 0; for (const k in c) if (c[k] > m) m = c[k]; return m; }

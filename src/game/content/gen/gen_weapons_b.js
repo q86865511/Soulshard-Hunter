@@ -8,6 +8,9 @@ import { getSprite, defineSprite, defineAnim, Painter } from '../../../engine/sp
 import { defineIcon, panel, sym } from '../../../art/icons.js';
 import { drawSlime, drawBat, drawWisp, drawBrute, drawHunter } from '../../../art/core.js';
 import { Sfx } from '../../../engine/audio.js';
+import { BALANCE } from '../../balance.js';
+// resilient ref (the integrator's MEGA_HEADER can strip the import on re-integrate)
+const GB_BAL = (typeof BALANCE !== 'undefined') ? BALANCE : { PLAYER_DAMAGE_MULT: 0.85, CRIT_CAP: 0.6 };
 
 // ===== gen_weapons_b — 6 auto-attack weapons (file body; no import/export) =====
 // Bindings assumed present: Weapons, Projectile, P, withAlpha, lighten, darken, mix,
@@ -15,8 +18,8 @@ import { Sfx } from '../../../engine/audio.js';
 // drawSprite, getSprite.
 
 const _gwbRoll = (p, base) => {
-  const crit = Math.random() < (p.stats.critChance || 0);
-  return { dmg: base * (p.stats.damageMult || 1) * (crit ? (p.stats.critMult || 2) : 1) * (0.9 + Math.random() * 0.2), crit };
+  const crit = Math.random() < Math.min(GB_BAL.CRIT_CAP, p.stats.critChance || 0);
+  return { dmg: base * GB_BAL.PLAYER_DAMAGE_MULT * (p.stats.damageMult || 1) * (crit ? (p.stats.critMult || 2) : 1) * (0.9 + Math.random() * 0.2), crit };  // bal: was missing the global PLAYER_DAMAGE_MULT nerf
 };
 const _gwbAlive = (w) => w.enemies.filter((e) => !e.dead && e.spawnT <= 0);
 const _gwbNearest = (w, x, y, n, maxD = 250) => {   // 原#5: shorter range + line-of-sight
@@ -90,7 +93,7 @@ Weapons.register({
   id: 'g_laserbeam', name: '裂光雷射砲', icon: 'weapon_g_laserbeam', tier: 3, weight: 6, maxLevel: 8,
   update(w, p, inst, dt) {
     const l = inst.level;
-    inst.st.cd = inst.st.cd || new Map();
+    inst.st.cd = inst.st.cd || new WeakMap();   // WeakMap: per-enemy hit cooldowns, GC'd with the enemy (no unbounded growth)
     inst.st.t = (inst.st.t || 0) - dt;
     inst.st.beams = inst.st.beams || [];
     // sweep target & aim
@@ -289,7 +292,7 @@ Weapons.register({
     const n = 2 + Math.floor(l * 0.8);
     const R = (32 + l * 4) * (p.stats.area || 1);
     inst.st.a = (inst.st.a || 0) + dt * 2.2;
-    inst.st.cd = inst.st.cd || new Map();
+    inst.st.cd = inst.st.cd || new WeakMap();   // WeakMap: per-enemy hit cooldowns, GC'd with the enemy (no unbounded growth)
     for (let i = 0; i < n; i++) {
       const a = inst.st.a + i / n * TAU;
       const ox = p.x + Math.cos(a) * R, oy = p.y + Math.sin(a) * R;

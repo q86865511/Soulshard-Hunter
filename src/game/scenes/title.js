@@ -6,6 +6,7 @@ import { uiText, uiScale, view, drawSpriteUI, vignette, ctxRaw } from '../../eng
 import { getSprite, frameAt } from '../../engine/sprites.js';
 import { pressed, mouse } from '../../engine/input.js';
 import { P, withAlpha } from '../../engine/palette.js';
+import { Music } from '../../engine/audio.js';
 import { settingsUI } from '../ui/settings.js';
 
 const AMBIENT = [
@@ -16,7 +17,7 @@ const AMBIENT = [
 ];
 
 export const titleScene = {
-  enter() { this.t = 0; },
+  enter() { this.t = 0; Music.setMode('title'); },
   update(dt) {
     this.t += dt;
     if (settingsUI.open) { settingsUI.update(); return; }

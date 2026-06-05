@@ -28,7 +28,7 @@ function makeEquipWeaponDef(eq) {
       for (let i = 0; i < count; i++) {
         const off = count > 1 ? (i / (count - 1) - 0.5) * spread * count : 0;
         const a = base + off + (Math.random() - 0.5) * 0.04;
-        const crit = Math.random() < (p.stats.critChance || 0);
+        const crit = Math.random() < Math.min(0.6, p.stats.critChance || 0);   // BALANCE.CRIT_CAP
         const dmg = (w.damage || 8) * (p.stats.damageMult || 1) * (crit ? (p.stats.critMult || 2) : 1) * (0.92 + Math.random() * 0.16);
         world.addProjectile(new Projectile({
           x: p.x, y: p.y, vx: Math.cos(a) * (w.projSpeed || 200), vy: Math.sin(a) * (w.projSpeed || 200),

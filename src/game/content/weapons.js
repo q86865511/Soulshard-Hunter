@@ -30,7 +30,7 @@ function nearestN(world, x, y, n, maxD = BALANCE.AIM_RANGE) {
   return r.slice(0, n).map((p) => p[1]);
 }
 function roll(p, base) {
-  const crit = Math.random() < (p.stats.critChance || 0);
+  const crit = Math.random() < Math.min(BALANCE.CRIT_CAP, p.stats.critChance || 0);
   return { dmg: base * BALANCE.PLAYER_DAMAGE_MULT * (p.stats.damageMult || 1) * (crit ? (p.stats.critMult || 2) : 1) * (0.92 + Math.random() * 0.16), crit };
 }
 const faceA = (p) => Math.atan2(p.faceY || 0, p.faceX || 1);
@@ -78,7 +78,7 @@ W({
   update(world, p, inst, dt) {
     const l = inst.level, n = 2 + Math.floor(l * 0.7), R = 30 + l * 3;
     inst.st.a = (inst.st.a || 0) + dt * 2.6;
-    inst.st.cd = inst.st.cd || new Map();
+    inst.st.cd = inst.st.cd || new WeakMap();   // WeakMap: dead enemies are GC'd, so this can't grow unbounded over a long run
     for (let i = 0; i < n; i++) {
       const a = inst.st.a + i / n * TAU, ox = p.x + Math.cos(a) * R, oy = p.y + Math.sin(a) * R;
       for (const e of world.enemies) {

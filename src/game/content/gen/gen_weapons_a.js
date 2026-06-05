@@ -8,6 +8,9 @@ import { getSprite, defineSprite, defineAnim, Painter } from '../../../engine/sp
 import { defineIcon, panel, sym } from '../../../art/icons.js';
 import { drawSlime, drawBat, drawWisp, drawBrute, drawHunter } from '../../../art/core.js';
 import { Sfx } from '../../../engine/audio.js';
+import { BALANCE } from '../../balance.js';
+// resilient ref (the integrator's MEGA_HEADER can strip the import on re-integrate)
+const GA_BAL = (typeof BALANCE !== 'undefined') ? BALANCE : { PLAYER_DAMAGE_MULT: 0.85, CRIT_CAP: 0.6 };
 
 // gen_weapons_a — 6 auto-fire weapons + 2 evolutions, with icons & fx sprites.
 // File-body form (no import/export). All bindings provided by MEGA_HEADER.
@@ -20,8 +23,8 @@ function gNearestN(world, x, y, n, maxD = 250) {   // 原#5: shorter range + lin
   return r.slice(0, n).map((q) => q[1]);
 }
 function gRoll(p, base) {
-  const crit = Math.random() < (p.stats.critChance || 0);
-  return { dmg: base * (p.stats.damageMult || 1) * (crit ? (p.stats.critMult || 2) : 1) * (0.92 + Math.random() * 0.16), crit };
+  const crit = Math.random() < Math.min(GA_BAL.CRIT_CAP, p.stats.critChance || 0);
+  return { dmg: base * GA_BAL.PLAYER_DAMAGE_MULT * (p.stats.damageMult || 1) * (crit ? (p.stats.critMult || 2) : 1) * (0.92 + Math.random() * 0.16), crit };  // bal: was missing the global PLAYER_DAMAGE_MULT nerf
 }
 const gFaceA = (p) => Math.atan2(p.faceY || 0, p.faceX || 1);
 
@@ -94,7 +97,7 @@ Weapons.register({
           const last = b.hits.get(e) || 0;
           if (world.time > last) {
             b.hits.set(e, world.time + 0.28);
-            const crit = Math.random() < (p.stats.critChance || 0);
+            const crit = Math.random() < Math.min(GA_BAL.CRIT_CAP, p.stats.critChance || 0);
             const d = b.dmg * (crit ? (p.stats.critMult || 2) : 1);
             const kb = 24 * (p.stats.knockbackMult || 1);
             e.hurt(d, Math.cos(b.a) * kb, Math.sin(b.a) * kb, world, crit);
@@ -147,8 +150,8 @@ Weapons.register({
         }
       }
       if (trigger) {
-        const crit = Math.random() < (p.stats.critChance || 0);
-        const d = m.dmg * (p.stats.damageMult || 1) * (crit ? (p.stats.critMult || 2) : 1);
+        const crit = Math.random() < Math.min(GA_BAL.CRIT_CAP, p.stats.critChance || 0);
+        const d = m.dmg * GA_BAL.PLAYER_DAMAGE_MULT * (p.stats.damageMult || 1) * (crit ? (p.stats.critMult || 2) : 1);
         world.spawnExplosion(m.x, m.y, m.blast, P.ember, d, { knockback: 120 * (p.stats.knockbackMult || 1) });
         mines.splice(i, 1);
       }

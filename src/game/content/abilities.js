@@ -73,7 +73,7 @@ A({
   id: 'orbit', name: '環繞魂衛', tier: 3, weight: 3, maxStacks: 3, desc: '召喚環繞的魂晶持續傷害敵人',
   apply: (p, run, lvl) => {
     if (lvl === 1) {
-      p.extra.orbitT = 0; p.extra.orbitCd = new Map();
+      p.extra.orbitT = 0; p.extra.orbitCd = new WeakMap();   // WeakMap: per-enemy hit cooldowns, auto-evicted when the enemy dies
       p.hooks.update.push((pl, dt, w) => {
         const lv = run.abilityLevels.orbit || 1;
         const n = lv + 1;

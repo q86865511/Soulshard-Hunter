@@ -14,14 +14,14 @@ const T = (o) => Talents.register(o);
 const cost = (base, growth = 1.7) => (lvl) => Math.round(base * Math.pow(growth, lvl));
 
 // offense ------------------------------------------------------------------
-T({ id: 't_damage', name: '鋒銳', desc: '基礎傷害 +4%/級', branch: 'offense', row: 0, maxLevel: 8, icon: 'talent_t_damage', cost: cost(45), apply: (s, l) => s.damageMult *= 1 + 0.04 * l });
+T({ id: 't_damage', name: '鋒銳', desc: '基礎傷害 +2.5%/級', branch: 'offense', row: 0, maxLevel: 8, icon: 'talent_t_damage', cost: cost(45), apply: (s, l) => s.damageMult *= 1 + 0.025 * l });
 T({ id: 't_firerate', name: '連射', desc: '射速 +3.5%/級', branch: 'offense', row: 1, maxLevel: 6, icon: 'talent_t_firerate', cost: cost(60), apply: (s, l) => s.fireRateMult *= 1 + 0.035 * l });
-T({ id: 't_crit', name: '致命', desc: '暴擊率 +2%/級', branch: 'offense', row: 2, maxLevel: 6, icon: 'talent_t_crit', cost: cost(75), apply: (s, l) => s.critChance += 0.02 * l, requires: ['t_damage'] });
+T({ id: 't_crit', name: '致命', desc: '暴擊率 +1.5%/級', branch: 'offense', row: 2, maxLevel: 6, icon: 'talent_t_crit', cost: cost(75), apply: (s, l) => s.critChance += 0.015 * l, requires: ['t_damage'] });
 
 // defense ------------------------------------------------------------------
 T({ id: 't_hp', name: '強健', desc: '生命上限 +10/級', branch: 'defense', row: 0, maxLevel: 8, icon: 'talent_t_hp', cost: cost(45), apply: (s, l) => s.maxHp += 10 * l });
 T({ id: 't_armor', name: '護甲', desc: '減傷 +1/級', branch: 'defense', row: 1, maxLevel: 5, icon: 'talent_t_armor', cost: cost(70), apply: (s, l) => s.defense += l });
-T({ id: 't_regen', name: '回復', desc: '每秒回復 +0.3/級', branch: 'defense', row: 2, maxLevel: 5, icon: 'talent_t_regen', cost: cost(80), apply: (s, l) => s.hpRegen += 0.3 * l, requires: ['t_hp'] });
+T({ id: 't_regen', name: '回復', desc: '每秒回復 +0.2/級', branch: 'defense', row: 2, maxLevel: 5, icon: 'talent_t_regen', cost: cost(80), apply: (s, l) => s.hpRegen += 0.2 * l, requires: ['t_hp'] });
 
 // utility ------------------------------------------------------------------
 T({ id: 't_speed', name: '敏捷', desc: '移動速度 +3%/級', branch: 'utility', row: 0, maxLevel: 6, icon: 'talent_t_speed', cost: cost(50), apply: (s, l) => s.speed *= 1 + 0.03 * l });

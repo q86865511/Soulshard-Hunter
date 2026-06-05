@@ -7,7 +7,7 @@
 export const LOCKED = {
   weapons: [
     'w_homing', 'w_lightning', 'wc_turret', 'wc_beam',                 // 原#6
-    'w_soulstorm', 'w_inferno', 'g_laserbeam', 'g_blackhole',          // round-5
+    'g_laserbeam', 'g_blackhole',                                      // round-5 (evolved w_soulstorm/w_inferno dropped — they never consult isUnlocked)
     'g_halo', 'g_ricochet', 'g_dartfan', 'wc_cone', 'wc_ricochet',
   ],
   abilities: [

@@ -12,25 +12,25 @@ import { Projectile } from '../../projectile.js';
 Talents.register({
   id: "g_keenedge",
   name: "利刃",
-  desc: "鍛鍊刃鋒，每級永久提升 6% 傷害。",
+  desc: "鍛鍊刃鋒，每級永久提升 3.5% 傷害。",
   branch: "offense",
   row: 0,
   maxLevel: 5,
   cost: (lvl)=> Math.round(50 * Math.pow(1.55, lvl)),
-  apply: (s, l)=>{ s.damageMult *= 1 + 0.06 * l; }
+  apply: (s, l)=>{ s.damageMult *= 1 + 0.035 * l; }
 });
 
 // offense row1: 暴擊精通 - 增加暴擊率與暴擊傷害（需先點利刃）
 Talents.register({
   id: "g_critmaster",
   name: "暴擊精通",
-  desc: "鑽研致命一擊，每級增加 4% 暴擊率與 8% 暴擊傷害。",
+  desc: "鑽研致命一擊，每級增加 2.5% 暴擊率與 8% 暴擊傷害。",
   branch: "offense",
   row: 1,
   maxLevel: 4,
   cost: (lvl)=> Math.round(80 * Math.pow(1.6, lvl)),
   requires: ["g_keenedge"],
-  apply: (s, l)=>{ s.critChance += 0.04 * l; s.critMult += 0.08 * l; }
+  apply: (s, l)=>{ s.critChance += 0.025 * l; s.critMult += 0.08 * l; }
 });
 
 // --- DEFENSE 防禦系 ---

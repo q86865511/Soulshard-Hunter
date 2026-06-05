@@ -20,10 +20,12 @@ export function applyStatus(target, type, world, opts = {}) {
   if (target.boss && CONTROL[type]) dur *= BALANCE.BOSS_CONTROL_RESIST;   // bosses resist hard CC
   if (!target.status) target.status = {};
   const cur = target.status[type];
+  const newDps = opts.dps ?? def.dps ?? 0;
+  const newMult = opts.mult ?? def.mult ?? 1;
   target.status[type] = {
     t: Math.max(cur ? cur.t : 0, dur),
-    dps: opts.dps ?? def.dps ?? 0,
-    mult: opts.mult ?? def.mult ?? 1,
+    dps: Math.max(cur ? cur.dps : 0, newDps),            // refresh to the STRONGER DoT ('可疊加' text) — never downgrade an active one
+    mult: cur ? Math.min(cur.mult, newMult) : newMult,   // stronger slow = lower mult
     acc: cur ? cur.acc : 0,
   };
   if (type === 'knockup') target.hop = Math.max(target.hop || 0, Math.min(0.6, dur));
@@ -47,6 +49,7 @@ export function tickStatus(target, dt, world) {
         if (e.acc >= 1) {
           const d = Math.floor(e.acc); e.acc -= d;
           if (world && typeof target.die !== 'function') world.attributeDamage('持續傷害', d);   // 原#16: DoT on enemies only
+          else if (world && world.onPlayerHit) world.onPlayerHit(d);   // player DoT counts as a hit (flawless / no-hit accounting can't be faked)
           target.hp -= d;
           if (target.flash !== undefined) target.flash = Math.max(target.flash, 0.05);
           if (world && world.particles && Math.random() < 0.5)

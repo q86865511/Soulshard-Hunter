@@ -525,13 +525,14 @@ export const hubScene = {
   render() {
     const S = uiScale();
     this.world.draw();
-    // task-6: a translucent themed floor WASH per room (+ a soft accent glow) so each region
-    // reads as its own coloured space instead of one flat grey hall. Cheap: 1 rect + 1 glow/room.
+    // task-6: a gentle themed wash per room so each region reads as its own space.
+    // Kept subtle (low-alpha rect + a broad soft glow) so the polished flagstone shows
+    // through as ambient lighting rather than a flat colour slab over a grid.
     for (const id in this.rooms) {
       const rm = this.rooms[id]; const col = ROOM_THEME[id]; if (!col) continue;
       const a = worldToScreen(rm.x0 + TS, rm.y0 + TS), b = worldToScreen(rm.x1 - TS, rm.y1 - TS);
-      uiRect(a.x, a.y, b.x - a.x, b.y - a.y, withAlpha(col, 0.12));
-      glowWorld(rm.cx, rm.cy, 64, col, 0.06);
+      uiRect(a.x, a.y, b.x - a.x, b.y - a.y, withAlpha(col, 0.05));
+      glowWorld(rm.cx, rm.cy, 130, col, 0.05);
     }
     // stations + hero + npcs
     for (const s of this.stations) {

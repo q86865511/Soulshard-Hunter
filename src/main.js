@@ -2,7 +2,7 @@
 import { initRenderer, clear, updateCamera, worldToScreen, view } from './engine/renderer.js';
 import { initInput, endFrameInput, pressed } from './engine/input.js';
 import { startLoop } from './engine/loop.js';
-import { Audio } from './engine/audio.js';
+import { Audio, musicDebug } from './engine/audio.js';
 import { setScene, updateActive, renderActive, applyPending, getScene } from './game/scene.js';
 import { loadMeta, getMeta, newRun, applySettings } from './game/state.js';
 import { registryStats, Enemies } from './game/content/registry.js';
@@ -17,6 +17,7 @@ import './art/biomes.js';
 import './art/hub.js';
 import './art/lobby.js';
 // round-5 town art (multi-room hub: NPCs + room decor)
+import './art/town_floor.js';   // polished hub flooring + walls (replaces the dungeon grid)
 import './art/town_npcs_a.js';
 import './art/town_npcs_b.js';
 import './art/town_church.js';
@@ -38,6 +39,7 @@ import './art/gen/index.js';
 import './game/content/gen/index.js';
 
 import { refs } from './game/scenes/refs.js';
+import { initNet } from './net/ui.js';   // cloud account bar + leaderboard (Phase 1)
 import { initCheats } from './game/cheats.js';
 import './game/scenes/run.js';
 import './game/scenes/hub.js';
@@ -55,6 +57,7 @@ function boot() {
   loadMeta();
   applySettings();
   initCheats();
+  try { initNet(); } catch (e) { /* cloud UI is optional; never block boot */ }
   setLoad(100);
 
   setScene(refs.title, {});
@@ -70,8 +73,12 @@ function boot() {
 
   // debug surface for self-testing
   window.__DBG = {
-    scene: getScene, meta: getMeta, reg: registryStats,
+    scene: getScene, meta: getMeta, reg: registryStats, music: musicDebug,
     enemyIds: () => Enemies.ids(),
+    // navigate scenes directly (headless rAF is throttled, so input-driven swaps are unreliable)
+    nav(name) { setScene(refs[name] || refs.title, name === 'run' ? { run: newRun() } : {}); applyPending(); return name; },
+    // manually pump N sim frames + one render (for screenshots under throttled rAF)
+    pump(n = 1, dt = 1 / 60) { for (let i = 0; i < n; i++) { updateActive(dt); updateCamera(dt); endFrameInput(); } clear(); renderActive(); return n; },
     startRun() { setScene(refs.run, { run: newRun() }); applyPending(); return 'run'; },
     autoplay(secs = 15) {
       const cv = document.getElementById('game');

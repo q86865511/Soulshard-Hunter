@@ -24,12 +24,12 @@ _gF({
   applyRun: (run, l) => { run.stats.shardMult *= 1 + 0.08 * l; run.shards += 4 * l; },
 });
 _gF({
-  id: 'g_camp_quartermaster', name: '補給營', desc: '每次出擊 額外 +1 升級選擇/級，並獲得生命回復 +0.4/秒/級',
+  id: 'g_camp_quartermaster', name: '補給營', desc: '每次出擊 額外 +1 升級選擇/級，並獲得生命回復 +0.2/秒/級',
   maxLevel: 3, icon: 'facility_g_camp_quartermaster', cost: _gCost,
-  applyRun: (run, l) => { run.startBonusLevels = (run.startBonusLevels || 0) + l; run.stats.hpRegen += 0.4 * l; },
+  applyRun: (run, l) => { run.startBonusLevels = (run.startBonusLevels || 0) + l; run.stats.hpRegen += 0.2 * l; },
 });
 _gF({
-  id: 'g_camp_wartable', name: '戰術圖桌', desc: '每次出擊 起始傷害 +4%/級，暴擊率 +1.5%/級',
+  id: 'g_camp_wartable', name: '戰術圖桌', desc: '每次出擊 起始傷害 +2%/級，暴擊率 +1.5%/級',
   maxLevel: 4, icon: 'facility_g_camp_wartable', cost: _gCost,
-  applyRun: (run, l) => { run.stats.damageMult *= 1 + 0.04 * l; run.stats.critChance += 0.015 * l; },
+  applyRun: (run, l) => { run.stats.damageMult *= 1 + 0.02 * l; run.stats.critChance += 0.015 * l; },
 });

@@ -12,7 +12,7 @@ export const BALANCE = {
   MINIBOSS_TIMES: [5 * 60, 10 * 60, 15 * 60], // a DISTINCT mini-boss every 5 min
   BIGBOSS_TIME: 20 * 60,                     // the level's final boss at 20:00
   REAPER_DELAY: 30,                          // killable Reaper 30s after big boss dies
-  THREAT_PERIOD: 112,                        // sec per +1 threat (sim: slower ramp for a fairer curve)
+  THREAT_PERIOD: 99,                         // round-6: ceiling now hits the documented ~13 (was 112 → capped at 11) + brisker ramp
   // The Reaper is the hidden ENDGAME superboss — a huge DPS check that only a heavily
   // stacked build can out-damage (hpScale = (BASE + threat*PER) * diffMul). Damage is
   // high but tempered so a stacked/defensive build survives a few hits (not a one-shot).
@@ -33,12 +33,13 @@ export const BALANCE = {
   LIFESTEAL_CAP: 0.15,                       // 原#12: hard cap lowered (was 0.20)
   DODGE_MULT: 0.5,                           // dodge effectiveness (was too strong)
   DODGE_CAP: 0.32,                           // 原#12: dodge cap lowered (was 0.35)
-  REGEN_MULT: 0.72,                          // 原#12: hpRegen scale (sim: regen/lifesteal builds dominated the top end)
+  REGEN_MULT: 0.6,                           // round-6: regen builds out-healed the swarm — base now sits just under the AFK idle drain
+  CRIT_CAP: 0.6,                             // round-6: cap total crit chance (uncapped stacking → guaranteed crit compounding critMult)
   DEFENSE_MULT: 0.9,                         // 原#12: flat-defense scale (eased from 0.85 after sim)
 
   // ---- enemy buffs (D1 / 原#6, E3 / 原#17) ------------------------------
   ENEMY_HP_MULT: 1.45,                        // round-5 task-11: beefier mobs (was 1.15) — they linger, so the swarm stays thick
-  ENEMY_DMG_MULT: 1.08,                       // round-5 task-11: a touch more bite (was 1.0); the THREAT is the SWARM COUNT, not per-hit dmg, so D1 stays clearable (D2-D5 diffMul adds the real sting)
+  ENEMY_DMG_MULT: 1.15,                       // round-6: contact bites more (was 1.08) but not brutal in the opening; threat-dmgScale + diffMul carry the late game / D2-D5
   BOSS_HP_MULT: 1.3,                         // boss HP up (on top of per-boss scaling)
   BOSS_DMG_MULT: 1.35,                       // boss damage up
   ENEMY_SPEEDUP_PER_MIN: 0.05,               // enemies move faster over time (D4)
@@ -53,7 +54,7 @@ export const BALANCE = {
 
   // ---- soulshard shop (C1 / C3) — prices LOWERED, esp. the stat anvils -----
   ANVIL_BASE_PRICE: 26,                       // base soulshard cost of a stat anvil (was 40-55)
-  ANVIL_PRICE_GROWTH: 1.2,                    // price multiplier per anvil bought (was 1.3)
+  ANVIL_PRICE_GROWTH: 1.35,                   // round-6: throttle unlimited in-run stat stacking (was 1.2; the dense swarm bankrolled too many)
   GEAR_ANVIL_BASE_PRICE: 60,                  // base soulshard cost of an equipment anvil (#3: 3-choice)
   GEAR_ANVIL_GROWTH: 1.25,
 
@@ -68,14 +69,14 @@ export const BALANCE = {
   // by backing into a wall. The lock slowly tightens so the circle visibly collapses.
   SURROUND_PERIOD: [40, 26],                  // [base, +random] sec between surround events
   SURROUND_COUNT_BASE: 10,                    // ring size (+ ~0.5/threat). Fewer than before — you only need a gap
-  SURROUND_HP_MULT: 3.2,                      // tanky but killable: you must drop ~2 to open a gap
-  SURROUND_DMG_MULT: 0.8,
+  SURROUND_HP_MULT: 3.2,                      // tanky but killable: you must drop a few to open a gap
+  SURROUND_DMG_MULT: 1.0,                     // round-6: full contact damage inside the 魂牢 (was 0.8)
   SURROUND_RADIUS: 175,                       // starting ring radius (tighter than the old 210)
   SURROUND_SPEED_MULT: 0.85,                  // task-4: they ACTIVELY close in (was a 0.45 crawl)
   SURROUND_MUST_CLEAR: true,                  // hold the player in the kill-zone until they breach
-  SURROUND_BREACH_KILLS: 2,                   // task-4: kill this many to carve an escape gap
-  SURROUND_CLOSE_SPEED: 6,                    // px/sec the lock radius shrinks (the ring tightening)
-  SURROUND_LOCK_MIN: 150,                     // ...but never tighter than this
+  SURROUND_BREACH_KILLS: 4,                   // round-6: a real must-clear (was 2 → escaped in ~1s)
+  SURROUND_CLOSE_SPEED: 10,                   // round-6: ring collapses faster (was 6)
+  SURROUND_LOCK_MIN: 120,                     // round-6: tighter kill-zone (was 150)
   SURROUND_LIFE: 22,                          // safety timeout so it can never soft-lock
 
   // ---- auto-aim (原#5): shorter range + line-of-sight ------------------
@@ -94,8 +95,8 @@ export const BALANCE = {
   SPAWN_CAP_MAX: 260,                         // hard ceiling (was 115 — late game is a sea of enemies)
   SPAWN_INTERVAL_BASE: 1.25,                  // base seconds between spawn groups (was 2.0 — groups arrive twice as often)
   SPAWN_INTERVAL_MIN: 0.3,                    // fastest spawn interval (was 0.55)
-  EARLY_GRACE: 140,                           // sec of softened spawns + hits at run start (task-11: longer on-ramp so a fresh build survives the denser swarm)
-  EARLY_DMG_GRACE: 0.5,                        // enemy contact/projectile damage scaled to this at t=0, ramping to 1 by EARLY_GRACE (sim: cut early-death rate)
+  EARLY_GRACE: 120,                           // round-6: slightly shorter on-ramp (was 140) — mid-game bite arrives a touch sooner, opening stays survivable
+  EARLY_DMG_GRACE: 0.5,                        // keep the gentle opening (the difficulty lives in the mid/late game, not a brutal start)
 
   // ---- Higgs zoning bombard (D3 / 原#7) ---------------------------------
   HIGGS_DURATION: 11,                         // the bombard event lasts this long
