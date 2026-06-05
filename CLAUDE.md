@@ -41,13 +41,19 @@ src/
 tools/  serve.mjs  integrate.mjs  (_wf_*/_*.mjs are gitignored scratch)
 ```
 
+## Balance config (src/game/balance.js)
+ALL difficulty / economy / pacing / status / map magic numbers live in `BALANCE` (one object) — tune there, not in gameplay code. Also exports `weaponMaxLevel`/`isWeaponMaxed` (weapons cap at **level 7**; character level is uncapped). Status effects live in `src/game/status.js` (`applyStatus`/`tickStatus`), enemy→player status tags in `content/status_tags.js`, achievement-gated unlocks in `content/unlocks.js`, the hidden dev cheat in `src/game/cheats.js` (Konami code → in-run dev panel; `window.__CHEATS`).
+
 ## Core loop (run.js)
-A run = **one biome, 30 minutes** (`LEVEL_TIME`) at a chosen **difficulty** (`run.difficulty`/`diffMul`).
-- **Threat** `this.threat` ramps 1→~13 over 30 min and drives enemy tier + scaling. Only **1-3 enemy types** active at once (`rotateTypes`). Mid-run **boss events** (`spawnBossEvent`).
-- **Hazards** = `world.hazards` (HAZ table). **Special events** (`eventsTick`/`updateEvents`/`drawEvents`): mushrooms / shrink-zone / bombard.
-- **Finale:** last 4 min = closing ring (`finalTick`/`finalZone`); at 30:00 the biome's `FINAL_BOSS` spawns; killing it → `onLevelClear` (unlock next biome + difficulty, `META.levels`).
-- **Caps (no infinite pile-up):** weapons 6 / passives 14 (`MAX_WEAPONS`/`MAX_PASSIVES` in progression.js); enemy hp/dmg + hazard/event damage scaling are clamped.
+A run = **one biome, 20 minutes** (`BALANCE.LEVEL_TIME`) at a chosen **difficulty** (`run.difficulty`/`diffMul`).
+- **Threat** `this.threat` ramps 1→~13 over 20 min (`BALANCE.THREAT_PERIOD`) and drives enemy tier + scaling. Only **1-3 enemy types** active at once (`rotateTypes`, ranged biased down per D4).
+- **Mini-bosses:** a DISTINCT boss at 5/10/15 min (`miniBossTick`/`spawnMiniBoss`, `BALANCE.MINIBOSS_TIMES`), never the biome final boss, never repeated.
+- **Hazards** = `world.hazards` (HAZ table, dmg ×`TRAP_DMG_MULT`). **Special events** (`eventsTick`/`updateEvents`/`drawEvents`): mushrooms / **surround ring (D2, tanky chasers)** / **persistent Higgs bombard (D3)**.
+- **Status effects (D6):** slow/bleed/burn/poison (DoT) + stun/knockup (CC) on player & enemies via `status.js`.
+- **Finale:** at 20:00 the biome's `FINAL_BOSS` spawns; killing it → `clearLevel` (unlock next biome + difficulty). 30s later (`REAPER_DELAY`) the killable **Reaper** (`spawnReaper`, core enemy `reaper`) descends; slay it or press E to leave. `finishRun` banks once.
+- **Caps (no infinite pile-up):** weapons 6 / passives 14 (`MAX_WEAPONS`/`MAX_PASSIVES` in progression.js); weapon level 7; enemy hp/dmg + hazard/event damage scaling are clamped.
 - Attack **tempo** ramps slow→fast (`world.playerTempo`/`enemyTempo`). Screen shake is dampened (`setShakeScale`, full only <25% HP).
+- **Items/equip:** ground items auto-use on pickup (no inventory); equipment drops open a paused choose-to-equip menu (`equipChoice`). Anvils open a paused 3-choice (`anvilChoice`).
 
 ## Conventions when extending
 - **Content is data-driven** — register via `registry.js`. Never hard-code content in gameplay code; read from the registries.
