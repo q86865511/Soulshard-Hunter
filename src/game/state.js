@@ -70,7 +70,7 @@ export function getMeta() { return META; }
 // ---- base numbers ----------------------------------------------------------
 export function makeBaseStats() {
   return {
-    maxHp: 85, hpRegen: 0,
+    maxHp: 100, hpRegen: 0,
     speed: 80,
     damageMult: 1, critChance: 0.05, critMult: 2,
     fireRateMult: 1, projSpeedMult: 1, projCountAdd: 0, pierceAdd: 0,

@@ -410,9 +410,9 @@ export const runScene = {
     const t = this.run.time;
     // gentler early cap that ramps with threat + time, so a fresh build has room to
     // level up before the swarm overwhelms it (the late game still gets dense).
-    const cap = Math.min(105, 9 + this.threat * 6 + Math.floor(t * 0.05));
+    const cap = Math.min(100, 7 + this.threat * 5 + Math.floor(t * 0.05));
     if (this.spawnTimer <= 0 && this.world.enemies.length < cap && this.activeTypes.length) {
-      const group = 2 + Math.floor(this.threat / 2);
+      const group = 1 + Math.floor(this.threat / 2);
       // enemy hp/dmg grow with threat + time but the growth is CAPPED (no infinite pile-up);
       // difficulty multiplies on top of the capped growth.
       const tc = Math.min(t, 1200);
@@ -423,7 +423,7 @@ export const runScene = {
         const elite = this.threat >= 3 && rng.chance(0.03 + t * 0.0003);
         this.world.spawnRing(def, { hpScale, dmgScale, elite });
       }
-      this.spawnTimer = Math.max(0.55, 1.9 - this.threat * 0.06 - t * 0.004);
+      this.spawnTimer = Math.max(0.6, 2.1 - this.threat * 0.06 - t * 0.004);
     }
   },
   // mostly the active roster, but occasionally inject a "special" (s_*) monster (D3)

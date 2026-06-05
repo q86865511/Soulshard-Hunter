@@ -31,7 +31,7 @@ export const BALANCE = {
 
   // ---- enemy buffs (D1 / 原#6, E3 / 原#17) ------------------------------
   ENEMY_HP_MULT: 1.35,                       // trash-mob HP up
-  ENEMY_DMG_MULT: 1.4,                       // trash-mob damage up
+  ENEMY_DMG_MULT: 1.3,                        // trash-mob damage up (eased from 1.4 for fair early game)
   BOSS_HP_MULT: 1.3,                         // boss HP up (on top of per-boss scaling)
   BOSS_DMG_MULT: 1.35,                       // boss damage up
   ENEMY_SPEEDUP_PER_MIN: 0.05,               // enemies move faster over time (D4)
