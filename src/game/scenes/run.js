@@ -605,8 +605,9 @@ export const runScene = {
       // enemy hp/dmg grow with threat + time but the growth is CAPPED (no infinite pile-up);
       // difficulty multiplies on top of the capped growth.
       const tc = Math.min(t, 1200);
-      const hpScale = (1 + Math.min(5, (this.threat - 1) * 0.18 + tc * 0.003)) * this.diffMul;
-      const dmgScale = (1 + Math.min(2.6, (this.threat - 1) * 0.10 + tc * 0.002)) * this.diffMul;
+      const dmgGrace = t < BALANCE.EARLY_GRACE ? BALANCE.EARLY_DMG_GRACE + (1 - BALANCE.EARLY_DMG_GRACE) * (t / BALANCE.EARLY_GRACE) : 1;
+      const hpScale = (1 + Math.min(4.4, (this.threat - 1) * 0.15 + tc * 0.0028)) * this.diffMul;
+      const dmgScale = (1 + Math.min(2.2, (this.threat - 1) * 0.08 + tc * 0.0018)) * this.diffMul * dmgGrace;
       for (let i = 0; i < group; i++) {
         const def = this.pickSpawnType();
         const elite = this.threat >= 3 && rng.chance(0.03 + t * 0.0003);

@@ -34,7 +34,7 @@ export const EVENTS = [
   // --- persistent (hook-based) signature effects ----------------------------
   { id: 'p_gambler', name: '阿奇·卡拉斯', role: '賭徒', title: '孤注一擲', icon: 'patron_gambler',
     desc: '傷害 +12%；命中敵人時有 10% 機率爆出額外金幣。',
-    apply: (s) => { s.player.stats.damageMult *= 1.12; s.player.hooks.hit.push((e, dmg, w) => { if (Math.random() < 0.10) { const g = 2 + Math.floor((s.threat || 1) * 0.8); s.run.gold += g; w.particles.text(e.x, e.y - 10, '+' + g + '金', { color: P.goldL, size: 10, weight: '800' }); } }); } },
+    apply: (s) => { s.player.stats.damageMult *= 1.12; s.player.hooks.hit.push((e, dmg, w) => { if (Math.random() < 0.05) { const g = 2 + Math.floor((s.threat || 1) * 0.6); s.run.gold += g; w.particles.text(e.x, e.y - 10, '+' + g + '金', { color: P.goldL, size: 10, weight: '800' }); } }); } },
   { id: 'p_midas', name: '金手指·麥達斯', role: '黃金狂人', title: '點石成金', icon: 'patron_midas',
     desc: '金幣越多傷害越高（上限 +30%）；金幣獲取 +25%。',
     apply: (s) => { s.player.stats.goldMult *= 1.25; const bonus = Math.min(0.30, (s.run.gold || 0) / 2000 * 0.30); s.player.stats.damageMult *= 1 + bonus; s.banner = '點石成金：依現有金幣獲得 +' + Math.round(bonus * 100) + '% 傷害'; s.bannerT = 2.4; } },

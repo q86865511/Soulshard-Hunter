@@ -12,7 +12,7 @@ export const BALANCE = {
   MINIBOSS_TIMES: [5 * 60, 10 * 60, 15 * 60], // a DISTINCT mini-boss every 5 min
   BIGBOSS_TIME: 20 * 60,                     // the level's final boss at 20:00
   REAPER_DELAY: 30,                          // killable Reaper 30s after big boss dies
-  THREAT_PERIOD: 100,                        // sec per +1 threat (1 -> ~13 over 20 min)
+  THREAT_PERIOD: 112,                        // sec per +1 threat (sim: slower ramp for a fairer curve)
   // The Reaper is the hidden ENDGAME superboss — a huge DPS check that only a heavily
   // stacked build can out-damage (hpScale = (BASE + threat*PER) * diffMul). Damage is
   // high but tempered so a stacked/defensive build survives a few hits (not a one-shot).
@@ -27,18 +27,18 @@ export const BALANCE = {
   FUSE_PASSIVES: 1,
 
   // ---- player nerfs (D1 / 原#6, 原#12 power-creep pass) ------------------
-  PLAYER_DAMAGE_MULT: 0.78,                  // global scale on ALL player weapon damage
+  PLAYER_DAMAGE_MULT: 0.85,                  // global scale on player weapon damage (sim-tuned; was 0.78, too low vs denser spawns)
   ABILITY_DAMAGE_MULT: 0.8,                  // global scale on passive/ability damage
   LIFESTEAL_MULT: 0.40,                      // 原#12: lifesteal toned down (was 0.45) — eased after sim
   LIFESTEAL_CAP: 0.15,                       // 原#12: hard cap lowered (was 0.20)
   DODGE_MULT: 0.5,                           // dodge effectiveness (was too strong)
   DODGE_CAP: 0.32,                           // 原#12: dodge cap lowered (was 0.35)
-  REGEN_MULT: 0.8,                           // 原#12: hpRegen scale (eased from 0.7 after sim showed early game too lethal)
+  REGEN_MULT: 0.72,                          // 原#12: hpRegen scale (sim: regen/lifesteal builds dominated the top end)
   DEFENSE_MULT: 0.9,                         // 原#12: flat-defense scale (eased from 0.85 after sim)
 
   // ---- enemy buffs (D1 / 原#6, E3 / 原#17) ------------------------------
-  ENEMY_HP_MULT: 1.28,                       // trash-mob HP (eased from 1.35 after sim — clears felt too slow)
-  ENEMY_DMG_MULT: 1.18,                       // trash-mob damage (eased from 1.3 after sim — early game was too lethal)
+  ENEMY_HP_MULT: 1.15,                       // trash-mob HP (sim-tuned baseline; diffMul scales it up for D2+)
+  ENEMY_DMG_MULT: 1.0,                        // trash-mob damage baseline (sim: contact-density was killing fresh builds; diffMul adds D2+ bite)
   BOSS_HP_MULT: 1.3,                         // boss HP up (on top of per-boss scaling)
   BOSS_DMG_MULT: 1.35,                       // boss damage up
   ENEMY_SPEEDUP_PER_MIN: 0.05,               // enemies move faster over time (D4)
@@ -73,7 +73,7 @@ export const BALANCE = {
   SURROUND_LIFE: 30,                          // 原#9: safety timeout so it can never soft-lock (was 16)
 
   // ---- auto-aim (原#5): shorter range + line-of-sight ------------------
-  AIM_RANGE: 250,                             // max auto-target distance in world px (was effectively ~700)
+  AIM_RANGE: 300,                             // max auto-target distance (sim: 250 let swarms close in; still << old ~700)
   AIM_LOS: true,                              // skip targets with a wall between them and the player
 
   // ---- anti-AFK (原#15): idle players bleed a little -------------------
@@ -87,7 +87,8 @@ export const BALANCE = {
   SPAWN_CAP_MAX: 115,                         // hard ceiling
   SPAWN_INTERVAL_BASE: 2.0,                   // base seconds between spawn groups
   SPAWN_INTERVAL_MIN: 0.55,                   // fastest spawn interval
-  EARLY_GRACE: 75,                            // sec of softened spawns at run start (sim: opening was lethal)
+  EARLY_GRACE: 110,                           // sec of softened spawns + hits at run start (sim: opening was lethal)
+  EARLY_DMG_GRACE: 0.5,                        // enemy contact/projectile damage scaled to this at t=0, ramping to 1 by EARLY_GRACE (sim: cut early-death rate)
 
   // ---- Higgs zoning bombard (D3 / 原#7) ---------------------------------
   HIGGS_DURATION: 11,                         // the bombard event lasts this long
