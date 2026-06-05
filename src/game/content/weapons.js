@@ -85,7 +85,7 @@ W({
         if (e.dead || e.spawnT > 0) continue;
         if (dist2(ox, oy, e.x, e.y) < (e.radius + 6) ** 2) {
           const last = inst.st.cd.get(e) || 0;
-          if (world.time > last) { inst.st.cd.set(e, world.time + 0.25); const { dmg, crit } = roll(p, 7 + l * 4); e.hurt(dmg, Math.cos(a) * 30, Math.sin(a) * 30, world, crit); }
+          if (world.time > last) { inst.st.cd.set(e, world.time + 0.25 / (inst.fmHaste || 1)); const { dmg, crit } = roll(p, 7 + l * 4); e.hurt(dmg, Math.cos(a) * 30, Math.sin(a) * 30, world, crit); }
         }
       }
     }

@@ -199,7 +199,7 @@ Weapons.register({
         if (dist2(b.x, b.y, e.x, e.y) < (e.radius + R) * (e.radius + R)) {
           const last = b.hits.get(e) || 0;
           if (world.time > last) {
-            b.hits.set(e, world.time + 0.3);
+            b.hits.set(e, world.time + 0.3 / (inst.fmHaste || 1));
             const { dmg, crit } = wcRoll(p, b.base);
             const kb = 24 * (p.stats.knockbackMult || 1);
             e.hurt(dmg, Math.cos(b.a) * kb, Math.sin(b.a) * kb, world, crit);
@@ -263,7 +263,7 @@ Weapons.register({
     inst.st.t = (inst.st.t || 0) - dt;
     const range = WC_BAL.AIM_RANGE + l * 10;
     if (inst.st.t <= 0) {
-      inst.st.t = 0.12;                                  // damage tick rate
+      inst.st.t = 0.12 / (inst.fmHaste || 1);            // damage tick rate (forge 疾速)
       const tgt = wcAim(world, p.x, p.y, 1)[0];
       const a = tgt ? Math.atan2(tgt.y - p.y, tgt.x - p.x) : wcFace(p);
       const ex = p.x + Math.cos(a) * range, ey = p.y + Math.sin(a) * range;
@@ -277,7 +277,7 @@ Weapons.register({
         if (dist2(px, py, e.x, e.y) < (halfW + e.radius) * (halfW + e.radius)) {
           const last = inst.st.cd.get(e) || 0;
           if (world.time >= last) {
-            inst.st.cd.set(e, world.time + 0.1);
+            inst.st.cd.set(e, world.time + 0.1 / (inst.fmHaste || 1));
             const { dmg, crit } = wcRoll(p, 7 + l * 2.0);
             e.hurt(dmg, Math.cos(a) * 6, Math.sin(a) * 6, world, crit);
             if (Math.random() < 0.5) world.particles.spawn({ x: e.x, y: e.y, life: 0.2, size: 2, color: P.iceD, glow: true });

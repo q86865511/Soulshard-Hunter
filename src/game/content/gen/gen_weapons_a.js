@@ -96,7 +96,7 @@ Weapons.register({
         if (dist2(b.x, b.y, e.x, e.y) < (e.radius + R) * (e.radius + R)) {
           const last = b.hits.get(e) || 0;
           if (world.time > last) {
-            b.hits.set(e, world.time + 0.28);
+            b.hits.set(e, world.time + 0.28 / (inst.fmHaste || 1));
             const crit = Math.random() < Math.min(GA_BAL.CRIT_CAP, p.stats.critChance || 0);
             const d = b.dmg * (crit ? (p.stats.critMult || 2) : 1);
             const kb = 24 * (p.stats.knockbackMult || 1);
@@ -207,7 +207,7 @@ Weapons.register({
     inst.st.r = R;
     inst.st.tick = (inst.st.tick || 0) - dt;
     if (inst.st.tick <= 0) {
-      inst.st.tick = 0.45;
+      inst.st.tick = 0.45 / (inst.fmHaste || 1);   // forge 疾速 speeds the aura tick
       const { dmg } = gRoll(p, 4 + l * 1.8);
       world.dealAreaDamage(p.x, p.y, R, dmg, { knockback: 0 });
     }

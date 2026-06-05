@@ -197,19 +197,17 @@ export class Enemy {
       }
     }
 
-    // separation from nearby enemies (cheap anti-stacking)
+    // separation from nearby enemies (anti-stacking) — grid broadphase (was O(n^2))
     let sx = 0, sy = 0;
-    const list = world.enemies;
-    for (let i = 0; i < list.length; i++) {
-      const o = list[i];
-      if (o === this || o.dead) continue;
+    world.forEachNear(this.x, this.y, this.radius + 32, (o) => {
+      if (o === this || o.dead) return;
       const d2 = dist2(this.x, this.y, o.x, o.y);
       const rr = this.radius + o.radius;
       if (d2 < rr * rr && d2 > 0.01) {
         const d = Math.sqrt(d2);
         sx += (this.x - o.x) / d; sy += (this.y - o.y) / d;
       }
-    }
+    });
 
     const n = normalize(mx, my);
     const accel = this.charging ? 1 : 1;

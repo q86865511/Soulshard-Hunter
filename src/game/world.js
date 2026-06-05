@@ -41,6 +41,8 @@ export class World {
     this.particles = new Particles();
     this.player = null;
     this.time = 0;
+    this._grid = new Map();         // uniform spatial grid of alive enemies (broadphase; rebuilt per update)
+    this._gridCell = TS * 4;        // 64px cells
     this._curSrc = null;    // 原#16: damage-attribution scope (set around weapon/ability calls)
     // scene hooks
     this.onLevelUp = null; this.onEnemyKilled = null; this.onCollectGold = null; this.onEquipPickup = null;
@@ -247,6 +249,7 @@ export class World {
     const rt = (this.run && this.run.time) || this.time;
     this.playerTempo = clamp(0.72 + rt / 240 * 0.55, 0.72, 1.28);
     this.enemyTempo = clamp(0.60 + rt / 210 * 0.68, 0.60, 1.30);
+    this.rebuildGrid();   // broadphase for this frame (separation / targeting / combat / AoE)
     if (this.player && !this.player.dead) this.player.update(dt, this);
 
     for (const e of this.enemies) e.update(dt, this);
@@ -289,8 +292,8 @@ export class World {
     for (const p of this.projectiles) {
       if (p.dead) continue;
       if (p.faction === 'player') {
-        for (const e of this.enemies) {
-          if (e.dead || e.spawnT > 0 || p.hitSet.has(e)) continue;
+        this.forEachNear(p.x, p.y, p.radius + 32, (e) => {   // grid broadphase instead of scanning every enemy
+          if (p.dead || e.dead || e.spawnT > 0 || p.hitSet.has(e)) return;
           if (circleHit(p.x, p.y, p.radius, e.x, e.y, e.radius * (e.scale * 0.7 + 0.3))) {
             const ang = Math.atan2(p.vy, p.vx);
             e.hurt(p.damage, Math.cos(ang) * p.knockback, Math.sin(ang) * p.knockback, this, p.crit, p.src);
@@ -301,9 +304,9 @@ export class World {
             if (p.statusOnHit && Math.random() < (p.statusOnHit.chance ?? 1)) applyStatus(e, p.statusOnHit.type, this, p.statusOnHit);   // D6
             if (p.onHit) p.onHit(e, this);
             if (player) for (const h of player.hooks.hit) h(e, p.damage, this);
-            if (p.pierce > 0) p.pierce--; else { p.dead = true; break; }
+            if (p.pierce > 0) p.pierce--; else { p.dead = true; }   // dead → cb early-returns for the rest
           }
-        }
+        });
       } else if (player && !player.dead) {
         if (circleHit(p.x, p.y, p.radius, player.x, player.y, player.radius)) {
           const landed = player.takeDamage(p.damage, Math.atan2(p.vy, p.vx), this);
@@ -322,8 +325,8 @@ export class World {
     // NOTE: BALANCE.ABILITY_DAMAGE_MULT is a RESERVED knob — left un-applied on purpose.
     // The prior balance was sim-tuned with it inactive; activating it on top of the
     // round-6 weapon-parity fix over-nerfed player DPS (swarm overwhelmed D1). Keep raw.
-    for (const e of this.enemies) {
-      if (e.dead || e.spawnT > 0) continue;
+    this.forEachNear(x, y, radius, (e) => {
+      if (e.dead || e.spawnT > 0) return;
       const rr = radius + e.radius;
       if (dist2(x, y, e.x, e.y) < rr * rr) {
         const ang = Math.atan2(e.y - y, e.x - x);
@@ -332,7 +335,7 @@ export class World {
         if (opts.status && Math.random() < (opts.status.chance ?? 1)) applyStatus(e, opts.status.type, this, opts.status);   // D6
         hits++;
       }
-    }
+    });
     return hits;
   }
 
@@ -353,9 +356,39 @@ export class World {
     if (damage > 0) this.dealAreaDamage(x, y, radius, damage, opts);
   }
 
+  // ---- spatial broadphase (uniform grid of alive enemies) ------------------
+  _cellKey(cx, cy) { return (cx + 4000) * 1e6 + (cy + 4000); }
+  rebuildGrid() {
+    const g = this._grid; g.clear(); const cs = this._gridCell;
+    for (const e of this.enemies) {
+      if (e.dead || e.spawnT > 0) continue;
+      const k = this._cellKey(Math.floor(e.x / cs), Math.floor(e.y / cs));
+      let a = g.get(k); if (!a) { a = []; g.set(k, a); } a.push(e);
+    }
+  }
+  // visit alive enemies whose cell overlaps [x±r] (+1-cell margin for within-frame
+  // movement / large bodies). The callback does the exact distance test.
+  forEachNear(x, y, r, cb) {
+    const cs = this._gridCell, g = this._grid;
+    const x0 = Math.floor((x - r) / cs) - 1, x1 = Math.floor((x + r) / cs) + 1;
+    const y0 = Math.floor((y - r) / cs) - 1, y1 = Math.floor((y + r) / cs) + 1;
+    for (let cx = x0; cx <= x1; cx++) for (let cy = y0; cy <= y1; cy++) {
+      const a = g.get(this._cellKey(cx, cy)); if (!a) continue;
+      for (let i = 0; i < a.length; i++) cb(a[i]);
+    }
+  }
+
   nearestEnemy(x, y, maxDist = Infinity, opts = {}) {
     let best = null, bd = maxDist * maxDist;
-    for (const e of this.enemies) {
+    if (maxDist !== Infinity) {   // bounded query → use the grid (O(k), not O(n))
+      this.forEachNear(x, y, maxDist, (e) => {
+        if (e.dead || e.spawnT > 0) return;
+        const d = dist2(x, y, e.x, e.y);
+        if (d < bd && (!opts.los || this.lineClear(x, y, e.x, e.y))) { bd = d; best = e; }
+      });
+      return best;
+    }
+    for (const e of this.enemies) {   // unbounded fallback (rare)
       if (e.dead || e.spawnT > 0) continue;
       const d = dist2(x, y, e.x, e.y);
       if (d < bd && (!opts.los || this.lineClear(x, y, e.x, e.y))) { bd = d; best = e; }

@@ -100,7 +100,7 @@ Weapons.register({
     const beams = 1 + Math.floor((l - 1) / 3);           // 1 -> up to 3 parallel/forked beams
     const range = 230 + l * 14;
     if (inst.st.t <= 0) {
-      inst.st.t = 0.12;                                   // damage tick rate
+      inst.st.t = 0.12 / (inst.fmHaste || 1);             // damage tick rate (forge 疾速 speeds it)
       const targets = _gwbNearest(w, p.x, p.y, beams, range);
       const baseA = targets.length ? Math.atan2(targets[0].y - p.y, targets[0].x - p.x) : _gwbFace(p);
       inst.st.shots = [];
@@ -117,7 +117,7 @@ Weapons.register({
           if (dist2(px, py, e.x, e.y) < (w2 + e.radius) ** 2) {
             const last = inst.st.cd.get(e) || 0;
             if (w.time >= last) {
-              inst.st.cd.set(e, w.time + 0.1);
+              inst.st.cd.set(e, w.time + 0.1 / (inst.fmHaste || 1));
               const { dmg, crit } = _gwbRoll(p, 8 + l * 2.2);
               e.hurt(dmg, Math.cos(a) * 6, Math.sin(a) * 6, w, crit);
               if (Math.random() < 0.5) w.particles.spawn({ x: e.x, y: e.y, life: 0.2, size: 2, color: P.emberL, glow: true });

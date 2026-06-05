@@ -91,11 +91,13 @@ export class Player {
         snap = { dm: s.damageMult, cc: s.critChance, cm: s.critMult, pa: s.pierceAdd, ar: s.area };
         s.damageMult *= fm.dmgMul; s.critChance += fm.crit; s.critMult += fm.critMult; s.pierceAdd += fm.pierce; s.area *= fm.areaMul;
       }
+      const eff = Math.min(BALANCE.FIRE_RATE_CAP, haste * (fm ? fm.haste : 1));
+      inst.fmHaste = eff;   // expose the (capped) fire-rate factor so self-gating update-driven weapons (beams/auras/turrets) honour forge 疾速 too
       try {
         if (inst.def.update) inst.def.update(world, this, inst, dt);
         if (inst.def.cooldown) {
           inst.t -= dt;
-          if (inst.t <= 0) { inst.def.fire(world, this, inst); const eff = Math.min(BALANCE.FIRE_RATE_CAP, haste * (fm ? fm.haste : 1)); inst.t = (inst.def.cooldown(inst.level) || 1) / eff; }
+          if (inst.t <= 0) { inst.def.fire(world, this, inst); inst.t = (inst.def.cooldown(inst.level) || 1) / eff; }
         }
       } catch (e) { /* a buggy weapon must never freeze the loop or strand forge buffs */ }
       finally {
