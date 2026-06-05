@@ -53,6 +53,13 @@ export const SKINS = [
   { id: 'verdant', name: '翠影', price: 200, art: { cloak: P.green, cloakD: P.greenD, cloakL: P.greenL, trim: P.gold, eye: P.toxic } },
   { id: 'royal', name: '皇金', price: 350, art: { cloak: P.gold, cloakD: P.bronze, cloakL: '#ffe9a0', trim: P.purpleL, eye: P.emberL } },
   { id: 'void', name: '虛影', price: 350, art: { cloak: P.purple, cloakD: P.purpleD, cloakL: P.purpleL, trim: P.manaL, eye: P.manaL } },
+  // 原#7: more cosmetic skins
+  { id: 'frost', name: '霜寒', price: 250, art: { cloak: P.ice, cloakD: P.iceD, cloakL: P.white, trim: P.shardL, eye: P.blueL } },
+  { id: 'ember', name: '餘燼', price: 250, art: { cloak: P.ember, cloakD: P.redD, cloakL: P.emberL, trim: P.gold, eye: P.white } },
+  { id: 'phantom', name: '幽冥', price: 320, art: { cloak: P.shadow, cloakD: P.ink, cloakL: P.gray2, trim: P.purpleL, eye: P.toxic } },
+  { id: 'jade', name: '碧玉', price: 250, art: { cloak: P.toxic, cloakD: P.greenD, cloakL: P.greenL, trim: P.bone, eye: P.white } },
+  { id: 'crimson', name: '緋紅', price: 320, art: { cloak: P.blood, cloakD: P.redD, cloakL: P.redL, trim: P.gold, eye: P.emberL } },
+  { id: 'bone', name: '枯骨', price: 280, art: { cloak: P.bone, cloakD: P.gray2, cloakL: P.white, trim: P.ember, eye: P.redL } },
 ];
 // Skin variant sprites are generated LAZILY on first use — gen-content heroes are
 // registered after this module loads, so an eager loop would miss them (rendering

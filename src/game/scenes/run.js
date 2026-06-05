@@ -597,9 +597,11 @@ export const runScene = {
     const t = this.run.time;
     // gentler early cap that ramps with threat + time, so a fresh build has room to
     // level up before the swarm overwhelms it (the late game still gets dense).
-    const cap = Math.min(BALANCE.SPAWN_CAP_MAX, BALANCE.SPAWN_CAP_BASE + this.threat * BALANCE.SPAWN_CAP_PER_THREAT + Math.floor(t * 0.06));
+    // 原#3 + sim easing: soften the opening so a fresh build can get going
+    const grace = t < BALANCE.EARLY_GRACE ? 0.45 + 0.55 * (t / BALANCE.EARLY_GRACE) : 1;
+    const cap = Math.round(Math.min(BALANCE.SPAWN_CAP_MAX, (BALANCE.SPAWN_CAP_BASE + this.threat * BALANCE.SPAWN_CAP_PER_THREAT + Math.floor(t * 0.06)) * grace));
     if (this.spawnTimer <= 0 && this.world.enemies.length < cap && this.activeTypes.length) {
-      const group = 1 + Math.floor(this.threat / 2);
+      const group = 1 + Math.floor((this.threat / 2) * grace);
       // enemy hp/dmg grow with threat + time but the growth is CAPPED (no infinite pile-up);
       // difficulty multiplies on top of the capped growth.
       const tc = Math.min(t, 1200);
@@ -610,7 +612,7 @@ export const runScene = {
         const elite = this.threat >= 3 && rng.chance(0.03 + t * 0.0003);
         this.world.spawnRing(def, { hpScale, dmgScale, elite });
       }
-      this.spawnTimer = Math.max(BALANCE.SPAWN_INTERVAL_MIN, BALANCE.SPAWN_INTERVAL_BASE - this.threat * 0.06 - t * 0.004);
+      this.spawnTimer = Math.max(BALANCE.SPAWN_INTERVAL_MIN, (BALANCE.SPAWN_INTERVAL_BASE - this.threat * 0.06 - t * 0.004) / grace);
     }
   },
   // mostly the active roster, but occasionally inject a "special" (s_*) monster (D3)

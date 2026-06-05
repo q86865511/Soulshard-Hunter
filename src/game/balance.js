@@ -29,16 +29,16 @@ export const BALANCE = {
   // ---- player nerfs (D1 / 原#6, 原#12 power-creep pass) ------------------
   PLAYER_DAMAGE_MULT: 0.78,                  // global scale on ALL player weapon damage
   ABILITY_DAMAGE_MULT: 0.8,                  // global scale on passive/ability damage
-  LIFESTEAL_MULT: 0.38,                      // 原#12: lifesteal toned down (was 0.45)
-  LIFESTEAL_CAP: 0.14,                       // 原#12: hard cap lowered (was 0.20)
+  LIFESTEAL_MULT: 0.40,                      // 原#12: lifesteal toned down (was 0.45) — eased after sim
+  LIFESTEAL_CAP: 0.15,                       // 原#12: hard cap lowered (was 0.20)
   DODGE_MULT: 0.5,                           // dodge effectiveness (was too strong)
   DODGE_CAP: 0.32,                           // 原#12: dodge cap lowered (was 0.35)
-  REGEN_MULT: 0.7,                           // 原#12: global scale on hpRegen (heal-over-time)
-  DEFENSE_MULT: 0.85,                        // 原#12: global scale on flat defense (less damage-reduction)
+  REGEN_MULT: 0.8,                           // 原#12: hpRegen scale (eased from 0.7 after sim showed early game too lethal)
+  DEFENSE_MULT: 0.9,                         // 原#12: flat-defense scale (eased from 0.85 after sim)
 
   // ---- enemy buffs (D1 / 原#6, E3 / 原#17) ------------------------------
-  ENEMY_HP_MULT: 1.35,                       // trash-mob HP up
-  ENEMY_DMG_MULT: 1.3,                        // trash-mob damage up (eased from 1.4 for fair early game)
+  ENEMY_HP_MULT: 1.28,                       // trash-mob HP (eased from 1.35 after sim — clears felt too slow)
+  ENEMY_DMG_MULT: 1.18,                       // trash-mob damage (eased from 1.3 after sim — early game was too lethal)
   BOSS_HP_MULT: 1.3,                         // boss HP up (on top of per-boss scaling)
   BOSS_DMG_MULT: 1.35,                       // boss damage up
   ENEMY_SPEEDUP_PER_MIN: 0.05,               // enemies move faster over time (D4)
@@ -81,12 +81,13 @@ export const BALANCE = {
   AFK_DRAIN_FRAC: 0.012,                      // per-second HP loss as a fraction of maxHp while idle
   AFK_DRAIN_MIN: 1,                           // ...but at least this many HP/sec
 
-  // ---- spawn pacing (原#3): a touch denser ----------------------------
-  SPAWN_CAP_BASE: 9,                          // base concurrent-enemy cap (was 7)
-  SPAWN_CAP_PER_THREAT: 5.5,                  // +cap per threat level (was 5)
-  SPAWN_CAP_MAX: 120,                         // hard ceiling (was 100)
-  SPAWN_INTERVAL_BASE: 1.8,                   // base seconds between spawn groups (was 2.1)
-  SPAWN_INTERVAL_MIN: 0.5,                    // fastest spawn interval (was 0.6)
+  // ---- spawn pacing (原#3): a touch denser, but eased early after sim --
+  SPAWN_CAP_BASE: 7,                          // base concurrent-enemy cap (sim: 9 was too crowded early)
+  SPAWN_CAP_PER_THREAT: 4.8,                  // +cap per threat level
+  SPAWN_CAP_MAX: 115,                         // hard ceiling
+  SPAWN_INTERVAL_BASE: 2.0,                   // base seconds between spawn groups
+  SPAWN_INTERVAL_MIN: 0.55,                   // fastest spawn interval
+  EARLY_GRACE: 75,                            // sec of softened spawns at run start (sim: opening was lethal)
 
   // ---- Higgs zoning bombard (D3 / 原#7) ---------------------------------
   HIGGS_DURATION: 11,                         // the bombard event lasts this long
