@@ -38,7 +38,25 @@ const REWARDS = [
   { id: 'unlock_riposte', name: '不屈鬥志', desc: '累計倒下 10 次仍不放棄', check: (s) => (s.deaths || 0) >= 10, prog: (s) => [s.deaths || 0, 10], reward: U('abilities', 'ac_riposte'), rewardLabel: '被動「絕地反擊」' },
   { id: 'unlock_turret', name: '軍械工程', desc: '累計通關 1 次', check: (s) => (s.clears || 0) >= 1, prog: (s) => [s.clears || 0, 1], reward: U('weapons', 'wc_turret'), rewardLabel: '武器「守護砲塔」' },
   { id: 'unlock_beam', name: '聚能研究', desc: '達到威脅 8 級', check: (s) => (s.bestStage || 0) >= 8, prog: (s) => [s.bestStage || 0, 8], reward: U('weapons', 'wc_beam'), rewardLabel: '武器「聚能光束」' },
+  // ---- round-5 (task 2): many more unlock-tied achievements across varied conditions ----
+  { id: 'r5_halo', name: '環刃學', desc: '累計擊殺 1500 名敵人', check: (s) => (s.kills || 0) >= 1500, prog: (s) => [s.kills || 0, 1500], reward: U('weapons', 'g_halo'), rewardLabel: '武器「光環刃」' },
+  { id: 'r5_dartfan', name: '飛鏢匠', desc: '累計擊殺 30 隻小王', check: (s) => (s.miniBossKills || 0) >= 30, prog: (s) => [s.miniBossKills || 0, 30], reward: U('weapons', 'g_dartfan'), rewardLabel: '武器「散鏢扇」' },
+  { id: 'r5_cone', name: '錐擊研究', desc: '累計擊敗 20 名首領', check: (s) => (s.bossKills || 0) >= 20, prog: (s) => [s.bossKills || 0, 20], reward: U('weapons', 'wc_cone'), rewardLabel: '武器「魂錐爆」' },
+  { id: 'r5_blackhole', name: '奇點馴服', desc: '累計擊殺死神 3 次', check: (s) => (s.reaperKills || 0) >= 3, prog: (s) => [s.reaperKills || 0, 3], reward: U('weapons', 'g_blackhole'), rewardLabel: '武器「黑洞」' },
+  { id: 'r5_overload', name: '過載協議', desc: '達到威脅 9 級', check: (s) => (s.bestStage || 0) >= 9, prog: (s) => [s.bestStage || 0, 9], reward: U('abilities', 'overload'), rewardLabel: '被動「過載」' },
+  { id: 'r5_warbanner', name: '無瑕之證', desc: '不受傷通關 1 次', check: (s) => (s.noDmgClears || 0) >= 1, prog: (s) => [s.noDmgClears || 0, 1], reward: U('abilities', 'ac_warbanner'), rewardLabel: '被動「戰旗」' },
+  { id: 'r5_executioner', name: '處決術', desc: '以同一英雄通關 3 次（任一）', check: (s) => maxCharClears(s) >= 3, prog: (s) => [maxCharClears(s), 3], reward: U('abilities', 'g_executioner'), rewardLabel: '被動「處決」' },
+  { id: 'r5_chain', name: '連鎖大師', desc: '單局角色等級達 25', check: (s) => (s.bestCharLevel || 0) >= 25, prog: (s) => [s.bestCharLevel || 0, 25], reward: U('abilities', 'g_chainlight'), rewardLabel: '被動「連鎖閃電」' },
+  { id: 'r5_detonate', name: '引爆學', desc: '累計觸發羈絆 30 次', check: (s) => (s.bondsTriggered || 0) >= 30, prog: (s) => [s.bondsTriggered || 0, 30], reward: U('abilities', 'g_detonate'), rewardLabel: '被動「引爆」' },
+  { id: 'r5_starfall', name: '星墜', desc: '單局分數達 40000', check: (s) => (s.bestScore || 0) >= 40000, prog: (s) => [s.bestScore || 0, 40000], reward: U('equipment', 'ep_starfall_orb'), rewardLabel: '史詩裝備「星墜法球」' },
+  { id: 'r5_machinegun', name: '量產軍械', desc: '金庫累計 30000 金幣', check: (s) => (s.totalGold || 0) >= 30000, prog: (s) => [s.totalGold || 0, 30000], reward: U('equipment', 'g_machinegun'), rewardLabel: '裝備「連發槍」' },
+  { id: 'r5_sniper', name: '鍛造名匠', desc: '累計鍛造強化 10 次', check: (s) => (s.forgeUpgrades || 0) >= 10, prog: (s) => [s.forgeUpgrades || 0, 10], reward: U('equipment', 'g_sniper'), rewardLabel: '裝備「狙擊杖」' },
+  { id: 'r5_shocknova', name: '雷霆收藏', desc: '累計出擊 30 次', check: (s) => (s.runs || 0) >= 30, prog: (s) => [s.runs || 0, 30], reward: U('items', 'it_shock_nova'), rewardLabel: '道具「震雷新星」' },
+  { id: 'r5_coincache', name: '城鎮之友', desc: '與 6 位城鎮居民交談', check: (s) => (s.npcTalks || 0) >= 6, prog: (s) => [s.npcTalks || 0, 6], reward: U('items', 'ic_coin_cache'), rewardLabel: '道具「藏金匣」' },
+  { id: 'r5_dragonscale', name: '龍鱗匠', desc: '累計通關 8 次', check: (s) => (s.clears || 0) >= 8, prog: (s) => [s.clears || 0, 8], reward: U('equipment', 'g_dragon_scale'), rewardLabel: '裝備「龍鱗甲」' },
 ];
+// helper: highest single-hero clear count (for "clear N times with one hero")
+function maxCharClears(s) { const c = s && s.charClears; if (!c) return 0; let m = 0; for (const k in c) if (c[k] > m) m = c[k]; return m; }
 
 // ---- generated tier families -----------------------------------------------
 const FAMILIES = [
@@ -60,6 +78,18 @@ const FAMILIES = [
   ...fam('wardrobe', '蒐藏', (g) => `解鎖 ${g} 件裝備`, (s, m) => ((m && m.unlocked && m.unlocked.equipment) || []).length, [8, 16, 24, 32]),
 ];
 
+// ---- round-5 families: variety across the new mastery / hub systems (task 2) ----
+const R5_FAMILIES = [
+  ...fam('charlvl', '修為', (g) => `單局角色等級達 ${g}`, (s) => s.bestCharLevel || 0, [10, 20, 30, 40, 50]),
+  ...fam('nohit', '無瑕', (g) => `不受傷通關 ${g} 次`, (s) => s.noDmgClears || 0, [1, 3, 8, 20]),
+  ...fam('synergy', '共鳴', (g) => `累計觸發羈絆 ${g} 次`, (s) => s.bondsTriggered || 0, [10, 30, 80, 150]),
+  ...fam('forge', '鍛魂', (g) => `累計鍛造強化 ${g} 次`, (s) => s.forgeUpgrades || 0, [1, 5, 15, 30]),
+  ...fam('social', '人脈', (g) => `與 ${g} 位城鎮居民交談`, (s) => s.npcTalks || 0, [3, 6, 10]),
+  ...fam('rep', '聲望', (g) => `公會聲望累計 ${g}`, (s, m) => (m && m.guild && m.guild.xp) || 0, [500, 2000, 6000, 16000]),
+  ...fam('fashion', '時尚', (g) => `擁有 ${g} 套造型`, (s, m) => ((m && m.ownedSkins) || []).length, [1, 5, 12, 25]),
+  ...fam('hero_master', '群英之師', (g) => `以同一英雄通關 ${g} 次`, (s) => maxCharClears(s), [3, 5, 10, 20]),
+];
+
 // ---- per-biome clears -------------------------------------------------------
 const dClr = (m, id) => (m && m.levels && m.levels.diff && m.levels.diff[id]) || 0;
 const BIOME_ACH = [];
@@ -75,7 +105,26 @@ const HIDDEN = [
   { id: 'death_slayer', name: '？？？', realName: '死神剋星', desc: '擊殺死神', hidden: true, check: (s) => (s.reaperKills || 0) >= 1 },
 ];
 
-export const ACHIEVEMENTS = [...REWARDS, ...FAMILIES, ...BIOME_ACH, ...HIDDEN];
+// ---- round-5b (task 2 follow-up): more variety + more weapon/item/equipment unlock ties ----
+const maxDiffCleared = (m) => { const d = (m && m.levels && m.levels.diff) || {}; let x = 0; for (const k in d) if (d[k] > x) x = d[k]; return x; };
+const R5B = [
+  // new milestone family: highest difficulty cleared anywhere (a fresh progression axis)
+  ...fam('mastery', '生態精通', (g) => `以難度 ${g}+ 通關任一生態`, (s, m) => maxDiffCleared(m), [2, 3, 4, 5]),
+  ...fam('veteran', '百戰', (g) => `累計通關 ${g} 次`, (s) => s.clears || 0, [15, 30, 60, 100]),
+  // more achievement -> content unlocks (the ids exist; this adds alternate earn paths + goals)
+  { id: 'r5b_voidmantle', name: '虛空之證', desc: '以難度 4+ 通關任一生態', check: (s, m) => maxDiffCleared(m) >= 4, prog: (s, m) => [maxDiffCleared(m), 4], reward: U('equipment', 'ep_void_mantle'), rewardLabel: '史詩裝備「虛空斗篷」' },
+  { id: 'r5b_chromatic', name: '彩晶大師', desc: '達到威脅 11 級', check: (s) => (s.bestStage || 0) >= 11, prog: (s) => [s.bestStage || 0, 11], reward: U('equipment', 'ep_chromatic_core'), rewardLabel: '史詩裝備「彩晶核心」' },
+  { id: 'r5b_purge', name: '淨化萬軍', desc: '累計擊殺 8000 名敵人', check: (s) => (s.kills || 0) >= 8000, prog: (s) => [s.kills || 0, 8000], reward: U('items', 'g_purge_wave'), rewardLabel: '道具「淨化波」' },
+  { id: 'r5b_timeslow', name: '時之掌控', desc: '單局存活 15 分鐘', check: (s) => (s.bestTime || 0) >= 900, prog: (s) => [Math.min(s.bestTime || 0, 900), 900], reward: U('items', 'it_timeslow_burst'), rewardLabel: '道具「時滯爆發」' },
+  { id: 'r5b_laser', name: '聚能權威', desc: '累計擊敗 40 名首領', check: (s) => (s.bossKills || 0) >= 40, prog: (s) => [s.bossKills || 0, 40], reward: U('weapons', 'g_laserbeam'), rewardLabel: '武器「聚能雷射」' },
+  { id: 'r5b_fashionista', name: '時尚教主', desc: '擁有 8 套造型', check: (s, m) => ((m && m.ownedSkins) || []).length >= 8, prog: (s, m) => [((m && m.ownedSkins) || []).length, 8], reward: U('abilities', 'g_chainlight'), rewardLabel: '被動「連鎖閃電」' },
+  { id: 'r5b_richtown', name: '富甲一方', desc: '金庫累計 80000 金幣', check: (s) => (s.totalGold || 0) >= 80000, prog: (s) => [s.totalGold || 0, 80000], reward: U('weapons', 'g_blackhole'), rewardLabel: '武器「黑洞」' },
+  // a couple more hidden goals for variety
+  { id: 'r5b_flawless5', name: '？？？', realName: '無瑕傳說', desc: '不受傷以難度 3+ 通關', hidden: true, check: (s, m) => (s.noDmgClears || 0) >= 1 && maxDiffCleared(m) >= 3 },
+  { id: 'r5b_socialite', name: '？？？', realName: '鎮民摯友', desc: '與全部 10 位居民交談', hidden: true, check: (s) => (s.npcTalks || 0) >= 10 },
+];
+
+export const ACHIEVEMENTS = [...REWARDS, ...FAMILIES, ...R5_FAMILIES, ...R5B, ...BIOME_ACH, ...HIDDEN];
 
 // Re-apply rewards for already-earned achievements (idempotent) so unlocks survive
 // across updates / older saves.

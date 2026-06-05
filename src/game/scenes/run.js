@@ -71,6 +71,8 @@ const ANVIL_POOL = [
 const LEVEL_TIME = BALANCE.LEVEL_TIME;
 const FINAL_BOSS = { crypt: 'g_plagueheart', cavern: 'g_stormtyrant', frost: 'b2_glacierseer', inferno: 'b2_emberlord', void: 'b2_voidweaver' };
 const REAPER_ID = 'reaper';
+// task-4: cardinal probes (px) used to detect the player backing into a wall during 魂牢
+const SURROUND_PROBES = [[14, 0], [-14, 0], [0, 14], [0, -14]];
 
 export const runScene = {
   enter(payload) {
@@ -91,7 +93,7 @@ export const runScene = {
       else if (e.boss) this.onBossDead(e);
     };
     this.world.onEquipPickup = (def) => this.openEquipChoice(def);
-    this.world.onPlayerHit = () => { if (this.challenge && this.challenge.type === 'nohit') this.failChallenge(); };   // 原#3 challenge fail
+    this.world.onPlayerHit = (d) => { this.run.dmgTaken = (this.run.dmgTaken || 0) + (d || 0); if (this.challenge && this.challenge.type === 'nohit') this.failChallenge(); };   // 原#3 challenge fail + task-2 no-hit tracking
     this.equipChoice = null; this.equipQueue = [];
     this.eventChoice = null; this.challenge = null;   // 原#3 mini-boss event + timed challenge
     this.newlyUnlocked = [];   // 原#1 results screen: achievements unlocked this run
@@ -160,7 +162,7 @@ export const runScene = {
   rotateTypes() {
     const pool = Enemies.upTo(this.tierCapNow()).filter((d) => !d.boss && d.id !== REAPER_ID);
     if (!pool.length) { this.activeTypes = []; this.typeRotT = 24; return; }
-    const n = this.threat <= 1 ? 1 + rng.int(0, 1) : 1 + rng.int(0, 2);
+    const n = this.threat <= 1 ? 2 + rng.int(0, 1) : 2 + rng.int(0, 2);   // task-11: 2-4 concurrent types for a varied swarm (was 1-3)
     const picks = []; let p = pool.slice();
     // D4: ranged (shooter) types are far less likely to be picked — favour melee
     const wt = (x) => (x.ai === 'shooter' ? (x.weight ?? 1) * BALANCE.RANGED_SPAWN_WEIGHT : (x.weight ?? 1));
@@ -487,15 +489,16 @@ export const runScene = {
     }
     this.banner = '提摩的蘑菇地雷！小心腳下'; this.bannerT = 2.6; Sfx.play('boss');
   },
-  // D2: a clump of VERY tanky monsters rings the player and closes in (their chase
-  // AI naturally collapses the ring). Killable — carve a gap and dash out.
+  // D2 (task-4): a ring of monsters rings the player and actively closes in. You
+  // are NOT held until the whole ring dies — carve a gap (kill SURROUND_BREACH_KILLS)
+  // or back into a wall to break out.
   evSurround() {
     if (this.surround) return;
     let pool = Enemies.upTo(this.tierCapNow()).filter((d) => !d.boss && d.id !== REAPER_ID && (d.ai === 'chase' || d.ai === 'charger' || d.ai === 'wander'));
     if (!pool.length) pool = Enemies.upTo(this.tierCapNow()).filter((d) => !d.boss && d.id !== REAPER_ID);
     if (!pool.length) return;
     const def = pool[rng.int(0, pool.length - 1)];
-    const n = BALANCE.SURROUND_COUNT_BASE + Math.floor(this.threat * 0.7);   // 原#9: more of them
+    const n = BALANCE.SURROUND_COUNT_BASE + Math.floor(this.threat * 0.5);
     const hpScale = BALANCE.SURROUND_HP_MULT * (1 + this.threat * 0.1) * this.diffMul;
     const dmgScale = BALANCE.SURROUND_DMG_MULT * this.diffMul;
     const cx = this.player.x, cy = this.player.y;
@@ -505,12 +508,12 @@ export const runScene = {
       const x = clamp(cx + Math.cos(a) * BALANCE.SURROUND_RADIUS, TS * 2, this.world.pxW - TS * 2);
       const y = clamp(cy + Math.sin(a) * BALANCE.SURROUND_RADIUS, TS * 2, this.world.pxH - TS * 2);
       if (this.world.solidAt(x, y)) continue;
-      // 原#9: slow but very tanky — a wall you must cut through, not outrun
+      // tanky chasers that close the net — but killable enough to punch a hole through
       const e = this.world.spawnEnemy(def, x, y, { hpScale, dmgScale, speedScale: BALANCE.SURROUND_SPEED_MULT, quiet: true });
       if (e) { e.tint = P.purpleL; e.surround = true; ring.push(e); }
     }
-    this.surround = { enemies: ring, t: BALANCE.SURROUND_LIFE, cx, cy, lockR: BALANCE.SURROUND_RADIUS + 48, total: ring.length };
-    this.banner = '魂牢降臨！緩慢厚血的怪群封鎖此地 — 殺出血路才能脫身！'; this.bannerT = 3.6; Sfx.play('boss'); addShake(6);
+    this.surround = { enemies: ring, t: BALANCE.SURROUND_LIFE, cx, cy, lockR: BALANCE.SURROUND_RADIUS + 48, total: ring.length, breached: false, wasWall: false };
+    this.banner = '魂牢降臨！怪群收攏包圍 — 殺出缺口（×' + BALANCE.SURROUND_BREACH_KILLS + '）或貼牆突圍！'; this.bannerT = 3.6; Sfx.play('boss'); addShake(6);
   },
   // D3: the Higgs bomb now LINGERS — it lobs delayed blasts every couple seconds
   // to zone the player, instead of one big burst.
@@ -546,19 +549,28 @@ export const runScene = {
       if (this.higgs.t <= 0) this.higgs = null;
     }
     if (this.surround) {
-      this.surround.t -= dt;
-      this.surround.enemies = this.surround.enemies.filter((e) => e && !e.dead);
-      // 原#9: arena lock — hold the player inside the kill-zone until the ring is cleared
-      if (BALANCE.SURROUND_MUST_CLEAR && this.surround.enemies.length) {
-        const p = this.player, sx = this.surround.cx, sy = this.surround.cy;
+      const sur = this.surround;
+      sur.t -= dt;
+      sur.enemies = sur.enemies.filter((e) => e && !e.dead);
+      const killed = sur.total - sur.enemies.length;
+      const p = this.player, sx = sur.cx, sy = sur.cy;
+      // task-4 breach: carved a gap (killed >= breach) OR backed into a wall (撞牆)
+      let wall = false;
+      for (const o of SURROUND_PROBES) if (this.world.solidAt(p.x + o[0], p.y + o[1])) { wall = true; break; }
+      if (killed >= BALANCE.SURROUND_BREACH_KILLS || wall) { sur.breached = true; sur.wasWall = sur.wasWall || wall; }
+      // the ring tightens — the lock radius creeps inward so the circle visibly collapses
+      sur.lockR = Math.max(BALANCE.SURROUND_LOCK_MIN, sur.lockR - BALANCE.SURROUND_CLOSE_SPEED * dt);
+      // hold the player in the kill-zone until they breach (or the ring empties / times out)
+      if (BALANCE.SURROUND_MUST_CLEAR && sur.enemies.length && !sur.breached) {
         const dx = p.x - sx, dy = p.y - sy, d = Math.hypot(dx, dy);
-        if (d > this.surround.lockR) {
-          const k = this.surround.lockR / d; p.x = sx + dx * k; p.y = sy + dy * k; p.vx *= -0.3; p.vy *= -0.3;
-          if (Math.random() < 0.18) this.world.particles.text(p.x, p.y - 16, '魂牢封鎖', { color: P.purpleL, size: 10 });
+        if (d > sur.lockR) {
+          const k = sur.lockR / d; p.x = sx + dx * k; p.y = sy + dy * k; p.vx *= -0.3; p.vy *= -0.3;
+          if (Math.random() < 0.16) this.world.particles.text(p.x, p.y - 16, '殺出缺口！', { color: P.purpleL, size: 10 });
         }
       }
-      if (this.surround.t <= 0 || !this.surround.enemies.length) {
-        if (this.surround.total && !this.surround.enemies.length) { this.banner = '突破魂牢！'; this.bannerT = 2.2; }
+      if (sur.t <= 0 || !sur.enemies.length || sur.breached) {
+        if (sur.breached && sur.enemies.length) { this.banner = sur.wasWall ? '貼牆突圍！' : '殺出缺口，突破魂牢！'; this.bannerT = 2.2; }
+        else if (!sur.enemies.length && sur.total) { this.banner = '魂牢清空！'; this.bannerT = 2.2; }
         this.surround = null;
       }
     }
@@ -579,7 +591,9 @@ export const runScene = {
       strokeCircleWorld(this.surround.cx, this.surround.cy, sr, withAlpha(P.purpleL, 0.16 + 0.1 * Math.sin(this.t * 4)), 2.5);
       strokeCircleWorld(this.surround.cx, this.surround.cy, sr - 3, withAlpha(P.purpleL, 0.08), 1);
       const ns = worldToScreen(this.surround.cx, this.surround.cy - sr - 6);
-      uiText('魂牢 · 剩餘 ' + this.surround.enemies.length + '／' + this.surround.total, ns.x, ns.y, { size: 11 * uiScale(), align: 'center', color: P.purpleL, weight: '800' });
+      const need = Math.max(0, BALANCE.SURROUND_BREACH_KILLS - (this.surround.total - this.surround.enemies.length));
+      const msg = need > 0 ? ('魂牢 · 殺出缺口還需 ×' + need + '（或貼牆）') : '魂牢 · 缺口已開，快突圍！';
+      uiText(msg, ns.x, ns.y, { size: 11 * uiScale(), align: 'center', color: P.purpleL, weight: '800' });
     }
     for (const s of this.evtStrikes) {
       const k = 1 - clamp(s.t / s.max, 0, 1);
@@ -599,9 +613,9 @@ export const runScene = {
     // level up before the swarm overwhelms it (the late game still gets dense).
     // 原#3 + sim easing: soften the opening so a fresh build can get going
     const grace = t < BALANCE.EARLY_GRACE ? 0.45 + 0.55 * (t / BALANCE.EARLY_GRACE) : 1;
-    const cap = Math.round(Math.min(BALANCE.SPAWN_CAP_MAX, (BALANCE.SPAWN_CAP_BASE + this.threat * BALANCE.SPAWN_CAP_PER_THREAT + Math.floor(t * 0.06)) * grace));
+    const cap = Math.round(Math.min(BALANCE.SPAWN_CAP_MAX, (BALANCE.SPAWN_CAP_BASE + this.threat * BALANCE.SPAWN_CAP_PER_THREAT + Math.floor(t * 0.11)) * grace));
     if (this.spawnTimer <= 0 && this.world.enemies.length < cap && this.activeTypes.length) {
-      const group = 1 + Math.floor((this.threat / 2) * grace);
+      const group = 2 + Math.floor((this.threat / 1.5) * grace);   // task-11: bigger spawn groups → swarm pressure
       // enemy hp/dmg grow with threat + time but the growth is CAPPED (no infinite pile-up);
       // difficulty multiplies on top of the capped growth.
       const tc = Math.min(t, 1200);
@@ -823,7 +837,10 @@ export const runScene = {
     if (pressed('pause') || pressed('escape')) { this.paused = true; Sfx.play('uiClick'); return; }
     if (pressed('map')) { this.showBuild = !this.showBuild; Sfx.play('uiClick'); }
     if (pressed('minimap')) { this.bigMap = !this.bigMap; Sfx.play('uiClick'); }
-    if (pressed('shop') && !this.shopChoice) { this.shopOpen = !this.shopOpen; Sfx.play('uiClick'); }   // 原#4: B opens the soulshard / anvil shop anywhere
+    if (pressed('shop') && !this.shopChoice) {                          // 原#4: B opens the soulshard / anvil shop anywhere
+      if (Cheats.eatShop) Cheats.eatShop = false;                       // task 1: this B is part of the Konami code — don't pop the shop
+      else { this.shopOpen = !this.shopOpen; Sfx.play('uiClick'); }
+    }
     if (this.showBuild) return;   // freeze the field while reviewing your build
     if (this.shopOpen) { this.updateShopPanel(); return; }   // modal shop also freezes the field
 

@@ -37,8 +37,8 @@ export const BALANCE = {
   DEFENSE_MULT: 0.9,                         // 原#12: flat-defense scale (eased from 0.85 after sim)
 
   // ---- enemy buffs (D1 / 原#6, E3 / 原#17) ------------------------------
-  ENEMY_HP_MULT: 1.15,                       // trash-mob HP (sim-tuned baseline; diffMul scales it up for D2+)
-  ENEMY_DMG_MULT: 1.0,                        // trash-mob damage baseline (sim: contact-density was killing fresh builds; diffMul adds D2+ bite)
+  ENEMY_HP_MULT: 1.45,                        // round-5 task-11: beefier mobs (was 1.15) — they linger, so the swarm stays thick
+  ENEMY_DMG_MULT: 1.08,                       // round-5 task-11: a touch more bite (was 1.0); the THREAT is the SWARM COUNT, not per-hit dmg, so D1 stays clearable (D2-D5 diffMul adds the real sting)
   BOSS_HP_MULT: 1.3,                         // boss HP up (on top of per-boss scaling)
   BOSS_DMG_MULT: 1.35,                       // boss damage up
   ENEMY_SPEEDUP_PER_MIN: 0.05,               // enemies move faster over time (D4)
@@ -62,15 +62,21 @@ export const BALANCE = {
   RANGED_SPAWN_WEIGHT: 0.4,                   // ranged enemies far less likely to spawn
   MAX_ENEMY_BURST: 3,                         // cap non-boss shooter burst (D5 bullet density)
 
-  // ---- surround monsters (D2 / 原#5, 原#9 must-clear) -------------------
+  // ---- surround 魂牢 (D2 / 原#5; task-4 rework) -------------------------
+  // A ring of monsters CLOSES IN on the player. You aren't held until the whole
+  // ring is dead — you break out by carving a gap (kill SURROUND_BREACH_KILLS) OR
+  // by backing into a wall. The lock slowly tightens so the circle visibly collapses.
   SURROUND_PERIOD: [40, 26],                  // [base, +random] sec between surround events
-  SURROUND_COUNT_BASE: 13,                    // 原#9: bigger ring (was 9) (+threat)
-  SURROUND_HP_MULT: 6,                        // surround mobs are tanky (eased a touch from 7 — there are more of them)
-  SURROUND_DMG_MULT: 0.85,
-  SURROUND_RADIUS: 210,                       // starting ring radius
-  SURROUND_SPEED_MULT: 0.45,                  // 原#9: surround mobs crawl slowly (must be killed, not outrun)
-  SURROUND_MUST_CLEAR: true,                  // 原#9: event ends only when the ring is cleared (or the safety timeout)
-  SURROUND_LIFE: 30,                          // 原#9: safety timeout so it can never soft-lock (was 16)
+  SURROUND_COUNT_BASE: 10,                    // ring size (+ ~0.5/threat). Fewer than before — you only need a gap
+  SURROUND_HP_MULT: 3.2,                      // tanky but killable: you must drop ~2 to open a gap
+  SURROUND_DMG_MULT: 0.8,
+  SURROUND_RADIUS: 175,                       // starting ring radius (tighter than the old 210)
+  SURROUND_SPEED_MULT: 0.85,                  // task-4: they ACTIVELY close in (was a 0.45 crawl)
+  SURROUND_MUST_CLEAR: true,                  // hold the player in the kill-zone until they breach
+  SURROUND_BREACH_KILLS: 2,                   // task-4: kill this many to carve an escape gap
+  SURROUND_CLOSE_SPEED: 6,                    // px/sec the lock radius shrinks (the ring tightening)
+  SURROUND_LOCK_MIN: 150,                     // ...but never tighter than this
+  SURROUND_LIFE: 22,                          // safety timeout so it can never soft-lock
 
   // ---- auto-aim (原#5): shorter range + line-of-sight ------------------
   AIM_RANGE: 300,                             // max auto-target distance (sim: 250 let swarms close in; still << old ~700)
@@ -81,13 +87,14 @@ export const BALANCE = {
   AFK_DRAIN_FRAC: 0.012,                      // per-second HP loss as a fraction of maxHp while idle
   AFK_DRAIN_MIN: 1,                           // ...but at least this many HP/sec
 
-  // ---- spawn pacing (原#3): a touch denser, but eased early after sim --
-  SPAWN_CAP_BASE: 7,                          // base concurrent-enemy cap (sim: 9 was too crowded early)
-  SPAWN_CAP_PER_THREAT: 4.8,                  // +cap per threat level
-  SPAWN_CAP_MAX: 115,                         // hard ceiling
-  SPAWN_INTERVAL_BASE: 2.0,                   // base seconds between spawn groups
-  SPAWN_INTERVAL_MIN: 0.55,                   // fastest spawn interval
-  EARLY_GRACE: 110,                           // sec of softened spawns + hits at run start (sim: opening was lethal)
+  // ---- spawn pacing (原#3 / round-5 task-11): a relentless swarm — far denser than
+  // round 4, still eased by EARLY_GRACE so the opening isn't instant death --
+  SPAWN_CAP_BASE: 14,                         // base concurrent-enemy cap (task-11: was 7 — you're now surrounded fast)
+  SPAWN_CAP_PER_THREAT: 7,                    // +cap per threat level (was 4.8)
+  SPAWN_CAP_MAX: 260,                         // hard ceiling (was 115 — late game is a sea of enemies)
+  SPAWN_INTERVAL_BASE: 1.25,                  // base seconds between spawn groups (was 2.0 — groups arrive twice as often)
+  SPAWN_INTERVAL_MIN: 0.3,                    // fastest spawn interval (was 0.55)
+  EARLY_GRACE: 140,                           // sec of softened spawns + hits at run start (task-11: longer on-ramp so a fresh build survives the denser swarm)
   EARLY_DMG_GRACE: 0.5,                        // enemy contact/projectile damage scaled to this at t=0, ramping to 1 by EARLY_GRACE (sim: cut early-death rate)
 
   // ---- Higgs zoning bombard (D3 / 原#7) ---------------------------------

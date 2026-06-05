@@ -16,6 +16,13 @@ import './art/weapons.js';
 import './art/biomes.js';
 import './art/hub.js';
 import './art/lobby.js';
+// round-5 town art (multi-room hub: NPCs + room decor)
+import './art/town_npcs_a.js';
+import './art/town_npcs_b.js';
+import './art/town_church.js';
+import './art/town_guildforge.js';
+import './art/town_decor.js';
+import './art/town_personal.js';
 import './art/reaper.js';
 import './game/content/enemies.js';
 import './game/content/abilities.js';

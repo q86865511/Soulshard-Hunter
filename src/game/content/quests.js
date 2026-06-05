@@ -37,6 +37,8 @@ export const HIDDEN_QUESTS = [
   { id: 'h_legend', title: '隱藏 · 傳奇之證', desc: '單局分數突破 50000', prog: (s) => s.bestScore || 0, goal: 50000, reward: 800, trigger: (m) => (m.stats.bestScore || 0) >= 20000 },
 ];
 
+import { addGuildXp } from './guild.js';
+
 export function chapterState(meta, i) {
   const q = STORY_QUESTS[i];
   if (!q) return null;
@@ -61,6 +63,7 @@ export function claimQuest(meta, id) {
   if (!st.done || (meta.questClaims && meta.questClaims[id])) return false;
   meta.questClaims = meta.questClaims || {};
   meta.questClaims[id] = true; meta.gold += q.reward;
+  addGuildXp(meta, q.reward / 3);   // 5-3: bounties build guild reputation
   if (meta.trackedQuest === id) meta.trackedQuest = 'story';
   return true;
 }
@@ -83,6 +86,7 @@ export function claimChapter(meta) {
   const st = chapterState(meta, i);
   if (!st || !st.done) return null;
   meta.gold += st.q.reward;
+  addGuildXp(meta, st.q.reward / 3);   // 5-3: story chapters build guild reputation
   meta.questIndex = i + 1;
   return st.q;
 }

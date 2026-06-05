@@ -234,16 +234,61 @@ registerHeroBody('valkyrie', (p, f, a) => {
   p.vline(1 + oy, 15 + oy, 13, P.wood); p.line(13, 1 + oy, 13, 3 + oy, P.steelL); p.px(13, 0 + oy, P.white);
 });
 
+// ── SCOUT — brimmed cap (not a hood), short recurve bow held FORWARD, side quiver.
+//    Distinct from RANGER (peaked hood + drawn longbow on the left). ──
+registerHeroBody('scout', (p, f, a) => {
+  const c = pal(a); const oy = bob(f);
+  legs(p, f, oy, darken(c.cD, 0.1));
+  p.rect(5, 9 + oy, 6, 7, c.cD); p.rect(6, 9 + oy, 4, 6, c.cloak);     // light jerkin
+  p.hline(5, 10, 12 + oy, c.trim);                                     // belt
+  p.rect(11, 9 + oy, 2, 4, c.cD); p.px(12, 8 + oy, c.eye);             // side quiver + fletch
+  p.ellipse(8, 6 + oy, 2.4, 2.2, c.skin); p.px(7, 6 + oy, P.ink); p.px(9, 6 + oy, P.ink);  // bare face
+  p.hline(4, 12, 4 + oy, c.cD); p.hline(5, 11, 3 + oy, c.cloak);       // brimmed cap
+  p.rect(6, 1 + oy, 4, 2, c.cD); p.px(10, 1 + oy, c.eye);              // cap crown + feather
+  // short recurve bow held forward on the right
+  p.line(13, 4 + oy, 14, 8 + oy, c.cL); p.line(14, 8 + oy, 13, 12 + oy, c.cL); p.vline(4 + oy, 12 + oy, 12, withAlphaSafe(c.trim));
+});
+
+// ── STORM-PRIEST — a horned circlet + a tall lightning rod staff crackling with
+//    sparks. Distinct from SHAMAN (feathered headdress + totem). ──
+registerHeroBody('stormpriest', (p, f, a) => {
+  const c = pal(a); const oy = bob(f);
+  for (let y = 9 + oy; y <= 16 + oy; y++) { const hw = 2.2 + (y - (9 + oy)) * 0.45; p.hline(8 - hw, 8 + hw, y, c.cD); }
+  for (let y = 10 + oy; y <= 16 + oy; y++) { const hw = 1.4 + (y - (10 + oy)) * 0.4; p.hline(8 - hw, 8 + hw, y, c.cloak); }
+  p.hline(4, 12, 16 + oy, c.trim);
+  p.ellipse(8, 7 + oy, 2.3, 2.2, c.skin); p.px(7, 7 + oy, c.eye); p.px(9, 7 + oy, c.eye);
+  // horned circlet
+  p.hline(5, 11, 4 + oy, c.cL); p.line(5, 4 + oy, 4, 1 + oy, c.trim); p.line(11, 4 + oy, 12, 1 + oy, c.trim);
+  p.px(8, 3 + oy, c.eye); p.px(4, 1 + oy, P.white); p.px(12, 1 + oy, P.white);
+  // lightning rod staff (right), jagged spark at the tip
+  p.vline(2 + oy, 15 + oy, 13, P.steel); p.line(13, 2 + oy, 12, 0 + oy, c.eye); p.line(13, 2 + oy, 15, 1 + oy, c.eye); p.px(13, 2 + oy, P.white);
+});
+
+// ── VOID-MAGE — a low cowl with a glowing third-eye sigil, a tattered robe, and a
+//    floating dark orb cradled in one hand. Distinct from MAGE (tall wide-brim hat). ──
+registerHeroBody('voidmage', (p, f, a) => {
+  const c = pal(a); const oy = bob(f);
+  for (let y = 8 + oy; y <= 16 + oy; y++) { const hw = 2 + (y - (8 + oy)) * 0.5; p.hline(8 - hw, 8 + hw, y, c.cD); }
+  for (let x = 4; x <= 12; x += 2) p.px(x, 16 + oy, c.cloak);          // tattered hem
+  p.rect(5, 9 + oy, 6, 4, c.cloak); p.px(8, 11 + oy, c.trim);
+  p.ellipse(8, 6 + oy, 3, 3, c.cD); p.ellipse(8, 6 + oy, 2.3, 2.2, P.ink2);   // deep cowl
+  p.px(8, 6 + oy, c.eye); p.px(8, 5 + oy, withAlphaSafe(c.cL));        // third-eye sigil
+  // floating void orb cupped in the right hand
+  p.ellipse(13, 10 + oy, 2, 2, c.cD); p.ellipse(13, 10 + oy, 1.3, 1.3, c.eye); p.px(13, 10 + oy, P.white);
+  p.rect(11, 11 + oy, 2, 2, c.cloak);                                  // hand under the orb
+  p.ring(13, 10 + oy, 3, withAlphaSafe(c.eye));
+});
+
 // ── charId -> archetype. Heroes sharing an archetype still differ by palette. ──
 // Loaded before characters.js / the gen hero packs, so their sprite generators pick
 // up the unique body via drawHeroBody(p, frame, id, art).
 const HERO_MAP = {
   // core (characters.js)
   hunter: 'hunter', pyro: 'pyromancer', guardian: 'knight', ranger: 'ranger', stormcaller: 'shaman', shadow: 'rogue',
-  // gen_characters (g_*)
-  g_vanguard: 'berserker', g_arcanist: 'mage', g_ranger: 'ranger', g_warden: 'valkyrie', g_revenant: 'necromancer', g_stormcaller: 'shaman',
+  // gen_characters (g_*) — task-3: duplicated archetypes split off so no two heroes are palette twins
+  g_vanguard: 'berserker', g_arcanist: 'mage', g_ranger: 'scout', g_warden: 'valkyrie', g_revenant: 'necromancer', g_stormcaller: 'stormpriest',
   // gen_heroes2 (h2_*)
-  h2_duelist: 'samurai', h2_warlock: 'warlock', h2_trapper: 'gunner', h2_voidcaller: 'mage', h2_warder: 'monk',
+  h2_duelist: 'samurai', h2_warlock: 'warlock', h2_trapper: 'gunner', h2_voidcaller: 'voidmage', h2_warder: 'monk',
 };
 for (const [id, arch] of Object.entries(HERO_MAP)) { const fn = HERO_ART[arch]; if (fn) registerHeroBody(id, fn); }
 

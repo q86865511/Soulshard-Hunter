@@ -203,7 +203,7 @@ export class World {
   }
   rollItem(quality = 1) {
     const tierCap = Math.min(3, 1 + quality);
-    const pool = Items.upTo(tierCap);
+    const pool = Items.upTo(tierCap).filter((d) => isUnlocked(META, 'items', d.id));   // round-5: gate fancy items behind unlocks
     return pool.length ? rng.weighted(pool, (d) => (d.weight ?? 1)) : null;
   }
   openChest(x, y, quality = 1) {
@@ -467,28 +467,75 @@ export function makeArena(tw = 34, th = 22, rngSrc = rng) {
   return { tw, th, tiles, floorVar, decor };
 }
 
-// A cozy walkable town for the hub.
-export function makeCamp(tw = 34, th = 22, rngSrc = rng) {
+// 5: a multi-room TOWN for the hub — a 3x3 grid of walled rooms joined by doorways,
+// with a central plaza. Returns `rooms` (named pixel anchors) so the hub scene can place
+// its interactive stations + NPCs. Six themed rooms (church / guild / clothing / smith /
+// achievement hall / personal) ring the plaza; two corners are flavour (garden / market).
+const CAMP = { tw: 48, th: 39, cw: 16, ch: 13 };           // grid: 3 cols x 3 rows
+// room id at each [col][row]
+const CAMP_GRID = [
+  ['church', 'blacksmith', 'personal'],   // col 0  (rows 0,1,2)
+  ['guild', 'plaza', 'garden'],           // col 1
+  ['clothing', 'achievements', 'market'], // col 2
+];
+export function makeCamp() {
+  const { tw, th, cw, ch } = CAMP;
   const tiles = new Uint8Array(tw * th);
   const floorVar = new Uint8Array(tw * th);
+  const set = (x, y, v) => { if (x >= 0 && y >= 0 && x < tw && y < th) tiles[y * tw + x] = v; };
   for (let y = 0; y < th; y++) for (let x = 0; x < tw; x++) {
     const border = x === 0 || y === 0 || x === tw - 1 || y === th - 1;
     tiles[y * tw + x] = border ? WALL : FLOOR;
-    floorVar[y * tw + x] = rngSrc.next() < 0.10 ? (rngSrc.next() < 0.5 ? 1 : 2) : 0;
+    floorVar[y * tw + x] = rng.next() < 0.10 ? (rng.next() < 0.5 ? 1 : 2) : 0;
   }
-  const cx = (tw / 2) * TS;
-  const decor = [
-    { sprite: 'campfire', x: cx, y: (th - 4) * TS, phase: 0 },
-    { sprite: 'hub_well', x: cx - 5 * TS, y: (th - 3) * TS },
-    { sprite: 'hub_house', x: 6 * TS, y: 4 * TS },
-    { sprite: 'hub_house', x: (tw - 6) * TS, y: 4 * TS },
-    { sprite: 'npc_smith', x: (tw - 9) * TS, y: 12 * TS, phase: 0 },
-    { sprite: 'hub_lamp', x: 4 * TS, y: (th - 4) * TS, phase: 0 },
-    { sprite: 'hub_lamp', x: (tw - 4) * TS, y: (th - 4) * TS, phase: 1 },
-    { sprite: 'torch', x: 2.5 * TS, y: 1.9 * TS, phase: 0 },
-    { sprite: 'torch', x: (tw - 2.5) * TS, y: 1.9 * TS, phase: 1 },
-    { sprite: 'hub_banner', x: cx - 3 * TS, y: 1.4 * TS },
-    { sprite: 'hub_banner', x: cx + 3 * TS, y: 1.4 * TS },
-  ];
-  return { tw, th, tiles, floorVar, decor };
+  // interior partition walls between the 3x3 cells
+  for (const bx of [cw, cw * 2]) for (let y = 1; y < th - 1; y++) set(bx, y, WALL);
+  for (const by of [ch, ch * 2]) for (let x = 1; x < tw - 1; x++) set(x, by, WALL);
+  // punch 4-tile doorways so the plaza connects to every room (and rooms to neighbours)
+  const doorV = (bx, yc) => { for (let y = yc - 1; y <= yc + 2; y++) set(bx, y, FLOOR); };
+  const doorH = (by, xc) => { for (let x = xc - 1; x <= xc + 2; x++) set(x, by, FLOOR); };
+  doorV(cw, 6); doorV(cw, 19); doorV(cw, 32);          // left column wall openings
+  doorV(cw * 2, 6); doorV(cw * 2, 19); doorV(cw * 2, 32); // right column wall openings
+  doorH(ch, 8); doorH(ch, 24); doorH(ch, 40);          // top row wall openings
+  doorH(ch * 2, 8); doorH(ch * 2, 24); doorH(ch * 2, 40); // bottom row wall openings
+
+  // room pixel anchors
+  const rooms = {};
+  for (let c = 0; c < 3; c++) for (let r = 0; r < 3; r++) {
+    const id = CAMP_GRID[c][r];
+    rooms[id] = { col: c, row: r, cx: (c * cw + cw / 2) * TS, cy: (r * ch + ch / 2) * TS,
+      x0: c * cw * TS, y0: r * ch * TS, x1: (c + 1) * cw * TS, y1: (r + 1) * ch * TS };
+  }
+  const R = rooms;
+  const D = [];   // background decor (non-interactive); interactive stations live in the hub
+  const at = (rm, dx, dy) => ({ x: rm.cx + dx * TS, y: rm.cy + dy * TS });
+  const put = (sprite, rm, dx, dy, phase = 0) => { const p = at(rm, dx, dy); D.push({ sprite, x: p.x, y: p.y, phase }); };
+  // CHURCH — pews, stained glass on the back wall, candles, framing pillars
+  put('town_stained', R.church, -3, -4); put('town_stained', R.church, 3, -4);
+  put('town_pew', R.church, -2.5, 1); put('town_pew', R.church, 2.5, 1); put('town_pew', R.church, -2.5, 3); put('town_pew', R.church, 2.5, 3);
+  put('town_candles', R.church, -5, -1); put('town_candles', R.church, 5, -1);
+  put('town_pillar', R.church, -6, 2); put('town_pillar', R.church, 6, 2);
+  // GUILD — counter, banners, barrel
+  put('hub_banner', R.guild, -3, -4.2); put('hub_banner', R.guild, 3, -4.2);
+  put('town_desk', R.guild, 3.5, 1.5); put('town_barrel', R.guild, -5, 3);
+  // CLOTHING — racks + a mirror
+  put('town_rack', R.clothing, -3.5, 1); put('town_rack', R.clothing, 3.2, 2.5); put('town_mirror', R.clothing, 5, -1.5);
+  // BLACKSMITH — anvil, grindstone, weapon rack
+  put('town_anvil', R.blacksmith, 3.5, 1.5); put('town_grindstone', R.blacksmith, -4.5, 2); put('town_weaponrack', R.blacksmith, 5, -2.5);
+  // ACHIEVEMENT HALL — banners + pillars
+  put('town_banner_gold', R.achievements, -5, -4); put('town_banner_gold', R.achievements, 5, -4);
+  put('town_pillar', R.achievements, -6, 2); put('town_pillar', R.achievements, 6, 2);
+  // PERSONAL — bookshelf, rug, plant (the bed is the interactive station)
+  put('town_rug', R.personal, 0, 2.5); put('town_bookshelf', R.personal, -5, -2); put('town_plant', R.personal, 5, 1);
+  // GARDEN (flavour) — well, plants, campfire
+  put('hub_well', R.garden, 0, 1); put('town_plant', R.garden, -4, -2); put('town_plant', R.garden, 4, 2); put('campfire', R.garden, 4, -3);
+  // MARKET (flavour) — stalls + barrels
+  put('hub_house', R.market, -3, -2); put('town_barrel', R.market, 3, 2); put('town_barrel', R.market, 4.5, 2.5);
+  // PLAZA — lamps at the corners, torches, a banner
+  put('hub_lamp', R.plaza, -5, 3, 0); put('hub_lamp', R.plaza, 5, 3, 1); put('hub_lamp', R.plaza, -5, -3, 1); put('hub_lamp', R.plaza, 5, -3, 0);
+  // task-6: archways marking ALL FOUR plaza entrances, aligned to the actual doorways
+  // (N→guild, S→garden, W→blacksmith, E→achievements) so the "gates" line up with the openings
+  put('town_arch', R.plaza, 0, -6.5); put('town_arch', R.plaza, 0, 6.5);
+  put('town_arch', R.plaza, -8, 0); put('town_arch', R.plaza, 8, 0);
+  return { tw, th, tiles, floorVar, decor: D, rooms };
 }

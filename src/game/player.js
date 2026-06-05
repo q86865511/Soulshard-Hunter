@@ -6,6 +6,7 @@ import { normalize, clamp } from '../engine/math.js';
 import { P } from '../engine/palette.js';
 import { Sfx } from '../engine/audio.js';
 import { Weapons } from './content/registry.js';
+import { computeForgeMods } from './content/forge.js';
 import { BALANCE, weaponMaxLevel } from './balance.js';
 import { tickStatus } from './status.js';
 
@@ -40,7 +41,7 @@ export class Player {
     const existing = this.weapons.find((w) => w.def.id === id);
     if (existing) { this.levelWeapon(existing, world); return existing; }
     if (this.weapons.length >= 6) return null;
-    const inst = { def, level: 1, t: 0, st: {} };
+    const inst = { def, level: 1, t: 0, st: {}, forge: computeForgeMods(id) };   // 5-5: attach forge mods once
     this.weapons.push(inst);
     return inst;
   }
@@ -57,7 +58,7 @@ export class Player {
     if (!hasReq) return;
     // replace with evolved weapon
     this.weapons = this.weapons.filter((w) => w !== inst);
-    const evo = { def: Weapons.get(d.evolveInto), level: 1, t: 0, st: {} };
+    const evo = { def: Weapons.get(d.evolveInto), level: 1, t: 0, st: {}, forge: inst.forge };   // inherit base weapon's forge mods
     if (evo.def) {
       this.weapons.push(evo);
       if (world) { world.particles.ring(this.x, this.y, P.goldL, 24, 140); world.particles.text(this.x, this.y - 20, '武器進化！', { color: P.goldL, size: 16, life: 1.2 }); Sfx.play('levelup'); }
@@ -74,20 +75,28 @@ export class Player {
     if (d.evolveInto) {
       this.weapons = this.weapons.filter((w) => w !== target);
       const evo = Weapons.get(d.evolveInto);
-      this.weapons.push(evo ? { def: evo, level: 1, t: 0, st: {} } : target);
+      this.weapons.push(evo ? { def: evo, level: 1, t: 0, st: {}, forge: target.forge } : target);   // inherit forge mods on fusion
     }
     if (world) { world.particles.ring(this.x, this.y, P.goldL, 28, 160); world.particles.text(this.x, this.y - 20, '武器融合！', { color: P.goldL, size: 16, life: 1.3 }); Sfx.play('levelup'); }
   }
 
   updateWeapons(dt, world) {
     const haste = (this.stats.fireRateMult || 1) * (world.playerTempo || 1);
+    const s = this.stats;
     for (const inst of this.weapons) {
       world._curSrc = inst.def.name || inst.def.id;   // 原#16: attribute this weapon's damage
+      // 5-5: apply this weapon's forge modifiers ONLY while it fires/updates, then restore
+      const fm = inst.forge; let snap = null;
+      if (fm) {
+        snap = { dm: s.damageMult, cc: s.critChance, cm: s.critMult, pa: s.pierceAdd, ar: s.area };
+        s.damageMult *= fm.dmgMul; s.critChance += fm.crit; s.critMult += fm.critMult; s.pierceAdd += fm.pierce; s.area *= fm.areaMul;
+      }
       if (inst.def.update) inst.def.update(world, this, inst, dt);
       if (inst.def.cooldown) {
         inst.t -= dt;
-        if (inst.t <= 0) { try { inst.def.fire(world, this, inst); } catch (e) { /* ignore */ } inst.t = (inst.def.cooldown(inst.level) || 1) / haste; }
+        if (inst.t <= 0) { try { inst.def.fire(world, this, inst); } catch (e) { /* ignore */ } inst.t = (inst.def.cooldown(inst.level) || 1) / (haste * (fm ? fm.haste : 1)); }
       }
+      if (snap) { s.damageMult = snap.dm; s.critChance = snap.cc; s.critMult = snap.cm; s.pierceAdd = snap.pa; s.area = snap.ar; }
       world._curSrc = null;
     }
   }

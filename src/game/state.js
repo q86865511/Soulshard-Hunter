@@ -3,6 +3,7 @@ import { P } from '../engine/palette.js';
 import { Talents, Facilities, Characters } from './content/registry.js';
 import { checkCharacterUnlocks, skinnedSprite } from './content/characters.js';
 import { checkAchievements, reconcileUnlocks } from './content/achievements.js';
+import { restockSkinShop } from './content/skinshop.js';
 import { Audio } from '../engine/audio.js';
 import { setShakeEnabled } from '../engine/renderer.js';
 
@@ -14,10 +15,12 @@ const DEFAULT_META = () => ({
   gold: 0,
   talents: {},           // talentId -> level
   facilities: {},        // facilityId -> level
-  unlocked: { abilities: [], equipment: [], weapons: ['wand'], characters: ['hunter'] },
+  unlocked: { abilities: [], equipment: [], weapons: ['wand'], characters: ['hunter'], items: [] },
   loadoutWeapon: 'wand',
   selectedCharacter: 'hunter',
-  stats: { runs: 0, kills: 0, bestFloor: 0, bestStage: 0, bestScore: 0, bestTime: 0, bossKills: 0, reaperKills: 0, miniBossKills: 0, clears: 0, deaths: 0, totalGold: 0, history: [] },
+  stats: { runs: 0, kills: 0, bestFloor: 0, bestStage: 0, bestScore: 0, bestTime: 0, bossKills: 0, reaperKills: 0, miniBossKills: 0, clears: 0, deaths: 0, totalGold: 0, history: [],
+    // round-5: extra lifetime stats for the expanded achievements (task 2)
+    charClears: {}, noDmgClears: 0, bestCharLevel: 0, bondsTriggered: 0, forgeUpgrades: 0, npcTalks: 0 },
   settings: { master: 0.9, sfx: 0.75, music: 0.5, shake: true, muted: false },
   achievements: [],      // unlocked achievement ids
   questIndex: 0,         // current story-quest chapter
@@ -26,6 +29,11 @@ const DEFAULT_META = () => ({
   ownedSkins: [],        // purchased "charId:skinId"
   trackedQuest: 'story', // #2 quest shown on the left-side tracker
   questClaims: {},       // claimed bounty ids
+  // round-5 hub systems (task 5)
+  guild: { xp: 0, claimed: {} },         // 5-3 guild rank: accumulated XP + claimed rank rewards
+  forge: {},                             // 5-5 weaponId -> { level, effects:[id,...] } out-of-run weapon upgrades
+  skinShop: { roll: 0, offers: [], nextRoll: 0 },   // 5-6 clothing store: rotating offers + 30-min refresh timer (task-10)
+  npc: { met: {} },                      // 5-1 npc id -> true once talked to (for "new" markers / story gating)
   flags: {},
 });
 
@@ -54,11 +62,24 @@ export function loadMeta() {
       META.achievements = Array.isArray(META.achievements) ? META.achievements : [];
       if (typeof META.questIndex !== 'number') META.questIndex = 0;
       if (!META.unlocked || typeof META.unlocked !== 'object') META.unlocked = DEFAULT_META().unlocked;
-      for (const k of ['abilities','equipment','weapons','characters']) if (!Array.isArray(META.unlocked[k])) META.unlocked[k] = DEFAULT_META().unlocked[k];
+      for (const k of ['abilities','equipment','weapons','characters','items']) if (!Array.isArray(META.unlocked[k])) META.unlocked[k] = DEFAULT_META().unlocked[k];
       if (!META.skins || typeof META.skins !== 'object') META.skins = {};
       if (!Array.isArray(META.ownedSkins)) META.ownedSkins = [];
       if (typeof META.trackedQuest !== 'string') META.trackedQuest = 'story';
       if (!META.questClaims || typeof META.questClaims !== 'object') META.questClaims = {};
+      // round-5 nested shapes (task 5 hub systems + task 2 stats)
+      if (!META.guild || typeof META.guild !== 'object') META.guild = { xp: 0, claimed: {} };
+      if (typeof META.guild.xp !== 'number') META.guild.xp = 0;
+      if (!META.guild.claimed || typeof META.guild.claimed !== 'object') META.guild.claimed = {};
+      if (!META.forge || typeof META.forge !== 'object') META.forge = {};
+      if (!META.skinShop || typeof META.skinShop !== 'object') META.skinShop = { roll: 0, offers: [] };
+      if (typeof META.skinShop.roll !== 'number') META.skinShop.roll = 0;
+      if (typeof META.skinShop.nextRoll !== 'number') META.skinShop.nextRoll = 0;   // task-10: 30-min refresh timer
+      if (!Array.isArray(META.skinShop.offers)) META.skinShop.offers = [];
+      if (!META.npc || typeof META.npc !== 'object') META.npc = { met: {} };
+      if (!META.npc.met || typeof META.npc.met !== 'object') META.npc.met = {};
+      for (const k of ['charClears']) if (!META.stats[k] || typeof META.stats[k] !== 'object') META.stats[k] = {};
+      for (const k of ['noDmgClears', 'bestCharLevel', 'bondsTriggered', 'forgeUpgrades', 'npcTalks']) if (typeof META.stats[k] !== 'number') META.stats[k] = 0;
       META.version = SAVE_VERSION;
     }
   } catch (e) { console.warn('load save failed', e); META = DEFAULT_META(); }
@@ -154,6 +175,20 @@ export function bankRun(run) {
   META.stats.miniBossKills = (META.stats.miniBossKills || 0) + (run.miniKills || 0);
   if (run.cleared) META.stats.clears = (META.stats.clears || 0) + 1;
   META.stats.deaths += 1;
+  // round-5 extra stats (task 2) + guild XP (task 5-3)
+  META.stats.bestCharLevel = Math.max(META.stats.bestCharLevel || 0, run.level || 1);
+  META.stats.bondsTriggered = (META.stats.bondsTriggered || 0) + ((run.bonds && run.bonds.length) || 0);
+  if (run.cleared) {
+    const cc = META.stats.charClears = META.stats.charClears || {};
+    cc[run.characterId] = (cc[run.characterId] || 0) + 1;
+    if (!(run.dmgTaken > 0)) META.stats.noDmgClears = (META.stats.noDmgClears || 0) + 1;   // flawless clear
+  }
+  META.guild = META.guild || { xp: 0, claimed: {} };
+  // guild reputation per sortie: scaled by score/time + bounties on bosses & clears
+  const gain = Math.floor((run.score || 0) / 250) + Math.floor((run.time || 0) / 60)
+    + (run.bossKills || 0) * 4 + ((run.miniKills || 0) * 2) + (run.cleared ? 60 : 0) + (run.reaperKills || 0) * 40;
+  META.guild.xp = (META.guild.xp || 0) + Math.max(0, gain);
+  run.guildGain = Math.max(0, gain);   // surfaced on the results screen
   META.stats.history = META.stats.history || [];
   META.stats.history.push({ score: run.score || 0, stage: run.stage || run.floor || 1, kills: run.kills || 0, char: run.characterId || 'hunter' });
   META.stats.history.sort((a, b) => b.score - a.score);
@@ -161,6 +196,7 @@ export function bankRun(run) {
   let newChars = [], newAch = [];
   try { newChars = checkCharacterUnlocks(META) || []; } catch (e) { /* ignore */ }
   try { newAch = checkAchievements(META) || []; } catch (e) { /* ignore */ }
+  try { restockSkinShop(META); } catch (e) { /* ignore */ }   // 5-6: fresh clothing-store stock next visit
   saveMeta();
   return { newAchievements: newAch, newCharacters: newChars };   // for the results screen (原#1)
 }
