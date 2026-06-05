@@ -89,6 +89,8 @@ export const hubScene = {
     if (pressed('escape') || pressed('map')) { this.panel = null; return; }
     const mx = mouse.x * view.dpr, my = mouse.y * view.dpr;
     const frame = this.panelFrame();
+    // 原#19: draggable vertical scrollbar takes priority over card clicks
+    if (this.handleScrollbar(mx, my, frame)) return;
     // close button / click outside
     if (mouse.justDown) {
       if (inside(mx, my, frame.close)) { this.panel = null; return; }
@@ -103,6 +105,42 @@ export const hubScene = {
     else if (this.panel === 'sortie') this.updateSortie(mx, my);
     else if (this.panel === 'quests') this.updateQuests(mx, my);
     else if (this.panel === 'wardrobe') this.updateWardrobe(mx, my);
+  },
+
+  // ---- scrollbar (原#19): a draggable vertical bar for the long scrollable panels --
+  scrollbarGeom(f) {
+    const S = f.S;
+    const x = f.x + f.w - 14 * S, y = f.y + 60 * S, h = f.h - 78 * S, w = 8 * S;
+    const max = this.panelMaxScroll || 0;
+    const content = h + max;
+    const thumbH = Math.max(26 * S, h * (h / Math.max(h, content)));
+    const thumbY = max > 0 ? y + (h - thumbH) * ((this.panelScroll || 0) / max) : y;
+    return { x, y, h, w, thumbH, thumbY, max, S };
+  },
+  handleScrollbar(mx, my, f) {
+    if (!(this.panelMaxScroll > 0)) { this.scrollDrag = null; return false; }
+    const g = this.scrollbarGeom(f);
+    if (this.scrollDrag) {                         // continue an active drag
+      if (!mouse.down) { this.scrollDrag = null; return false; }
+      const trackH = g.h - g.thumbH;
+      this.panelScroll = clamp(this.scrollDrag.s + (trackH > 0 ? (my - this.scrollDrag.y) / trackH * g.max : 0), 0, g.max);
+      return true;
+    }
+    if (mouse.justDown && mx >= g.x - 6 * g.S && mx <= g.x + g.w + 6 * g.S && my >= g.y && my <= g.y + g.h) {
+      if (my < g.thumbY || my > g.thumbY + g.thumbH) {   // click track: centre the thumb on the cursor
+        const trackH = g.h - g.thumbH;
+        this.panelScroll = clamp((my - g.y - g.thumbH / 2) / Math.max(1, trackH) * g.max, 0, g.max);
+      }
+      this.scrollDrag = { y: my, s: this.panelScroll };
+      return true;
+    }
+    return false;
+  },
+  drawScrollbar(f) {
+    if (!(this.panelMaxScroll > 0)) return;
+    const g = this.scrollbarGeom(f);
+    uiRect(g.x, g.y, g.w, g.h, withAlpha('#0b0d1a', 0.55), { radius: g.w / 2 });
+    uiRect(g.x, g.thumbY, g.w, g.thumbH, withAlpha(this.scrollDrag ? P.shardL : P.gray3, 0.92), { radius: g.w / 2 });
   },
 
   // ---- purchase logic ------------------------------------------------------
@@ -376,7 +414,8 @@ export const hubScene = {
       uiText(label, n.x + n.w - 8 * S, n.y + n.h - 9 * S, { size: 11 * S, align: 'right', color: col, weight: '800' });
     }
     ctx.restore();
-    const hint = this.panelMaxScroll > 0 ? '點擊節點花費金幣升級　·　▲▼ 滾輪捲動　·　Esc 關閉' : '點擊節點花費金幣升級　·　Esc 關閉';
+    this.drawScrollbar(f);   // 原#19
+    const hint = this.panelMaxScroll > 0 ? '點擊節點花費金幣升級　·　拖曳右側捲軸　·　Esc 關閉' : '點擊節點花費金幣升級　·　Esc 關閉';
     uiText(hint, f.x + f.w / 2, f.y + f.h - 14 * S, { size: 11 * S, align: 'center', color: P.gray3 });
   },
 
@@ -403,7 +442,8 @@ export const hubScene = {
       uiText(label, c.x + c.w - 10 * S, c.y + c.h - 10 * S, { size: 12 * S, align: 'right', color: col, weight: '800' });
     }
     ctx.restore();
-    const hint = this.panelMaxScroll > 0 ? '點擊設施花費金幣建造/升級　·　▲▼ 滾輪捲動　·　Esc 關閉' : '點擊設施花費金幣建造/升級　·　Esc 關閉';
+    this.drawScrollbar(f);   // 原#19
+    const hint = this.panelMaxScroll > 0 ? '點擊設施花費金幣建造/升級　·　拖曳右側捲軸　·　Esc 關閉' : '點擊設施花費金幣建造/升級　·　Esc 關閉';
     uiText(hint, f.x + f.w / 2, f.y + f.h - 14 * S, { size: 11 * S, align: 'center', color: P.gray3 });
   },
 
@@ -545,6 +585,7 @@ export const hubScene = {
       if (a.rewardLabel) this.clip1((done ? '✓ 已解鎖：' : '✦ 解鎖：') + a.rewardLabel, x + 34 * S, y + 53 * S, cardW - 42 * S, 9.5 * S, done ? P.greenL : P.shardL, '700');   // unlock target (A2)
     });
     ctx.restore();
+    this.drawScrollbar(f);   // 原#19
     const prog = achievementProgress(META);
     const tail = this.panelMaxScroll > 0 ? '　·　▲▼ 滾輪捲動' : '';
     uiText(`已解鎖 ${prog.unlocked} / ${prog.total}${tail}　·　Esc 關閉`, f.x + f.w / 2, f.y + f.h - 14 * S, { size: 12 * S, align: 'center', color: P.goldL, weight: '700' });

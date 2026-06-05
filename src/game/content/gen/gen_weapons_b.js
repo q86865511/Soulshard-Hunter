@@ -19,9 +19,9 @@ const _gwbRoll = (p, base) => {
   return { dmg: base * (p.stats.damageMult || 1) * (crit ? (p.stats.critMult || 2) : 1) * (0.9 + Math.random() * 0.2), crit };
 };
 const _gwbAlive = (w) => w.enemies.filter((e) => !e.dead && e.spawnT <= 0);
-const _gwbNearest = (w, x, y, n, maxD = 720) => {
+const _gwbNearest = (w, x, y, n, maxD = 250) => {   // 原#5: shorter range + line-of-sight
   const r = [];
-  for (const e of w.enemies) { if (e.dead || e.spawnT > 0) continue; const d = dist2(x, y, e.x, e.y); if (d < maxD * maxD) r.push([d, e]); }
+  for (const e of w.enemies) { if (e.dead || e.spawnT > 0) continue; const d = dist2(x, y, e.x, e.y); if (d < maxD * maxD && w.lineClear(x, y, e.x, e.y)) r.push([d, e]); }
   r.sort((a, b) => a[0] - b[0]);
   return r.slice(0, n).map((p) => p[1]);
 };

@@ -22,9 +22,10 @@ import { glowWorld, fillCircleWorld, drawSprite } from '../../engine/renderer.js
 import { getSprite } from '../../engine/sprites.js';
 import { Sfx } from '../../engine/audio.js';
 
-function nearestN(world, x, y, n, maxD = 700) {
+// 原#5: auto-target only foes within AIM_RANGE and with clear line-of-sight (no wall between).
+function nearestN(world, x, y, n, maxD = BALANCE.AIM_RANGE) {
   const r = [];
-  for (const e of world.enemies) { if (e.dead || e.spawnT > 0) continue; const d = dist2(x, y, e.x, e.y); if (d < maxD * maxD) r.push([d, e]); }
+  for (const e of world.enemies) { if (e.dead || e.spawnT > 0) continue; const d = dist2(x, y, e.x, e.y); if (d < maxD * maxD && (!BALANCE.AIM_LOS || world.lineClear(x, y, e.x, e.y))) r.push([d, e]); }
   r.sort((a, b) => a[0] - b[0]);
   return r.slice(0, n).map((p) => p[1]);
 }

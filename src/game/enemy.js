@@ -32,6 +32,8 @@ export class Enemy {
     this.knockResist = clamp(def.knockbackResist ?? 0, 0, 0.95) + (this.boss ? 0.5 : 0) + (this.elite ? 0.2 : 0);
     this.xp = def.xp ?? 3; this.gold = def.gold ?? 1; this.shard = def.shard ?? 0;
     this.attack = def.attack || null;
+    this.steal = def.steal || null;                 // 原#11: thief — { gold?, xp? } stolen on contact
+    this.stolenGold = 0; this.stolenXp = 0; this.fleeing = false;
 
     this.facing = -1; this.flash = 0; this.touchCd = 0; this.t = Math.random() * 6.28;
     this.attackCd = (this.attack?.cooldown ?? 1.4) * (0.5 + Math.random());
@@ -68,9 +70,10 @@ export class Enemy {
     Sfx.play('boss');
   }
 
-  hurt(dmg, kbx, kby, world, crit = false) {
+  hurt(dmg, kbx, kby, world, crit = false, src = null) {
     if (this.dead || this.spawnT > 0 || this.iframe > 0) return;
     this.hp -= dmg;
+    world.attributeDamage(src || world._curSrc, dmg);   // 原#16: damage ranking
     this.flash = 0.1;
     if (crit) Sfx.play('crit'); else Sfx.hit();
     world.particles.text(this.x, this.y - this.radius * this.scale - 4, String(Math.round(dmg)),
@@ -170,6 +173,9 @@ export class Enemy {
       }
     }
 
+    // 原#11: a thief that has grabbed your loot turns tail and bolts for the edge
+    if (this.fleeing && player && this.spawnT <= 0 && !controlled) { mx = Math.cos(ang + Math.PI); my = Math.sin(ang + Math.PI); }
+
     // obstacle avoidance / lightweight pathing (F1): when a wall lies ahead, pick the
     // SMALLEST course change that clears both a near and a farther probe (so the enemy
     // doesn't immediately re-collide). If fully boxed in, slide along the wall tangent.
@@ -209,7 +215,7 @@ export class Enemy {
     const accel = this.charging ? 1 : 1;
     // D4: enemies move faster the longer the run goes (bosses pace themselves).
     const tmin = ((world.run && world.run.time) || world.time || 0) / 60;
-    const sNow = this.speed * slowMult * (this.boss ? 1 : 1 + Math.min(BALANCE.ENEMY_SPEEDUP_CAP, tmin * BALANCE.ENEMY_SPEEDUP_PER_MIN));
+    const sNow = this.speed * slowMult * (this.fleeing ? 1.7 : 1) * (this.boss ? 1 : 1 + Math.min(BALANCE.ENEMY_SPEEDUP_CAP, tmin * BALANCE.ENEMY_SPEEDUP_PER_MIN));
     this.vx += (n.x * sNow * accel + sx * 22) * dt * 6;
     this.vy += (n.y * sNow * accel + sy * 22) * dt * 6;
     // friction / clamp to speed (unless dashing)
@@ -227,10 +233,21 @@ export class Enemy {
       if (toP < this.radius * this.scale * 0.7 + player.radius) {
         player.takeDamage(this.damage, ang, world);
         if (this.hitStatus && Math.random() < (this.hitStatus.chance ?? 1)) applyStatus(player, this.hitStatus.type, world, this.hitStatus);   // D6: on-touch status
+        if (this.steal && !this.fleeing) this.doSteal(world, player);   // 原#11: grab loot then bolt
         this.touchCd = 0.55;
         this.vx -= Math.cos(ang) * 40; this.vy -= Math.sin(ang) * 40; // small recoil
       }
     }
+  }
+
+  // 原#11: thief grabs gold/xp off the player on contact, then flips to flee AI.
+  doSteal(world, player) {
+    const run = world.run; if (!run) return;
+    if (this.steal.gold && run.gold > 0) { const g = Math.min(run.gold, this.steal.gold); run.gold -= g; this.stolenGold += g; world.particles.text(player.x, player.y - 20, '-' + g + ' 金', { color: P.goldL, size: 12, weight: '800' }); }
+    if (this.steal.xp && run.xp > 0) { const x = Math.min(run.xp, this.steal.xp); run.xp -= x; this.stolenXp += x; world.particles.text(player.x, player.y - 32, '-' + x + ' 經驗', { color: P.manaL, size: 12, weight: '800' }); }
+    this.fleeing = true;
+    world.particles.ring(this.x, this.y, P.goldL, 10, 70);
+    Sfx.play('coin');
   }
 
   draw() {

@@ -115,6 +115,8 @@ export function newRun(opts = {}) {
     abilityLevels: {},
     equipment: { weapon: null, armor: null, trinket: null },
     inventory: [],
+    dmgBySource: {},        // 原#16: weapon/source -> cumulative damage dealt (results ranking)
+    bonds: [],              // 原#13: ids of bonds currently active this run
     startedAt: (typeof performance !== 'undefined' ? performance.now() : 0),
   };
   applyMeta(run);

@@ -82,11 +82,13 @@ export class Player {
   updateWeapons(dt, world) {
     const haste = (this.stats.fireRateMult || 1) * (world.playerTempo || 1);
     for (const inst of this.weapons) {
+      world._curSrc = inst.def.name || inst.def.id;   // 原#16: attribute this weapon's damage
       if (inst.def.update) inst.def.update(world, this, inst, dt);
       if (inst.def.cooldown) {
         inst.t -= dt;
         if (inst.t <= 0) { try { inst.def.fire(world, this, inst); } catch (e) { /* ignore */ } inst.t = (inst.def.cooldown(inst.level) || 1) / haste; }
       }
+      world._curSrc = null;
     }
   }
 
@@ -97,14 +99,16 @@ export class Player {
     if (this.dead || this.invuln > 0 || this.dashT > 0) return;
     const dodge = Math.min(BALANCE.DODGE_CAP, (this.stats.dodge ?? 0) * BALANCE.DODGE_MULT);
     if (Math.random() < dodge) { world.particles.text(this.x, this.y - 14, '閃避', { color: P.shardL, size: 13 }); return; }
-    let d = Math.max(1, dmg - (this.stats.defense ?? 0));
+    let d = Math.max(1, dmg - (this.stats.defense ?? 0) * BALANCE.DEFENSE_MULT);   // 原#12: defense toned down
     d = Math.max(1, Math.round(d * (1 - (this.stats.armorMult ?? 0))));
     this.hp -= d; this.invuln = 0.7; this.flash = 0.18;
     this.vx -= Math.cos(ang) * 70; this.vy -= Math.sin(ang) * 70;
     world.particles.blood(this.x, this.y, ang + Math.PI, P.red);
     world.particles.text(this.x, this.y - 16, String(d), { color: P.redL, size: 14 });
     addShake(4); Sfx.play('hurt');
+    world._curSrc = '被動技能';   // 原#16: attribute thorns-style retaliation damage
     for (const h of this.hooks.hurt) h(this, d, ang, world);
+    world._curSrc = null;
     if (world.onPlayerHit) world.onPlayerHit(d);
     if (this.hp <= 0) { this.hp = 0; this.die(world); }
   }
@@ -159,11 +163,21 @@ export class Player {
     this.updateWeapons(dt, world);
 
     if ((this.stats.hpRegen ?? 0) > 0 && this.hp < this.stats.maxHp) {
-      this.regenAcc += this.stats.hpRegen * dt;
+      this.regenAcc += this.stats.hpRegen * BALANCE.REGEN_MULT * dt;   // 原#12: regen toned down
       if (this.regenAcc >= 1) { const n = Math.floor(this.regenAcc); this.heal(n); this.regenAcc -= n; }
     }
     for (let i = this.timedBuffs.length - 1; i >= 0; i--) { const b = this.timedBuffs[i]; b.t -= dt; if (b.t <= 0) { try { b.onEnd?.(this); } catch (e) { /* */ } this.timedBuffs.splice(i, 1); } }
+    // anti-AFK (原#15): standing still past a grace period bleeds a little HP so you
+    // can't idle-farm. Movement or dashing resets it; menus freeze the field (no drain).
+    if (this.moving || this.dashT > 0) this.idleT = 0;
+    else this.idleT = (this.idleT || 0) + dt;
+    if (this.idleT > BALANCE.AFK_GRACE && world.time > 3) {
+      this.afkAcc = (this.afkAcc || 0) + Math.max(BALANCE.AFK_DRAIN_MIN, this.stats.maxHp * BALANCE.AFK_DRAIN_FRAC) * dt;
+      if (this.afkAcc >= 1) { const n = Math.floor(this.afkAcc); this.afkAcc -= n; this.hp -= n; if (Math.random() < 0.3) world.particles.text(this.x, this.y - 18, '怠惰', { color: P.toxic, size: 10 }); if (this.hp <= 0) { this.hp = 0; this.die(world); } }
+    }
+    world._curSrc = '被動技能';   // 原#16: attribute orbit/aura-style passive damage
     for (const h of this.hooks.update) h(this, dt, world);
+    world._curSrc = null;
   }
 
   drawWeapons(world) { for (const inst of this.weapons) if (inst.def.draw) inst.def.draw(world, this, inst); }
