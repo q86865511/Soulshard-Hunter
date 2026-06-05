@@ -6,6 +6,7 @@ import { normalize, clamp } from '../engine/math.js';
 import { P } from '../engine/palette.js';
 import { Sfx } from '../engine/audio.js';
 import { Weapons } from './content/registry.js';
+import { BALANCE, weaponMaxLevel } from './balance.js';
 
 export class Player {
   constructor(x, y, stats) {
@@ -42,13 +43,13 @@ export class Player {
     return inst;
   }
   levelWeapon(inst, world) {
-    inst.level = Math.min(inst.def.maxLevel || 8, inst.level + 1);
+    inst.level = Math.min(weaponMaxLevel(inst.def), inst.level + 1);
     this.checkEvolve(inst, world);
   }
   checkEvolve(inst, world) {
     const d = inst.def;
     if (!this.weapons.includes(inst)) return;          // already evolved/removed — no double-fire
-    if (!d.evolveInto || inst.level < (d.maxLevel || 8)) return;
+    if (!d.evolveInto || inst.level < weaponMaxLevel(d)) return;
     const req = d.evolveReq;
     const hasReq = !req || (this.run && (this.run.abilityLevels[req] > 0));
     if (!hasReq) return;
@@ -60,12 +61,13 @@ export class Player {
       if (world) { world.particles.ring(this.x, this.y, P.goldL, 24, 140); world.particles.text(this.x, this.y - 20, '武器進化！', { color: P.goldL, size: 16, life: 1.2 }); Sfx.play('levelup'); }
     }
   }
-  // fusion: sacrifice one weapon to instantly max + force-evolve another (#8)
+  // fusion (合成): instantly max + force-evolve a weapon. The "2-3 maxed weapons"
+  // path consumes a sacrifice; the "1 maxed weapon + passive" path passes none.
   fuseWeapons(target, sacrifice, world) {
-    if (!target || !sacrifice || target === sacrifice) return;
-    if (!this.weapons.includes(target) || !this.weapons.includes(sacrifice)) return;
-    this.weapons = this.weapons.filter((w) => w !== sacrifice);
-    target.level = target.def.maxLevel || 8;
+    if (!target || target === sacrifice) return;
+    if (!this.weapons.includes(target)) return;
+    if (sacrifice && this.weapons.includes(sacrifice)) this.weapons = this.weapons.filter((w) => w !== sacrifice);
+    target.level = weaponMaxLevel(target.def);
     const d = target.def;
     if (d.evolveInto) {
       this.weapons = this.weapons.filter((w) => w !== target);
@@ -91,7 +93,8 @@ export class Player {
 
   takeDamage(dmg, ang, world) {
     if (this.dead || this.invuln > 0 || this.dashT > 0) return;
-    if (Math.random() < (this.stats.dodge ?? 0)) { world.particles.text(this.x, this.y - 14, '閃避', { color: P.shardL, size: 13 }); return; }
+    const dodge = Math.min(BALANCE.DODGE_CAP, (this.stats.dodge ?? 0) * BALANCE.DODGE_MULT);
+    if (Math.random() < dodge) { world.particles.text(this.x, this.y - 14, '閃避', { color: P.shardL, size: 13 }); return; }
     let d = Math.max(1, dmg - (this.stats.defense ?? 0));
     d = Math.max(1, Math.round(d * (1 - (this.stats.armorMult ?? 0))));
     this.hp -= d; this.invuln = 0.7; this.flash = 0.18;

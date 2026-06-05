@@ -6,6 +6,7 @@ import { P } from '../engine/palette.js';
 import { Projectile } from './projectile.js';
 import { Sfx } from '../engine/audio.js';
 import { Enemies } from './content/registry.js';
+import { BALANCE } from './balance.js';
 
 export class Enemy {
   constructor(def, x, y, world, opts = {}) {
@@ -16,10 +17,12 @@ export class Enemy {
 
     const hpScale = (opts.hpScale ?? 1) * (this.elite ? 3.2 : 1);
     const dmgScale = (opts.dmgScale ?? 1) * (this.elite ? 1.5 : 1);
-    this.maxHp = Math.max(1, Math.round((def.hp ?? 20) * hpScale));
+    const gHp = this.boss ? BALANCE.BOSS_HP_MULT : BALANCE.ENEMY_HP_MULT;     // D1/E3 global buffs
+    const gDmg = this.boss ? BALANCE.BOSS_DMG_MULT : BALANCE.ENEMY_DMG_MULT;
+    this.maxHp = Math.max(1, Math.round((def.hp ?? 20) * hpScale * gHp));
     this.hp = this.maxHp;
     this.speed = (def.speed ?? 30) * (opts.speedScale ?? 1) * (this.elite ? 0.85 : 1);
-    this.damage = (def.damage ?? 8) * dmgScale;
+    this.damage = (def.damage ?? 8) * dmgScale * gDmg;
     this.radius = def.radius ?? 6;
     this.sprite = def.sprite;
     this.ai = def.ai ?? 'chase';
@@ -186,10 +189,13 @@ export class Enemy {
 
     const n = normalize(mx, my);
     const accel = this.charging ? 1 : 1;
-    this.vx += (n.x * this.speed * accel + sx * 22) * dt * 6;
-    this.vy += (n.y * this.speed * accel + sy * 22) * dt * 6;
+    // D4: enemies move faster the longer the run goes (bosses pace themselves).
+    const tmin = ((world.run && world.run.time) || world.time || 0) / 60;
+    const sNow = this.speed * (this.boss ? 1 : 1 + Math.min(BALANCE.ENEMY_SPEEDUP_CAP, tmin * BALANCE.ENEMY_SPEEDUP_PER_MIN));
+    this.vx += (n.x * sNow * accel + sx * 22) * dt * 6;
+    this.vy += (n.y * sNow * accel + sy * 22) * dt * 6;
     // friction / clamp to speed (unless dashing)
-    const maxV = this.charging ? this.speed * 3.4 : this.speed;
+    const maxV = this.charging ? sNow * 3.4 : sNow;
     const sp = Math.hypot(this.vx, this.vy);
     const drag = Math.pow(0.0001, dt);
     this.vx *= drag; this.vy *= drag;

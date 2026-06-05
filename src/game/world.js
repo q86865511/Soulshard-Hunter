@@ -9,6 +9,7 @@ import { getSprite, frameAt, hasSprite } from '../engine/sprites.js';
 import { circleHit, dist, dist2, clamp, rng, TAU } from '../engine/math.js';
 import { P, withAlpha } from '../engine/palette.js';
 import { Sfx } from '../engine/audio.js';
+import { BALANCE } from './balance.js';
 
 export const TS = 16; // tile size (world units)
 export const FLOOR = 0, WALL = 1, VOID = 2;
@@ -133,22 +134,23 @@ export class World {
   dropLoot(e) {
     const floor = this.run.floor || 1;
     const gMul = this.player?.stats?.goldMult ?? 1;
-    let gold = Math.round((e.gold || 0) * (1 + floor * 0.08) * gMul * 0.62);
+    let gold = Math.round((e.gold || 0) * (1 + floor * 0.08) * gMul * BALANCE.GOLD_DROP_MULT);
     // scatter into a few coins
     let coins = clamp(Math.round(gold / 3), 1, 5);
     for (let i = 0; i < coins; i++) this.addPickup('gold', e.x, e.y, Math.ceil(gold / coins));
     if (e.xp > 0) this.addPickup('xp', e.x, e.y, Math.round(e.xp * (this.player?.stats?.xpMult ?? 1)));
     const luck = this.player?.stats?.luck ?? 0;
-    if (e.shard && Math.random() < e.shard * (1 + luck)) this.addPickup('shard', e.x, e.y, e.boss ? 5 : 1);
-    if (Math.random() < (e.boss ? 1 : 0.03 + luck * 0.03)) this.addPickup('heart', e.x, e.y, e.boss ? 30 : 15);
+    const dropM = BALANCE.DROP_CHANCE_MULT;
+    if (e.shard && Math.random() < e.shard * (1 + luck) * BALANCE.SHARD_DROP_MULT) this.addPickup('shard', e.x, e.y, e.boss ? 5 : 1);
+    if (Math.random() < (e.boss ? 1 : (0.03 + luck * 0.03) * dropM)) this.addPickup('heart', e.x, e.y, e.boss ? 30 : 15);
 
     const dq = this.run.dropQuality || 0;
     if (e.boss) {
       const d = this.rollEquipment(2 + dq); if (d) this.addPickup('equip', e.x, e.y, 1, { def: d });
       for (let i = 0; i < 5; i++) this.addPickup('shard', e.x, e.y, 3);
-    } else if (Math.random() < 0.02 + luck * 0.03 + dq * 0.012) {
+    } else if (Math.random() < (0.02 + luck * 0.03 + dq * 0.012) * dropM) {
       const d = this.rollEquipment(1 + dq); if (d) this.addPickup('equip', e.x, e.y, 1, { def: d });
-    } else if (Math.random() < 0.05 + luck * 0.03) {
+    } else if (Math.random() < (0.05 + luck * 0.03) * dropM) {
       const d = this.rollItem(1 + dq); if (d) this.addPickup('item', e.x, e.y, 1, { def: d });
     }
   }
@@ -266,7 +268,8 @@ export class World {
             e.hurt(p.damage, Math.cos(ang) * p.knockback, Math.sin(ang) * p.knockback, this, p.crit);
             p.hitSet.add(e);
             this.particles.hit(p.x, p.y, ang + Math.PI, p.color);
-            if (player && (player.stats.lifesteal ?? 0) > 0) player.heal(p.damage * player.stats.lifesteal);
+            const ls = Math.min(BALANCE.LIFESTEAL_CAP, (player?.stats.lifesteal ?? 0) * BALANCE.LIFESTEAL_MULT);
+            if (player && ls > 0) player.heal(p.damage * ls);
             if (p.onHit) p.onHit(e, this);
             if (player) for (const h of player.hooks.hit) h(e, p.damage, this);
             if (p.pierce > 0) p.pierce--; else { p.dead = true; break; }
@@ -338,7 +341,7 @@ export class World {
   }
   hazardStrike(h, def) {
     const p = this.player;
-    const dmg = def.dmg * Math.min(2.2, 1 + (this.threat || 0) * 0.08);   // scales with threat, capped
+    const dmg = def.dmg * BALANCE.TRAP_DMG_MULT * Math.min(2.2, 1 + (this.threat || 0) * 0.08);   // scales with threat, capped
     if (p && !p.dead && dist(p.x, p.y, h.x, h.y) < h.r + p.radius) p.takeDamage(dmg, Math.atan2(p.y - h.y, p.x - h.x), this);
     for (const e of this.enemies) { if (e.dead || e.spawnT > 0) continue; if (dist(e.x, e.y, h.x, h.y) < h.r + e.radius) e.hurt(dmg * 0.8, 0, 0, this, false); }
     this.particles.ring(h.x, h.y, def.color, 7, h.r * 3.5);

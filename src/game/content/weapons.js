@@ -12,6 +12,7 @@
 //     evolved: true                           // hides from the random level-up pool }
 import { Weapons } from './registry.js';
 import { Projectile } from '../projectile.js';
+import { BALANCE } from '../balance.js';
 import { P, withAlpha } from '../../engine/palette.js';
 import { dist2, TAU } from '../../engine/math.js';
 import { glowWorld, fillCircleWorld, drawSprite } from '../../engine/renderer.js';
@@ -26,7 +27,7 @@ function nearestN(world, x, y, n, maxD = 700) {
 }
 function roll(p, base) {
   const crit = Math.random() < (p.stats.critChance || 0);
-  return { dmg: base * (p.stats.damageMult || 1) * (crit ? (p.stats.critMult || 2) : 1) * (0.92 + Math.random() * 0.16), crit };
+  return { dmg: base * BALANCE.PLAYER_DAMAGE_MULT * (p.stats.damageMult || 1) * (crit ? (p.stats.critMult || 2) : 1) * (0.92 + Math.random() * 0.16), crit };
 }
 const faceA = (p) => Math.atan2(p.faceY || 0, p.faceX || 1);
 const W = (o) => Weapons.register(o);

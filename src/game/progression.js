@@ -2,6 +2,7 @@
 import { Abilities } from './content/registry.js';
 import { applyAbility } from './content/abilities.js';
 import { weaponPool } from './content/weapons.js';
+import { BALANCE, weaponMaxLevel, isWeaponMaxed } from './balance.js';
 import { rng } from '../engine/math.js';
 import { P } from '../engine/palette.js';
 
@@ -17,7 +18,7 @@ function eligibleAbilities(run) {
 export function getRunChoices(run, player, n = 3) {
   const pool = [];
   for (const inst of player.weapons) {
-    if (!inst.def.evolved && !inst.def.equipped && inst.level < (inst.def.maxLevel || 8)) pool.push({ kind: 'weaponup', id: inst.def.id, def: inst.def, weight: 9, level: inst.level });
+    if (!inst.def.evolved && !inst.def.equipped && inst.level < weaponMaxLevel(inst.def)) pool.push({ kind: 'weaponup', id: inst.def.id, def: inst.def, weight: 9, level: inst.level });
   }
   if (player.weapons.filter((w) => !w.def.equipped).length < MAX_WEAPONS) {   // signature (equip) weapons don't count toward the cap
     for (const w of weaponPool()) if (!player.hasWeapon(w.id)) pool.push({ kind: 'weapon', id: w.id, def: w, weight: (w.weight ?? 5) * 0.8 });
@@ -28,12 +29,19 @@ export function getRunChoices(run, player, n = 3) {
     pool.push({ kind: 'ability', id: a.id, def: a, weight: a.weight ?? 5 });
   }
 
-  // fusion: sacrifice a weapon to instantly max + evolve another (R8 / #8)
-  if (player.weapons.length >= 2) {
-    const target = player.weapons.find((w) => w.def.evolveInto && !w.def.evolved);
+  // fusion (合成): an evolvable, MAXED weapon can be synthesised when the player has
+  // either 2+ maxed weapons (sacrifice the spare), or 1 maxed weapon + a passive.
+  // The exact recipe is deliberately not spelled out on the card (C2 — hidden formula).
+  {
+    const maxed = player.weapons.filter((w) => !w.def.evolved && !w.def.equipped && isWeaponMaxed(w));
+    const target = maxed.find((w) => w.def.evolveInto);
     if (target) {
-      const sacrifice = player.weapons.find((w) => w !== target);
-      if (sacrifice) pool.push({ kind: 'fuse', id: 'fuse_' + target.def.id, def: { name: '武器融合 · ' + target.def.name, desc: `犧牲「${sacrifice.def.name}」使「${target.def.name}」直接滿級並進化` }, target, sacrifice, weight: 4 });
+      const passives = (run.abilities || []).length;
+      const otherMaxed = maxed.find((w) => w !== target) || null;
+      let sacrifice = null, via = null;
+      if (maxed.length >= BALANCE.FUSE_MAXED_WEAPONS && otherMaxed) { sacrifice = otherMaxed; via = `犧牲滿級的「${otherMaxed.def.name}」`; }
+      else if (passives >= BALANCE.FUSE_PASSIVES) { sacrifice = null; via = '燃燒一道被動之力'; }
+      if (via) pool.push({ kind: 'fuse', id: 'fuse_' + target.def.id, def: { name: '武器合成 · ' + target.def.name, desc: `${via}，令「${target.def.name}」覺醒進化為更強型態。` }, target, sacrifice, weight: 7 });
     }
   }
 
@@ -58,7 +66,7 @@ export function applyChoice(run, player, world, c) {
 // "effect" line (weapon stats) shown above the flavour text on the card.
 const RARITY = { 1: { accent: P.gray4, tag: '普通' }, 2: { accent: P.purpleL, tag: '稀有' }, 3: { accent: P.goldL, tag: '史詩' } };
 export function choiceStyle(c) {
-  if (c.kind === 'fuse') return { icon: 'weapon_' + (c.target ? c.target.def.id : 'w_soulbolt'), sub: '武器融合', tag: '融合', rarity: 3, accent: P.goldL, bg: '#4a3a16', desc: c.def.desc, effect: '' };
+  if (c.kind === 'fuse') return { icon: 'weapon_' + (c.target ? c.target.def.id : 'w_soulbolt'), sub: '武器合成', tag: '合成', rarity: 3, accent: P.goldL, bg: '#4a3a16', desc: c.def.desc, effect: '' };
   if (c.kind === 'weapon') {
     const r = RARITY[c.def.tier || 1];
     return { icon: 'weapon_' + c.id, sub: '新武器', tag: r.tag, rarity: c.def.tier || 1, accent: P.shardL, bg: '#163a44', desc: c.def.desc, effect: c.def.levelDesc ? c.def.levelDesc(1) : '' };
