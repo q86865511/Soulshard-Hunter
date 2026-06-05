@@ -22,15 +22,15 @@ export const BALANCE = {
   FUSE_PASSIVES: 1,
 
   // ---- player nerfs (D1 / 原#6) -----------------------------------------
-  PLAYER_DAMAGE_MULT: 0.7,                   // global scale on ALL player weapon damage
-  ABILITY_DAMAGE_MULT: 0.75,                 // global scale on passive/ability damage
+  PLAYER_DAMAGE_MULT: 0.78,                  // global scale on ALL player weapon damage
+  ABILITY_DAMAGE_MULT: 0.8,                  // global scale on passive/ability damage
   LIFESTEAL_MULT: 0.45,                      // lifesteal effectiveness (was too strong)
   LIFESTEAL_CAP: 0.20,                       // hard cap on effective lifesteal fraction
   DODGE_MULT: 0.5,                           // dodge effectiveness (was too strong)
   DODGE_CAP: 0.35,                           // hard cap on effective dodge chance
 
   // ---- enemy buffs (D1 / 原#6, E3 / 原#17) ------------------------------
-  ENEMY_HP_MULT: 1.45,                       // trash-mob HP up
+  ENEMY_HP_MULT: 1.35,                       // trash-mob HP up
   ENEMY_DMG_MULT: 1.4,                       // trash-mob damage up
   BOSS_HP_MULT: 1.3,                         // boss HP up (on top of per-boss scaling)
   BOSS_DMG_MULT: 1.35,                       // boss damage up
@@ -45,6 +45,7 @@ export const BALANCE = {
   // ---- ranged vs melee composition (D4 / 原#15, D5 / 原#16) -------------
   RANGED_FIRE_MULT: 1.55,                     // ranged-enemy fire cooldowns lengthened
   RANGED_SPAWN_WEIGHT: 0.4,                   // ranged enemies far less likely to spawn
+  MAX_ENEMY_BURST: 3,                         // cap non-boss shooter burst (D5 bullet density)
 
   // ---- surround monsters (D2 / 原#5) ------------------------------------
   SURROUND_PERIOD: [40, 26],                  // [base, +random] sec between surround events

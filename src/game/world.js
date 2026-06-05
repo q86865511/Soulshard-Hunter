@@ -10,6 +10,7 @@ import { circleHit, dist, dist2, clamp, rng, TAU } from '../engine/math.js';
 import { P, withAlpha } from '../engine/palette.js';
 import { Sfx } from '../engine/audio.js';
 import { BALANCE } from './balance.js';
+import { applyStatus } from './status.js';
 
 export const TS = 16; // tile size (world units)
 export const FLOOR = 0, WALL = 1, VOID = 2;
@@ -270,6 +271,7 @@ export class World {
             this.particles.hit(p.x, p.y, ang + Math.PI, p.color);
             const ls = Math.min(BALANCE.LIFESTEAL_CAP, (player?.stats.lifesteal ?? 0) * BALANCE.LIFESTEAL_MULT);
             if (player && ls > 0) player.heal(p.damage * ls);
+            if (p.statusOnHit && Math.random() < (p.statusOnHit.chance ?? 1)) applyStatus(e, p.statusOnHit.type, this, p.statusOnHit);   // D6
             if (p.onHit) p.onHit(e, this);
             if (player) for (const h of player.hooks.hit) h(e, p.damage, this);
             if (p.pierce > 0) p.pierce--; else { p.dead = true; break; }
@@ -278,6 +280,7 @@ export class World {
       } else if (player && !player.dead) {
         if (circleHit(p.x, p.y, p.radius, player.x, player.y, player.radius)) {
           player.takeDamage(p.damage, Math.atan2(p.vy, p.vx), this);
+          if (p.statusOnHit && Math.random() < (p.statusOnHit.chance ?? 1)) applyStatus(player, p.statusOnHit.type, this, p.statusOnHit);   // D6 (enemy ranged status)
           if (p.pierce > 0) p.pierce--; else p.dead = true;
         }
       }
@@ -296,6 +299,7 @@ export class World {
         const ang = Math.atan2(e.y - y, e.x - x);
         const kb = opts.knockback ?? 40;
         e.hurt(damage, Math.cos(ang) * kb, Math.sin(ang) * kb, this, opts.crit);
+        if (opts.status && Math.random() < (opts.status.chance ?? 1)) applyStatus(e, opts.status.type, this, opts.status);   // D6
         hits++;
       }
     }

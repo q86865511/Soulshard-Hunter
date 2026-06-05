@@ -7,6 +7,7 @@ import { P } from '../engine/palette.js';
 import { Sfx } from '../engine/audio.js';
 import { Weapons } from './content/registry.js';
 import { BALANCE, weaponMaxLevel } from './balance.js';
+import { tickStatus } from './status.js';
 
 export class Player {
   constructor(x, y, stats) {
@@ -23,6 +24,7 @@ export class Player {
     this.hooks = { update: [], fire: [], hit: [], kill: [], hurt: [] };
     this.extra = {};
     this.timedBuffs = []; this.shieldT = 0;
+    this.status = {}; this.hop = 0;        // D6 status effects (slow / DoT / stun / knockup)
     this.run = null;
     this.spriteName = 'player';
   }
@@ -122,12 +124,15 @@ export class Player {
     if (this.flash > 0) this.flash -= dt;
     if (this.dashCd > 0) this.dashCd -= dt;
     if (this.shieldT > 0) this.shieldT -= dt;
+    const { slowMult, controlled } = tickStatus(this, dt, world);   // D6
+    if (this.dead) return;                                          // killed by a DoT
 
-    const ax = moveAxis();
+    let ax = moveAxis();
+    if (controlled) ax = { x: 0, y: 0 };   // stunned / knocked up: rooted (weapons still auto-fire)
     this.moving = ax.x !== 0 || ax.y !== 0;
     if (this.moving) { this.faceX = ax.x || this.faceX; this.faceY = ax.y; if (ax.x === 0) this.faceY = ax.y; }
 
-    const speed = this.stats.speed;
+    const speed = this.stats.speed * slowMult;
     if (this.dashT > 0) {
       this.dashT -= dt; this.vx = this.dashVX; this.vy = this.dashVY;
       if (Math.random() < 0.8) world.particles.spawn({ x: this.x, y: this.y, life: 0.22, size: 3, color: P.shard, drag: 0.85, glow: true });
@@ -138,7 +143,7 @@ export class Player {
       if (this.moving) this.walkT += dt;
     }
 
-    if (pressed('dash') && this.dashCd <= 0) {
+    if (!controlled && pressed('dash') && this.dashCd <= 0) {
       let dx = ax.x, dy = ax.y;
       if (dx === 0 && dy === 0) { dx = this.faceX; dy = this.faceY; }
       const n = normalize(dx, dy);
@@ -173,7 +178,11 @@ export class Player {
     const opts = { ax: sp.ax, ay: sp.ay, flipX: this.faceX < 0, alpha: blink ? 0.4 : 1, scale: 0.9 };
     if (this.flash > 0) { opts.tint = '#ff5a5a'; opts.tintAmt = 0.8; }
     if (this.dashT > 0) glowWorld(this.x, this.y - 6, 10, P.shard, 0.4);
-    drawSprite(frame, this.x, this.y, opts);
+    const hopY = this.hop > 0 ? -Math.sin(Math.min(1, this.hop / 0.6) * Math.PI) * 6 : 0;
+    drawSprite(frame, this.x, this.y + hopY, opts);
+    // status feedback (D6): slowed=ice aura, DoT=coloured aura
+    if (this.status.slow) glowWorld(this.x, this.y - 5, this.radius + 5, P.ice, 0.3);
+    else if (this.status.burn || this.status.poison || this.status.bleed) glowWorld(this.x, this.y - 5, this.radius + 5, this.status.burn ? P.emberL : this.status.poison ? P.toxic : P.redL, 0.28);
     if (this.shieldT > 0) glowWorld(this.x, this.y - 6, this.radius + 7, P.ice, 0.35 + Math.sin(this.t * 10) * 0.1);
     if (world) this.drawWeapons(world);
   }

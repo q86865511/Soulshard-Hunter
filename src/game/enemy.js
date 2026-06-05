@@ -7,6 +7,8 @@ import { Projectile } from './projectile.js';
 import { Sfx } from '../engine/audio.js';
 import { Enemies } from './content/registry.js';
 import { BALANCE } from './balance.js';
+import { applyStatus, tickStatus } from './status.js';
+import { ENEMY_STATUS } from './content/status_tags.js';
 
 export class Enemy {
   constructor(def, x, y, world, opts = {}) {
@@ -35,6 +37,8 @@ export class Enemy {
     this.attackCd = (this.attack?.cooldown ?? 1.4) * (0.5 + Math.random());
     this.stateT = 0; this.dashVX = 0; this.dashVY = 0; this.charging = false; this.wobble = Math.random() * 6.28;
     this.spawnT = 0.28;       // brief spawn-in invulnerable/fade
+    this.status = {}; this.hop = 0;   // D6 status effects (slow/bleed/burn/poison/stun/knockup)
+    this.hitStatus = ENEMY_STATUS[this.id] || def.hitStatus || null;   // status this enemy inflicts on the player
     this.dead = false; this.processed = false;
     this.scale = def.scale ?? (this.boss ? 2.4 : this.elite ? 1.35 : 1);
     if (this.boss) { this.phase = 0; this.phaseThresh = [0.66, 0.33]; this.enrage = 1; this.iframe = 0; }
@@ -55,7 +59,7 @@ export class Enemy {
     world.particles.text(this.x, this.y - this.radius * this.scale - 8, '階段 ' + (this.phase + 1), { color: P.redL, size: 18, life: 1.3 });
     this.radialBurst(world, 12 + this.phase * 6, (this.attack?.projSpeed ?? 110));
     const pl = world.player;
-    if (pl) { const a = Math.atan2(pl.y - this.y, pl.x - this.x); pl.vx += Math.cos(a) * 170; pl.vy += Math.sin(a) * 170; }
+    if (pl) { const a = Math.atan2(pl.y - this.y, pl.x - this.x); pl.vx += Math.cos(a) * 170; pl.vy += Math.sin(a) * 170; applyStatus(pl, 'knockup', world); }   // E3 boss control
     const pool = Enemies.upTo(2).filter((d) => !d.boss);
     for (let i = 0; i < 2 + this.phase; i++) if (pool.length) {
       const def = pool[(Math.random() * pool.length) | 0]; const ang = Math.random() * TAU;
@@ -85,7 +89,9 @@ export class Enemy {
       vx: Math.cos(ang) * (a.projSpeed ?? 90), vy: Math.sin(ang) * (a.projSpeed ?? 90),
       damage: a.projDamage ?? this.damage, faction: 'enemy',
       sprite: a.projSprite ?? 'bolt_enemy', color: a.projColor ?? P.red,
-      radius: a.projRadius ?? 3, life: a.projLife ?? 3, ...override,
+      radius: a.projRadius ?? 3, life: a.projLife ?? 3,
+      statusOnHit: this.hitStatus || a.status || null,   // ranged status carriers (D6)
+      ...override,
     }));
     world.particles.muzzle(this.x + Math.cos(ang) * 6, this.y + Math.sin(ang) * 6, ang, a.projColor ?? P.redL);
   }
@@ -95,6 +101,8 @@ export class Enemy {
     if (this.spawnT > 0) { this.spawnT -= dt; }
     if (this.flash > 0) this.flash -= dt;
     if (this.touchCd > 0) this.touchCd -= dt;
+    const { slowMult, controlled } = tickStatus(this, dt, world);   // D6
+    if (this.dead) return;                                          // died to a DoT
     if (this.boss) {
       if (this.iframe > 0) this.iframe -= dt;
       if (this.phase < this.phaseThresh.length && this.hp / this.maxHp < this.phaseThresh[this.phase]) { this.phase++; this.phaseShift(world); }
@@ -104,7 +112,7 @@ export class Enemy {
     const ang = player ? angleBetween(this.x, this.y, player.x, player.y) : 0;
 
     let mx = 0, my = 0;
-    if (this.spawnT <= 0 && player && !player.dead) {
+    if (this.spawnT <= 0 && player && !player.dead && !controlled) {
       switch (this.ai) {
         case 'chase': { mx = Math.cos(ang); my = Math.sin(ang); break; }
         case 'flyer': { // bat-like erratic approach
@@ -120,12 +128,14 @@ export class Enemy {
           else { mx = Math.cos(ang + Math.PI / 2) * 0.6; my = Math.sin(ang + Math.PI / 2) * 0.6; } // bosses hold ground & strafe
           this.attackCd -= dt;
           if (this.attackCd <= 0 && toP < pref + 40 && world.lineClear(this.x, this.y, player.x, player.y)) {
-            this.attackCd = (this.attack?.cooldown ?? 1.6) / ((this.boss ? this.enrage : 1) * (world.enemyTempo || 1));
+            // D4: non-boss ranged enemies fire noticeably slower than before.
+            this.attackCd = (this.attack?.cooldown ?? 1.6) * (this.boss ? 1 : BALANCE.RANGED_FIRE_MULT) / ((this.boss ? this.enrage : 1) * (world.enemyTempo || 1));
             // bosses mix patterns for variety (more radial spray as they enrage)
             if (this.boss && Math.random() < 0.28 + this.phase * 0.12) {
               this.radialBurst(world, 8 + this.phase * 4, this.attack?.projSpeed ?? 110);
             } else {
-              const burst = (this.attack?.burst ?? 1) + (this.boss ? this.phase : 0);
+              const baseBurst = this.boss ? (this.attack?.burst ?? 1) : Math.min(BALANCE.MAX_ENEMY_BURST, this.attack?.burst ?? 1);   // D5 cap
+              const burst = baseBurst + (this.boss ? this.phase : 0);
               for (let i = 0; i < burst; i++) {
                 const spread = (this.attack?.spread ?? 0) * (i - (burst - 1) / 2);
                 this.shoot(world, ang + spread);
@@ -160,16 +170,24 @@ export class Enemy {
       }
     }
 
-    // obstacle avoidance: if a wall lies just ahead of the desired heading, steer
-    // around it instead of grinding into it (fixes melee enemies sticking on walls).
+    // obstacle avoidance / lightweight pathing (F1): when a wall lies ahead, pick the
+    // SMALLEST course change that clears both a near and a farther probe (so the enemy
+    // doesn't immediately re-collide). If fully boxed in, slide along the wall tangent.
     if (this.spawnT <= 0 && !this.charging && (mx !== 0 || my !== 0)) {
-      const probe = this.radius + 9;
+      const probe = this.radius + 11;
       if (world.solidAt(this.x + mx * probe, this.y + my * probe)) {
         const baseA = Math.atan2(my, mx);
-        for (const off of [0.6, -0.6, 1.2, -1.2, 1.9, -1.9, 2.7]) {
-          const a = baseA + off, nx = Math.cos(a), ny = Math.sin(a);
-          if (!world.solidAt(this.x + nx * probe, this.y + ny * probe)) { mx = nx; my = ny; break; }
+        let bestA = null;
+        for (let k = 1; k <= 8 && bestA === null; k++) {
+          for (const sgn of [1, -1]) {
+            const a = baseA + sgn * k * 0.39;   // ~22.5deg steps out to ~180deg
+            const nx = Math.cos(a), ny = Math.sin(a);
+            if (!world.solidAt(this.x + nx * probe, this.y + ny * probe) &&
+                !world.solidAt(this.x + nx * probe * 1.8, this.y + ny * probe * 1.8)) { bestA = a; break; }
+          }
         }
+        if (bestA === null) bestA = baseA + Math.PI / 2;   // boxed: follow the wall
+        mx = Math.cos(bestA); my = Math.sin(bestA);
       }
     }
 
@@ -191,7 +209,7 @@ export class Enemy {
     const accel = this.charging ? 1 : 1;
     // D4: enemies move faster the longer the run goes (bosses pace themselves).
     const tmin = ((world.run && world.run.time) || world.time || 0) / 60;
-    const sNow = this.speed * (this.boss ? 1 : 1 + Math.min(BALANCE.ENEMY_SPEEDUP_CAP, tmin * BALANCE.ENEMY_SPEEDUP_PER_MIN));
+    const sNow = this.speed * slowMult * (this.boss ? 1 : 1 + Math.min(BALANCE.ENEMY_SPEEDUP_CAP, tmin * BALANCE.ENEMY_SPEEDUP_PER_MIN));
     this.vx += (n.x * sNow * accel + sx * 22) * dt * 6;
     this.vy += (n.y * sNow * accel + sy * 22) * dt * 6;
     // friction / clamp to speed (unless dashing)
@@ -204,10 +222,11 @@ export class Enemy {
     if (Math.abs(this.vx) > 2) this.facing = this.vx < 0 ? -1 : 1;
     world.moveActor(this, this.vx * dt, this.vy * dt);
 
-    // contact damage
-    if (this.spawnT <= 0 && player && !player.dead && this.touchCd <= 0) {
+    // contact damage (a hard-CC'd enemy can't bite)
+    if (this.spawnT <= 0 && player && !player.dead && this.touchCd <= 0 && !controlled) {
       if (toP < this.radius * this.scale * 0.7 + player.radius) {
         player.takeDamage(this.damage, ang, world);
+        if (this.hitStatus && Math.random() < (this.hitStatus.chance ?? 1)) applyStatus(player, this.hitStatus.type, world, this.hitStatus);   // D6: on-touch status
         this.touchCd = 0.55;
         this.vx -= Math.cos(ang) * 40; this.vy -= Math.sin(ang) * 40; // small recoil
       }
@@ -224,10 +243,14 @@ export class Enemy {
       return;
     }
     if (this.tint && !this.flash) glowWorld(this.x, this.y - this.radius * sc * 0.4, this.radius * 1.6 * sc, this.tint, this.elite ? 0.32 : 0.18);
+    // status feedback glow (D6): slow=ice, burn=ember, poison=toxic, bleed=red
+    const sk = this.status.burn ? P.emberL : this.status.poison ? P.toxic : this.status.slow ? P.ice : this.status.bleed ? P.redL : null;
+    if (sk) glowWorld(this.x, this.y - this.radius * sc * 0.3, this.radius * 1.5 * sc, sk, 0.3);
+    const hopY = this.hop > 0 ? -Math.sin(Math.min(1, this.hop / 0.6) * Math.PI) * 7 : 0;
     const opts = { ax: sp.ax, ay: sp.ay, flipX: this.facing > 0, scale: sc };
     if (this.flash > 0) { opts.tint = '#ffffff'; opts.tintAmt = 0.9; }
     else if (this.tint) { opts.tint = this.tint; opts.tintAmt = 0.22; }
     if (this.charging) { opts.tint = '#ffffff'; opts.tintAmt = 0.4 + Math.sin(this.t * 40) * 0.3; }
-    drawSprite(frameAt(sp, this.t), this.x, this.y, opts);
+    drawSprite(frameAt(sp, this.t), this.x, this.y + hopY, opts);
   }
 }

@@ -13,6 +13,7 @@
 import { Weapons } from './registry.js';
 import { Projectile } from '../projectile.js';
 import { BALANCE } from '../balance.js';
+import { applyStatus } from '../status.js';
 import { P, withAlpha } from '../../engine/palette.js';
 import { dist2, TAU } from '../../engine/math.js';
 import { glowWorld, fillCircleWorld, drawSprite } from '../../engine/renderer.js';
@@ -58,15 +59,15 @@ W({
   id: 'w_fan', name: '魂焰扇', icon: 'weapon_w_fan', tier: 1, weight: 8, maxLevel: 6,
   cooldown: (l) => Math.max(0.5, 1.1 - l * 0.08),
   fire(world, p, inst) {
-    const l = inst.level, count = 3 + l, spread = 0.95, base = faceA(p);
+    const l = inst.level, count = 2 + Math.floor(l * 0.6), spread = 0.95, base = faceA(p);
     for (let i = 0; i < count; i++) {
       const a = base + (count > 1 ? (i / (count - 1) - 0.5) * spread : 0);
       const { dmg, crit } = roll(p, 7 + l * 2.4);
-      world.addProjectile(new Projectile({ x: p.x, y: p.y, vx: Math.cos(a) * 220, vy: Math.sin(a) * 220, damage: dmg, crit, faction: 'player', sprite: 'bolt_fire', color: P.ember, radius: 3, knockback: 14, life: 0.62 }));
+      world.addProjectile(new Projectile({ x: p.x, y: p.y, vx: Math.cos(a) * 220, vy: Math.sin(a) * 220, damage: dmg, crit, faction: 'player', sprite: 'bolt_fire', color: P.ember, radius: 3, knockback: 14, life: 0.62, statusOnHit: { type: 'burn' } }));
     }
     Sfx.play('shoot');
   },
-  desc: '朝行進方向扇形噴射火焰魂彈。',
+  desc: '朝行進方向扇形噴射火焰魂彈，命中點燃敵人（灼燒）。',
 });
 
 W({
@@ -124,8 +125,8 @@ W({
 W({
   id: 'w_nova', name: '震爆波', icon: 'weapon_w_nova', tier: 2, weight: 6, maxLevel: 6,
   cooldown: (l) => Math.max(1.4, 2.6 - l * 0.2),
-  fire(world, p, inst) { const l = inst.level, R = (40 + l * 8) * (p.stats.area || 1); const { dmg } = roll(p, 14 + l * 6); world.spawnExplosion(p.x, p.y, R, P.manaL, dmg, { knockback: 120 }); },
-  desc: '週期釋放魂能衝擊波，震退並傷害四周。',
+  fire(world, p, inst) { const l = inst.level, R = (40 + l * 8) * (p.stats.area || 1); const { dmg } = roll(p, 14 + l * 6); world.spawnExplosion(p.x, p.y, R, P.manaL, dmg, { knockback: 120, status: { type: 'knockup' } }); },
+  desc: '週期釋放魂能衝擊波，震退並擊飛四周敵人。',
 });
 
 W({
@@ -160,6 +161,7 @@ W({
       hit.add(best);
       const { dmg, crit } = roll(p, 10 + l * 4);
       best.hurt(dmg, 0, 0, world, crit);
+      if (c === 0) applyStatus(best, 'stun', world, { dur: 0.5 });   // first link stuns (D6)
       world.addBeam(from.x, from.y, best.x, best.y, P.emberL);
       world.particles.spawn({ x: best.x, y: best.y, life: 0.2, size: 3, color: P.emberL, glow: true });
       from = { x: best.x, y: best.y };
@@ -172,11 +174,11 @@ W({
 // ---- evolutions (hidden from random pool) ----------------------------------
 W({
   id: 'w_soulstorm', name: '魂晶風暴', icon: 'weapon_w_soulstorm', tier: 3, weight: 0, maxLevel: 1, evolved: true,
-  cooldown: () => 0.28,
+  cooldown: () => 0.34,
   fire(world, p) {
-    for (let i = 0; i < 12; i++) { const a = i / 12 * TAU + world.time * 2.2; const { dmg, crit } = roll(p, 16); world.addProjectile(new Projectile({ x: p.x, y: p.y, vx: Math.cos(a) * 240, vy: Math.sin(a) * 240, damage: dmg, crit, faction: 'player', sprite: 'bolt', color: P.shardL, pierce: 3, life: 1.1, knockback: 16 })); }
+    for (let i = 0; i < 8; i++) { const a = i / 8 * TAU + world.time * 2.2; const { dmg, crit } = roll(p, 20); world.addProjectile(new Projectile({ x: p.x, y: p.y, vx: Math.cos(a) * 240, vy: Math.sin(a) * 240, damage: dmg, crit, faction: 'player', sprite: 'bolt', color: P.shardL, pierce: 3, life: 1.1, knockback: 16 })); }
   },
-  desc: '【進化】向四面八方持續噴射穿透魂彈。',
+  desc: '【進化】向八方持續噴射穿透魂彈。',
 });
 W({
   id: 'w_inferno', name: '煉獄光環', icon: 'weapon_w_inferno', tier: 3, weight: 0, maxLevel: 1, evolved: true,

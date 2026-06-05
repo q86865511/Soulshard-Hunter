@@ -3,6 +3,8 @@ import { Abilities } from './registry.js';
 import { P } from '../../engine/palette.js';
 import { dist } from '../../engine/math.js';
 import { rng } from '../../engine/math.js';
+import { BALANCE } from '../balance.js';
+import { applyStatus } from '../status.js';
 
 const A = (o) => Abilities.register(o);
 
@@ -33,6 +35,35 @@ A({
   apply: (p, run, lvl) => {
     if (lvl === 1) p.hooks.hurt.push((pl, dmg, ang, w) => {
       w.spawnExplosion(pl.x, pl.y, 28, P.bone, 8 * (run.abilityLevels.thorns || 1), { knockback: 90 });
+    });
+  },
+});
+
+// ---- status passives (D6 — weapon-agnostic, hook into every hit) -----------
+A({
+  id: 'frostbite', name: '霜噬之觸', tier: 2, weight: 4, maxStacks: 3, desc: '命中使敵人緩速，疊加更深',
+  apply: (p, run, lvl) => {
+    if (lvl === 1) p.hooks.hit.push((e, dmg, w) => {
+      const L = run.abilityLevels.frostbite || 1;
+      applyStatus(e, 'slow', w, { mult: Math.max(0.3, BALANCE.STATUS.slow.mult - (L - 1) * 0.08) });
+    });
+  },
+});
+A({
+  id: 'lacerate', name: '裂創', tier: 2, weight: 4, maxStacks: 3, desc: '命中有機率使敵人流血（持續傷害，可疊加）',
+  apply: (p, run, lvl) => {
+    if (lvl === 1) p.hooks.hit.push((e, dmg, w) => {
+      const L = run.abilityLevels.lacerate || 1;
+      if (Math.random() < 0.4 + L * 0.12) applyStatus(e, 'bleed', w, { dps: BALANCE.STATUS.bleed.dps * (1 + (L - 1) * 0.5) });
+    });
+  },
+});
+A({
+  id: 'ignite', name: '燃魂', tier: 2, weight: 4, maxStacks: 3, desc: '命中有機率點燃敵人（灼燒，可疊加）',
+  apply: (p, run, lvl) => {
+    if (lvl === 1) p.hooks.hit.push((e, dmg, w) => {
+      const L = run.abilityLevels.ignite || 1;
+      if (Math.random() < 0.35 + L * 0.1) applyStatus(e, 'burn', w, { dps: BALANCE.STATUS.burn.dps * (1 + (L - 1) * 0.5) });
     });
   },
 });
