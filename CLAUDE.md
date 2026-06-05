@@ -67,8 +67,19 @@ A run = **one biome, 20 minutes** (`BALANCE.LEVEL_TIME`) at a chosen **difficult
 ## Workflow content pipeline
 Content was mass-produced by multi-agent Workflows (generate → adversarial review). A workflow returns `{result:{packs:[{key,code,ids,spriteNames,ok}]}}`; normalize to `{result:packs}` then run **`node tools/integrate.mjs <file.json>`** — it decodes HTML entities, prepends the import header, writes `src/art/gen/*` + `src/game/content/gen/*`, and rebuilds the fault-isolated dynamic-import indexes by scanning the dirs. Re-run to integrate new output.
 
+## Round-4 systems (原#1–19 follow-up — see ROUND4.md)
+- **B key = shop** (`input.js KeyB→'shop'`): the soulshard/anvil shop opens anywhere, not via a map shrine (the shrine is now a one-time blessing altar). Equip pickups + anvil gear show a **before/after stat diff** (`run.js equipDiffRows`/`drawEquipDiff`; `equipment.js` records each slot's stat delta).
+- **Bonds (羈絆)** `content/bonds.js`: build-combo synergies, one-shot applied via `checkBonds(run, player)` (throttled in `run.update`); shown in build/results panels.
+- **Exclusive weapons** `content/exclusives.js`: `{exclusive:true}` weapon-slot gear injected only into the owner's anvil (`CHAR_EXCLUSIVE`, `rollGearChoice`).
+- **Unique hero bodies** `art/heroes.js`: 14 archetype draw fns registered per char id via `registerHeroBody`; `characters.js`/gen hero packs call `drawHeroBody(p,f,id,art)` (falls back to `drawHunter`). Skins recolour the unique body.
+- **Patron events** `content/events.js`: mini-boss 3-choice are named characters with `patron_*` portrait icons + persistent hook-based effects.
+- **Damage attribution**: `world._curSrc` is set around weapon/ability/DoT calls; `enemy.hurt`/status DoT call `world.attributeDamage(src,dmg)` → `run.dmgBySource` (results ranking).
+- **Special monsters**: `enemy.steal{gold,xp}` (grab+flee, dropped back on death) + `def.deathBlast` (hurts the player); see `gen/gen_special2.js`.
+- **Anti-AFK**: idle past `BALANCE.AFK_GRACE` drains a little HP (`player.update`).
+- New `BALANCE` knobs: `AIM_RANGE`/`AIM_LOS` (shorter LOS auto-aim), `AFK_*`, `SPAWN_*`, `EARLY_GRACE`/`EARLY_DMG_GRACE` (opening softener), `SURROUND_*` (must-clear 魂牢). Sim-tuned (`ROUND4.md`).
+
 ## Gotchas
-- `KeyM` = **minimap** (not mute — mute lives in the settings menu). `Tab` = build page. Mouse `wheel` is wired (`mouse.wheel`).
+- `KeyM` = **minimap**, `KeyB` = **shop** (not mute — mute lives in the settings menu). `Tab` = build page. Mouse `wheel` is wired (`mouse.wheel`); hub long panels have a draggable scrollbar.
 - Save: key `soulshard.save.v1`, `SAVE_VERSION` + migration in `loadMeta`; reset backs up to `…v1.bak`.
 - `node --check <file>` only checks syntax (won't resolve imports) — fine for a quick parse check; real validation = reload + the manual-pump test above.
 - Git: commit messages via `git commit -F <file>` (PowerShell here-strings mangle `->`/parens). End commits with the Co-Authored-By trailer.
