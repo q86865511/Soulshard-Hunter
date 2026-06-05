@@ -14,6 +14,7 @@ import './art/content_icons.js';
 import './art/weapons.js';
 import './art/biomes.js';
 import './art/hub.js';
+import './art/reaper.js';
 import './game/content/enemies.js';
 import './game/content/abilities.js';
 import './game/content/items.js';

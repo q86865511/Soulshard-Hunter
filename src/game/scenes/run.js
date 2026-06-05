@@ -10,6 +10,7 @@ import { setScene } from '../scene.js';
 import { refs } from './refs.js';
 import { Enemies, Equipment, Abilities } from '../content/registry.js';
 import { equipItem } from '../content/equipment.js';
+import { BALANCE } from '../balance.js';
 import {
   camera, clear, vignette, uiText, uiRect, uiScale, view, addShake, drawSpriteUI, textWidth,
   drawSprite, drawShadow, glowWorld, worldToScreen, fillRectWorld, uiBar, setShakeScale,
@@ -36,11 +37,12 @@ const ANVILS = [
   { name: '壁壘鐵砧', desc: '減傷 +1', price: 55, apply: (s) => { s.defense += 1; } },
 ];
 
-// A level lasts 30 minutes; the last 4 minutes are a closing ring, after which
-// the level's FINAL BOSS appears. Clearing it unlocks the next level + difficulty.
-const LEVEL_TIME = 30 * 60;
-const FINAL_SHRINK = 240;
+// A level lasts 20 minutes (E2): a DISTINCT mini-boss every 5 min, the level's
+// FINAL BOSS at 20:00, then 30s after it dies a killable Reaper appears (hidden).
+// Clearing the final boss unlocks the next level + difficulty.
+const LEVEL_TIME = BALANCE.LEVEL_TIME;
 const FINAL_BOSS = { crypt: 'g_plagueheart', cavern: 'g_stormtyrant', frost: 'b2_glacierseer', inferno: 'b2_emberlord', void: 'b2_voidweaver' };
+const REAPER_ID = 'reaper';
 
 export const runScene = {
   enter(payload) {
@@ -55,7 +57,11 @@ export const runScene = {
     this.paused = false;
     this.world.onPlayerDeath = () => this.onDeath();
     this.world.onLevelUp = () => this.onLevelUp();
-    this.world.onEnemyKilled = (e) => { if (e === this.finalBossRef) this.onLevelClear(); else if (e.boss) this.onBossDead(e); };
+    this.world.onEnemyKilled = (e) => {
+      if (e === this.finalBossRef) this.onBigBossDead(e);
+      else if (e === this.reaperRef) this.onReaperDead(e);
+      else if (e.boss) this.onBossDead(e);
+    };
     this.buildWorld();
   },
 
@@ -89,18 +95,19 @@ export const runScene = {
     this.typeRotT = 0;
     this.rotateTypes();
 
-    // bosses arrive as periodic events rather than stage gates
+    // mini-bosses: a DISTINCT boss at each of MINIBOSS_TIMES (E1/E2)
     this.boss = false; this.bossRef = null; this.bossDead = false;
-    this.nextBossAt = 100;
+    this.miniIdx = 0; this.usedMiniBosses = [];
 
-    // special "harasser" events (mushrooms / shrink-zone / bombard)
-    this.evtMines = []; this.zone = null; this.evtStrikes = [];
-    this.nextEventAt = 45;
+    // special "harasser" events (mushrooms / surround ring (D2) / Higgs zoning (D3))
+    this.evtMines = []; this.evtStrikes = []; this.surround = null; this.higgs = null;
+    this.nextEventAt = 40;
 
-    // difficulty scaling + final-boss phase
+    // difficulty scaling + finale (final boss -> killable Reaper, E2)
     this.diffMul = 1 + (Math.max(1, this.run.difficulty || 1) - 1) * 0.35;
     this.finalZone = null; this.finalBoss = false; this.finalBossRef = null;
     this.cleared = false; this.won = false; this.bigMap = false; this.buildIcons = [];
+    this.reaperAt = 0; this.reaperSpawned = false; this.reaperRef = null; this.reaperSlain = false; this.banked = false;
 
     Music.setBiome(map.biome.id); Music.setHero(this.run.characterId);
     Music.setMode('run');
@@ -112,11 +119,13 @@ export const runScene = {
 
   // choose 1-3 enemy types for the current wave window; rotates over time
   rotateTypes() {
-    const pool = Enemies.upTo(this.tierCapNow()).filter((d) => !d.boss);
+    const pool = Enemies.upTo(this.tierCapNow()).filter((d) => !d.boss && d.id !== REAPER_ID);
     if (!pool.length) { this.activeTypes = []; this.typeRotT = 24; return; }
     const n = this.threat <= 1 ? 1 + rng.int(0, 1) : 1 + rng.int(0, 2);
     const picks = []; let p = pool.slice();
-    for (let i = 0; i < n && p.length; i++) { const d = rng.weighted(p, (x) => x.weight ?? 1); picks.push(d); p = p.filter((x) => x !== d); }
+    // D4: ranged (shooter) types are far less likely to be picked — favour melee
+    const wt = (x) => (x.ai === 'shooter' ? (x.weight ?? 1) * BALANCE.RANGED_SPAWN_WEIGHT : (x.weight ?? 1));
+    for (let i = 0; i < n && p.length; i++) { const d = rng.weighted(p, wt); picks.push(d); p = p.filter((x) => x !== d); }
     this.activeTypes = picks;
     this.typeRotT = 30 + rng.next() * 18;
     if (this.run.time > 3) { this.banner = '敵潮更替：' + picks.map((d) => d.name).join('、'); this.bannerT = 2.0; }
@@ -139,93 +148,125 @@ export const runScene = {
     return offers;
   },
 
-  bossEventTick(dt) {
-    if (this.boss || this.finalZone || this.finalBoss) return;
-    if (this.run.time >= this.nextBossAt) this.spawnBossEvent();
+  // ---- mini-bosses: a DISTINCT boss at 5 / 10 / 15 min (E1/E2) --------------
+  miniBossTick() {
+    if (this.boss || this.finalBoss || this.cleared) return;
+    if (this.miniIdx >= BALANCE.MINIBOSS_TIMES.length) return;
+    if (this.run.time >= BALANCE.MINIBOSS_TIMES[this.miniIdx]) { this.miniIdx++; this.spawnMiniBoss(); }
   },
-  spawnBossEvent() {
-    const bosses = Enemies.filter((d) => d.boss);
-    if (!bosses.length) { this.nextBossAt = this.run.time + 120; return; }
-    const def = bosses[rng.int(0, bosses.length - 1)];
-    const hpScale = 1 + (this.threat - 1) * 0.34;
-    const dmgScale = 1 + (this.threat - 1) * 0.12;
-    const a = rng.next() * TAU, R = 150;
-    const bx = clamp(this.player.x + Math.cos(a) * R, TS * 2, this.world.pxW - TS * 2);
-    const by = clamp(this.player.y + Math.sin(a) * R, TS * 2, this.world.pxH - TS * 2);
+  spawnMiniBoss() {
+    const finalId = FINAL_BOSS[this.run.biomeId];
+    // a distinct boss each time, never the level's final boss, never the Reaper
+    // (bosses register with weight 0 to stay out of trash pools — don't filter on it)
+    let pool = Enemies.filter((d) => d.boss && d.id !== finalId && d.id !== REAPER_ID && !this.usedMiniBosses.includes(d.id));
+    if (!pool.length) pool = Enemies.filter((d) => d.boss && d.id !== finalId && d.id !== REAPER_ID);
+    if (!pool.length) return;
+    const def = pool[rng.int(0, pool.length - 1)];
+    this.usedMiniBosses.push(def.id);
+    const hpScale = (2 + this.threat * 0.4) * this.diffMul;     // tougher each time, but below the final boss
+    const dmgScale = (1.2 + this.threat * 0.05) * this.diffMul;
+    let bx = this.player.x, by = this.player.y, tries = 0;
+    do { const a = rng.next() * TAU; bx = clamp(this.player.x + Math.cos(a) * 170, TS * 2, this.world.pxW - TS * 2); by = clamp(this.player.y + Math.sin(a) * 170, TS * 2, this.world.pxH - TS * 2); tries++; } while (this.world.solidAt(bx, by) && tries < 10);
     this.bossRef = this.world.spawnEnemy(def, bx, by, { hpScale, dmgScale, quiet: true });
     this.boss = true; this.bossDead = false;
-    this.banner = (def.name || 'BOSS') + ' 現身！'; this.bannerT = 2.8;
+    this.banner = `小王 ${this.miniIdx}／${BALANCE.MINIBOSS_TIMES.length}：${def.name || 'BOSS'} 現身！`; this.bannerT = 3.0;
     addShake(8); Sfx.play('boss'); Music.setMode('boss');
   },
   onBossDead(e) {
     this.boss = false; this.bossDead = true; this.bossRef = null;
     this.run.bossKills = (this.run.bossKills || 0) + 1;
-    this.nextBossAt = this.run.time + 140 + rng.next() * 40;
-    this.banner = '擊敗首領！'; this.bannerT = 2.6; addShake(6);
-    this.world.addPickup('heart', this.player.x, this.player.y, 28);
+    this.banner = '擊敗小王！'; this.bannerT = 2.6; addShake(6);
+    this.world.addPickup('heart', this.player.x, this.player.y, 30);
     Music.setMode('run');
   },
 
-  // ---- final climax: closing ring -> final boss -> level clear (R1/R2) ------
+  // ---- finale: final boss at 20:00 -> clear -> killable Reaper +30s (E2) ----
   finalTick(dt) {
-    if (this.cleared) return;
     const t = this.run.time;
-    if (!this.finalBoss && !this.finalZone && t >= LEVEL_TIME - FINAL_SHRINK) {
-      const c = this.map.center;
-      this.finalZone = { cx: c.x, cy: c.y, r: 1, r0: Math.max(this.world.pxW, this.world.pxH) * 0.62, r1: 78, t: 0, dur: FINAL_SHRINK, tick: 0 };
-      this.banner = '最終縮圈！退向中心，最終首領即將降臨'; this.bannerT = 3.4; Sfx.play('portal');
-    }
-    if (this.finalZone) {
-      const z = this.finalZone; z.t += dt;
-      z.r = z.r0 + (z.r1 - z.r0) * Math.min(1, z.t / z.dur);
-      z.tick -= dt;
-      if (z.tick <= 0) { z.tick = 0.5; if (dist(this.player.x, this.player.y, z.cx, z.cy) > z.r) this.player.takeDamage(8 + Math.min(this.threat, 10), Math.atan2(this.player.y - z.cy, this.player.x - z.cx), this.world); }
-    }
-    if (!this.finalBoss && t >= LEVEL_TIME) this.spawnFinalBoss();
+    if (!this.finalBoss && !this.cleared && t >= LEVEL_TIME) this.spawnFinalBoss();
+    if (this.cleared && !this.reaperSpawned && t >= this.reaperAt) this.spawnReaper();
   },
   spawnFinalBoss() {
-    const c = this.map.center;
     let def = Enemies.get(FINAL_BOSS[this.run.biomeId]);
-    if (!def) { const bs = Enemies.filter((d) => d.boss); def = bs.length ? bs[rng.int(0, bs.length - 1)] : null; }
-    if (!def) { this.onLevelClear(); return; }
+    if (!def) { let bs = Enemies.filter((d) => d.boss && d.id !== REAPER_ID && !this.usedMiniBosses.includes(d.id)); if (!bs.length) bs = Enemies.filter((d) => d.boss && d.id !== REAPER_ID); def = bs.length ? bs[rng.int(0, bs.length - 1)] : null; }
+    if (!def) { this.clearLevel(); return; }
     const hpScale = (4 + this.threat * 0.6) * this.diffMul;
     const dmgScale = (1.4 + this.threat * 0.05) * this.diffMul;
-    let bx = c.x, by = c.y - 30;
-    if (this.world.solidAt(bx, by)) { bx = c.x; by = c.y; }   // never spawn inside a wall
+    let bx = this.player.x, by = this.player.y, tries = 0;
+    do { const a = rng.next() * TAU; bx = clamp(this.player.x + Math.cos(a) * 200, TS * 2, this.world.pxW - TS * 2); by = clamp(this.player.y + Math.sin(a) * 200, TS * 2, this.world.pxH - TS * 2); tries++; } while (this.world.solidAt(bx, by) && tries < 12);
     this.finalBossRef = this.world.spawnEnemy(def, bx, by, { hpScale, dmgScale, quiet: true });
     this.bossRef = this.finalBossRef; this.boss = true; this.finalBoss = true;
-    this.evtMines = []; this.evtStrikes = []; this.zone = null;
+    this.evtMines = []; this.evtStrikes = []; this.surround = null; this.higgs = null;
     this.banner = '最終首領 · ' + (def.name || 'BOSS') + ' 降臨！'; this.bannerT = 3.6;
     addShake(10); Sfx.play('boss'); Music.setMode('boss');
   },
-  onLevelClear() {
-    if (this.dead) return;
-    this.won = true; this.dead = true; this.deathT = 0; this.cleared = true; this.run.cleared = true;
+  onBigBossDead(e) {
+    this.boss = false; this.finalBoss = false; this.bossRef = null; this.finalBossRef = null;
     this.run.bossKills = (this.run.bossKills || 0) + 1;
+    this.clearLevel();
+  },
+  // Banks the unlock immediately, then keeps the run alive for the Reaper window.
+  clearLevel() {
+    if (this.cleared) return;
+    this.cleared = true; this.run.cleared = true;
     const bid = this.run.biomeId || BIOMES[0].id;
     const idx = BIOMES.findIndex((b) => b.id === bid);
     META.levels = META.levels || { unlocked: 1, diff: {} };
     META.levels.diff = META.levels.diff || {};
     META.levels.diff[bid] = Math.max(META.levels.diff[bid] || 0, this.run.difficulty || 1);
     if (idx >= 0) META.levels.unlocked = Math.max(META.levels.unlocked || 1, Math.min(BIOMES.length, idx + 2));
-    this.run.gold += 220 + (this.run.difficulty || 1) * 160 + this.threat * 18;   // clearing rewards meta progress
-    this.run.score = Math.floor(this.run.kills * 12 + this.run.stage * 400 + this.run.time + (this.run.difficulty || 1) * 600);
+    this.run.gold += 220 + (this.run.difficulty || 1) * 160 + this.threat * 18;
+    saveMeta();   // persist the unlock at once, so leaving/dying after this keeps it
+    this.reaperAt = this.run.time + BALANCE.REAPER_DELAY;
+    this.banner = '關卡通關！死神將在 ' + BALANCE.REAPER_DELAY + ' 秒後降臨 — 按 E 離場，或留下迎戰'; this.bannerT = 5.0;
+    this.world.addPickup('heart', this.player.x, this.player.y, 60);
+    addShake(8); Sfx.play('levelup'); Music.setMode('run');
+  },
+  spawnReaper() {
+    this.reaperSpawned = true;
+    const def = Enemies.get(REAPER_ID);
+    if (!def) return;
+    const hpScale = (4.5 + this.threat * 0.55) * this.diffMul;
+    const dmgScale = (1.6 + this.threat * 0.05) * this.diffMul;
+    let bx = this.player.x, by = this.player.y, tries = 0;
+    do { const a = rng.next() * TAU; bx = clamp(this.player.x + Math.cos(a) * 220, TS * 2, this.world.pxW - TS * 2); by = clamp(this.player.y + Math.sin(a) * 220, TS * 2, this.world.pxH - TS * 2); tries++; } while (this.world.solidAt(bx, by) && tries < 12);
+    this.reaperRef = this.world.spawnEnemy(def, bx, by, { hpScale, dmgScale, quiet: true });
+    this.bossRef = this.reaperRef; this.boss = true;
+    this.banner = '☠ 死神降臨！斬殺祂以證明你的力量'; this.bannerT = 4.0;
+    addShake(12); Sfx.play('boss'); Music.setMode('boss');
+  },
+  onReaperDead(e) {
+    this.boss = false; this.reaperRef = null; this.reaperSlain = true;
+    this.run.bossKills = (this.run.bossKills || 0) + 1;
+    this.run.gold += 600 + (this.run.difficulty || 1) * 200;
+    this.run.shards += 30;
+    this.banner = '★ 死神已被斬殺！傳說自此誕生'; this.bannerT = 4.0;
+    this.finishRun(true);
+  },
+  // Single place that ends the run + banks (guarded so it never double-banks).
+  finishRun(won) {
+    if (this.dead) return;
+    this.won = won; this.dead = true; this.deathT = 0;
+    this.run.score = Math.floor(this.run.kills * 12 + this.run.stage * 400 + this.run.time + (this.run.difficulty || 1) * 600 + (this.reaperSlain ? 5000 : 0));
     META.stats.bestStage = Math.max(META.stats.bestStage || 0, this.run.stage);
     META.stats.bestScore = Math.max(META.stats.bestScore || 0, this.run.score);
-    Music.stop(); addShake(8); Sfx.play('levelup');
-    bankRun(this.run);
+    Music.stop(); if (won) { addShake(8); Sfx.play('levelup'); }
+    if (!this.banked) { this.banked = true; bankRun(this.run); }
   },
 
-  // ---- special harasser events (R5) ----------------------------------------
-  eventsTick(dt) {
-    if (this.boss || this.finalZone || this.finalBoss) return;
-    if (this.run.time >= this.nextEventAt) { this.triggerEvent(); this.nextEventAt = this.run.time + 38 + rng.next() * 30; }
+  // ---- special harasser events: mushrooms / surround ring (D2) / Higgs (D3) -
+  eventsTick() {
+    if (this.boss || this.finalBoss || this.cleared) return;
+    if (this.run.time >= this.nextEventAt) {
+      this.triggerEvent();
+      this.nextEventAt = this.run.time + (34 + rng.next() * 26) * BALANCE.SPECIAL_EVENT_FREQ_MULT;
+    }
   },
   triggerEvent() {
-    const roll = rng.int(0, 2);
-    if (roll === 0) this.evMushrooms();
-    else if (roll === 1) this.evShrink();
-    else this.evBombard();
+    const r = rng.next();
+    if (r < 0.4) this.evMushrooms();
+    else if (r < 0.74) this.evHiggs();
+    else this.evSurround();
   },
   evMushrooms() {
     const n = 5 + Math.floor(this.threat / 2);
@@ -238,21 +279,35 @@ export const runScene = {
     }
     this.banner = '提摩的蘑菇地雷！小心腳下'; this.bannerT = 2.6; Sfx.play('boss');
   },
-  evShrink() {
-    const t = this.world.randomFloorTile(rng);
-    this.zone = { cx: t.x, cy: t.y, r: 260, r0: 260, r1: 70, t: 0, dur: 18, hold: 4, tick: 0, dmg: 6 + Math.min(this.threat, 10) };
-    this.banner = '縮圈！退入安全圈內'; this.bannerT = 2.8; Sfx.play('portal');
-  },
-  evBombard() {
-    const n = 6 + Math.floor(this.threat / 2);
+  // D2: a clump of VERY tanky monsters rings the player and closes in (their chase
+  // AI naturally collapses the ring). Killable — carve a gap and dash out.
+  evSurround() {
+    if (this.surround) return;
+    let pool = Enemies.upTo(this.tierCapNow()).filter((d) => !d.boss && d.id !== REAPER_ID && (d.ai === 'chase' || d.ai === 'charger' || d.ai === 'wander'));
+    if (!pool.length) pool = Enemies.upTo(this.tierCapNow()).filter((d) => !d.boss && d.id !== REAPER_ID);
+    if (!pool.length) return;
+    const def = pool[rng.int(0, pool.length - 1)];
+    const n = BALANCE.SURROUND_COUNT_BASE + Math.floor(this.threat / 2);
+    const hpScale = BALANCE.SURROUND_HP_MULT * (1 + this.threat * 0.12) * this.diffMul;
+    const dmgScale = BALANCE.SURROUND_DMG_MULT * this.diffMul;
+    const ring = [];
     for (let i = 0; i < n; i++) {
-      const lead = i < 3;
-      const a = rng.next() * TAU, r = lead ? rng.next() * 60 : 40 + rng.next() * 160;
-      const x = clamp(this.player.x + Math.cos(a) * r, TS * 2, this.world.pxW - TS * 2);
-      const y = clamp(this.player.y + Math.sin(a) * r, TS * 2, this.world.pxH - TS * 2);
-      this.evtStrikes.push({ x, y, t: 1.2 + i * 0.18, max: 1.2 + i * 0.18, r: 38, dmg: 18 + Math.min(this.threat, 10) * 2 });
+      const a = (i / n) * TAU + rng.next() * 0.1;
+      const x = clamp(this.player.x + Math.cos(a) * BALANCE.SURROUND_RADIUS, TS * 2, this.world.pxW - TS * 2);
+      const y = clamp(this.player.y + Math.sin(a) * BALANCE.SURROUND_RADIUS, TS * 2, this.world.pxH - TS * 2);
+      if (this.world.solidAt(x, y)) continue;
+      const e = this.world.spawnEnemy(def, x, y, { hpScale, dmgScale, quiet: true });
+      if (e) { e.tint = P.purpleL; e.surround = true; ring.push(e); }
     }
-    this.banner = '希格斯的炸彈大絕！'; this.bannerT = 2.6; Sfx.play('boss'); addShake(4);
+    this.surround = { enemies: ring, t: BALANCE.SURROUND_LIFE };
+    this.banner = '包圍！厚血怪向內收攏——清出缺口突圍'; this.bannerT = 3.2; Sfx.play('boss'); addShake(5);
+  },
+  // D3: the Higgs bomb now LINGERS — it lobs delayed blasts every couple seconds
+  // to zone the player, instead of one big burst.
+  evHiggs() {
+    if (this.higgs) return;
+    this.higgs = { t: BALANCE.HIGGS_DURATION, next: 0.2 };
+    this.banner = '希格斯的炸彈雨！持續轟炸卡位'; this.bannerT = 2.8; Sfx.play('boss'); addShake(4);
   },
   eventExplode(x, y, r, dmg) {
     this.world.spawnExplosion(x, y, r, P.ember, dmg * 0.7, { knockback: 80 });
@@ -266,12 +321,24 @@ export const runScene = {
       if (m.arm <= 0 && !go && dist(this.player.x, this.player.y, m.x, m.y) < 16) go = true;
       if (go) { this.eventExplode(m.x, m.y, m.r, m.dmg); this.evtMines.splice(i, 1); }
     }
-    if (this.zone) {
-      const z = this.zone; z.t += dt;
-      z.r = z.r0 + (z.r1 - z.r0) * Math.min(1, z.t / z.dur);
-      z.tick -= dt;
-      if (z.tick <= 0) { z.tick = 0.5; if (dist(this.player.x, this.player.y, z.cx, z.cy) > z.r) this.player.takeDamage(z.dmg, Math.atan2(this.player.y - z.cy, this.player.x - z.cx), this.world); }
-      if (z.t >= z.dur + z.hold) this.zone = null;
+    if (this.higgs) {
+      this.higgs.t -= dt; this.higgs.next -= dt;
+      if (this.higgs.next <= 0 && this.higgs.t > 0) {
+        this.higgs.next = BALANCE.HIGGS_INTERVAL;
+        const k = 1 + (rng.chance(0.5) ? 1 : 0);
+        for (let j = 0; j < k; j++) {
+          const a = rng.next() * TAU, r = rng.next() * 72;
+          const x = clamp(this.player.x + Math.cos(a) * r, TS * 2, this.world.pxW - TS * 2);
+          const y = clamp(this.player.y + Math.sin(a) * r, TS * 2, this.world.pxH - TS * 2);
+          this.evtStrikes.push({ x, y, t: 1.0, max: 1.0, r: BALANCE.HIGGS_RADIUS, dmg: BALANCE.HIGGS_DMG + Math.min(this.threat, 12) });
+        }
+      }
+      if (this.higgs.t <= 0) this.higgs = null;
+    }
+    if (this.surround) {
+      this.surround.t -= dt;
+      this.surround.enemies = this.surround.enemies.filter((e) => e && !e.dead);
+      if (this.surround.t <= 0 || !this.surround.enemies.length) this.surround = null;
     }
     for (let i = this.evtStrikes.length - 1; i >= 0; i--) {
       const s = this.evtStrikes[i]; s.t -= dt;
@@ -285,22 +352,16 @@ export const runScene = {
       fillCircleWorld(m.x, m.y, 3.5, P.toxic); fillCircleWorld(m.x, m.y - 1, 2.3, P.redL);
       if (armed) strokeCircleWorld(m.x, m.y, m.r, withAlpha(P.red, 0.22), 1.5);
     }
-    if (this.zone) {
-      const z = this.zone; const inside = dist(this.player.x, this.player.y, z.cx, z.cy) <= z.r;
-      strokeCircleWorld(z.cx, z.cy, z.r, inside ? P.shardL : P.redL, 3);
-      strokeCircleWorld(z.cx, z.cy, Math.max(1, z.r - 2), withAlpha(inside ? P.shard : P.red, 0.4), 1.5);
-      if (!inside) uiRect(0, 0, view.W, view.H, withAlpha('#b4141e', 0.12));
+    if (this.surround && this.surround.enemies.length) {
+      let cx = 0, cy = 0, k = 0;
+      for (const e of this.surround.enemies) { cx += e.x; cy += e.y; k++; }
+      cx /= k; cy /= k;
+      strokeCircleWorld(cx, cy, 30, withAlpha(P.purpleL, 0.3 + 0.15 * Math.sin(this.t * 5)), 2);
     }
     for (const s of this.evtStrikes) {
       const k = 1 - clamp(s.t / s.max, 0, 1);
       strokeCircleWorld(s.x, s.y, s.r, withAlpha(P.redL, 0.4 + 0.4 * k), 2);
       fillCircleWorld(s.x, s.y, s.r * k, withAlpha(P.ember, 0.12));
-    }
-    if (this.finalZone) {
-      const z = this.finalZone; const ins = dist(this.player.x, this.player.y, z.cx, z.cy) <= z.r;
-      strokeCircleWorld(z.cx, z.cy, z.r, ins ? P.manaL : P.redL, 4);
-      strokeCircleWorld(z.cx, z.cy, Math.max(1, z.r - 3), withAlpha(ins ? P.shard : P.red, 0.5), 2);
-      if (!ins) uiRect(0, 0, view.W, view.H, withAlpha('#b4141e', 0.16));
     }
   },
 
@@ -311,21 +372,31 @@ export const runScene = {
     if (this.typeRotT <= 0) this.rotateTypes();
     this.spawnTimer -= dt;
     const t = this.run.time;
-    const cap = Math.min(120, 24 + this.threat * 6 + Math.floor(t * 0.05));
+    // gentler early cap that ramps with threat + time, so a fresh build has room to
+    // level up before the swarm overwhelms it (the late game still gets dense).
+    const cap = Math.min(105, 9 + this.threat * 6 + Math.floor(t * 0.05));
     if (this.spawnTimer <= 0 && this.world.enemies.length < cap && this.activeTypes.length) {
-      const group = 2 + Math.floor(this.threat / 2) + (rng.chance(0.3) ? 1 : 0);
+      const group = 2 + Math.floor(this.threat / 2);
       // enemy hp/dmg grow with threat + time but the growth is CAPPED (no infinite pile-up);
       // difficulty multiplies on top of the capped growth.
       const tc = Math.min(t, 1200);
       const hpScale = (1 + Math.min(5, (this.threat - 1) * 0.18 + tc * 0.003)) * this.diffMul;
       const dmgScale = (1 + Math.min(2.6, (this.threat - 1) * 0.10 + tc * 0.002)) * this.diffMul;
       for (let i = 0; i < group; i++) {
-        const def = this.activeTypes[rng.int(0, this.activeTypes.length - 1)];
-        const elite = this.threat >= 3 && rng.chance(0.035 + t * 0.0004);
+        const def = this.pickSpawnType();
+        const elite = this.threat >= 3 && rng.chance(0.03 + t * 0.0003);
         this.world.spawnRing(def, { hpScale, dmgScale, elite });
       }
-      this.spawnTimer = Math.max(0.5, 1.6 - this.threat * 0.06 - t * 0.004);
+      this.spawnTimer = Math.max(0.55, 1.9 - this.threat * 0.06 - t * 0.004);
     }
+  },
+  // mostly the active roster, but occasionally inject a "special" (s_*) monster (D3)
+  pickSpawnType() {
+    if (rng.chance(0.12)) {
+      const sp = Enemies.upTo(this.tierCapNow()).filter((d) => !d.boss && /^s_/.test(d.id));
+      if (sp.length) return sp[rng.int(0, sp.length - 1)];
+    }
+    return this.activeTypes[rng.int(0, this.activeTypes.length - 1)];
   },
 
   // ---- choices -------------------------------------------------------------
@@ -362,16 +433,9 @@ export const runScene = {
     }
   },
 
-  // ---- death ---------------------------------------------------------------
-  onDeath() {
-    if (this.dead) return;
-    this.dead = true; this.deathT = 0;
-    this.run.score = Math.floor(this.run.kills * 12 + this.run.stage * 400 + this.run.time);
-    META.stats.bestStage = Math.max(META.stats.bestStage || 0, this.run.stage);
-    META.stats.bestScore = Math.max(META.stats.bestScore || 0, this.run.score);
-    Music.stop();
-    bankRun(this.run);
-  },
+  // ---- death --------------------------------------------------------------
+  // If the level was already cleared, dying still shows the victory (banked once).
+  onDeath() { this.finishRun(this.cleared); },
 
   // ---- pause ---------------------------------------------------------------
   pauseLayout() {
@@ -429,7 +493,7 @@ export const runScene = {
     if (this.shopOpen) { this.updateShopPanel(); return; }   // modal shop also freezes the field
 
     this.run.time += dt;
-    this.threat = 1 + Math.floor(this.run.time / 150);   // ~1 -> 13 over the 30-min level
+    this.threat = 1 + Math.floor(this.run.time / BALANCE.THREAT_PERIOD);   // ~1 -> 13 over the 20-min level
     this.run.stage = this.threat; this.run.floor = this.threat;   // keep loot/score scaling alive
     this.world.threat = this.threat;   // hazards read this to scale (capped)
     // screen shake stays gentle by default, swelling only when near death
@@ -440,12 +504,13 @@ export const runScene = {
     if (this.bannerT > 0) this.bannerT -= dt;
 
     this.spawnTick(dt);
-    this.bossEventTick(dt);
-    this.eventsTick(dt);
+    this.miniBossTick();
+    this.eventsTick();
     this.updateEvents(dt);
     this.finalTick(dt);
     this.nearShrine = !!(this.shrinePos && dist(this.player.x, this.player.y, this.shrinePos.x, this.shrinePos.y) < 20);
     if (this.nearShrine && pressed('interact')) { this.shopOpen = true; Sfx.play('uiClick'); }
+    else if (this.cleared && pressed('interact')) { this.finishRun(true); return; }   // leave as a win during the Reaper window
     if (this.levelQueue > 0 && !this.choice) this.openChoice();
   },
 
@@ -640,13 +705,20 @@ export const runScene = {
   drawStageHud() {
     const S = uiScale();
     uiText(`${this.map.biome.name} · 難度 ${this.run.difficulty || 1} · 威脅 ${this.threat}`, view.W / 2, 24 * S, { size: 15 * S, align: 'center', color: '#fff', weight: '800' });
-    const remain = Math.max(0, LEVEL_TIME - this.run.time);
-    const mm = Math.floor(remain / 60), ss = Math.floor(remain % 60);
-    const label = this.finalBoss ? '最終決戰！' : this.finalZone ? '縮圈中…退向中心' : `距最終首領 ${mm}:${ss.toString().padStart(2, '0')}`;
-    uiText(label, view.W / 2, 42 * S, { size: 13 * S, align: 'center', color: (this.finalZone || this.finalBoss) ? P.redL : P.gray3, weight: '700' });
+    let label, hot = false;
+    if (this.reaperRef && !this.reaperRef.dead) { label = '☠ 死神戰'; hot = true; }
+    else if (this.cleared) { const rem = Math.max(0, Math.ceil(this.reaperAt - this.run.time)); label = this.reaperSpawned ? '☠ 死神戰' : `通關！死神 ${rem}s　·　按 E 離場`; hot = true; }
+    else if (this.finalBoss) { label = '最終決戰！'; hot = true; }
+    else {
+      const nextMini = this.miniIdx < BALANCE.MINIBOSS_TIMES.length ? BALANCE.MINIBOSS_TIMES[this.miniIdx] : null;
+      const tgt = nextMini != null ? nextMini : LEVEL_TIME;
+      const r = Math.max(0, tgt - this.run.time), mm = Math.floor(r / 60), ss = Math.floor(r % 60);
+      label = (nextMini != null ? '距小王 ' : '距最終首領 ') + `${mm}:${ss.toString().padStart(2, '0')}`;
+    }
+    uiText(label, view.W / 2, 42 * S, { size: 13 * S, align: 'center', color: hot ? P.redL : P.gray3, weight: '700' });
     if (this.boss && this.bossRef && !this.bossRef.dead) {
       const bw = Math.min(360 * S, view.W * 0.5);
-      uiText((this.finalBoss ? '★ ' : '') + this.bossRef.def.name, view.W / 2, 56 * S, { size: 13 * S, align: 'center', color: P.redL, weight: '800' });
+      uiText((this.reaperRef && this.bossRef === this.reaperRef ? '☠ ' : this.finalBoss ? '★ ' : '') + this.bossRef.def.name, view.W / 2, 56 * S, { size: 13 * S, align: 'center', color: P.redL, weight: '800' });
       uiBar(view.W / 2 - bw / 2, 64 * S, bw, 9 * S, this.bossRef.hp / this.bossRef.maxHp, { fg: P.red, bg: '#2a0e14', border: P.ink, glow: true });
     } else if (this.activeTypes && this.activeTypes.length) {
       uiText('當前敵潮：' + this.activeTypes.map((d) => d.name).join('、'), view.W / 2, 54 * S, { size: 11 * S, align: 'center', color: P.gray3 });
@@ -755,11 +827,12 @@ export const runScene = {
     const lines = [
       `${this.map.biome.name} · 難度 ${this.run.difficulty || 1} 通關`,
       `擊殺 ${this.run.kills}　·　分數 ${this.run.score}`,
+      this.reaperSlain ? '☠ 斬殺死神！傳說獎勵已入袋' : '死神未斬 — 下次留下迎戰可得傳說獎勵',
       nextName ? `★ 已解鎖新關卡：${nextName}` : '★ 已是最深關卡',
       `★ 解鎖本關更高難度（難度 ${(this.run.difficulty || 1) + 1}）`,
       `帶回金幣：${this.run.gold} → 已存入金庫`,
     ];
-    lines.forEach((l, i) => uiText(l, cx, view.H * 0.26 + (54 + i * 28) * S, { size: 16 * S, align: 'center', color: (i === 2 || i === 3) ? P.shardL : '#d8e8d0', weight: (i === 2 || i === 3) ? '800' : '600' }));
+    lines.forEach((l, i) => uiText(l, cx, view.H * 0.26 + (52 + i * 26) * S, { size: 15 * S, align: 'center', color: (i === 3 || i === 4) ? P.shardL : i === 2 ? (this.reaperSlain ? P.goldL : P.gray3) : '#d8e8d0', weight: (i === 3 || i === 4) ? '800' : '600' }));
     const blink = Math.sin(this.t * 4) * 0.5 + 0.5;
     uiText('點擊 / 空白鍵 返回城鎮', cx, view.H * 0.84, { size: 16 * S, align: 'center', color: withAlpha('#ffd479', 0.5 + blink * 0.5), weight: '700' });
   },
