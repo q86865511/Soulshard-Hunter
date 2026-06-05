@@ -13,6 +13,11 @@ export const BALANCE = {
   BIGBOSS_TIME: 20 * 60,                     // the level's final boss at 20:00
   REAPER_DELAY: 30,                          // killable Reaper 30s after big boss dies
   THREAT_PERIOD: 100,                        // sec per +1 threat (1 -> ~13 over 20 min)
+  // The Reaper is the hidden ENDGAME superboss — a huge DPS check that only a heavily
+  // stacked build can out-damage (hpScale = (BASE + threat*PER) * diffMul). Damage is
+  // high but tempered so a stacked/defensive build survives a few hits (not a one-shot).
+  REAPER_HP_BASE: 8, REAPER_HP_PER_THREAT: 1.4,
+  REAPER_DMG_BASE: 1.45, REAPER_DMG_PER_THREAT: 0.045,
 
   // ---- weapons / fusion (user clarification) ----------------------------
   WEAPON_MAX_LEVEL: 7,                       // weapons cap at level 7 ("maxed")

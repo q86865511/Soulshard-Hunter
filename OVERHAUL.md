@@ -80,3 +80,22 @@ gating, the shop/equip/anvil flows, and the cheat panel were all exercised witho
 Balance was simulated with bot "players"; a hazard-aware kiting build holds full HP through minute one,
 confirming combat intake is fair and that the raised traps are the main early threat to respect. Tune
 further in `src/game/balance.js`.
+
+---
+
+# 第二輪改動（Round 2）
+
+依使用者追加需求，沿用同樣的逐項實作流程：
+
+1. **結算畫面 UI 優化**：死亡 / 通關結算頁呈現本局的**武器（含等級）、被動、裝備**，並標示它們造成的**實際數值/效果**（武器傷害、吸血、回復、減傷…）供玩家參考；同時列出**本局解鎖的成就 / 推進的任務 / 解鎖的內容**。
+2. **死神大幅強化**：死神血量/數值調到非常高，需長時間堆疊（高 DPS + 生存）才打得贏，定位為「打到後期高難度回頭才能擊殺」的隱藏終極王，而非運氣硬拚的秒殺戰。數值收進 `balance.js` 的 `REAPER_*`。
+3. **小王事件三選一**：5/10/15 分的三隻小王擊殺後，掉落**事件選擇**（仿 LoL 競技場，由不同「非英雄角色」提供）——**完全隨機三選一**，效果多樣：如「移除一件裝備/武器換取更高一階的隨機三選一」、限時挑戰小任務（時間內不受傷 → 給裝備/能力）、各種風險/收益取捨等。事件池需夠多種。
+4. **成就 / 任務擴充**：成就 + 任務種類增加到**至少 100 種**（多維度里程碑 + 更多故事章節 + 新追蹤統計）。
+
+完成後更新 README 並上傳 GitHub。
+
+**實作完成（已 headless 驗證）：**
+- 結算頁 `drawResultSummary`（src/game/scenes/run.js）：配置 + 數值效果 + 本局解鎖；`bankRun` 回傳新解鎖供顯示（state.js）。
+- 死神數值 `BALANCE.REAPER_*`（balance.js）：威脅 13 時血量約 17 萬，定位終極 DPS 試煉。
+- 小王事件：事件池 `src/game/content/events.js`（22 種，含增益/風險/犧牲/限時挑戰），`onBossDead` 掉落三選一 + 計時挑戰系統。
+- 成就 114 種（`achievements.js` 以分層家族生成 + 5 個解鎖獎勵 + 隱藏）、故事任務 15 章（`quests.js`）；新增追蹤 `reaperKills/miniBossKills/clears`。

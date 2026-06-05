@@ -13,6 +13,7 @@ import { equipItem } from '../content/equipment.js';
 import { BALANCE } from '../balance.js';
 import { isUnlocked } from '../content/unlocks.js';
 import { STORY_QUESTS } from '../content/quests.js';
+import { EVENTS } from '../content/events.js';
 import { Cheats } from '../cheats.js';
 import {
   camera, clear, vignette, uiText, uiRect, uiScale, view, addShake, drawSpriteUI, textWidth,
@@ -70,7 +71,10 @@ export const runScene = {
       else if (e.boss) this.onBossDead(e);
     };
     this.world.onEquipPickup = (def) => this.openEquipChoice(def);
+    this.world.onPlayerHit = () => { if (this.challenge && this.challenge.type === 'nohit') this.failChallenge(); };   // 原#3 challenge fail
     this.equipChoice = null; this.equipQueue = [];
+    this.eventChoice = null; this.challenge = null;   // 原#3 mini-boss event + timed challenge
+    this.newlyUnlocked = [];   // 原#1 results screen: achievements unlocked this run
     this.buildWorld();
   },
 
@@ -211,9 +215,90 @@ export const runScene = {
   onBossDead(e) {
     this.boss = false; this.bossDead = true; this.bossRef = null;
     this.run.bossKills = (this.run.bossKills || 0) + 1;
+    this.run.miniKills = (this.run.miniKills || 0) + 1;
     this.banner = '擊敗小王！'; this.bannerT = 2.6; addShake(6);
     this.world.addPickup('heart', this.player.x, this.player.y, 30);
     Music.setMode('run');
+    this.openEventChoice();   // 原#3: mini-boss drops a 3-of-N event choice
+  },
+
+  // ---- mini-boss event choice (原#3): a random 3-pick of arena-style events ----
+  openEventChoice() {
+    const pool = EVENTS.slice(), pick = [];
+    for (let i = 0; i < 3 && pool.length; i++) pick.push(pool.splice(rng.int(0, pool.length - 1), 1)[0]);
+    this.eventChoice = pick.length ? pick : null;
+  },
+  eventCardRects() {
+    const S = uiScale(); const n = this.eventChoice ? this.eventChoice.length : 3;
+    const cw = Math.min(210 * S, (view.W - 50 * S) / n - 16 * S); const ch = cw * 1.15, gap = 18 * S;
+    const totalW = n * cw + (n - 1) * gap, x0 = (view.W - totalW) / 2, y = (view.H - ch) / 2 + 6 * S;
+    return Array.from({ length: n }, (_, i) => ({ x: x0 + i * (cw + gap), y, w: cw, h: ch }));
+  },
+  updateEventChoice() {
+    const rects = this.eventCardRects(); const mx = mouse.x * view.dpr, my = mouse.y * view.dpr;
+    let pick = -1;
+    rects.forEach((r, i) => { if (mouse.justDown && inside(mx, my, r)) pick = i; });
+    if (pressed('slot1')) pick = 0; if (pressed('slot2')) pick = 1; if (pressed('slot3')) pick = 2;
+    if (pick >= 0 && pick < this.eventChoice.length) this.applyEvent(this.eventChoice[pick]);
+  },
+  applyEvent(ev) {
+    try { ev.apply(this); } catch (e) { /* */ }
+    this.eventChoice = null;
+    this.banner = ev.host + '：' + ev.name; this.bannerT = 2.0;
+    this.world.particles.ring(this.player.x, this.player.y, P.goldL, 24, 140); Sfx.play('levelup');
+  },
+  drawEventChoice() {
+    const S = uiScale(); const rects = this.eventCardRects();
+    uiRect(0, 0, view.W, view.H, withAlpha('#0b0d1a', 0.82));
+    uiText('小王戰利品 · 事件三選一', view.W / 2, rects[0].y - 30 * S, { size: 24 * S, align: 'center', color: P.goldL, weight: '900' });
+    uiText('（點擊卡片或按 1 / 2 / 3）', view.W / 2, rects[0].y - 8 * S, { size: 12 * S, align: 'center', color: P.gray3 });
+    const mx = mouse.x * view.dpr, my = mouse.y * view.dpr;
+    rects.forEach((r, i) => {
+      const ev = this.eventChoice[i]; const hov = inside(mx, my, r); const oy = hov ? -8 * S : 0;
+      uiRect(r.x, r.y + oy, r.w, r.h, withAlpha('#241a3a', 0.98), { radius: 9 * S, stroke: hov ? P.goldL : withAlpha(P.goldL, 0.5), lw: hov ? 3 : 2 });
+      uiRect(r.x, r.y + oy, r.w, 5 * S, P.goldL, { radius: 2 * S });
+      uiText(ev.host, r.x + r.w / 2, r.y + oy + 28 * S, { size: 12 * S, align: 'center', color: P.shardL, weight: '700' });
+      uiText(ev.name, r.x + r.w / 2, r.y + oy + 52 * S, { size: 17 * S, align: 'center', color: '#fff', weight: '900' });
+      this.wrapText(ev.desc, r.x + r.w / 2, r.y + oy + 78 * S, r.w - 22 * S, 12.5 * S, P.gray4);
+      uiText(String(i + 1), r.x + 11 * S, r.y + oy + 22 * S, { size: 14 * S, color: withAlpha('#fff', 0.45), weight: '900' });
+    });
+  },
+
+  // ---- timed challenge mini-quests (原#3) ----------------------------------
+  grantLevelUps(n) { this.levelQueue += n; },
+  allWeaponsLevelUp() { for (const inst of this.player.weapons) if (!inst.def.evolved) this.player.levelWeapon(inst, this.world); },
+  sacrificeWeapon() {
+    const cand = this.player.weapons.filter((w) => !w.def.equipped && !w.def.evolved);
+    if (cand.length <= 1) return false;   // never leave the player weaponless
+    cand.sort((a, b) => a.level - b.level);
+    this.player.weapons = this.player.weapons.filter((w) => w !== cand[0]);
+    return true;
+  },
+  startChallenge(def) {
+    this.challenge = { name: def.name, t: def.dur, type: def.type, need: def.need || 0, startKills: this.run.kills, reward: def.reward };
+    this.banner = '挑戰開始：' + def.name; this.bannerT = 2.0;
+  },
+  updateChallenge(dt) {
+    const c = this.challenge; if (!c) return;
+    c.t -= dt;
+    if (c.type === 'kills' && this.run.kills - c.startKills >= c.need) { this.completeChallenge(); return; }
+    if (c.t <= 0) { if (c.type === 'nohit') this.completeChallenge(); else this.failChallenge(); }
+  },
+  completeChallenge() {
+    const c = this.challenge; this.challenge = null;
+    try { c.reward && c.reward(this); } catch (e) { /* */ }
+    this.banner = '挑戰成功：' + c.name + '！'; this.bannerT = 2.8; addShake(5); Sfx.play('levelup');
+  },
+  failChallenge() {
+    const c = this.challenge; this.challenge = null;
+    this.banner = '挑戰失敗：' + c.name; this.bannerT = 1.8;
+  },
+  drawChallenge() {
+    const S = uiScale(); const c = this.challenge;
+    const txt = c.type === 'kills'
+      ? `${c.name}　${Math.min(c.need, this.run.kills - c.startKills)}/${c.need}　${Math.ceil(c.t)}s`
+      : `${c.name}　保持無傷　${Math.ceil(c.t)}s`;
+    uiText('⚔ ' + txt, view.W / 2, 92 * S, { size: 13 * S, align: 'center', color: P.goldL, weight: '800', shadowColor: withAlpha('#000', 0.8) });
   },
 
   // ---- finale: final boss at 20:00 -> clear -> killable Reaper +30s (E2) ----
@@ -262,8 +347,8 @@ export const runScene = {
     this.reaperSpawned = true;
     const def = Enemies.get(REAPER_ID);
     if (!def) return;
-    const hpScale = (4.5 + this.threat * 0.55) * this.diffMul;
-    const dmgScale = (1.6 + this.threat * 0.05) * this.diffMul;
+    const hpScale = (BALANCE.REAPER_HP_BASE + this.threat * BALANCE.REAPER_HP_PER_THREAT) * this.diffMul;
+    const dmgScale = (BALANCE.REAPER_DMG_BASE + this.threat * BALANCE.REAPER_DMG_PER_THREAT) * this.diffMul;
     let bx = this.player.x, by = this.player.y, tries = 0;
     do { const a = rng.next() * TAU; bx = clamp(this.player.x + Math.cos(a) * 220, TS * 2, this.world.pxW - TS * 2); by = clamp(this.player.y + Math.sin(a) * 220, TS * 2, this.world.pxH - TS * 2); tries++; } while (this.world.solidAt(bx, by) && tries < 12);
     this.reaperRef = this.world.spawnEnemy(def, bx, by, { hpScale, dmgScale, quiet: true });
@@ -274,6 +359,7 @@ export const runScene = {
   onReaperDead(e) {
     this.boss = false; this.reaperRef = null; this.reaperSlain = true;
     this.run.bossKills = (this.run.bossKills || 0) + 1;
+    this.run.reaperKills = (this.run.reaperKills || 0) + 1;
     this.run.gold += 600 + (this.run.difficulty || 1) * 200;
     this.run.shards += 30;
     this.banner = '★ 死神已被斬殺！傳說自此誕生'; this.bannerT = 4.0;
@@ -287,7 +373,12 @@ export const runScene = {
     META.stats.bestStage = Math.max(META.stats.bestStage || 0, this.run.stage);
     META.stats.bestScore = Math.max(META.stats.bestScore || 0, this.run.score);
     Music.stop(); if (won) { addShake(8); Sfx.play('levelup'); }
-    if (!this.banked) { this.banked = true; bankRun(this.run); }
+    if (!this.banked) {
+      this.banked = true;
+      const r = bankRun(this.run) || {};
+      this.newlyUnlocked = r.newAchievements || [];      // 原#1 results screen
+      this.newCharacters = r.newCharacters || [];
+    }
   },
 
   // ---- special harasser events: mushrooms / surround ring (D2) / Higgs (D3) -
@@ -581,6 +672,7 @@ export const runScene = {
     if (this.paused) { this.updatePause(); return; }
     if (this.choice) { this.updateChoice(); return; }
     if (this.equipChoice) { this.updateEquipChoice(); return; }   // B1 equip menu pauses the field
+    if (this.eventChoice) { this.updateEventChoice(); return; }   // 原#3 mini-boss event pauses the field
     if (pressed('pause') || pressed('escape')) { this.paused = true; Sfx.play('uiClick'); return; }
     if (pressed('map')) { this.showBuild = !this.showBuild; Sfx.play('uiClick'); }
     if (pressed('minimap')) { this.bigMap = !this.bigMap; Sfx.play('uiClick'); }
@@ -601,6 +693,7 @@ export const runScene = {
     if (this.bannerT > 0) this.bannerT -= dt;
     if (this.story) { this.story.t -= dt; if (this.story.t <= 0) this.story = null; else if (pressed('space') && this.story.t < this.story.dur - 0.6) this.story = null; }
 
+    if (this.challenge) this.updateChallenge(dt);   // 原#3 timed challenge
     this.spawnTick(dt);
     this.miniBossTick();
     this.eventsTick();
@@ -771,9 +864,11 @@ export const runScene = {
     this.drawInfo();
     this.drawBigMinimap();
     if (this.story && this.story.t > 0) this.drawStory();
+    if (this.challenge) this.drawChallenge();
     if (this.shopOpen) this.drawShopPanel();
     if (this.choice) this.drawChoice();
     if (this.equipChoice) this.drawEquipChoice();
+    if (this.eventChoice) this.drawEventChoice();
     if (this.dead) { if (this.won) this.drawWon(); else this.drawDeath(); }
     if (this.paused) this.drawPause();
     settingsUI.draw();
@@ -890,7 +985,7 @@ export const runScene = {
 
   // ---- info: hover tooltips + Tab build panel (R11) ------------------------
   drawInfo() {
-    if (this.choice || this.equipChoice || this.dead || this.paused || settingsUI.open) return;
+    if (this.choice || this.equipChoice || this.eventChoice || this.dead || this.paused || settingsUI.open) return;
     const S = uiScale();
     const mx = mouse.x * view.dpr, my = mouse.y * view.dpr;
     if (this.showBuild) {
@@ -1044,43 +1139,77 @@ export const runScene = {
   },
 
   drawWon() {
-    const S = uiScale(); const a = Math.min(0.86, this.deathT * 0.9);
+    const S = uiScale(); const a = Math.min(0.9, this.deathT * 0.9);
     uiRect(0, 0, view.W, view.H, withAlpha('#0b1a0d', a));
     if (this.deathT < 0.3) return;
     const cx = view.W / 2;
-    uiText('關 卡 通 關！', cx, view.H * 0.26, { size: 42 * S, align: 'center', color: P.goldL, weight: '900' });
+    uiText('關 卡 通 關！', cx, view.H * 0.11, { size: 36 * S, align: 'center', color: P.goldL, weight: '900' });
     const idx = BIOMES.findIndex((b) => b.id === this.run.biomeId);
     const nextName = idx >= 0 && idx + 1 < BIOMES.length ? BIOMES[idx + 1].name : null;
     const lines = [
-      `${this.map.biome.name} · 難度 ${this.run.difficulty || 1} 通關`,
-      `擊殺 ${this.run.kills}　·　分數 ${this.run.score}`,
+      `${this.map.biome.name} · 難度 ${this.run.difficulty || 1} 通關　·　擊殺 ${this.run.kills}　·　分數 ${this.run.score}`,
       this.reaperSlain ? '☠ 斬殺死神！傳說獎勵已入袋' : '死神未斬 — 下次留下迎戰可得傳說獎勵',
-      nextName ? `★ 已解鎖新關卡：${nextName}` : '★ 已是最深關卡',
-      `★ 解鎖本關更高難度（難度 ${(this.run.difficulty || 1) + 1}）`,
-      `帶回金幣：${this.run.gold} → 已存入金庫`,
+      (nextName ? `★ 解鎖新關卡：${nextName}　` : '★ 已是最深關卡　') + `· 解鎖難度 ${(this.run.difficulty || 1) + 1}　· 帶回金幣 ${this.run.gold}`,
     ];
-    lines.forEach((l, i) => uiText(l, cx, view.H * 0.26 + (52 + i * 26) * S, { size: 15 * S, align: 'center', color: (i === 3 || i === 4) ? P.shardL : i === 2 ? (this.reaperSlain ? P.goldL : P.gray3) : '#d8e8d0', weight: (i === 3 || i === 4) ? '800' : '600' }));
+    lines.forEach((l, i) => uiText(l, cx, view.H * 0.11 + (40 + i * 20) * S, { size: 13 * S, align: 'center', color: i === 1 ? (this.reaperSlain ? P.goldL : P.gray3) : '#d8e8d0', weight: i === 2 ? '800' : '600' }));
+    this.drawResultSummary(view.H * 0.28);
     const blink = Math.sin(this.t * 4) * 0.5 + 0.5;
-    uiText('點擊 / 空白鍵 返回城鎮', cx, view.H * 0.84, { size: 16 * S, align: 'center', color: withAlpha('#ffd479', 0.5 + blink * 0.5), weight: '700' });
+    uiText('點擊 / 空白鍵 返回城鎮', cx, view.H * 0.95, { size: 15 * S, align: 'center', color: withAlpha('#ffd479', 0.5 + blink * 0.5), weight: '700' });
   },
 
   drawDeath() {
-    const S = uiScale(); const a = Math.min(0.84, this.deathT * 0.9);
+    const S = uiScale(); const a = Math.min(0.88, this.deathT * 0.9);
     uiRect(0, 0, view.W, view.H, withAlpha('#0b0d1a', a));
     if (this.deathT < 0.3) return;
     const cx = view.W / 2;
-    uiText('探 索 結 束', cx, view.H * 0.28, { size: 42 * S, align: 'center', color: P.redL, weight: '900' });
+    uiText('探 索 結 束', cx, view.H * 0.11, { size: 36 * S, align: 'center', color: P.redL, weight: '900' });
     const mins = Math.floor(this.run.time / 60), secs = Math.floor(this.run.time % 60);
     const lines = [
-      `抵達區域：第 ${this.run.stage} 區`,
-      `存活時間：${mins}:${secs.toString().padStart(2, '0')}`,
-      `擊殺數：${this.run.kills}`,
-      `本局分數：${this.run.score}` + (this.run.score >= (META.stats.bestScore || 0) ? '　★ 新紀錄！' : `（最佳 ${META.stats.bestScore || 0}）`),
-      `帶回金幣：${this.run.gold} → 已存入金庫`,
+      `抵達威脅 ${this.run.stage}　·　存活 ${mins}:${secs.toString().padStart(2, '0')}　·　擊殺 ${this.run.kills}`,
+      `本局分數 ${this.run.score}` + (this.run.score >= (META.stats.bestScore || 0) ? '　★ 新紀錄！' : `（最佳 ${META.stats.bestScore || 0}）`) + `　·　帶回金幣 ${this.run.gold}`,
     ];
-    lines.forEach((l, i) => uiText(l, cx, view.H * 0.28 + (54 + i * 28) * S, { size: 16 * S, align: 'center', color: i === 3 ? P.goldL : '#d8def0', weight: i === 3 ? '800' : '600' }));
+    lines.forEach((l, i) => uiText(l, cx, view.H * 0.11 + (40 + i * 20) * S, { size: 13 * S, align: 'center', color: i === 1 ? P.goldL : '#d8def0', weight: i === 1 ? '800' : '600' }));
+    this.drawResultSummary(view.H * 0.26);
     const blink = Math.sin(this.t * 4) * 0.5 + 0.5;
-    uiText('點擊 / 空白鍵 返回城鎮', cx, view.H * 0.84, { size: 16 * S, align: 'center', color: withAlpha('#ffd479', 0.5 + blink * 0.5), weight: '700' });
+    uiText('點擊 / 空白鍵 返回城鎮', cx, view.H * 0.95, { size: 15 * S, align: 'center', color: withAlpha('#ffd479', 0.5 + blink * 0.5), weight: '700' });
+  },
+
+  // 原#1: results-screen build + effect-numbers + this-run unlocks summary
+  drawResultSummary(topY) {
+    const S = uiScale();
+    const w = Math.min(view.W * 0.92, 680 * S), h = Math.min(view.H * 0.5, 318 * S);
+    const x = (view.W - w) / 2, y = topY;
+    uiRect(x, y, w, h, withAlpha('#0e1322', 0.92), { radius: 8 * S, stroke: P.ink2, lw: 2 });
+    const sz = 26 * S, gap = 5 * S;
+    const cell = (bx, by, sp, stroke, badge, bcol) => { uiRect(bx, by, sz, sz, withAlpha('#10121f', 0.82), { radius: 4 * S, stroke, lw: 2 }); drawSpriteUI(sp.frames[0], bx + 3 * S, by + 3 * S, (sz - 6 * S) / sp.w); if (badge) uiText(badge, bx + sz - 3 * S, by + sz - 3 * S, { size: 9 * S, align: 'right', color: bcol, weight: '800' }); };
+    // LEFT — build
+    const colL = x + 18 * S; let yL = y + 24 * S;
+    uiText('本局配置', colL, yL, { size: 13 * S, color: P.shardL, weight: '800' }); yL += 17 * S;
+    uiText('武器', colL, yL, { size: 10 * S, color: P.gray3 }); yL += 13 * S;
+    this.player.weapons.forEach((inst, i) => { const bx = colL + i * (sz + gap); cell(bx, yL, getSprite(iconOr(inst.def.icon, 'weapon_w_soulbolt')), inst.def.evolved ? P.goldL : P.ink2, inst.def.evolved ? '★' : 'L' + inst.level, inst.def.evolved ? P.goldL : P.shardL); });
+    yL += sz + 11 * S;
+    const abils = this.run.abilities || [];
+    uiText('被動 ×' + abils.length, colL, yL, { size: 10 * S, color: P.manaL }); yL += 13 * S;
+    const per = 8; abils.slice(0, 16).forEach((id, i) => { const bx = colL + (i % per) * (sz + gap), by = yL + Math.floor(i / per) * (sz + gap); const ab = Abilities.get(id); const stk = (this.run.abilityLevels && this.run.abilityLevels[id]) || 1; cell(bx, by, getSprite(iconOr('ability_' + id, 'ability_power')), ab && ab.cursed ? P.redL : P.ink2, stk > 1 ? '×' + stk : '', P.goldL); });
+    yL += (Math.ceil(Math.min(abils.length, 16) / per) || 1) * (sz + gap) + 12 * S;
+    const eq = this.run.equipment || {};
+    uiText('裝備', colL, yL, { size: 10 * S, color: P.goldL });
+    [['weapon'], ['armor'], ['trinket']].forEach(([slot], i) => { const bx = colL + 44 * S + i * (sz + gap); const d = eq[slot] && Equipment.get(eq[slot]); if (d) cell(bx, yL - 12 * S, getSprite(iconOr(d.icon, 'equip_leather_armor')), P.goldL, '', ''); else { uiRect(bx, yL - 12 * S, sz, sz, withAlpha('#10121f', 0.82), { radius: 4 * S, stroke: P.ink2, lw: 1 }); uiText('—', bx + sz / 2, yL - 12 * S + sz / 2 + 4 * S, { size: 11 * S, align: 'center', color: P.gray2 }); } });
+    // RIGHT — effect numbers (what the build actually grants)
+    const colR = x + w * 0.5; let yR = y + 24 * S;
+    uiText('數值效果（參考）', colR, yR, { size: 13 * S, color: P.emberL, weight: '800' }); yR += 18 * S;
+    const st = this.player.stats;
+    const stats = [['傷害', '×' + (st.damageMult || 1).toFixed(2)], ['射速', '×' + (st.fireRateMult || 1).toFixed(2)], ['暴擊率', Math.round((st.critChance || 0) * 100) + '%'], ['暴擊傷害', '×' + (st.critMult || 2).toFixed(1)], ['投射物', '+' + (st.projCountAdd || 0)], ['穿透', '+' + (st.pierceAdd || 0)], ['範圍', '×' + (st.area || 1).toFixed(2)], ['移速', String(Math.round(st.speed || 0))], ['減傷', String(st.defense || 0)], ['閃避', Math.round((st.dodge || 0) * 100) + '%'], ['吸血', Math.round((st.lifesteal || 0) * 100) + '%'], ['生命上限', String(this.player.maxHp)]];
+    for (const [k, v] of stats) { if (yR > y + h - 54 * S) break; uiText(k, colR, yR, { size: 11.5 * S, color: P.gray3 }); uiText(v, colR + 108 * S, yR, { size: 11.5 * S, color: P.shardL, weight: '800' }); yR += 14.5 * S; }
+    // unlocks — bottom strip
+    const un = this.newlyUnlocked || [], nc = this.newCharacters || [];
+    let oy = y + h - 42 * S;
+    uiText('★ 本局解鎖', colL, oy, { size: 12 * S, color: P.goldL, weight: '800' }); oy += 15 * S;
+    const items = [];
+    for (const ac of un) items.push('成就「' + (ac.realName || ac.name) + '」' + (ac.rewardLabel ? ' → ' + ac.rewardLabel : ''));
+    for (const c of nc) items.push('角色「' + c.name + '」');
+    if (!items.length) uiText('（本局沒有新解鎖）', colL + 4 * S, oy, { size: 11 * S, color: P.gray3 });
+    else { items.slice(0, 2).forEach((t, i) => this.clipShop(t, colL + 4 * S, oy + i * 13 * S, w - 40 * S, 11 * S)); if (items.length > 2) uiText('…等 ' + items.length + ' 項', x + w - 18 * S, oy, { size: 10 * S, align: 'right', color: P.gray3 }); }
   },
 
   wrapText(str, cx, y, maxw, size, color = '#c8cfe8') {

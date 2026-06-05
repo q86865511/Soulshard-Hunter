@@ -17,7 +17,7 @@ const DEFAULT_META = () => ({
   unlocked: { abilities: [], equipment: [], weapons: ['wand'], characters: ['hunter'] },
   loadoutWeapon: 'wand',
   selectedCharacter: 'hunter',
-  stats: { runs: 0, kills: 0, bestFloor: 0, bestStage: 0, bestScore: 0, bestTime: 0, bossKills: 0, deaths: 0, totalGold: 0, history: [] },
+  stats: { runs: 0, kills: 0, bestFloor: 0, bestStage: 0, bestScore: 0, bestTime: 0, bossKills: 0, reaperKills: 0, miniBossKills: 0, clears: 0, deaths: 0, totalGold: 0, history: [] },
   settings: { master: 0.9, sfx: 0.75, music: 0.5, shake: true, muted: false },
   achievements: [],      // unlocked achievement ids
   questIndex: 0,         // current story-quest chapter
@@ -140,12 +140,17 @@ export function bankRun(run) {
   META.stats.bestScore = Math.max(META.stats.bestScore || 0, run.score || 0);
   META.stats.bestTime = Math.max(META.stats.bestTime || 0, Math.floor(run.time || 0));
   META.stats.bossKills = (META.stats.bossKills || 0) + (run.bossKills || 0);
+  META.stats.reaperKills = (META.stats.reaperKills || 0) + (run.reaperKills || 0);
+  META.stats.miniBossKills = (META.stats.miniBossKills || 0) + (run.miniKills || 0);
+  if (run.cleared) META.stats.clears = (META.stats.clears || 0) + 1;
   META.stats.deaths += 1;
   META.stats.history = META.stats.history || [];
   META.stats.history.push({ score: run.score || 0, stage: run.stage || run.floor || 1, kills: run.kills || 0, char: run.characterId || 'hunter' });
   META.stats.history.sort((a, b) => b.score - a.score);
   META.stats.history = META.stats.history.slice(0, 10);
-  try { checkCharacterUnlocks(META); } catch (e) { /* ignore */ }
-  try { checkAchievements(META); } catch (e) { /* ignore */ }
+  let newChars = [], newAch = [];
+  try { newChars = checkCharacterUnlocks(META) || []; } catch (e) { /* ignore */ }
+  try { newAch = checkAchievements(META) || []; } catch (e) { /* ignore */ }
   saveMeta();
+  return { newAchievements: newAch, newCharacters: newChars };   // for the results screen (原#1)
 }

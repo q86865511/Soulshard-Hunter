@@ -59,10 +59,10 @@ function meetsCondition(cond, s) {
 export function checkCharacterUnlocks(META) {
   const got = META.unlocked.characters;
   const s = META.stats || {};
-  let unlocked = null;
+  const unlocked = [];
   for (const c of Characters.all()) {
     if (!c.unlock || c.unlock.type !== 'achievement' || got.includes(c.id)) continue;
-    if (meetsCondition(c.unlock.condition, s)) { got.push(c.id); unlocked = c; }
+    if (meetsCondition(c.unlock.condition, s)) { got.push(c.id); unlocked.push(c); }
   }
   return unlocked;
 }
