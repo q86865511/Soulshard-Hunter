@@ -2,7 +2,7 @@
 import { P } from '../engine/palette.js';
 import { Talents, Facilities, Characters } from './content/registry.js';
 import { checkCharacterUnlocks } from './content/characters.js';
-import { checkAchievements } from './content/achievements.js';
+import { checkAchievements, reconcileUnlocks } from './content/achievements.js';
 import { Audio } from '../engine/audio.js';
 import { setShakeEnabled } from '../engine/renderer.js';
 
@@ -54,6 +54,7 @@ export function loadMeta() {
       META.version = SAVE_VERSION;
     }
   } catch (e) { console.warn('load save failed', e); META = DEFAULT_META(); }
+  try { reconcileUnlocks(META); } catch (e) { /* */ }   // re-grant achievement unlocks (A2)
   return META;
 }
 

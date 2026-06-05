@@ -11,6 +11,7 @@ import { refs } from './refs.js';
 import { Enemies, Equipment, Abilities } from '../content/registry.js';
 import { equipItem } from '../content/equipment.js';
 import { BALANCE } from '../balance.js';
+import { isUnlocked } from '../content/unlocks.js';
 import {
   camera, clear, vignette, uiText, uiRect, uiScale, view, addShake, drawSpriteUI, textWidth,
   drawSprite, drawShadow, glowWorld, worldToScreen, fillRectWorld, uiBar, setShakeScale,
@@ -145,7 +146,7 @@ export const runScene = {
   },
   rollShopGear() {
     // tier >= 2 gear, incl. weapon-slot "signature weapons" (now real auto-fire weapons)
-    const pool = Equipment.all().filter((d) => (d.tier ?? 1) >= 2);
+    const pool = Equipment.all().filter((d) => (d.tier ?? 1) >= 2 && isUnlocked(META, 'equipment', d.id));
     const src = (pool.length ? pool : Equipment.all()).slice();
     const offers = [];
     for (let i = 0; i < 4 && src.length; i++) {

@@ -11,6 +11,8 @@ import { P, withAlpha } from '../engine/palette.js';
 import { Sfx } from '../engine/audio.js';
 import { BALANCE } from './balance.js';
 import { applyStatus } from './status.js';
+import { META } from './state.js';
+import { isUnlocked } from './content/unlocks.js';
 
 export const TS = 16; // tile size (world units)
 export const FLOOR = 0, WALL = 1, VOID = 2;
@@ -183,7 +185,7 @@ export class World {
   // ---- loot rolls & chests -------------------------------------------------
   rollEquipment(quality = 1) {
     const tierCap = Math.min(3, 1 + quality + (Math.random() < 0.3 ? 1 : 0));
-    const pool = Equipment.upTo(tierCap).filter((d) => d.slot !== 'weapon'); // weapons come from level-ups now
+    const pool = Equipment.upTo(tierCap).filter((d) => d.slot !== 'weapon' && isUnlocked(META, 'equipment', d.id)); // weapons come from level-ups now
     return pool.length ? rng.weighted(pool, (d) => (d.weight ?? 1)) : null;
   }
   rollItem(quality = 1) {

@@ -3,6 +3,8 @@ import { Abilities } from './content/registry.js';
 import { applyAbility } from './content/abilities.js';
 import { weaponPool } from './content/weapons.js';
 import { BALANCE, weaponMaxLevel, isWeaponMaxed } from './balance.js';
+import { META } from './state.js';
+import { isUnlocked } from './content/unlocks.js';
 import { rng } from '../engine/math.js';
 import { P } from '../engine/palette.js';
 
@@ -12,7 +14,7 @@ export const MAX_PASSIVES = 14;
 
 function eligibleAbilities(run) {
   const maxTier = run.level >= 8 ? 3 : run.level >= 4 ? 2 : 1;
-  return Abilities.all().filter((d) => (d.tier ?? 1) <= maxTier && (run.abilityLevels[d.id] || 0) < (d.maxStacks ?? 99));
+  return Abilities.all().filter((d) => (d.tier ?? 1) <= maxTier && (run.abilityLevels[d.id] || 0) < (d.maxStacks ?? 99) && isUnlocked(META, 'abilities', d.id));
 }
 
 export function getRunChoices(run, player, n = 3) {

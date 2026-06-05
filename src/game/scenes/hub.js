@@ -32,7 +32,9 @@ export const hubScene = {
     camera.x = camera.targetX = cx; camera.y = camera.targetY = cy;
     this.stations = [
       { id: 'talents', sprite: 'hub_altar', label: '天賦祭壇', color: P.shardL, x: 8 * TS, y: cy },
+      { id: 'quests', sprite: 'hub_quests', label: '任務公會', color: P.goldL, x: 10 * TS, y: 6 * TS },
       { id: 'sortie', sprite: 'portal', label: '出擊傳送門', color: P.manaL, x: cx, y: 5 * TS },
+      { id: 'achievements', sprite: 'hub_trophy', label: '成就殿堂', color: P.goldL, x: (CW - 10) * TS, y: 6 * TS },
       { id: 'facilities', sprite: 'hub_forge', label: '設施工坊', color: P.emberL, x: (CW - 8) * TS, y: cy },
     ];
     this.panel = null; this.near = null; this.t = 0;
@@ -437,7 +439,7 @@ export const hubScene = {
     const f = this.drawPanelFrame('成 就 殿 堂');
     const S = f.S;
     const cols = 2;
-    const cardW = (f.w - 40 * S - (cols - 1) * 14 * S) / cols, cardH = 54 * S;
+    const cardW = (f.w - 40 * S - (cols - 1) * 14 * S) / cols, cardH = 62 * S;
     const got = META.achievements || [];
     const rows = Math.ceil(ACHIEVEMENTS.length / cols);
     const bottom = f.y + 72 * S + rows * (cardH + 9 * S);
@@ -448,11 +450,13 @@ export const hubScene = {
       const x = f.x + 20 * S + c * (cardW + 14 * S), y = f.y + 72 * S + r * (cardH + 9 * S) - (this.panelScroll || 0);
       const done = got.includes(a.id);
       const name = (a.hidden && !done) ? '？？？' : (a.realName || a.name);
-      const desc = (a.hidden && !done) ? '隱藏成就 — 達成後揭曉' : a.desc;
+      let desc = (a.hidden && !done) ? '隱藏成就 — 達成後揭曉' : a.desc;
+      if (!done && !a.hidden && a.prog) { const pg = a.prog(META.stats || {}); desc += `（${Math.min(pg[0], pg[1])}/${pg[1]}）`; }   // live progress (A2)
       uiRect(x, y, cardW, cardH, withAlpha(done ? '#1d2c1d' : '#1b2138', 0.96), { radius: 7 * S, stroke: done ? P.goldL : P.ink2, lw: 2 });
       uiText(done ? '★' : '☆', x + 12 * S, y + 23 * S, { size: 17 * S, color: done ? P.goldL : P.gray2, weight: '900' });
       uiText(name, x + 34 * S, y + 20 * S, { size: 12.5 * S, color: done ? '#fff' : P.gray3, weight: '800' });
       this.clip1(desc, x + 34 * S, y + 38 * S, cardW - 42 * S, 10 * S, done ? P.gray4 : P.gray2);
+      if (a.rewardLabel) this.clip1((done ? '✓ 已解鎖：' : '✦ 解鎖：') + a.rewardLabel, x + 34 * S, y + 53 * S, cardW - 42 * S, 9.5 * S, done ? P.greenL : P.shardL, '700');   // unlock target (A2)
     });
     ctx.restore();
     const prog = achievementProgress(META);

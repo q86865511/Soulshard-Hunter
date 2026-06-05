@@ -14,6 +14,8 @@ import { Weapons } from './registry.js';
 import { Projectile } from '../projectile.js';
 import { BALANCE } from '../balance.js';
 import { applyStatus } from '../status.js';
+import { META } from '../state.js';
+import { isUnlocked } from './unlocks.js';
 import { P, withAlpha } from '../../engine/palette.js';
 import { dist2, TAU } from '../../engine/math.js';
 import { glowWorld, fillCircleWorld, drawSprite } from '../../engine/renderer.js';
@@ -189,4 +191,4 @@ W({
 });
 
 // the random level-up pool excludes evolved/0-weight weapons
-export function weaponPool() { return Weapons.all().filter((w) => !w.evolved && (w.weight ?? 1) > 0); }
+export function weaponPool() { return Weapons.all().filter((w) => !w.evolved && (w.weight ?? 1) > 0 && isUnlocked(META, 'weapons', w.id)); }
