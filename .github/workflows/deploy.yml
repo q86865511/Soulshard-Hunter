@@ -1,0 +1,51 @@
+name: Deploy to Oracle
+
+# Continuous deployment: on every push to `main`, SSH into the OCI VM, fast-forward the
+# checked-out repo to the pushed commit, (re)start the API, and health-check it.
+# The static frontend is served by Caddy straight from the repo working tree, so the
+# `git reset` alone updates it — there is no build step. See docs/DEPLOY_ORACLE.md.
+#
+# Required repo secrets (Settings -> Secrets and variables -> Actions):
+#   OCI_HOST     VM public IP or hostname (e.g. yourname.duckdns.org)
+#   OCI_USER     SSH user (e.g. ubuntu)
+#   OCI_SSH_KEY  the PRIVATE key whose public half is in the VM's ~/.ssh/authorized_keys
+#                (use a dedicated deploy key, not your personal key)
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}            # also allow a manual run from the Actions tab
+
+concurrency:
+  group: deploy-oracle
+  cancel-in-progress: false        # never interrupt an in-flight deploy
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: SSH deploy to the OCI VM
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.OCI_HOST }}
+          username: ${{ secrets.OCI_USER }}
+          key: ${{ secrets.OCI_SSH_KEY }}
+          script_stop: true        # abort on the first failing command
+          script: |
+            set -e
+            cd ~/soulshard
+            git fetch --all --prune
+            git reset --hard origin/main      # match main exactly; keeps gitignored .env / node_modules
+            cd server
+
+            # --- Restart the API: uncomment the ONE block matching your setup (deploy doc §4) ---
+            # Docker (deps build inside the image — no host npm needed):
+            docker compose up -d --build
+            # systemd:
+            # npm install --omit=dev && sudo systemctl restart soulshard
+            # pm2:
+            # npm install --omit=dev && pm2 restart soulshard
+
+            # --- Health check (fails the deploy loudly if the API didn't come up) ---
+            sleep 4
+            curl -fsS http://localhost:8787/api/health && echo "  <- API healthy"
