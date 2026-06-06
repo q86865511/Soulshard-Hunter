@@ -45,7 +45,9 @@ export const coopScene = {
       const pl = new Player(this.map.entrance.x, this.map.entrance.y, { maxHp: 100, speed: pp.speed || 82 });
       pl.spriteName = pp.sprite || 'player'; pl.netName = pp.name; pl.cid = pp.cid;
       pl.isSelf = pp.cid === this.selfCid; pl.weapons = [];
-      pl.x = this.map.entrance.x; pl.y = this.map.entrance.y; pl.tx = pl.x; pl.ty = pl.y;
+      if (pl.isSelf) { pl.x = this.map.entrance.x; pl.y = this.map.entrance.y; }   // self renders immediately for local prediction
+      else { pl.x = null; pl.y = null; }   // remotes appear only after the first snapshot — avoids the entrance->true-position pop
+      pl.tx = pl.x; pl.ty = pl.y;
       pl.netX = pl.x; pl.netY = pl.y; pl.hp = 100; pl.nmax = 100; pl.faceX = 1;   // nmax = networked max HP (maxHp is a getter)
       return pl;
     });
@@ -69,7 +71,7 @@ export const coopScene = {
       RT.on('runend', (m) => this.onRunEnd(m)),
       RT.on('room:closed', () => this.onHostGone()),       // authoritative: the host left / closed the room
       RT.on('rt:close', () => this.onDisconnected()),      // OUR socket dropped — distinct from host-gone (may be a transient blip)
-      RT.on('levelup', (m) => { if (m.cid === this.selfCid && !this.runOver && !this.hostGone) this.levelup = { opts: m.opts || [], t: 0, hover: -1 }; }),
+      RT.on('levelup', (m) => { if (m.cid === this.selfCid && !this.runOver && !this.hostGone && !this.disconnected) this.levelup = { opts: m.opts || [], t: 0, hover: -1 }; }),
     ];
   },
 
@@ -80,6 +82,7 @@ export const coopScene = {
   },
 
   makeEnemy(idx, x, y) {
+    if (idx < 0 || idx >= this.defList.length) return null;   // guard out-of-range/corrupted snapshot defIdx (host/version mismatch)
     const id = this.defList[idx]; const def = id && Enemies.get(id);
     if (!def) return null;
     const e = new Enemy(def, x, y, this.world, { quiet: true });
@@ -153,7 +156,8 @@ export const coopScene = {
     s.vx = (s.vx || 0) + (tvx - (s.vx || 0)) * Math.min(1, acc * dt);
     s.vy = (s.vy || 0) + (tvy - (s.vy || 0)) * Math.min(1, acc * dt);
     s.moving = !!(ax.x || ax.y);
-    if (s.moving) { s.faceX = ax.x || s.faceX; s.walkT += dt; }
+    if (ax.x) s.faceX = ax.x;   // update facing immediately on any horizontal input (even pure-vertical movement keeps last facing)
+    if (s.moving) s.walkT += dt;
     this.world.moveActor(s, s.vx * dt, s.vy * dt);
     if (s.netX != null) {   // reconcile toward the host's authoritative position
       const ex = s.netX - s.x, ey = s.netY - s.y, e = Math.hypot(ex, ey);

@@ -65,13 +65,12 @@ export class Player {
     const req = d.evolveReq;
     const hasReq = !req || (this.run && (this.run.abilityLevels[req] > 0));
     if (!hasReq) return;
+    const evoDef = Weapons.get(d.evolveInto);
+    if (!evoDef) return;   // evolution target missing — keep the base weapon rather than deleting it (would lose a slot for the rest of the run)
     // replace with evolved weapon
     this.weapons = this.weapons.filter((w) => w !== inst);
-    const evo = { def: Weapons.get(d.evolveInto), level: 1, t: 0, st: {}, forge: inst.forge };   // inherit base weapon's forge mods
-    if (evo.def) {
-      this.weapons.push(evo);
-      if (world) { world.particles.ring(this.x, this.y, P.goldL, 24, 140); world.particles.text(this.x, this.y - 20, '武器進化！', { color: P.goldL, size: 16, life: 1.2 }); Sfx.play('levelup'); }
-    }
+    this.weapons.push({ def: evoDef, level: 1, t: 0, st: {}, forge: inst.forge });   // inherit base weapon's forge mods
+    if (world) { world.particles.ring(this.x, this.y, P.goldL, 24, 140); world.particles.text(this.x, this.y - 20, '武器進化！', { color: P.goldL, size: 16, life: 1.2 }); Sfx.play('levelup'); }
   }
   // fusion (合成): instantly max + force-evolve a weapon. The "2-3 maxed weapons"
   // path consumes a sacrifice; the "1 maxed weapon + passive" path passes none.
@@ -98,7 +97,7 @@ export class Player {
       const fm = inst.forge; let snap = null;
       if (fm) {
         snap = { dm: s.damageMult, cc: s.critChance, cm: s.critMult, pa: s.pierceAdd, ar: s.area };
-        s.damageMult *= fm.dmgMul; s.critChance += fm.crit; s.critMult += fm.critMult; s.pierceAdd += fm.pierce; s.area *= fm.areaMul;
+        s.damageMult *= fm.dmgMul; s.critChance = Math.min(BALANCE.CRIT_CAP, s.critChance + fm.crit); s.critMult += fm.critMult; s.pierceAdd += fm.pierce; s.area *= fm.areaMul;
       }
       const eff = Math.min(BALANCE.FIRE_RATE_CAP, haste * (fm ? fm.haste : 1));
       inst.fmHaste = eff;   // expose the (capped) fire-rate factor so self-gating update-driven weapons (beams/auras/turrets) honour forge 疾速 too

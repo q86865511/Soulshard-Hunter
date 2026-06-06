@@ -10,11 +10,11 @@ import { P } from '../../engine/palette.js';
 const I = (o) => Items.register(o);
 
 I({
-  id: 'heal_potion', name: '治療藥水', desc: '立即回復 45 點生命', tier: 1, weight: 10, price: 18, icon: 'item_heal_potion',
+  id: 'heal_potion', name: '治療藥水', desc: '立即回復 36 點生命', tier: 1, weight: 10, price: 18, icon: 'item_heal_potion',
   use: (w, p) => { if (p.hp >= p.maxHp) return false; p.heal(36); w.particles.text(p.x, p.y - 16, '+36', { color: P.redL, size: 14 }); return true; },
 });
 I({
-  id: 'big_potion', name: '大型藥水', desc: '立即回復 110 點生命', tier: 2, weight: 5, price: 40, icon: 'item_big_potion',
+  id: 'big_potion', name: '大型藥水', desc: '立即回復 85 點生命', tier: 2, weight: 5, price: 40, icon: 'item_big_potion',
   use: (w, p) => { if (p.hp >= p.maxHp) return false; p.heal(85); w.particles.text(p.x, p.y - 16, '+85', { color: P.redL, size: 15 }); return true; },
 });
 I({

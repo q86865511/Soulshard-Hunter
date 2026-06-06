@@ -65,6 +65,12 @@ defineIcon('ability_thorns', P.greenD, (p) => sym.spikes(p, P.bone));
 defineIcon('ability_dash', P.blueD, (p) => { p.hline(3, 10, 8, P.iceD); p.line(8, 5, 12, 8, P.ice); p.line(8, 11, 12, 8, P.ice); });
 defineIcon('ability_luck', P.greenD, (p) => sym.star(p, P.greenL));
 
+// D6 status passives — were falling back to the generic ability_power icon
+defineIcon('ability_frostbite', P.blueD, (p) => { p.vline(2, 14, 8, P.ice); p.hline(2, 14, 8, P.ice); p.line(4, 4, 12, 12, P.iceD); p.line(12, 4, 4, 12, P.iceD); p.px(8, 8, P.white); });
+defineIcon('ability_lacerate', P.blood, (p) => { p.line(3, 2, 10, 13, P.redL); p.line(6, 2, 13, 12, P.red); p.line(9, 3, 14, 11, P.redD); });
+defineIcon('ability_ignite', '#5a2a1a', (p) => { p.ellipse(8, 10, 3.2, 3.6, P.ember); p.ellipse(8, 10, 1.6, 2.2, P.emberL); p.line(8, 4, 8, 8, P.ember); p.px(8, 4, P.gold); });
+defineIcon('ability_overload', P.purpleD, (p) => { p.ring(8, 8, 5, P.manaL); sym.bolt(p, P.manaL); });
+
 // cursed abilities — dark crimson panel + an ominous mark
 defineIcon('ability_curse_bloodpact', '#2a0e16', (p) => { sym.drop(p, P.red); p.px(8, 4, P.redL); p.ring(8, 8, 5, P.blood); });
 defineIcon('ability_curse_frenzy', '#2a0e16', (p) => { sym.bolt(p, P.redL); p.ring(8, 8, 5, P.blood); });

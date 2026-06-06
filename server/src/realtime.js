@@ -217,7 +217,9 @@ export class Realtime {
     // only invite accepted friends (avoid invite spam to strangers)
     this.assertFriend(client.user.uid, toUid).then((ok) => {
       if (!ok) return this.send(client, { t: 'room:err', msg: '只能邀請好友' });
-      this.sendToUid(toUid, { t: 'invite', from: { uid: String(client.user.uid), username: client.user.username }, code: r.code, cfg: r.cfg });
+      const r2 = this.myRoom(client);   // re-validate: the async friend check could have outlived the room (host left / disbanded)
+      if (!r2 || r2.code !== r.code) return this.send(client, { t: 'room:err', msg: '房間已不存在' });
+      this.sendToUid(toUid, { t: 'invite', from: { uid: String(client.user.uid), username: client.user.username }, code: r2.code, cfg: r2.cfg });
       this.send(client, { t: 'invite:sent', to: toUid });
     }).catch(() => {});
   }

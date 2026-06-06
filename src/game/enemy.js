@@ -210,7 +210,7 @@ export class Enemy {
     });
 
     const n = normalize(mx, my);
-    const accel = this.charging ? 1 : 1;
+    const accel = 1;
     // D4: enemies move faster the longer the run goes (bosses pace themselves).
     const tmin = ((world.run && world.run.time) || world.time || 0) / 60;
     const sNow = this.speed * slowMult * (this.fleeing ? 1.7 : 1) * (this.boss ? 1 : 1 + Math.min(BALANCE.ENEMY_SPEEDUP_CAP, tmin * BALANCE.ENEMY_SPEEDUP_PER_MIN));

@@ -26,7 +26,7 @@ class RtClient {
   // ---- event bus -------------------------------------------------------------
   on(type, cb) { let s = this.listeners.get(type); if (!s) { s = new Set(); this.listeners.set(type, s); } s.add(cb); return () => this.off(type, cb); }
   off(type, cb) { const s = this.listeners.get(type); if (s) s.delete(cb); }
-  emit(type, msg) { const s = this.listeners.get(type); if (s) for (const cb of [...s]) { try { cb(msg); } catch (e) { /* */ } } }
+  emit(type, msg) { const s = this.listeners.get(type); if (s) for (const cb of [...s]) { try { cb(msg); } catch (e) { if (typeof console !== 'undefined') console.error('[RT.emit ' + type + ']', e); } } }
 
   // ---- connection ------------------------------------------------------------
   isConnected() { return !!(this.ws && this.ws.readyState === 1); }

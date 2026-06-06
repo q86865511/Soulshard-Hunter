@@ -61,7 +61,7 @@ export class World {
   nearestPlayer(x, y) {
     let best = null, bd = Infinity;
     for (const p of this._playerSet()) { if (!p || p.dead) continue; const d = dist2(x, y, p.x, p.y); if (d < bd) { bd = d; best = p; } }
-    return best || this.player || (this._playerSet()[0] || null);
+    return best || (this.player && !this.player.dead ? this.player : (this.alivePlayers()[0] || null));
   }
   randomPlayer() { const a = this.alivePlayers(); return a.length ? a[(Math.random() * a.length) | 0] : (this.player || null); }
 

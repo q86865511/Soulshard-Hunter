@@ -175,7 +175,7 @@ export const hubScene = {
   },
   updateDialogue() {
     const d = this.dialogue;
-    if (pressed('escape') || pressed('map')) { this.dialogue = null; return; }
+    if (pressed('escape') || pressed('build')) { this.dialogue = null; return; }
     const advance = pressed('interact') || pressed('enter') || pressed('space') || mouse.justDown;
     if (!advance) return;
     // click on the close affordance / outside closes immediately
@@ -210,7 +210,7 @@ export const hubScene = {
   updatePanel() {
     const mx = mouse.x * view.dpr, my = mouse.y * view.dpr;
     if (this.confirm) { this.updateConfirm(mx, my); return; }   // task 8: modal intercepts everything
-    if (pressed('escape') || pressed('map')) { this.panel = null; return; }
+    if (pressed('escape') || pressed('build')) { this.panel = null; return; }
     const frame = this.panelFrame();
     if (this.handleScrollbar(mx, my, frame)) return;
     const rt = this.resetTarget();   // task 8: per-category reset button
@@ -336,7 +336,7 @@ export const hubScene = {
   updateTalents(mx, my) {
     if (!mouse.justDown) return;
     const { nodes } = this.talentNodes();
-    for (const n of nodes) if (inside(mx, my, n)) { const def = n.def, cur = META.talents[def.id] || 0; if (this.talentState(def) === 'ok') this.ask('升級「' + def.name + '」 Lv.' + (cur + 1) + '？', def.cost(cur) + ' 金', () => this.buyTalent(def)); else this.buyTalent(def); return; }
+    for (const n of nodes) if (inside(mx, my, n)) { const def = n.def, cur = META.talents[def.id] || 0; if (this.talentState(def) === 'ok') this.ask('升級「' + def.name + '」 Lv.' + (cur + 1) + '？', def.cost(cur) + ' 金', () => this.buyTalent(def)); else { const st = this.talentState(def); this.feedback(st === 'locked' ? '需先解鎖前置天賦' : st === 'max' ? '已達滿級' : '金幣不足'); } return; }
   },
 
   facilityCards() {
@@ -353,7 +353,7 @@ export const hubScene = {
   updateFacilities(mx, my) {
     if (!mouse.justDown) return;
     const { cards } = this.facilityCards();
-    for (const c of cards) if (inside(mx, my, c)) { const def = c.def, cur = META.facilities[def.id] || 0; if (this.facilityState(def) === 'ok') this.ask('升級「' + def.name + '」 Lv.' + (cur + 1) + '？', def.cost(cur) + ' 金', () => this.buyFacility(def)); else this.buyFacility(def); return; }
+    for (const c of cards) if (inside(mx, my, c)) { const def = c.def, cur = META.facilities[def.id] || 0; if (this.facilityState(def) === 'ok') this.ask('升級「' + def.name + '」 Lv.' + (cur + 1) + '？', def.cost(cur) + ' 金', () => this.buyFacility(def)); else { const st = this.facilityState(def); this.feedback(st === 'max' ? '已達滿級' : '金幣不足'); } return; }
   },
 
   // ---- forge (5-5) ---------------------------------------------------------

@@ -6,7 +6,6 @@ const justUp = new Set();
 
 export const mouse = {
   x: 0, y: 0,        // CSS pixels relative to canvas
-  sx: 0, sy: 0,      // internal (scaled) pixels
   down: false,
   justDown: false,
   justUp: false,
@@ -15,7 +14,6 @@ export const mouse = {
 };
 
 let canvasEl = null;
-let scaleX = 1, scaleY = 1, scale = 1;
 
 // Map common synonyms to canonical action keys
 const KEYMAP = {
@@ -25,7 +23,7 @@ const KEYMAP = {
   ArrowRight: 'right', KeyD: 'right',
   Space: 'space', Enter: 'enter', Escape: 'escape',
   ShiftLeft: 'dash', ShiftRight: 'dash',
-  KeyE: 'interact', KeyQ: 'swap', KeyR: 'reload', KeyF: 'ability', KeyP: 'pause', Tab: 'map', KeyM: 'minimap', KeyB: 'shop',
+  KeyE: 'interact', KeyQ: 'swap', KeyR: 'reload', KeyF: 'ability', KeyP: 'pause', Tab: 'build', KeyM: 'minimap', KeyB: 'shop',
   Digit1: 'slot1', Digit2: 'slot2', Digit3: 'slot3', Digit4: 'slot4',
 };
 
@@ -36,7 +34,7 @@ export function initInput(canvas, getScale) {
 
   window.addEventListener('keydown', (e) => {
     const k = code(e);
-    if (['up','down','left','right','space','dash','pause','map'].includes(k) || e.code === 'Tab') e.preventDefault();
+    if (['up','down','left','right','space','dash','pause','build'].includes(k) || e.code === 'Tab') e.preventDefault();
     if (!keys.has(k)) justDown.add(k);
     keys.add(k);
   }, { passive: false });
@@ -49,12 +47,8 @@ export function initInput(canvas, getScale) {
 
   const updateMouse = (e) => {
     const r = canvas.getBoundingClientRect();
-    const s = getScale ? getScale() : { scale: 1, x: r.width / canvas.width };
-    scale = s.scale || 1;
     mouse.x = e.clientX - r.left;
     mouse.y = e.clientY - r.top;
-    mouse.sx = mouse.x / (r.width / canvas.width);
-    mouse.sy = mouse.y / (r.height / canvas.height);
   };
 
   canvas.addEventListener('mousemove', updateMouse);

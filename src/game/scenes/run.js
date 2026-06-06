@@ -350,9 +350,10 @@ export const runScene = {
     if (pick >= 0 && pick < this.eventChoice.length) this.applyEvent(this.eventChoice[pick]);
   },
   applyEvent(ev) {
+    const prevBanner = this.banner;
     try { ev.apply(this); } catch (e) { /* */ }
     this.eventChoice = null;
-    this.banner = ev.name + ' · 「' + (ev.title || ev.name) + '」'; this.bannerT = 2.2;
+    if (this.banner === prevBanner) { this.banner = ev.name + ' · 「' + (ev.title || ev.name) + '」'; this.bannerT = 2.2; }   // keep a custom banner the patron set (e.g. Midas' calculated +X% damage)
     this.world.particles.ring(this.player.x, this.player.y, P.goldL, 24, 140); Sfx.play('levelup');
   },
   drawEventChoice() {
@@ -884,11 +885,11 @@ export const runScene = {
       if (pressed('pause') || pressed('escape')) { this.coopMenu = !this.coopMenu; Sfx.play('uiClick'); }
       if (this.coopMenu && this.updateCoopMenu()) return;        // returns true only if we left the run
       if (this.coopPick) this.updateCoopPick(dt);                // non-blocking level-up pick (world keeps running)
-      if (pressed('map')) { this.showBuild = !this.showBuild; Sfx.play('uiClick'); }
+      if (pressed('build')) { this.showBuild = !this.showBuild; Sfx.play('uiClick'); }
       if (pressed('minimap')) { this.bigMap = !this.bigMap; Sfx.play('uiClick'); }
     } else {
-      if (pressed('pause') || pressed('escape')) { this.paused = true; Sfx.play('uiClick'); return; }
-      if (pressed('map')) { this.showBuild = !this.showBuild; Sfx.play('uiClick'); }
+      if (pressed('pause') || (pressed('escape') && !this.shopOpen)) { this.paused = true; Sfx.play('uiClick'); return; }   // when the shop is open, Esc backs out of it (handled below) rather than opening pause over it
+      if (pressed('build')) { this.showBuild = !this.showBuild; Sfx.play('uiClick'); }
       if (pressed('minimap')) { this.bigMap = !this.bigMap; Sfx.play('uiClick'); }
       if (pressed('shop') && !this.shopChoice) {                          // 原#4: B opens the soulshard / anvil shop anywhere
         if (Cheats.eatShop) Cheats.eatShop = false;                       // task 1: this B is part of the Konami code — don't pop the shop
@@ -948,7 +949,7 @@ export const runScene = {
   // guest gets a weapon-choice menu the host computed + applies the pick authoritatively.
   coopLevelUp() {
     this.levelQueue--;
-    if (this.coopPick) this.coopPickQueue = (this.coopPickQueue || 0) + 1;   // stack if one is already open
+    if (this.coopPick) this.coopPickQueue = Math.min(3, (this.coopPickQueue || 0) + 1);   // stack if one is already open (capped so rapid level-ups can't trap the host in an endless menu chain)
     else this.openCoopPick();
     for (const slot of this.coop.players) {
       if (slot.isLocal || slot.left || !slot.player || slot.player.dead) continue;
@@ -1120,7 +1121,7 @@ export const runScene = {
       if (mouse.justDown && L.choiceCards) for (const c of L.choiceCards) if (inside(mx, my, c)) { this.pickShop(c.opt); return; }
       return;
     }
-    if (pressed('escape') || pressed('interact') || pressed('map')) { this.shopOpen = false; return; }
+    if (pressed('escape') || pressed('interact') || pressed('build')) { this.shopOpen = false; return; }
     if (mouse.justDown) {
       if (inside(mx, my, L.close)) { this.shopOpen = false; return; }
       if (inside(mx, my, L.gearBuyCard)) { this.buyGearAnvil(); return; }
