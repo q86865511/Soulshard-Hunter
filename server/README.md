@@ -75,7 +75,6 @@ npm run check     # node --check all server/src/*.js
 
 ## Deployment
 
-- 🚀 **First-time, explained walkthrough (zh-TW):** [`../docs/DEPLOY_GUIDE.zh-TW.md`](../docs/DEPLOY_GUIDE.zh-TW.md) — Oracle VM, domain, SSH, firewalls, Docker, Caddy (`/api` + `/rt`), CI/CD, and an external two-player test.
-- **Reference steps:** [`../docs/DEPLOY_ORACLE.md`](../docs/DEPLOY_ORACLE.md) ([中文](../docs/DEPLOY_ORACLE.zh-TW.md)).
+- 🚀 **Full deploy guide (zh-TW):** [`../docs/DEPLOY.md`](../docs/DEPLOY.md) — Oracle VM, domain, SSH, firewalls, Docker, Caddy (`/api` + `/rt`), CI/CD, and an external two-player test.
 - **Caddy must proxy BOTH** `handle /api/* { reverse_proxy localhost:8787 }` **and** `handle /rt { reverse_proxy localhost:8787 }` — the WS path is separate from `/api`.
 - Pushing to `main` auto-deploys via GitHub Actions ([`../.github/workflows/deploy.yml`](../.github/workflows/deploy.yml)).

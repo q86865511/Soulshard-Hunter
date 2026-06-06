@@ -1,10 +1,10 @@
 # 《魂晶獵手》從零到上線 —— 完整上手指南(Oracle 雲端 + 自動部署 + 連線實測)
 
-這份是給「**第一次自己架伺服器**」的人看的完整導覽:從開 Oracle 主機、設網域、SSH、
-用 Docker 部署、設定 HTTPS、接 CI/CD 自動部署,一路到**真的從外面連進來玩一場多人合作**。
-每一步都附「💡 為什麼」幫你理解,不是只照抄。
+這份是**唯一的部署文件**,給「**第一次自己架伺服器**」的人看的完整導覽:從開 Oracle 主機、
+設網域、SSH、用 Docker 部署、設定 HTTPS、接 CI/CD 自動部署,一路到**真的從外面連進來玩一場
+多人合作**。每一步都附「💡 為什麼」幫你理解,不是只照抄。
 
-> 想要更精簡的純步驟版,看 [`DEPLOY_ORACLE.zh-TW.md`](DEPLOY_ORACLE.zh-TW.md)。
+> 只想看架構/設計與分階段路線?見 [`MULTIPLAYER_PLAN.md`](MULTIPLAYER_PLAN.md)。
 
 **預估時間:** 第一次大約 1～2 小時(多半卡在等 Oracle 配額/憑證)。之後更新只要 `git push`。
 **你會得到:** 一個公開網址 `https://你的網域`,任何人都能連進來註冊、玩、上排行榜、跟朋友連線合作;而且你每次 push 到 GitHub 它會自動更新。
@@ -327,3 +327,19 @@ docker compose exec db pg_dump -U soulshard soulshard > ~/backup_$(date +%F).sql
 
 **只有你(在 Oracle 網頁主控台)能做的**:建 VM、開雲端 Security List 的 80/443、設 GitHub Secrets。
 **其餘(SSH 進 VM 的安裝/設定)** 都可照本文逐步複製貼上,或請我透過你的本機 SSH 代為執行。
+
+---
+
+## 附錄:用 nip.io 免費網域(不想買網域時)
+
+不想買網域也行。**nip.io** 是免費公共 DNS:任何 `<IP>.nip.io` 形式的名稱都會自動解析回那個 IP——免註冊、免設定、即時生效。VM 公網 IP 是 `140.238.1.2`,網域就是 `140.238.1.2.nip.io`。
+
+> 💡 **為什麼用得上?** OCI 給你公網 IP 但沒有主機名,而 Let's Encrypt **不發憑證給純 IP**(一定要一個名字)。nip.io 免費從你的 IP 生一個名字,於是你就有真正的 HTTPS + WSS。
+
+**用法**:把本文所有寫 `yourname.duckdns.org` 的地方換成 `<你的IP>.nip.io` 即可——`CORS_ORIGIN`(§5b)、Caddyfile 第一行的網域(§6)、開遊戲的網址(§7)。第一次載入會等幾秒簽憑證,之後即時。
+
+**⚠️ 兩個要注意的點:**
+- **把 IP 固定下來**:nip.io 名稱「就是」你的 IP,IP 一變名稱就變。OCI 預設公網 IP 可能是臨時的(VM 停掉/重建會換)。到主控台幫實例綁一個 **Reserved Public IP**(Always-Free 內含),名稱才不會變,否則每次都要改 `CORS_ORIGIN`、Caddyfile、再重新告訴玩家網址。
+- **Let's Encrypt 共享額度**:`*.nip.io` 的憑證都算在 `nip.io` **同一個**速率限制桶裡(Let's Encrypt 有給它放寬,業餘用幾乎不會中)。萬一遇到「too many certificates for: nip.io」,稍後再試,或改用會跟著你更新紀錄的 **DuckDNS** / 自有網域(= 你自己的私有額度)。
+
+**其他**:橫線形式 `140-238-1-2.nip.io` 也行;可加前綴 `soulshard.140.238.1.2.nip.io`;備援可用 `sslip.io`(行為相同)。

@@ -98,8 +98,7 @@ npm test   # 後端測試（帳號/存檔/排行榜 + 好友/房間/中繼，共
 ```
 
 **正式部署到 Oracle Cloud（含 HTTPS、CI/CD 自動部署、連線實測）：**
-- 🚀 第一次架站、含解釋的完整導覽：[`docs/DEPLOY_GUIDE.zh-TW.md`](docs/DEPLOY_GUIDE.zh-TW.md)
-- 精簡步驟參考：[`docs/DEPLOY_ORACLE.md`](docs/DEPLOY_ORACLE.md) ／ [中文](docs/DEPLOY_ORACLE.zh-TW.md)
+- 🚀 完整部署指南（含解釋、CI/CD 自動部署、連線實測）：[`docs/DEPLOY.md`](docs/DEPLOY.md)
 - push 到 `main` 會經 GitHub Actions 自動部署到 VM（[`.github/workflows/deploy.yml`](.github/workflows/deploy.yml)）。
 
 > **存檔持久性**：本機 `localStorage` 一直都在（綁瀏覽器、跨重啟）；**雲端只有在「真的接了 PostgreSQL 的部署」才持久**（Oracle 上即是——資料存在 `pgdata` volume，重啟容器/重開機都不掉，且跨裝置）。`dev:fakedb` 的記憶體後端**重啟即清空**，僅供測試。

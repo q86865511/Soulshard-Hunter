@@ -71,7 +71,7 @@
 實機驗證（用 `server/test/dev-fakedb.mjs` 起記憶體後端）：瀏覽器**註冊 → JWT 儲存 → 雲端存檔同步 → 完局上傳 → 排行榜顯示**全鏈路打通（CORS、JWT header、分數重算 2704 = 42×12+400+3×600 皆正確）。
 
 ### 部署
-新增 `docs/DEPLOY_ORACLE.md`：Oracle OCI Always-Free（Ampere A1 / Ubuntu）一步步部署——**兩層防火牆**（雲端 Security List + VM iptables）、Docker 或 systemd 起後端、**Caddy 反向代理 + 自動 TLS** 同時供應靜態前端與 `/api`、端對端驗收。
+新增 Oracle 部署文件（後於 round 7 整併為單一 [`docs/DEPLOY.md`](../DEPLOY.md)）：Oracle OCI Always-Free（Ampere A1 / Ubuntu）一步步部署——**兩層防火牆**（雲端 Security List + VM iptables）、Docker 或 systemd 起後端、**Caddy 反向代理 + 自動 TLS** 同時供應靜態前端與 `/api`、端對端驗收。
 
 ### Phase 2（即時合作）— 尚未動工
 仍依 `MULTIPLAYER_PLAN.md` §Phase 2 規劃（`players[]` 重構、輸入解耦、快照序列化、headless 伺服器模擬、ws 大廳、預測/內插）。本輪只建地基，**不半成品開工 Phase 2**。

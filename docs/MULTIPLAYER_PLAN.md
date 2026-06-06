@@ -194,14 +194,13 @@ CREATE INDEX ON runs (biome, difficulty, score DESC);
 
 ---
 
-## OCI 部署步驟(摘要)
+## OCI 部署
 
-1. OCI 開 **Always Free Ampere A1 VM**(Ubuntu),設定 SSH 金鑰。
-2. **防火牆兩處都要開**:Security List/NSG 開 443(及測試用埠)+ VM 內 `ufw allow`/調整 iptables。
-3. 裝 Node LTS、PostgreSQL 16(或用 docker-compose 一次拉起 node+postgres)。
-4. 部署 `server/`;`pm2 start`(或 systemd unit)常駐 + 開機自啟。
-5. 設網域(或 DuckDNS)指向公網 IP;**Caddy** 反向代理 + 自動 TLS,把 `/api/*` 與 WS 升級代理到 Node;靜態前端也由 Caddy/Node 提供。
-6. 前端 `API_BASE` 指向正式網域(`https://` + `wss://`)。
+> 完整、可逐步複製貼上的部署教學(開 VM → 網域 → SSH → 兩道防火牆 → Docker → Caddy →
+> CI/CD 自動部署 → 連線實測)已整併為單一文件:**[`DEPLOY.md`](DEPLOY.md)**。本文只保留設計與架構。
+
+重點提醒(細節見 DEPLOY.md):**防火牆兩處都要開**(雲端 Security List + VM iptables);
+瀏覽器 `https://` 只能連 `wss://`,所以需要網域 + TLS;Caddy 要**同時代理** `/api/*` 與 `/rt`(WebSocket)。
 
 ---
 

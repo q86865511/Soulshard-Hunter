@@ -3,7 +3,7 @@ name: Deploy to Oracle
 # Continuous deployment: on every push to `main`, SSH into the OCI VM, fast-forward the
 # checked-out repo to the pushed commit, (re)start the API, and health-check it.
 # The static frontend is served by Caddy straight from the repo working tree, so the
-# `git reset` alone updates it — there is no build step. See docs/DEPLOY_ORACLE.md.
+# `git reset` alone updates it — there is no build step. See docs/DEPLOY.md.
 #
 # Required repo secrets (Settings -> Secrets and variables -> Actions):
 #   OCI_HOST     VM public IP or hostname (e.g. yourname.duckdns.org)
