@@ -1,9 +1,14 @@
-// Procedural pixel-art system.
+// Procedural pixel-art system — ENHANCED EDITION (art_v2).
 // Sprites are defined as small draw functions over a tiny pixel API, then
 // rasterised once into cached canvases. This keeps ALL art self-generated,
-// consistent (shared palette + outline), and trivially extensible by content files.
+// consistent (shared palette + outline), and trivially extensible.
+//
+// This edition is a strict SUPERSET of the original engine: every original
+// method/export is byte-compatible, plus a set of "anime polish" helpers
+// (gradients, glow, sparkle, rim light, soft shadow, dither, aura) that the
+// upgraded art uses for shinier, more dynamic results.
 
-import { P, darken, lighten, mix } from './palette.js';
+import { P, darken, lighten, mix, withAlpha } from './palette.js';
 
 function makeCanvas(w, h) {
   const c = document.createElement('canvas');
@@ -121,6 +126,103 @@ export class Painter {
     }
     this.ctx.putImageData(img, 0, 0);
   }
+
+  // ═════════════════════════════════════════════════════════════════════════
+  //  ENHANCED "anime polish" helpers — all additive, safe to ignore.
+  //  Conventions: call colour effects DURING drawing; call rimLight()/
+  //  shadeBottom() AFTER the body is drawn but BEFORE outline().
+  // ═════════════════════════════════════════════════════════════════════════
+
+  // Vertical gradient fill (top colour -> bottom colour), 1px rows.
+  gradV(x, y, w, h, top, bot) {
+    for (let i = 0; i < h; i++) {
+      const t = h <= 1 ? 0 : i / (h - 1);
+      this.rect(x, y + i, w, 1, mix(top, bot, t));
+    }
+  }
+  // Horizontal gradient fill (left -> right), 1px columns.
+  gradH(x, y, w, h, left, right) {
+    for (let i = 0; i < w; i++) {
+      const t = w <= 1 ? 0 : i / (w - 1);
+      this.rect(x + i, y, 1, h, mix(left, right, t));
+    }
+  }
+  // Soft radial glow: stacked translucent discs, brightest at the centre.
+  // Great for magic orbs, glowing eyes, energy auras, lava pools.
+  glow(cx, cy, r, col, strength = 0.55, steps = 4) {
+    for (let i = steps; i >= 1; i--) {
+      const rr = (r * i) / steps;
+      const a = strength * (1 - (i - 1) / steps);
+      this.ellipse(cx, cy, rr, rr, withAlpha(col, a));
+    }
+  }
+  // A bright twinkle (plus-shape). size = arm length in px.
+  sparkle(x, y, col = P.white, size = 1) {
+    this.px(x, y, col);
+    for (let i = 1; i <= size; i++) {
+      this.px(x + i, y, col); this.px(x - i, y, col);
+      this.px(x, y + i, col); this.px(x, y - i, col);
+    }
+  }
+  // A 4-point star/sparkle with long thin arms + soft core (anime "kira").
+  star4(cx, cy, r, col = P.white, coreCol = null) {
+    for (let i = 0; i <= r; i++) {
+      const t = 1 - i / (r + 1);
+      const c = withAlpha(col, 0.35 + 0.65 * t);
+      this.px(cx + i, cy, c); this.px(cx - i, cy, c);
+      this.px(cx, cy + i, c); this.px(cx, cy - i, c);
+    }
+    if (coreCol) { this.px(cx, cy, coreCol); }
+  }
+  // A translucent ground contact shadow (sits the sprite on the floor).
+  softShadow(cx, cy, rx, ry, alpha = 0.4, col = P.shadow) {
+    this.ellipse(cx, cy, rx, ry, withAlpha(col, alpha));
+  }
+  // Post-process rim light: brighten silhouette edges that face the light.
+  // dx,dy = light direction (default top-left). Call before outline().
+  rimLight(col = P.rim, amt = 0.55, dx = -1, dy = -1) {
+    const { ctx, w, h } = this;
+    const img = ctx.getImageData(0, 0, w, h);
+    const a = img.data;
+    const op = (x, y) => x >= 0 && y >= 0 && x < w && y < h && a[(y * w + x) * 4 + 3] > 0;
+    const [r, g, b] = hexRGB(col);
+    const edge = [];
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      if (!op(x, y)) continue;
+      if (!op(x + dx, y) || !op(x, y + dy)) edge.push(x, y);
+    }
+    for (let i = 0; i < edge.length; i += 2) {
+      const idx = (edge[i + 1] * w + edge[i]) * 4;
+      a[idx] += (r - a[idx]) * amt; a[idx + 1] += (g - a[idx + 1]) * amt; a[idx + 2] += (b - a[idx + 2]) * amt;
+    }
+    ctx.putImageData(img, 0, 0);
+  }
+  // 2-colour checkerboard fill — fakes a third gradient tone within a tight
+  // palette without banding. Good for skies, water, energy fields.
+  dither(x, y, w, h, ca, cb) {
+    for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) {
+      this.px(x + i, y + j, ((i + j) & 1) ? cb : ca);
+    }
+  }
+  // Deterministic scattered specks (texture/sparkle) — seeded so bakes are stable.
+  speckle(x, y, w, h, col, count = 6, seed = 1) {
+    let s = (seed | 0) || 1;
+    const rnd = () => { s = (s * 1103515245 + 12345) & 0x7fffffff; return s / 0x7fffffff; };
+    for (let i = 0; i < count; i++) {
+      this.px(x + Math.floor(rnd() * w), y + Math.floor(rnd() * h), col);
+    }
+  }
+  // Animated-friendly pulsing aura ring (pass a per-frame phase 0..1).
+  aura(cx, cy, r, col, phase = 0, ringCount = 2) {
+    for (let k = 0; k < ringCount; k++) {
+      const rr = r + k + Math.sin((phase + k * 0.5) * Math.PI * 2) * 0.6;
+      const a = 0.5 - k * 0.18;
+      const seg = 0.34;
+      for (let ang = 0; ang < Math.PI * 2; ang += seg) {
+        this.px(Math.round(cx + Math.cos(ang) * rr), Math.round(cy + Math.sin(ang) * rr), withAlpha(col, a));
+      }
+    }
+  }
 }
 
 function hexRGB(h) {
@@ -189,3 +291,6 @@ export function symmetric(p, draw, { outline = P.ink, diagonal = false } = {}) {
   p.mirrorX();
   if (outline) p.outline(outline, diagonal);
 }
+
+// expose the sprite registry getter for galleries / tooling
+export function getRegistry() { return REG; }

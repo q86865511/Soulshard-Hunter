@@ -1,8 +1,10 @@
 // Cohesive pixel-art palette + colour helpers used by every sprite.
-// Keeps all generated art on a unified, readable colour scheme.
+// ENHANCED EDITION (art_v2): every original key is preserved 1:1 so existing art
+// stays correct, then a set of vibrant "anime accent" tones + new-ecosystem
+// families is appended. Helpers (lighten/darken/mix/withAlpha) are unchanged.
 
 export const P = {
-  // ink / outline / neutrals
+  // ── ink / outline / neutrals ─────────────────────────────────────────────
   ink:    '#10121f',
   ink2:   '#1b1e33',
   shadow: '#0b0d1a',
@@ -13,12 +15,12 @@ export const P = {
   gray3:  '#8a91b4',
   gray4:  '#b9c0dc',
 
-  // skin tones
+  // ── skin tones ───────────────────────────────────────────────────────────
   skin:   '#f0c090',
   skinD:  '#c98b5e',
   skin2:  '#e0a878',
 
-  // reds / blood / flame
+  // ── reds / blood / flame ─────────────────────────────────────────────────
   red:    '#e2474c',
   redD:   '#a52833',
   redL:   '#ff7b6b',
@@ -26,13 +28,13 @@ export const P = {
   ember:  '#ff9b3d',
   emberL: '#ffd479',
 
-  // oranges / wood / leather
+  // ── oranges / wood / leather ─────────────────────────────────────────────
   wood:   '#7c4a2d',
   woodD:  '#54301c',
   woodL:  '#a9703f',
   leather:'#8a5a3a',
 
-  // greens (slime, nature, poison)
+  // ── greens (slime, nature, poison) ───────────────────────────────────────
   green:  '#5bbf57',
   greenD: '#2f8f4e',
   greenL: '#9be36b',
@@ -40,7 +42,7 @@ export const P = {
   poisonD:'#5d8a1a',
   toxic:  '#7ee787',
 
-  // blues / ice / water / magic
+  // ── blues / ice / water / magic ──────────────────────────────────────────
   blue:   '#3f7bdc',
   blueD:  '#274690',
   blueL:  '#6fb8ff',
@@ -49,13 +51,13 @@ export const P = {
   mana:   '#7a6bff',
   manaL:  '#b4a8ff',
 
-  // purples (void, magic, royalty)
+  // ── purples (void, magic, royalty) ───────────────────────────────────────
   purple: '#8a4fbf',
   purpleD:'#522a85',
   purpleL:'#c79bff',
   void:   '#2a1a4a',
 
-  // metals
+  // ── metals ───────────────────────────────────────────────────────────────
   steel:  '#9aa4c8',
   steelD: '#5b6488',
   steelL: '#d6def0',
@@ -65,18 +67,83 @@ export const P = {
   goldL:  '#ffe9a0',
   bronze: '#c8843c',
 
-  // crystal / shard (the meta currency vibe)
+  // ── crystal / shard (the meta currency vibe) ─────────────────────────────
   shard:  '#48e0d0',
   shardD: '#1f9a92',
   shardL: '#a8fff4',
 
-  // dungeon floor / wall tones
+  // ── dungeon floor / wall tones ───────────────────────────────────────────
   floor:  '#23263f',
   floor2: '#2b2f4d',
   floorLine: '#191b2e',
   wall:   '#3d4570',
   wallD:  '#2a3052',
   wallL:  '#56609a',
+
+  // ═══════════════════════════════════════════════════════════════════════
+  //  ENHANCED — anime / "cool" accent tones. Use these for glowing eyes, hair
+  //  sheen, energy auras, rim light, magic VFX, neon trims. All additive.
+  // ═══════════════════════════════════════════════════════════════════════
+  rim:     '#fff6e0',   // warm rim-light highlight (top edge of a silhouette)
+  rimCool: '#dcefff',   // cool rim-light (moonlit / magical scenes)
+  glint:   '#ffffff',   // pure specular spark
+  hiSky:   '#eaf6ff',   // pale sky highlight
+
+  // neon / cyber accents (cool & flashy)
+  neon:     '#27e7ff',  // electric cyan
+  neonL:    '#9bf6ff',
+  neonD:    '#0e9bc4',
+  magenta:  '#ff4da6',  // hot neon pink/magenta
+  magentaL: '#ff9ad1',
+  magentaD: '#c01f72',
+  laser:    '#ff3b6b',  // saturated laser red-pink
+
+  // sakura / blossom (anime spring foliage, petals, soft glow)
+  sakura:   '#ff9ecb',
+  sakuraL:  '#ffd6ea',
+  sakuraD:  '#d2618f',
+
+  // aurora / astral (sky, celestial magic, holy beams)
+  aurora:   '#54ffb0',  // mint-green aurora
+  auroraL:  '#b6ffe0',
+  astral:   '#9d6bff',  // astral violet beam
+  astralL:  '#d8c2ff',
+  holy:     '#fff1b8',  // divine warm light
+  holyL:    '#fffbe6',
+
+  // ═══════════════════════════════════════════════════════════════════════
+  //  ENHANCED — extra ecosystem families (for new biomes / richer decor).
+  //  biomes.js may also define inline hex; these give a shared anchor set.
+  // ═══════════════════════════════════════════════════════════════════════
+  // verdant forest 翠林
+  leaf:    '#4fae3e',
+  leafL:   '#8fe06a',
+  leafD:   '#2c6e2c',
+  bark:    '#6b4a2a',
+  barkD:   '#3f2a16',
+  moss:    '#6f9a3a',
+  // sun-scorched desert 流沙荒漠
+  sand:    '#e8c98a',
+  sandL:   '#f7e7b8',
+  sandD:   '#b6904f',
+  clay:    '#c77b4a',
+  dune:    '#d8b46a',
+  // toxic swamp / bog 腐沼
+  bog:     '#3c4a2e',
+  bogL:    '#5e7240',
+  slimeBog:'#8fae3a',
+  murk:    '#243024',
+  // sunken ocean / abyss 深淵海溝
+  ocean:   '#1f6f9a',
+  oceanL:  '#5fc6e0',
+  oceanD:  '#123c5c',
+  abyss:   '#0c2230',
+  coral:   '#ff7a8a',
+  // celestial / sky 天界雲端
+  sky:     '#7fb8ff',
+  skyL:    '#d6ecff',
+  cloud:   '#eef4ff',
+  star:    '#fff3b0',
 };
 
 const hex = (h) => {
@@ -102,3 +169,7 @@ export function withAlpha(h, a) {
   const [r, g, b] = hex(h);
   return `rgba(${r},${g},${b},${a})`;
 }
+
+// ENHANCED helper: shift hue/sat-ish by blending toward an accent — handy for
+// quick "anime pop" tints without hand-picking a new hex. (additive, optional)
+export function tint(base, accent, t = 0.3) { return mix(base, accent, t); }

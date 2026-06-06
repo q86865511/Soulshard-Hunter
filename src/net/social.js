@@ -20,7 +20,7 @@ const $ = (tag, props = {}, kids = []) => {
   return e;
 };
 
-const BIOMES = [['crypt', '幽影地穴'], ['cavern', '水晶洞窟'], ['frost', '霜寒冰原'], ['inferno', '熔岩深淵'], ['void', '虛空裂界']];
+const BIOMES = [['crypt', '幽影地穴'], ['cavern', '水晶洞窟'], ['frost', '霜寒冰原'], ['inferno', '熔岩深淵'], ['void', '虛空裂界'], ['verdant', '翠林森境'], ['desert', '流沙荒漠'], ['swamp', '腐沼濕地'], ['abyss', '深淵海溝'], ['celestial', '天界雲海']];
 
 let styled = false;
 function ensureStyles() {
