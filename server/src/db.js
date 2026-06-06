@@ -50,5 +50,20 @@ export async function initSchema(p = pool) {
     CREATE INDEX IF NOT EXISTS runs_score_idx       ON runs (score DESC);
     CREATE INDEX IF NOT EXISTS runs_biome_diff_idx  ON runs (biome, difficulty, score DESC);
     CREATE INDEX IF NOT EXISTS runs_user_idx        ON runs (user_id, score DESC);
+
+    -- Friend graph (Phase 2 social layer). One directed row per edge:
+    --   (user_id -> friend_id, 'pending')  = user_id sent a request to friend_id
+    --   accepting writes the mirror row so an accepted friendship is two 'accepted' rows.
+    -- "my friends"   = rows where user_id=me AND status='accepted'
+    -- "my incoming"  = rows where friend_id=me AND status='pending'
+    -- "my outgoing"  = rows where user_id=me  AND status='pending'
+    CREATE TABLE IF NOT EXISTS friendships (
+      user_id    bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      friend_id  bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      status     text   NOT NULL DEFAULT 'pending',     -- 'pending' | 'accepted'
+      created_at timestamptz DEFAULT now(),
+      PRIMARY KEY (user_id, friend_id)
+    );
+    CREATE INDEX IF NOT EXISTS friendships_friend_idx ON friendships (friend_id, status);
   `);
 }

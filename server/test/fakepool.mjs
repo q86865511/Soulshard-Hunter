@@ -4,7 +4,10 @@ export function makeFakePool() {
   const users = [];           // { id, username, email, password_hash, last_login }
   const saves = new Map();    // uid -> { meta, save_version }
   const runs = [];            // { user_id, score, ... }
+  const edges = [];           // { user_id, friend_id, status }  (friend graph)
   let uid = 0, rid = 0;
+  const findEdge = (a, b) => edges.find((e) => String(e.user_id) === String(a) && String(e.friend_id) === String(b));
+  const uobj = (id) => { const u = users.find((x) => String(x.id) === String(id)); return u ? { id: u.id, username: u.username } : null; };
   return {
     async query(sql, args = []) {
       const s = sql.replace(/\s+/g, ' ').trim();
@@ -21,6 +24,35 @@ export function makeFakePool() {
         const u = users.find((x) => x.username === args[0]);
         return { rows: u ? [u] : [], rowCount: u ? 1 : 0 };
       }
+      if (s.startsWith('SELECT id, username FROM users WHERE username')) {
+        const u = users.find((x) => x.username === args[0]);
+        return { rows: u ? [{ id: u.id, username: u.username }] : [], rowCount: u ? 1 : 0 };
+      }
+      // ---- friend graph ----
+      if (s.startsWith('SELECT status FROM friendships')) {
+        const e = findEdge(args[0], args[1]); return { rows: e ? [{ status: e.status }] : [], rowCount: e ? 1 : 0 };
+      }
+      if (s.startsWith('SELECT u.id, u.username FROM friendships')) {
+        const accepted = s.includes("'accepted'"); const byFriend = s.includes('ON u.id = f.user_id');
+        let rows;
+        if (byFriend) rows = edges.filter((e) => String(e.friend_id) === String(args[0]) && e.status === 'pending').map((e) => uobj(e.user_id));
+        else rows = edges.filter((e) => String(e.user_id) === String(args[0]) && e.status === (accepted ? 'accepted' : 'pending')).map((e) => uobj(e.friend_id));
+        rows = rows.filter(Boolean); return { rows, rowCount: rows.length };
+      }
+      if (s.startsWith('INSERT INTO friendships')) {
+        const [a, b] = args; const status = s.includes("'accepted'") ? 'accepted' : 'pending';
+        const ex = findEdge(a, b);
+        if (ex) { if (s.includes('DO UPDATE')) ex.status = status; } else edges.push({ user_id: a, friend_id: b, status });
+        return { rows: [], rowCount: 1 };
+      }
+      if (s.startsWith('UPDATE friendships SET')) {
+        const e = findEdge(args[0], args[1]); if (e) e.status = 'accepted'; return { rows: [], rowCount: e ? 1 : 0 };
+      }
+      if (s.startsWith('DELETE FROM friendships')) {
+        const [a, b] = args;
+        for (let i = edges.length - 1; i >= 0; i--) { const e = edges[i]; if ((String(e.user_id) === String(a) && String(e.friend_id) === String(b)) || (String(e.user_id) === String(b) && String(e.friend_id) === String(a))) edges.splice(i, 1); }
+        return { rows: [], rowCount: 1 };
+      }
       if (s.startsWith('UPDATE users SET last_login')) {
         const u = users.find((x) => String(x.id) === String(args[0])); if (u) u.last_login = Date.now();
         return { rows: [], rowCount: u ? 1 : 0 };
@@ -34,8 +66,8 @@ export function makeFakePool() {
         return { rows: [], rowCount: 1 };
       }
       if (s.startsWith('INSERT INTO runs')) {
-        const [user_id, score, stage, kills, character, biome, difficulty, time_s, cleared, reaper] = args;
-        const row = { id: ++rid, user_id, score, stage, kills, character, biome, difficulty, time_s, cleared, reaper, coop_size: 1, created_at: new Date().toISOString() };
+        const [user_id, score, stage, kills, character, biome, difficulty, time_s, cleared, reaper, coop_size] = args;
+        const row = { id: ++rid, user_id, score, stage, kills, character, biome, difficulty, time_s, cleared, reaper, coop_size: coop_size || 1, created_at: new Date().toISOString() };
         runs.push(row);
         return { rows: [{ id: row.id, score: row.score, created_at: row.created_at }], rowCount: 1 };
       }

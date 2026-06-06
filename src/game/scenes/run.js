@@ -8,11 +8,12 @@ import { Player } from '../player.js';
 import { newRun, bankRun, META, saveMeta } from '../state.js';
 import { setScene } from '../scene.js';
 import { refs } from './refs.js';
+import { RT } from '../../net/rt.js';   // Phase 2 co-op: leave-room on host abandon
 import { Enemies, Equipment, Abilities, Weapons, Characters } from '../content/registry.js';
 import { equipItem } from '../content/equipment.js';
 import { BONDS, activeBonds, checkBonds } from '../content/bonds.js';
 import { exclusiveFor } from '../content/exclusives.js';
-import { BALANCE } from '../balance.js';
+import { BALANCE, weaponMaxLevel } from '../balance.js';
 import { isUnlocked } from '../content/unlocks.js';
 import { STORY_QUESTS, trackedQuestState, fmtQuestVal } from '../content/quests.js';
 import { EVENTS } from '../content/events.js';
@@ -74,18 +75,44 @@ const REAPER_ID = 'reaper';
 // task-4: cardinal probes (px) used to detect the player backing into a wall during 魂牢
 const SURROUND_PROBES = [[14, 0], [-14, 0], [0, 14], [0, -14]];
 
+// Co-op level-up: build up to 3 WEAPON choices for a player (level an owned weapon /
+// grant a new one). Per-avatar, so it's safe to apply to any player without the shared
+// run-stats tangle. Sent to guests for display; the host applies the pick.
+function buildWeaponChoices(player) {
+  const opts = [];
+  for (const w of player.weapons) if (!w.def.evolved && w.level < weaponMaxLevel(w.def)) opts.push({ act: 'level', wid: w.def.id, name: w.def.name, icon: w.def.icon || ('weapon_' + w.def.id), lvl: w.level });
+  if (player.weapons.length < 6) {
+    const have = new Set(player.weapons.map((w) => w.def.id));
+    const pool = Weapons.all().filter((d) => !d.evolved && !have.has(d.id) && isUnlocked(META, 'weapons', d.id));
+    for (let i = 0; i < 4 && pool.length; i++) { const d = pool.splice(rng.int(0, pool.length - 1), 1)[0]; opts.push({ act: 'new', wid: d.id, name: d.name, icon: d.icon || ('weapon_' + d.id), lvl: 0 }); }
+  }
+  for (let i = opts.length - 1; i > 0; i--) { const j = rng.int(0, i); const t = opts[i]; opts[i] = opts[j]; opts[j] = t; }   // shuffle
+  const pick = opts.slice(0, 3);
+  if (!pick.length) pick.push({ act: 'heal', wid: '', name: '回復生命', icon: 'item_heart', lvl: 0 });
+  return pick;
+}
+function applyWeaponChoice(player, opt, world) {
+  if (!opt) { player.heal(player.maxHp * 0.12); return; }
+  if (opt.act === 'level') { const inst = player.weapons.find((w) => w.def.id === opt.wid); if (inst) player.levelWeapon(inst, world); else player.addWeapon(opt.wid, world); }
+  else if (opt.act === 'new') player.addWeapon(opt.wid, world);
+  else player.heal(player.maxHp * 0.15);
+}
+
 export const runScene = {
   enter(payload) {
     this.run = payload.run || newRun();
     this.run.time = 0;
     this.run.stage = 1; this.run.floor = 1;
+    this.coop = payload.coop || null;   // Phase 2: a CoopHost handle when this is a host co-op run (null = single-player)
+    this.coopMenu = false; this.coopPick = null; this.coopPickQueue = 0;
     this.world = new World(this.run);
     this.player = null;
     this.t = 0; this.dead = false; this.deathT = 0;
     this.levelQueue = this.run.startBonusLevels || 0;
     this.choice = null; this.banner = ''; this.bannerT = 0;
     this.paused = false;
-    this.world.onPlayerDeath = () => this.onDeath();
+    // co-op: the run ends only when EVERY avatar is down (one player dying isn't game-over)
+    this.world.onPlayerDeath = () => { if (this.coop) { if (!this.world.anyPlayerAlive()) this.onDeath(); } else this.onDeath(); };
     this.world.onLevelUp = () => this.onLevelUp();
     this.world.onEnemyKilled = (e) => {
       if (e === this.finalBossRef) this.onBigBossDead(e);
@@ -115,6 +142,8 @@ export const runScene = {
     this.player.spriteName = this.run.characterSprite || 'player';
     for (const wid of (this.run.startWeapons || ['w_soulbolt'])) this.player.addWeapon(wid, this.world);
     this.world.player = this.player;
+    this.world.players = [this.player];
+    if (this.coop) this.coop.setup(this, this.player);   // build remote avatars + start broadcasting (sets world.players/inputFor)
     this.aimCamera(); camera.x = camera.targetX; camera.y = camera.targetY;
 
     // chests / hidden chest / in-run shop shrine
@@ -304,6 +333,7 @@ export const runScene = {
   openEventChoice() {
     const pool = EVENTS.slice(), pick = [];
     for (let i = 0; i < 3 && pool.length; i++) pick.push(pool.splice(rng.int(0, pool.length - 1), 1)[0]);
+    if (this.coop) { if (pick.length) this.applyEvent(pick[rng.int(0, pick.length - 1)]); return; }   // co-op: auto-pick (no pausing the shared world)
     this.eventChoice = pick.length ? pick : null;
   },
   eventCardRects() {
@@ -456,12 +486,20 @@ export const runScene = {
     META.stats.bestStage = Math.max(META.stats.bestStage || 0, this.run.stage);
     META.stats.bestScore = Math.max(META.stats.bestScore || 0, this.run.score);
     if (won) { addShake(8); Sfx.play('levelup'); Music.setMode('victory'); } else { Music.setMode('death'); }
+    if (this.coop) this.run.coopSize = this.coop.size();   // record party size on the leaderboard upload
     if (!this.banked) {
       this.banked = true;
       const r = bankRun(this.run) || {};
       this.newlyUnlocked = r.newAchievements || [];      // 原#1 results screen
       this.newCharacters = r.newCharacters || [];
     }
+    if (this.coop) { try { this.coop.end({ won, score: this.run.score }); } catch (e) { /* */ } try { RT.leaveRoom(); } catch (e) { /* */ } this.coop = null; }   // tell guests the run ended, release the room (guests get room:closed), stop broadcasting
+  },
+
+  // safety net: if a co-op run scene is torn down without going through finishRun/abandon,
+  // still dispose the host handle + release the room. No-op for single-player (this.coop null).
+  exit() {
+    if (this.coop) { try { this.coop.dispose(); } catch (e) { /* */ } try { RT.leaveRoom(); } catch (e) { /* */ } this.coop = null; }
   },
 
   // opening-softener factor at the current time (mirrors spawnTick) — events use it too
@@ -806,6 +844,7 @@ export const runScene = {
   abandon() {
     this.run.score = Math.floor(this.run.kills * 12 + this.run.stage * 400 + this.run.time);
     Music.stop(); Sfx.play('portal');
+    if (this.coop) { try { this.coop.dispose(); } catch (e) { /* */ } RT.leaveRoom(); this.coop = null; }   // host leaving closes the room for guests
     if (!this.dead && !this.banked) { this.banked = true; bankRun(this.run); }   // bank at most once (bankRun already applies bestStage/bestScore)
     setScene(refs.hub, {});
   },
@@ -839,15 +878,25 @@ export const runScene = {
     if (this.choice) { this.updateChoice(); return; }
     if (this.equipChoice) { this.updateEquipChoice(); return; }   // B1 equip menu pauses the field
     if (this.eventChoice) { this.updateEventChoice(); return; }   // 原#3 mini-boss event pauses the field
-    if (pressed('pause') || pressed('escape')) { this.paused = true; Sfx.play('uiClick'); return; }
-    if (pressed('map')) { this.showBuild = !this.showBuild; Sfx.play('uiClick'); }
-    if (pressed('minimap')) { this.bigMap = !this.bigMap; Sfx.play('uiClick'); }
-    if (pressed('shop') && !this.shopChoice) {                          // 原#4: B opens the soulshard / anvil shop anywhere
-      if (Cheats.eatShop) Cheats.eatShop = false;                       // task 1: this B is part of the Konami code — don't pop the shop
-      else { this.shopOpen = !this.shopOpen; Sfx.play('uiClick'); }
+    if (this.coop) {
+      // online co-op can't freeze the SHARED world: Esc opens a non-blocking leave menu,
+      // Tab build-review / minimap are view-only overlays, the in-run shop is disabled.
+      if (pressed('pause') || pressed('escape')) { this.coopMenu = !this.coopMenu; Sfx.play('uiClick'); }
+      if (this.coopMenu && this.updateCoopMenu()) return;        // returns true only if we left the run
+      if (this.coopPick) this.updateCoopPick(dt);                // non-blocking level-up pick (world keeps running)
+      if (pressed('map')) { this.showBuild = !this.showBuild; Sfx.play('uiClick'); }
+      if (pressed('minimap')) { this.bigMap = !this.bigMap; Sfx.play('uiClick'); }
+    } else {
+      if (pressed('pause') || pressed('escape')) { this.paused = true; Sfx.play('uiClick'); return; }
+      if (pressed('map')) { this.showBuild = !this.showBuild; Sfx.play('uiClick'); }
+      if (pressed('minimap')) { this.bigMap = !this.bigMap; Sfx.play('uiClick'); }
+      if (pressed('shop') && !this.shopChoice) {                          // 原#4: B opens the soulshard / anvil shop anywhere
+        if (Cheats.eatShop) Cheats.eatShop = false;                       // task 1: this B is part of the Konami code — don't pop the shop
+        else { this.shopOpen = !this.shopOpen; Sfx.play('uiClick'); }
+      }
+      if (this.showBuild) return;   // freeze the field while reviewing your build
+      if (this.shopOpen) { this.updateShopPanel(); return; }   // modal shop also freezes the field
     }
-    if (this.showBuild) return;   // freeze the field while reviewing your build
-    if (this.shopOpen) { this.updateShopPanel(); return; }   // modal shop also freezes the field
 
     if (Cheats.enabled && Cheats.fast) dt *= 3;   // F2 time-warp
     this.run.time += dt;
@@ -887,7 +936,97 @@ export const runScene = {
       const nb = checkBonds(this.run, this.player);
       if (nb.length) { const b = nb[0]; this.banner = '★ 羈絆達成 · ' + b.name + '（' + b.bonusDesc + '）'; this.bannerT = 2.8; Sfx.play('levelup'); this.world.particles.ring(this.player.x, this.player.y, P.goldL, 26, 150); }
     }
-    if (this.levelQueue > 0 && !this.choice) this.openChoice();
+    if (this.levelQueue > 0) { if (this.coop) this.coopLevelUp(); else if (!this.choice) this.openChoice(); }
+    if (this.coop) this.coop.tick(dt, this);   // broadcast a world snapshot to guests (~18Hz)
+  },
+
+  // ---- co-op (host) helpers ------------------------------------------------
+  // Party level-up: can't pause the shared world for a pick menu, so auto-level every
+  // living avatar's weapons (or top a maxed one up with a small heal).
+  // co-op party level-up: a NON-BLOCKING pick menu for every player (the shared world
+  // can't pause). The host gets the full single-player choice menu (own run state); each
+  // guest gets a weapon-choice menu the host computed + applies the pick authoritatively.
+  coopLevelUp() {
+    this.levelQueue--;
+    if (this.coopPick) this.coopPickQueue = (this.coopPickQueue || 0) + 1;   // stack if one is already open
+    else this.openCoopPick();
+    for (const slot of this.coop.players) {
+      if (slot.isLocal || slot.left || !slot.player || slot.player.dead) continue;
+      this.coop.sendLevelup(slot, buildWeaponChoices(slot.player));
+    }
+    this.banner = '隊伍升級！選擇強化'; this.bannerT = 1.4; Sfx.play('levelup');
+  },
+  openCoopPick() {
+    const options = getRunChoices(this.run, this.player);
+    if (!options.length) { this.player.heal(this.player.maxHp * 0.12); return; }   // fully capped → heal instead
+    this.coopPick = { options, hover: -1, t: 0 };
+  },
+  // host applies a guest's networked pick to that guest's avatar (coophost calls this)
+  applyCoopGuestPick(slot, i) {
+    if (!slot || !slot.pendingOpts || !slot.player) return;
+    applyWeaponChoice(slot.player, slot.pendingOpts[i] || slot.pendingOpts[0], this.world);
+    slot.pendingOpts = null;
+  },
+  coopPickRects(n) {
+    const S = uiScale(); const cw = Math.min(150 * S, (view.W - 40 * S) / n - 12 * S); const ch = cw * 1.18; const gap = 12 * S;
+    const totalW = n * cw + (n - 1) * gap; const x0 = (view.W - totalW) / 2; const y = view.H - ch - 16 * S;   // bottom row → world stays visible
+    return Array.from({ length: n }, (_, i) => ({ x: x0 + i * (cw + gap), y, w: cw, h: ch }));
+  },
+  updateCoopPick(dt) {
+    const cp = this.coopPick; cp.t += dt;
+    const rects = this.coopPickRects(cp.options.length); const mx = mouse.x * view.dpr, my = mouse.y * view.dpr;
+    cp.hover = -1; rects.forEach((r, i) => { if (inside(mx, my, r)) cp.hover = i; });
+    let pick = -1;
+    if (mouse.justDown && cp.hover >= 0) pick = cp.hover;
+    if (pressed('slot1')) pick = 0; if (pressed('slot2')) pick = 1; if (pressed('slot3')) pick = 2;
+    if (pick < 0 && cp.t > 18) pick = 0;   // auto-pick if ignored far too long (never blocks the run)
+    if (pick >= 0 && pick < cp.options.length) {
+      try { applyChoice(this.run, this.player, this.world, cp.options[pick]); } catch (e) { /* */ }
+      this.world.particles.ring(this.player.x, this.player.y, P.manaL, 18, 100);
+      this.banner = cp.options[pick].def.name; this.bannerT = 1.4; Sfx.play('levelup');
+      this.coopPick = null;
+      if (this.coopPickQueue > 0) { this.coopPickQueue--; this.openCoopPick(); }
+    }
+  },
+  drawCoopPick() {
+    const S = uiScale(); const cp = this.coopPick; const rects = this.coopPickRects(cp.options.length);
+    const mx = mouse.x * view.dpr, my = mouse.y * view.dpr;
+    uiText('★ 選擇強化（點擊或按 1 / 2 / 3）', view.W / 2, rects[0].y - 12 * S, { size: 13 * S, align: 'center', color: P.manaL, weight: '800', shadowColor: withAlpha('#000', 0.8) });
+    rects.forEach((r, i) => {
+      const c = cp.options[i]; const st = choiceStyle(c); const hover = cp.hover === i; const oy = hover ? -6 * S : 0;
+      uiRect(r.x, r.y + oy, r.w, r.h, withAlpha(st.bg, 0.96), { radius: 8 * S, stroke: hover ? st.accent : withAlpha(st.accent, 0.5), lw: hover ? 3 : 2 });
+      uiRect(r.x, r.y + oy, r.w, 4 * S, st.accent, { radius: 2 * S });
+      const sp = getSprite(iconOr(st.icon, c.kind === 'ability' ? 'ability_power' : 'weapon_w_soulbolt')); const isc = (r.w * 0.36) / sp.w;
+      drawSpriteUI(sp.frames[0], r.x + r.w / 2 - sp.w * isc / 2, r.y + oy + 12 * S, isc);
+      const midY = r.y + oy + 14 * S + sp.h * isc;
+      uiText(st.sub, r.x + r.w / 2, midY + 8 * S, { size: 10 * S, align: 'center', color: st.accent, weight: '800' });
+      uiText(c.def.name, r.x + r.w / 2, midY + 24 * S, { size: 13 * S, align: 'center', color: '#fff', weight: '800' });
+      uiText(String(i + 1), r.x + 9 * S, r.y + oy + 18 * S, { size: 13 * S, color: withAlpha('#fff', 0.45), weight: '900' });
+    });
+  },
+  // Non-blocking online leave menu (the world keeps simulating underneath). Returns
+  // true if the player left the run.
+  coopMenuLayout() {
+    const S = uiScale(); const w = 240 * S, h = 46 * S, gap = 14 * S;
+    const x = view.W / 2 - w / 2, y0 = view.H / 2 - (h * 2 + gap) / 2;
+    return { S, resume: { x, y: y0, w, h }, leave: { x, y: y0 + h + gap, w, h } };
+  },
+  updateCoopMenu() {
+    const L = this.coopMenuLayout(); const mx = mouse.x * view.dpr, my = mouse.y * view.dpr;
+    if (mouse.justDown) {
+      if (inside(mx, my, L.resume)) { this.coopMenu = false; Sfx.play('uiClick'); }
+      else if (inside(mx, my, L.leave)) { this.abandon(); return true; }
+    }
+    return false;
+  },
+  drawCoopMenu() {
+    const S = uiScale(); const L = this.coopMenuLayout(); const mx = mouse.x * view.dpr, my = mouse.y * view.dpr;
+    uiRect(0, 0, view.W, view.H, withAlpha('#0b0d1a', 0.45));
+    uiText('連線合作中', view.W / 2, L.resume.y - 40 * S, { size: 26 * S, align: 'center', color: '#fff', weight: '900' });
+    uiText('（世界持續進行，無法暫停）', view.W / 2, L.resume.y - 16 * S, { size: 12 * S, align: 'center', color: P.gray3 });
+    const btn = (r, label, col) => { const hov = inside(mx, my, r); uiRect(r.x, r.y, r.w, r.h, withAlpha(hov ? '#243a5a' : '#1b2138', 0.97), { radius: 8 * S, stroke: hov ? (col || P.shardL) : P.ink2, lw: hov ? 3 : 2 }); uiText(label, r.x + r.w / 2, r.y + r.h / 2 + 1 * S, { size: 16 * S, align: 'center', baseline: 'middle', color: '#fff', weight: '800' }); };
+    btn(L.resume, '繼 續');
+    btn(L.leave, '離開房間', P.redL);
   },
 
   buildMinimap() {
@@ -1055,10 +1194,27 @@ export const runScene = {
     if (this.choice) this.drawChoice();
     if (this.equipChoice) this.drawEquipChoice();
     if (this.eventChoice) this.drawEventChoice();
+    if (this.coop) this.drawCoopTags();
+    if (this.coop && this.coopPick && !this.coopMenu) this.drawCoopPick();
     if (this.dead) { if (this.won) this.drawWon(); else this.drawDeath(); }
     if (this.paused) this.drawPause();
+    if (this.coop && this.coopMenu) this.drawCoopMenu();
     settingsUI.draw();
     this.drawCheatPanel();   // F2 dev overlay (on top of everything)
+  },
+
+  // co-op: floating name + HP tag above each teammate's avatar so you can tell who's who
+  drawCoopTags() {
+    if (!this.coop) return; const S = uiScale();
+    for (const slot of this.coop.players) {
+      const pl = slot.player; if (!pl || pl.dead || slot.left) continue;
+      const isSelf = slot.cid === this.coop.selfCid;
+      const ns = worldToScreen(pl.x, pl.y - 20);
+      uiText(slot.name + (isSelf ? '（你）' : ''), ns.x, ns.y, { size: 9.5 * S, align: 'center', color: isSelf ? P.shardL : '#cfe0ff', weight: '700', shadowColor: withAlpha('#000', 0.8) });
+      const bw = 30 * S, bx = ns.x - bw / 2, by = ns.y + 3 * S;
+      uiRect(bx, by, bw, 3.2 * S, withAlpha('#2a0e14', 0.9), { radius: 1.5 * S });
+      uiRect(bx, by, bw * Math.max(0, Math.min(1, pl.hp / (pl.maxHp || 1))), 3.2 * S, isSelf ? P.greenL : P.red, { radius: 1.5 * S });
+    }
   },
 
   drawShrine() {

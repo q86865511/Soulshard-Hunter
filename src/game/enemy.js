@@ -60,8 +60,8 @@ export class Enemy {
     world.spawnExplosion(this.x, this.y, this.radius * this.scale * 1.4, this.tint || P.emberL, 0);
     world.particles.text(this.x, this.y - this.radius * this.scale - 8, '階段 ' + (this.phase + 1), { color: P.redL, size: 18, life: 1.3 });
     this.radialBurst(world, 12 + this.phase * 6, (this.attack?.projSpeed ?? 110));
-    const pl = world.player;
-    if (pl) { const a = Math.atan2(pl.y - this.y, pl.x - this.x); pl.vx += Math.cos(a) * 170; pl.vy += Math.sin(a) * 170; applyStatus(pl, 'knockup', world); }   // E3 boss control
+    const pl = world.nearestPlayer ? world.nearestPlayer(this.x, this.y) : world.player;
+    if (pl && !pl.dead) { const a = Math.atan2(pl.y - this.y, pl.x - this.x); pl.vx += Math.cos(a) * 170; pl.vy += Math.sin(a) * 170; applyStatus(pl, 'knockup', world); }   // E3 boss control
     const pool = Enemies.upTo(2).filter((d) => !d.boss);
     for (let i = 0; i < 2 + this.phase; i++) if (pool.length) {
       const def = pool[(Math.random() * pool.length) | 0]; const ang = Math.random() * TAU;
@@ -110,7 +110,7 @@ export class Enemy {
       if (this.iframe > 0) this.iframe -= dt;
       if (this.phase < this.phaseThresh.length && this.hp / this.maxHp < this.phaseThresh[this.phase]) { this.phase++; this.phaseShift(world); }
     }
-    const player = world.player;
+    const player = world.nearestPlayer ? world.nearestPlayer(this.x, this.y) : world.player;   // co-op: chase the closest living avatar
     const toP = player ? dist(this.x, this.y, player.x, player.y) : 9999;
     const ang = player ? angleBetween(this.x, this.y, player.x, player.y) : 0;
 

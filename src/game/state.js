@@ -167,7 +167,9 @@ export function defaultWeapon() { return { ...WEAPONS.wand }; }
 
 // ---- run lifecycle ---------------------------------------------------------
 export function newRun(opts = {}) {
-  const char = Characters.get(META.selectedCharacter || 'hunter') || Characters.get('hunter');
+  // opts.characterId / opts.startWeapon let co-op build the host's run from the lobby
+  // pick instead of META.selectedCharacter (which the host may not have changed).
+  const char = Characters.get(opts.characterId || META.selectedCharacter || 'hunter') || Characters.get('hunter');
   const run = {
     floor: 1, stage: 1, depth: 1, time: 0,
     biomeId: opts.biomeId || null, difficulty: opts.difficulty || 1, cleared: false,
@@ -176,7 +178,7 @@ export function newRun(opts = {}) {
     stats: makeBaseStats(),
     characterId: char ? char.id : 'hunter',
     characterSprite: char ? skinnedSprite(META, char.id) : 'player',
-    startWeapons: [char ? char.startWeapon : 'w_soulbolt'],
+    startWeapons: [opts.startWeapon || (char ? char.startWeapon : 'w_soulbolt')],
     abilities: [],
     abilityLevels: {},
     equipment: { weapon: null, armor: null, trinket: null },
@@ -254,6 +256,7 @@ export function bankRun(run) {
       reaper: !!(run.reaperKills > 0 || run.reaperSlain),
       character: run.characterId || null,
       biome: run.biomeId || null,
+      coop_size: run.coopSize || 1,   // Phase 2: party size for the shared leaderboard
     });
   } catch (e) { /* ignore */ }
   return { newAchievements: newAch, newCharacters: newChars };   // for the results screen (原#1)

@@ -41,7 +41,7 @@ export class Pickup {
     this.vz -= 120 * dt; this.z += this.vz * dt;
     if (this.z < 0) { this.z = 0; this.vz *= -0.4; }
 
-    const player = world.player;
+    const player = world.nearestPlayer ? world.nearestPlayer(this.x, this.y) : world.player;   // co-op: magnet to / collected by the closest player
     if (!player || player.dead) return;
     if (this.type === 'chest') {
       const d = dist(this.x, this.y, player.x, player.y);
@@ -66,14 +66,14 @@ export class Pickup {
       this.x += Math.cos(a) * pull * dt;
       this.y += Math.sin(a) * pull * dt;
     }
-    if (d < player.radius + 5) this.collect(world);
+    if (d < player.radius + 5) this.collect(world, player);
   }
 
-  collect(world) {
+  collect(world, collector = null) {
     if (this.dead) return;
     this.dead = true;
     const payload = (this.type === 'item' || this.type === 'equip') ? this.def : this.value;
-    world.collect(this.type, payload, this.x, this.y);
+    world.collect(this.type, payload, this.x, this.y, collector);
   }
 
   draw() {

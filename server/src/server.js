@@ -11,6 +11,8 @@ import rateLimit from '@fastify/rate-limit';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { z } from 'zod';
+import { registerSocial } from './social.js';
+import { Realtime } from './realtime.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-insecure-secret-change-me';
 const TOKEN_TTL = process.env.JWT_TTL || '30d';
@@ -60,6 +62,7 @@ const runSchema = z.object({
   reaper: z.boolean().optional(),
   character: z.string().max(40).optional().nullable(),
   biome: z.string().max(40).optional().nullable(),
+  coop_size: z.number().int().min(1).max(3).optional(),   // Phase 2 co-op party size
 });
 
 const strictLimit = { config: { rateLimit: { max: 15, timeWindow: '1 minute' } } };          // auth
@@ -131,9 +134,9 @@ export async function buildApp(pool, { logger = false, rateMax = 120 } = {}) {
     const c = p.data;
     const score = computeScore(c);
     const r = await pool.query(
-      `INSERT INTO runs(user_id, score, stage, kills, character, biome, difficulty, time_s, cleared, reaper)
-       VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id, score, created_at`,
-      [req.user.uid, score, c.stage, c.kills, c.character || null, c.biome || null, c.difficulty, c.time_s, !!c.cleared, !!c.reaper]);
+      `INSERT INTO runs(user_id, score, stage, kills, character, biome, difficulty, time_s, cleared, reaper, coop_size)
+       VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id, score, created_at`,
+      [req.user.uid, score, c.stage, c.kills, c.character || null, c.biome || null, c.difficulty, c.time_s, !!c.cleared, !!c.reaper, c.coop_size || 1]);
     return { ok: true, run: r.rows[0] };
   });
 
@@ -162,6 +165,14 @@ export async function buildApp(pool, { logger = false, rateMax = 120 } = {}) {
     return { rows: r.rows };
   });
 
+  // ---- Phase 2: social (friends) + realtime co-op gateway -------------------
+  // The friend REST routes are testable via inject(); the realtime gateway is a
+  // socket-less object here (attached to the live HTTP server post-listen, below).
+  const realtime = new Realtime(pool);
+  registerSocial(app, pool, auth, { onFriendChange: (a, b) => realtime.onFriendChange(a, b) });
+  app.realtime = realtime;
+  app.get('/api/rt/stats', async () => realtime.stats());
+
   return app;
 }
 
@@ -187,7 +198,9 @@ if (!process.env.SOULSHARD_NO_LISTEN) {
     await initSchema(pool);
     const app = await buildApp(pool, { logger: true });
     await app.listen({ port: PORT, host: HOST });
-    app.log.info(`Soulshard server on ${HOST}:${PORT} (CORS: ${CORS_ORIGIN.join(', ')})`);
+    const { attachRealtime } = await import('./wsgw.js');
+    attachRealtime(app.server, app.realtime, { jwtSecret: JWT_SECRET, logger: app.log });   // WebSocket co-op gateway on the same port (/rt)
+    app.log.info(`Soulshard server on ${HOST}:${PORT} (CORS: ${CORS_ORIGIN.join(', ')}) — realtime co-op at ws path /rt`);
   } catch (err) {
     console.error('[fatal] server failed to start:', err);
     process.exit(1);

@@ -45,6 +45,10 @@ import { initCheats } from './game/cheats.js';
 import './game/scenes/run.js';
 import './game/scenes/hub.js';
 import './game/scenes/title.js';
+import './game/scenes/coop.js';   // Phase 2: guest co-op scene (refs.coop)
+import { initCoopBridge } from './game/net/coopbridge.js';   // realtime lobby -> scene switch
+import { CoopHost } from './game/net/coophost.js';
+import { buildRunStart, encodeSnapshot } from './game/net/protocol.js';
 
 function setLoad(pct) {
   const b = document.getElementById('loadbar');
@@ -59,6 +63,7 @@ function boot() {
   applySettings();
   initCheats();
   try { initNet(); } catch (e) { /* cloud UI is optional; never block boot */ }
+  try { initCoopBridge(); } catch (e) { /* co-op bridge is optional; never block boot */ }
   setLoad(100);
 
   setScene(refs.title, {});
@@ -81,6 +86,57 @@ function boot() {
     // manually pump N sim frames + one render (for screenshots under throttled rAF)
     pump(n = 1, dt = 1 / 60) { for (let i = 0; i < n; i++) { updateActive(dt); updateCamera(dt); endFrameInput(); } clear(); renderActive(); return n; },
     startRun() { setScene(refs.run, { run: newRun() }); applyPending(); return 'run'; },
+    // Phase 2 self-test: drive a host co-op run offline, then feed its runstart+snapshot
+    // into a guest scene and render it — validates the whole encode->decode->render path.
+    coopRoundTrip() {
+      const room = { code: 'TEST01', hostCid: 'cH', started: true, cfg: { biomeId: 'crypt', difficulty: 1 },
+        members: [
+          { cid: 'cH', uid: '1', username: 'Host', host: true, ready: true, charId: 'hunter', weaponId: 'w_soulbolt' },
+          { cid: 'cG', uid: '2', username: 'Guest', host: false, ready: true, charId: 'ranger', weaponId: 'w_homing' },
+        ] };
+      const coop = new CoopHost(room, 'cH');
+      setScene(refs.run, { run: newRun({ biomeId: 'crypt', difficulty: 1, characterId: 'hunter' }), coop }); applyPending();
+      const host = getScene();
+      host.player.takeDamage = () => {};
+      // keep the remote "connected" each frame (the host's input-silence check would otherwise retire it)
+      const keepAlive = () => coop.players.forEach((p) => { if (!p.isLocal) p.silentT = 0; });
+      for (let i = 0; i < 360; i++) { keepAlive(); host.update(1 / 60); }
+      const slot = coop.players.find((p) => p.cid === 'cG');
+      const beforeX = slot.player.x; slot.player.netInput = { move: { x: 1, y: 0 }, dash: false };
+      for (let i = 0; i < 120; i++) { keepAlive(); host.update(1 / 60); }
+      const rs = buildRunStart(host); const snap = encodeSnapshot(host);
+      const out = { rsPlayers: rs.players.length, snapPlayers: snap.pl.length, snapEnemies: snap.en.length,
+        snapProjectiles: snap.pr.length, hostPlayers: host.world.players.length, remoteMoved: slot.player.x - beforeX, hud: snap.hud };
+      // feed into a guest scene
+      setScene(refs.coop, { start: { you: 'cG', role: 'guest', hostCid: 'cH', room }, runstart: rs }); applyPending();
+      const guest = getScene();
+      try { guest.onSnap(snap); for (let i = 0; i < 60; i++) guest.update(1 / 60); guest.render(); out.guestRendered = true; }
+      catch (e) { out.guestRendered = false; out.guestError = String(e && e.stack || e); }
+      out.guestEnemies = guest.guest ? guest.guest.enemies.size : -1;
+      out.guestPlayers = guest.players ? guest.players.length : -1;
+      out.guestProjectiles = guest.guest ? guest.guest.projectiles.length : -1;
+      setScene(refs.title, {}); applyPending();
+      return out;
+    },
+    // Phase 2: deterministic offline check of disconnect handling — a remote that goes
+    // silent (>4s no input) must be retired, and the run must NOT end while the host lives.
+    coopSilenceTest() {
+      const room = { code: 'TEST02', hostCid: 'cH', started: true, cfg: { biomeId: 'crypt', difficulty: 1 },
+        members: [
+          { cid: 'cH', uid: '1', username: 'Host', host: true, ready: true, charId: 'hunter', weaponId: 'w_soulbolt' },
+          { cid: 'cG', uid: '2', username: 'Guest', host: false, ready: true, charId: 'ranger', weaponId: 'w_homing' },
+        ] };
+      const coop = new CoopHost(room, 'cH');
+      setScene(refs.run, { run: newRun({ biomeId: 'crypt', difficulty: 1, characterId: 'hunter' }), coop }); applyPending();
+      const host = getScene(); const g = coop.players[1];
+      const keep = () => { host.player.takeDamage = () => {}; host.player.idleT = 0; host.player.hp = host.player.maxHp; };
+      for (let i = 0; i < 60; i++) { g.silentT = 0; g.player.netInput = { move: { x: 0, y: 0 }, dash: false }; keep(); host.update(1 / 60); }   // 1s "connected"
+      const leftWhileActive = g.left;
+      for (let i = 0; i < 360; i++) { keep(); host.update(1 / 60); }   // 6s of input silence
+      const out = { leftWhileActive, leftAfterSilence: g.left, guestDead: g.player.dead, runEnded: host.dead, hostAlive: !host.player.dead };
+      setScene(refs.title, {}); applyPending();
+      return out;
+    },
     autoplay(secs = 15) {
       const cv = document.getElementById('game');
       cv.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0, clientX: innerWidth / 2, clientY: innerHeight / 2 }));
