@@ -12,15 +12,16 @@ import { refs } from './refs.js';
 import { Particles } from '../../engine/particles.js';
 import {
   camera, vignette, uiText, uiRect, uiBar, uiScale, view, worldToScreen,
-  drawSprite, drawShadow, glowWorld, lineWorld,
+  drawSprite, drawShadow, glowWorld, lineWorld, drawSpriteUI,
 } from '../../engine/renderer.js';
-import { getSprite, frameAt } from '../../engine/sprites.js';
+import { getSprite, frameAt, iconOr } from '../../engine/sprites.js';
 import { pressed, mouse, moveAxis } from '../../engine/input.js';
 import { clamp } from '../../engine/math.js';
 import { P, withAlpha } from '../../engine/palette.js';
 import { Music } from '../../engine/audio.js';
 
 const lerp = (a, b, k) => a + (b - a) * k;
+const inside = (mx, my, r) => mx >= r.x && mx <= r.x + r.w && my >= r.y && my <= r.y + r.h;
 
 export const coopScene = {
   enter(payload) {
@@ -30,6 +31,7 @@ export const coopScene = {
     this.defList = rs.defs;
     this.t = 0; this.selfDead = false; this.runOver = false; this.hostGone = false; this.disconnected = false;
     this.runResult = null; this.inputSeq = 0; this._inAccum = 0; this._dashPend = false;
+    this.levelup = null; this._snapSilent = 0; this._gotSnap = false;
     this.particles = new Particles();
     this.banner = rs.biomeName || ''; this.bannerT = 2.4;
 
@@ -67,6 +69,7 @@ export const coopScene = {
       RT.on('runend', (m) => this.onRunEnd(m)),
       RT.on('room:closed', () => this.onHostGone()),       // authoritative: the host left / closed the room
       RT.on('rt:close', () => this.onDisconnected()),      // OUR socket dropped — distinct from host-gone (may be a transient blip)
+      RT.on('levelup', (m) => { if (m.cid === this.selfCid && !this.runOver && !this.hostGone) this.levelup = { opts: m.opts || [], t: 0, hover: -1 }; }),
     ];
   },
 
@@ -86,7 +89,7 @@ export const coopScene = {
   deathFx(e) { try { this.particles.death(e.x, e.y, (e.def && e.def.bloodColor) || P.green); } catch (err) { /* */ } },
 
   // ---- network in ----------------------------------------------------------
-  onSnap(m) { try { applySnapshot(this.guest, m); } catch (e) { /* a bad frame must not kill the scene */ } this._gotSnap = true; },
+  onSnap(m) { try { applySnapshot(this.guest, m); } catch (e) { /* a bad frame must not kill the scene */ } this._gotSnap = true; this._snapSilent = 0; },
   onRunEnd(m) { this.runOver = true; this.runResult = m || {}; Music.setMode(m && m.won ? 'victory' : 'death'); },
   onHostGone() { if (this.runOver) return; this.hostGone = true; Music.setMode('hub'); },
   // our own socket dropped mid-run. The server treats a guest disconnect as a leave (new cid
@@ -115,6 +118,12 @@ export const coopScene = {
       if (this.t > 0.4 && (pressed('space') || pressed('enter') || mouse.justDown)) setScene(refs.hub, {});
       return;
     }
+    // host's snapshots stopped flowing (host crashed / lost network) without a clean
+    // room:closed → treat as host gone after a grace window.
+    this._snapSilent += dt;
+    if (this._gotSnap && this._snapSilent > 6) { this.onHostGone(); return; }
+
+    if (this.levelup) this.updateLevelup(dt);   // non-blocking level-up pick
     if (pressed('escape')) { this.leave(); return; }
 
     this.sendInputTick(dt);
@@ -163,13 +172,56 @@ export const coopScene = {
 
   leave() { try { RT.leaveRoom(); } catch (e) { /* */ } setScene(refs.hub, {}); },
 
+  // ---- non-blocking level-up pick (options computed by the host; host applies) -----
+  levelupRects(n) {
+    const S = uiScale(); const cw = Math.min(150 * S, (view.W - 40 * S) / n - 12 * S); const ch = cw * 1.18; const gap = 12 * S;
+    const totalW = n * cw + (n - 1) * gap; const x0 = (view.W - totalW) / 2; const y = view.H - ch - 16 * S;
+    return Array.from({ length: n }, (_, i) => ({ x: x0 + i * (cw + gap), y, w: cw, h: ch }));
+  },
+  updateLevelup(dt) {
+    const lu = this.levelup; if (!lu.opts.length) { this.levelup = null; return; }
+    lu.t += dt;
+    const rects = this.levelupRects(lu.opts.length); const mx = mouse.x * view.dpr, my = mouse.y * view.dpr;
+    lu.hover = -1; rects.forEach((r, i) => { if (inside(mx, my, r)) lu.hover = i; });
+    let pick = -1;
+    if (mouse.justDown && lu.hover >= 0) pick = lu.hover;
+    if (pressed('slot1')) pick = 0; if (pressed('slot2')) pick = 1; if (pressed('slot3')) pick = 2;
+    if (pick < 0 && lu.t > 18) pick = 0;   // auto-pick if ignored far too long
+    if (pick >= 0 && pick < lu.opts.length) {
+      RT.send({ t: 'levelpick', i: pick });
+      if (this.self) this.particles.ring(this.self.x, this.self.y, P.manaL, 18, 100);
+      this.levelup = null;
+    }
+  },
+  drawLevelupMenu() {
+    const S = uiScale(); const lu = this.levelup; const rects = this.levelupRects(lu.opts.length);
+    const mx = mouse.x * view.dpr, my = mouse.y * view.dpr;
+    uiText('★ 升級！選擇武器（點擊或按 1 / 2 / 3）', view.W / 2, rects[0].y - 12 * S, { size: 13 * S, align: 'center', color: P.manaL, weight: '800', shadowColor: withAlpha('#000', 0.8) });
+    rects.forEach((r, i) => {
+      const o = lu.opts[i]; const hover = lu.hover === i; const oy = hover ? -6 * S : 0;
+      uiRect(r.x, r.y + oy, r.w, r.h, withAlpha('#1b2840', 0.96), { radius: 8 * S, stroke: hover ? P.shardL : withAlpha(P.shardL, 0.5), lw: hover ? 3 : 2 });
+      uiRect(r.x, r.y + oy, r.w, 4 * S, P.shardL, { radius: 2 * S });
+      const sp = getSprite(iconOr(o.icon, 'weapon_w_soulbolt')); const isc = (r.w * 0.36) / sp.w;
+      drawSpriteUI(sp.frames[0], r.x + r.w / 2 - sp.w * isc / 2, r.y + oy + 12 * S, isc);
+      const midY = r.y + oy + 14 * S + sp.h * isc;
+      uiText(o.act === 'new' ? '新武器' : o.act === 'heal' ? '回復生命' : ('Lv.' + o.lvl + ' → ' + (o.lvl + 1)), r.x + r.w / 2, midY + 8 * S, { size: 10 * S, align: 'center', color: P.shardL, weight: '800' });
+      uiText(o.name, r.x + r.w / 2, midY + 24 * S, { size: 13 * S, align: 'center', color: '#fff', weight: '800' });
+      uiText(String(i + 1), r.x + 9 * S, r.y + oy + 18 * S, { size: 13 * S, color: withAlpha('#fff', 0.45), weight: '900' });
+    });
+  },
+
   // ---- render --------------------------------------------------------------
   render() {
     this.drawField();
     vignette(0.4);
     this.particles.drawText();
     this.drawHud();
-    if (this.bannerT > 0) uiText(this.banner, view.W / 2, view.H * 0.2, { size: 26 * uiScale(), align: 'center', color: withAlpha('#ffe9a0', Math.min(1, this.bannerT)), weight: '900' });
+    // banner: prefer the host's synced announcement (敵潮/小王/羈絆/通關…); fall back to the local intro
+    const hb = this.guest.hud;
+    const bText = (hb && hb.bannerT > 0 && hb.banner) ? hb.banner : (this.bannerT > 0 ? this.banner : null);
+    const bA = (hb && hb.bannerT > 0 && hb.banner) ? Math.min(1, hb.bannerT) : Math.min(1, this.bannerT);
+    if (bText) uiText(bText, view.W / 2, view.H * 0.2, { size: 26 * uiScale(), align: 'center', color: withAlpha('#ffe9a0', bA), weight: '900', shadowColor: withAlpha('#000', bA * 0.8) });
+    if (this.levelup && !this.runOver && !this.hostGone && !this.disconnected) this.drawLevelupMenu();
     if (this.selfDead && !this.runOver && !this.hostGone && !this.disconnected) this.drawSpectate();
     if (this.runOver) this.drawRunOver();
     if (this.hostGone) this.drawHostGone();

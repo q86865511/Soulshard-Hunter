@@ -28,13 +28,15 @@ export function attachRealtime(httpServer, realtime, { jwtSecret, path = '/rt', 
     });
   });
 
-  // app-level heartbeat: drop sockets that stop answering pings (half-open TCP)
+  // app-level heartbeat: drop sockets that stop answering pings (half-open TCP). 12s so a
+  // crashed/networkless peer is detected within ~24s at the transport level (the host's
+  // own input-silence check in coophost retires a quiet avatar faster, ~5s).
   const hb = setInterval(() => {
     for (const ws of wss.clients) {
       if (ws.isAlive === false) { try { ws.terminate(); } catch (e) { /* */ } continue; }
       ws.isAlive = false; try { ws.ping(); } catch (e) { /* */ }
     }
-  }, 30000);
+  }, 12000);
   if (hb.unref) hb.unref();
   wss.on('close', () => clearInterval(hb));
   return wss;

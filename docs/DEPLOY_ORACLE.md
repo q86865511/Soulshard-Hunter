@@ -28,6 +28,7 @@ Browser ──HTTPS──▶ Caddy ──┬─ /            → static game fil
 - An Oracle Cloud account (the **Always Free** tier is enough).
 - A hostname pointing at the VM. Either a real domain, or a free one:
   **DuckDNS** (`yourname.duckdns.org`) or **nip.io** (`<your-ip>.nip.io`).
+  No domain? **nip.io turns your IP into a hostname for free** — full how-to in **[Appendix A](#appendix-a--nipio-a-free-hostname-from-your-ip-no-domain-needed)** at the end.
 - An SSH keypair (`ssh-keygen -t ed25519`).
 
 ---
@@ -223,3 +224,67 @@ What's needed is already covered above:
 The `friendships` table is auto-created by `initSchema` on boot (no migration step).
 To verify: log in on two devices/accounts → **👥 好友 / 連線** → add each other →
 create a room / join by code → ready → start; you should see each other in the run.
+
+---
+
+## Appendix A — nip.io: a free hostname from your IP (no domain needed)
+
+You don't have to buy a domain. **nip.io** is a free public DNS service: any hostname
+shaped like `<IP>.nip.io` automatically resolves to that IP — no signup, no dashboard,
+no DNS records, instant. If your VM's public IP is `140.238.1.2`, then
+`140.238.1.2.nip.io` already points at it.
+
+**Why it's needed here.** OCI hands you a public IP but no hostname. Browsers on
+`https://` can only open `wss://`/`https://` (so co-op needs TLS), and Caddy / Let's
+Encrypt **won't issue a certificate for a bare IP** — it needs a *name*. nip.io gives
+you one for free, derived from your IP, so you get real HTTPS + WSS at zero cost.
+
+### Use it in 3 steps
+
+1. **Find your public IP** (OCI console → instance → *Public IP*, or on the VM):
+   ```bash
+   IP=$(curl -s ifconfig.me); HOST="$IP.nip.io"
+   echo "$HOST"          # e.g. 140.238.1.2.nip.io
+   dig +short "$HOST"    # should print your IP back -> DNS works
+   ```
+2. **Use that hostname everywhere this guide writes `yourname.duckdns.org`:**
+   - §4 backend env: `export CORS_ORIGIN="https://140.238.1.2.nip.io"`
+   - §5 Caddyfile — the site label on the first line:
+     ```caddy
+     140.238.1.2.nip.io {
+         ...
+     }
+     ```
+   - §6 open the game at `https://140.238.1.2.nip.io`
+3. **Open ports 80 + 443** (both firewalls, §2). Caddy needs port 80 reachable so
+   Let's Encrypt's ACME challenge can mint the cert on the first request; it then
+   serves (and auto-renews) HTTPS/WSS. The first load takes a few seconds while the
+   cert is issued — after that it's instant.
+
+That's it — nothing else in the guide changes.
+
+### ⚠️ Make the IP static (the one real Oracle gotcha)
+
+A nip.io name **is** your IP, so if the IP changes the name changes with it. OCI's
+default public IP can be *ephemeral* (it may change when the VM is stopped/recreated).
+Attach a **Reserved Public IP** (included in Always-Free) to the instance so the
+address — and therefore your nip.io hostname — never changes. Otherwise you'd have to
+update `CORS_ORIGIN`, the Caddyfile label, and re-tell players the URL every time.
+
+### Good to know
+
+- **It's a free third-party service.** If nip.io has an outage your hostname won't
+  resolve. Fine for hobby / co-op; for something you depend on, a real domain (or
+  **DuckDNS**, which survives IP changes because *you* update its record) is sturdier.
+- **Let's Encrypt limits:** nip.io is **not** on the Public Suffix List, so every
+  `*.nip.io` cert counts against **one shared** rate-limit bucket for the whole `nip.io`
+  domain. Let's Encrypt grants nip.io a heavily raised override limit, so a hobby deploy
+  almost never hits it — but during busy periods you may occasionally see *"too many
+  certificates already issued for: nip.io"*. If so, retry later, or switch to a real
+  domain / **DuckDNS** (your own registered domain = your own private bucket).
+- **Dashed form** works too: `140-238-1-2.nip.io`; and you may prefix a label —
+  `soulshard.140.238.1.2.nip.io` resolves to the same IP.
+- **Alternative:** `sslip.io` behaves identically (`140.238.1.2.sslip.io`) as a backup.
+- **DNS-rebinding note:** some resolvers block public names that resolve to *private*
+  IPs. OCI IPs are public, so this doesn't affect you — it'd only bite if you pointed
+  nip.io at a LAN address.

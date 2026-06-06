@@ -35,6 +35,7 @@ const MSG_CLASS = {
   'room:build': 'room', 'room:cfg': 'room', 'room:start': 'room', invite: 'room',
   chat: 'chat',
   input: 'game', snap: 'game', runstart: 'game', runend: 'game', fx: 'game', ping: 'game',
+  levelup: 'game', levelpick: 'game',   // co-op level-up menu (host->guest options, guest->host pick)
 };
 
 export class Realtime {
@@ -260,8 +261,8 @@ export class Realtime {
         case 'room:start': this.startRoom(client); break;
         case 'invite': this.invite(client, m.to); break;
         case 'chat': this.relayChat(client, m.text); break;
-        case 'input': this.relayToHost(client, raw, m); break;
-        case 'snap': case 'runstart': case 'runend': case 'fx': this.relayToGuests(client, raw, m); break;
+        case 'input': case 'levelpick': this.relayToHost(client, raw, m); break;
+        case 'snap': case 'runstart': case 'runend': case 'fx': case 'levelup': this.relayToGuests(client, raw, m); break;
         case 'ping': this.send(client, { t: 'pong', ts: m.ts }); break;
         default: break;
       }

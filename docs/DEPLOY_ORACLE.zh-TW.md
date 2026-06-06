@@ -26,6 +26,7 @@
 - 一個 Oracle Cloud 帳號(**Always Free** 免費方案就夠)。
 - 一個指向該 VM 的網域名稱。可以用真實網域,或免費的:
   **DuckDNS**(`yourname.duckdns.org`)或 **nip.io**(`<你的-IP>.nip.io`)。
+  沒有網域?**nip.io 可以把你的 IP 免費變成主機名** —— 完整用法見文末 **[附錄 A](#附錄-a--nipio把你的-ip-免費變成主機名不需自有網域)**。
 - 一組 SSH 金鑰(`ssh-keygen -t ed25519`)。
 
 ---
@@ -224,3 +225,62 @@ Phase 2(1–3 人合作 + 好友/大廳/邀請)就跑在 **同一個 Node 程序
 `friendships`(好友)資料表會在開機時由 `initSchema` 自動建立(無需額外的 migration 步驟)。
 驗證方式:在兩台裝置/兩個帳號登入 → **👥 好友 / 連線** → 互加好友 →
 建立房間 / 用房號加入 → 準備 → 開始;你們應該會在同一局裡看到彼此。
+
+---
+
+## 附錄 A —— nip.io:把你的 IP 免費變成主機名(不需自有網域)
+
+你不一定要買網域。**nip.io** 是一個免費的公共 DNS 服務:任何長得像 `<IP>.nip.io` 的主機名
+都會自動解析到那個 IP——免註冊、免後台、免設定 DNS 記錄,即時生效。如果你 VM 的公網 IP 是
+`140.238.1.2`,那麼 `140.238.1.2.nip.io` 就已經指向它了。
+
+**為什麼這裡需要它。** OCI 只給你公網 IP,沒有主機名。`https://` 頁面的瀏覽器只能開
+`wss://`/`https://`(所以多人合作需要 TLS),而 Caddy / Let's Encrypt **不會幫純 IP 簽發憑證**
+——它需要一個「名字」。nip.io 用你的 IP 免費生出一個,於是你零成本就有了真正的 HTTPS + WSS。
+
+### 三步驟使用
+
+1. **查出你的公網 IP**(OCI 主控台 → 執行個體 → *Public IP*,或在 VM 上執行):
+   ```bash
+   IP=$(curl -s ifconfig.me); HOST="$IP.nip.io"
+   echo "$HOST"          # 例如 140.238.1.2.nip.io
+   dig +short "$HOST"    # 應該印回你的 IP -> 代表 DNS 正常
+   ```
+2. **把該主機名用在本指南所有寫 `yourname.duckdns.org` 的地方:**
+   - §4 後端環境變數:`export CORS_ORIGIN="https://140.238.1.2.nip.io"`
+   - §5 Caddyfile —— 第一行的站台標籤:
+     ```caddy
+     140.238.1.2.nip.io {
+         ...
+     }
+     ```
+   - §6 用 `https://140.238.1.2.nip.io` 開遊戲
+3. **開放 80 + 443 埠**(兩道防火牆,§2)。Caddy 需要 80 埠可連線,Let's Encrypt 的 ACME
+   驗證才能在第一次請求時簽出憑證;之後它就提供(並自動續簽)HTTPS/WSS。第一次載入會花幾秒
+   等憑證簽發,之後就是即時的。
+
+就這樣——指南其餘部分原封不動。
+
+### ⚠️ 把 IP 設為固定(Oracle 上唯一真正要注意的坑)
+
+nip.io 的名字「就是」你的 IP,所以 IP 一換,名字也跟著換。OCI 預設的公網 IP 可能是
+**臨時的(ephemeral)**(VM 停止/重建時可能改變)。請替執行個體掛上一個
+**保留公網 IP(Reserved Public IP)**(Always-Free 免費方案已包含),讓位址——也就是你的
+nip.io 主機名——永不改變。否則每次 IP 變動,你都得更新 `CORS_ORIGIN`、Caddyfile 標籤,
+還要重新把網址告訴玩家。
+
+### 補充須知
+
+- **它是免費的第三方服務。** 萬一 nip.io 故障,你的主機名就無法解析。對業餘/同好合作沒問題;
+  若是你很依賴的服務,真實網域(或 **DuckDNS**——因為是「你」自己更新它的記錄,IP 變了也撐得住)
+  會更穩。
+- **Let's Encrypt 限制:** nip.io **並不在** Public Suffix List 上,所以每一張 `*.nip.io`
+  憑證都算進整個 `nip.io` 網域「共用」的同一個限額桶。Let's Encrypt 有給 nip.io 一個大幅
+  調高的特例上限,所以業餘部署幾乎不會遇到——但在尖峰時段你偶爾可能看到
+  *「too many certificates already issued for: nip.io」*。真的遇到就稍後重試,或改用
+  真實網域 / **DuckDNS**(你自己的註冊網域 = 你自己獨立的限額桶)。
+- **連字號形式** 也可以:`140-238-1-2.nip.io`;也可以加前綴標籤——
+  `soulshard.140.238.1.2.nip.io` 會解析到同一個 IP。
+- **替代方案:** `sslip.io` 行為完全相同(`140.238.1.2.sslip.io`),需要備援時可用。
+- **DNS rebinding 註記:** 有些解析器會擋「解析到私有 IP 的公開名稱」。OCI 的 IP 是公開的,
+  所以不影響你——只有當你把 nip.io 指向區網位址時才會中招。
