@@ -4,13 +4,15 @@
   "description": "Soulshard Hunter — cloud backend (accounts + cloud save + shared leaderboard). Phase 1 of docs/MULTIPLAYER_PLAN.md.",
   "type": "module",
   "main": "src/server.js",
-  "engines": { "node": ">=18" },
+  "engines": {
+    "node": ">=18"
+  },
   "scripts": {
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
-    "test": "node test/smoke.mjs",
+    "test": "node test/smoke.mjs && node test/social.smoke.mjs",
     "dev:fakedb": "node test/dev-fakedb.mjs",
-    "check": "node --check src/server.js && node --check src/db.js"
+    "check": "node --check src/server.js && node --check src/db.js && node --check src/social.js && node --check src/realtime.js && node --check src/wsgw.js"
   },
   "dependencies": {
     "@fastify/cors": "^9.0.1",
@@ -19,6 +21,7 @@
     "fastify": "^4.28.1",
     "jsonwebtoken": "^9.0.2",
     "pg": "^8.12.0",
+    "ws": "^8.21.0",
     "zod": "^3.23.8"
   }
 }

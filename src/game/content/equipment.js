@@ -87,11 +87,14 @@ export function statSnapshot(stats) { const o = {}; for (const f of DELTA_FIELDS
 export function statDelta(before, after) { const d = {}; for (const f of DELTA_FIELDS) { const dv = (after[f] || 0) - (before[f] || 0); if (Math.abs(dv) > 1e-9) d[f] = dv; } return d; }
 
 // ---- apply helper ----------------------------------------------------------
-export function equipItem(player, run, def) {
+// recordRun: write the slot into the shared run.equipment/equipDelta/gearTaken record.
+// In co-op a REMOTE avatar picking up gear still gets the stats + signature weapon, but
+// must NOT clobber the host's shared run record — callers pass recordRun=false for it.
+export function equipItem(player, run, def, recordRun = true) {
   if (!def) return;
-  if (run) run.gearTaken = true;   // taking ANY gear disqualifies the stat-purist boon
+  if (run && recordRun) run.gearTaken = true;   // taking ANY gear disqualifies the stat-purist boon
   if (def.slot === 'weapon') {
-    run.equipment.weapon = def.id;
+    if (run && recordRun) run.equipment.weapon = def.id;
     if (player.weapons) {   // add as a real auto-fire signature weapon (replacing any previous one)
       player.weapons = player.weapons.filter((inst) => !inst.def.equipped);
       player.weapons.push({ def: makeEquipWeaponDef(def), level: 1, t: 0, st: {} });
@@ -99,7 +102,6 @@ export function equipItem(player, run, def) {
   } else {
     const before = statSnapshot(player.stats);                              // 原#1: record this slot's contribution
     try { def.apply?.(player); } catch (e) { console.warn('equip apply failed', def.id, e); }
-    run.equipment[def.slot] = def.id;
-    if (run) { run.equipDelta = run.equipDelta || {}; run.equipDelta[def.slot] = statDelta(before, statSnapshot(player.stats)); }
+    if (run && recordRun) { run.equipment[def.slot] = def.id; run.equipDelta = run.equipDelta || {}; run.equipDelta[def.slot] = statDelta(before, statSnapshot(player.stats)); }
   }
 }

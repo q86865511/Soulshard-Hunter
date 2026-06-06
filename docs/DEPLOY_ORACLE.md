@@ -1,15 +1,20 @@
 # Deploying Soulshard Hunter to Oracle Cloud (OCI)
 
 A complete, copy-paste walkthrough for putting the game online with **accounts +
-cloud save + a shared leaderboard** (Phase 1 of [`MULTIPLAYER_PLAN.md`](MULTIPLAYER_PLAN.md)).
+cloud save + shared leaderboard** (Phase 1) **and real-time co-op + friends/lobby**
+(Phase 2) — see [`MULTIPLAYER_PLAN.md`](MULTIPLAYER_PLAN.md).
+
+> 繁體中文版:[`DEPLOY_ORACLE.zh-TW.md`](DEPLOY_ORACLE.zh-TW.md)
 
 Architecture: the browser loads the static game; a **Caddy** reverse proxy serves
-those static files over HTTPS and forwards `/api/*` to the **Node (Fastify)** server,
-which talks to **PostgreSQL**. Everything fits comfortably in OCI's Always-Free tier.
+those static files over HTTPS, forwards `/api/*` to the **Node (Fastify)** server
+(which talks to **PostgreSQL**), and forwards the `/rt` **WebSocket** to the same Node
+process (the co-op relay). Everything fits comfortably in OCI's Always-Free tier.
 
 ```
 Browser ──HTTPS──▶ Caddy ──┬─ /            → static game files (index.html, src/, assets/)
-                           └─ /api/*       → Node API (:8787) ──▶ PostgreSQL
+                           ├─ /api/*       → Node API (:8787) ──▶ PostgreSQL
+                           └─ /rt  (WSS)   → Node co-op relay (same :8787 process)
 ```
 
 > **Two things people always trip on** (call-outs below): OCI has **two firewalls**
@@ -149,8 +154,15 @@ Edit `/etc/caddy/Caddyfile`:
 yourname.duckdns.org {
     encode zstd gzip
 
-    # API → Node
-    handle_path /api/* {
+    # API → Node. Use `handle` (NOT `handle_path`): the Node routes include the
+    # /api prefix (e.g. /api/health), so the prefix must be PRESERVED, not stripped.
+    handle /api/* {
+        reverse_proxy localhost:8787
+    }
+
+    # realtime co-op WebSocket (Phase 2). Caddy upgrades the WS connection
+    # automatically; the frontend connects to wss://<host>/rt.
+    handle /rt {
         reverse_proxy localhost:8787
     }
 
@@ -195,9 +207,19 @@ needed). Make sure the server's `CORS_ORIGIN` matches your `https://yourname...`
 
 ---
 
-## 8. Phase 2 (realtime co-op) — when you get there
+## 8. Phase 2 (realtime co-op) — already wired
 
-[`MULTIPLAYER_PLAN.md`](MULTIPLAYER_PLAN.md) §Phase 2 covers the realtime work. The
-same VM + Caddy host it: add a `wss://` upgrade in the Caddyfile pointing at the Node
-`ws` server, and run the authoritative simulation in the existing API process. No new
-infrastructure is required.
+Phase 2 (1–3 player co-op + friends/lobby/invites) ships in the **same Node process**
+on the same VM — no new infrastructure. It is **host-authoritative relay**: one
+player's browser runs the authoritative game sim and the server just relays messages,
+so the server stays a lightweight `ws` gateway (it never simulates).
+
+What's needed is already covered above:
+- the `handle /rt { reverse_proxy localhost:8787 }` block in the Caddyfile (§5) — Caddy
+  upgrades the WebSocket automatically, so the browser reaches `wss://<host>/rt`;
+- the **same `JWT_SECRET`** (the WS handshake verifies the JWT passed as `?token=`);
+- the same `CORS_ORIGIN`.
+
+The `friendships` table is auto-created by `initSchema` on boot (no migration step).
+To verify: log in on two devices/accounts → **👥 好友 / 連線** → add each other →
+create a room / join by code → ready → start; you should see each other in the run.

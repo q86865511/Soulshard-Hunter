@@ -22,6 +22,14 @@ export function apiBase() {
   return '';
 }
 
+// WebSocket base for the realtime co-op gateway (Phase 2). Derived from apiBase:
+// http->ws, https->wss; '' (same-origin prod) -> location.origin with ws(s).
+export function wsBase() {
+  let b = apiBase();
+  if (!b) { try { b = location.origin; } catch (e) { b = 'http://localhost:8787'; } }
+  return b.replace(/^http/, 'ws');
+}
+
 let token = null, user = null, saveTimer = null;
 
 // Is the JWT present AND not expired? (decode the exp claim without a library)
@@ -71,8 +79,16 @@ export const Net = {
   onSessionExpired: null,   // ui.js sets this to flip the bar + toast on a 401
   isLoggedIn: () => tokenAlive(token),
   currentUser: () => user,
+  authToken: () => (tokenAlive(token) ? token : null),   // rt.js needs the raw JWT for the ws URL
   apiBase,
+  wsBase,
   health() { return req('/health'); },
+  // ---- friends (Phase 2 social layer) ----
+  friends() { return req('/friends', { authed: true }); },
+  addFriend(username) { return req('/friends/request', { method: 'POST', authed: true, body: { username } }); },
+  acceptFriend(id) { return req('/friends/accept', { method: 'POST', authed: true, body: { id } }); },
+  declineFriend(id) { return req('/friends/decline', { method: 'POST', authed: true, body: { id } }); },
+  removeFriend(id) { return req('/friends/remove', { method: 'POST', authed: true, body: { id } }); },
   async register(username, password, email) {
     const d = await req('/register', { method: 'POST', body: { username, password, email: email || undefined } });
     setSession(d.token, d.user); return d;

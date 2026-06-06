@@ -1,0 +1,279 @@
+// Realtime gateway for Phase 2: presence, lobby rooms, invites, and host<->guest
+// message relay. Host-authoritative model — the server is a DUMB RELAY for gameplay:
+// it never simulates. It only tracks who is online, who is in which room, and forwards
+// `input` (guest->host) and `snap`/`runstart`/`runend` (host->guests).
+//
+// This class is socket-agnostic so it is unit-testable with fake clients. A "client"
+// is any object with: `.cid` (unique conn id), `.user = {uid, username}`, `.send(obj)`
+// (obj is JSON-serialised by the caller's adapter or here), and `.close()`.
+import crypto from 'crypto';
+import { friendGraph } from './social.js';
+
+const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';   // unambiguous (no 0/O/1/I)
+function defaultGenCode() {
+  const b = crypto.randomBytes(5); let s = '';
+  for (let i = 0; i < 5; i++) s += CODE_ALPHABET[b[i] % CODE_ALPHABET.length];
+  return s;
+}
+
+const MAX_ROOM = 3;     // 1~3 player co-op
+const MAX_CONNS_PER_UID = 5;   // a single account can't open unbounded sockets
+const MAX_ROOMS = 5000;        // global backstop against room-spam memory growth
+const FG_CACHE_MS = 1500;      // briefly cache a user's friend graph so reload-spam can't hammer the DB
+
+// per-connection token buckets, keyed by message class. Tight on DB- / room-touching
+// control messages; generous on gameplay (input ~33Hz, snap ~18Hz * guests).
+const RL = {
+  db:   { cap: 6,   refill: 1 },     // hello / friends:reload (each = 3 DB queries) — ~1/s sustained, burst 6
+  room: { cap: 20,  refill: 6 },     // room:* / invite — burst 20, ~6/s
+  chat: { cap: 12,  refill: 3 },
+  game: { cap: 300, refill: 150 },   // input / snap / runstart / runend / fx
+};
+const MSG_CLASS = {
+  hello: 'db', 'friends:reload': 'db',
+  'room:create': 'room', 'room:join': 'room', 'room:leave': 'room', 'room:ready': 'room',
+  'room:build': 'room', 'room:cfg': 'room', 'room:start': 'room', invite: 'room',
+  chat: 'chat',
+  input: 'game', snap: 'game', runstart: 'game', runend: 'game', fx: 'game', ping: 'game',
+};
+
+export class Realtime {
+  constructor(pool, { genCode } = {}) {
+    this.pool = pool;
+    this.genCode = genCode || defaultGenCode;
+    this.byUid = new Map();     // uid -> Set<client>  (presence; one user may have several tabs)
+    this.byCid = new Map();     // cid -> client
+    this.rooms = new Map();     // code -> room
+    this.roomOf = new Map();    // cid -> code
+    this._rl = new Map();       // cid -> { [class]: {t, ts} } token buckets
+    this._fg = new Map();       // uid -> { at, g } friend-graph cache
+    this._now = () => Date.now();
+  }
+
+  // ---- per-connection rate limiting -----------------------------------------
+  _allow(cid, cls) {
+    const spec = RL[cls]; if (!spec) return true;
+    let buckets = this._rl.get(cid); if (!buckets) { buckets = {}; this._rl.set(cid, buckets); }
+    let b = buckets[cls]; const now = this._now();
+    if (!b) { b = buckets[cls] = { t: spec.cap, ts: now }; }
+    b.t = Math.min(spec.cap, b.t + (now - b.ts) / 1000 * spec.refill); b.ts = now;
+    if (b.t < 1) return false;
+    b.t -= 1; return true;
+  }
+
+  // ---- low-level send --------------------------------------------------------
+  send(client, obj) { try { client.send(JSON.stringify(obj)); } catch (e) { /* dead socket */ } }
+  sendRaw(client, raw) { try { client.send(raw); } catch (e) { /* */ } }
+  sendToUid(uid, obj) { const set = this.byUid.get(String(uid)); if (set) for (const c of set) this.send(c, obj); }
+  isOnline(uid) { const s = this.byUid.get(String(uid)); return !!(s && s.size); }
+
+  // ---- connection lifecycle --------------------------------------------------
+  async onConnect(client) {
+    const uid = String(client.user.uid);
+    let set = this.byUid.get(uid); if (!set) { set = new Set(); this.byUid.set(uid, set); }
+    if (set.size >= MAX_CONNS_PER_UID) { try { client.close(); } catch (e) { /* */ } return; }   // cap sockets per account (leaked-token / abuse containment)
+    this.byCid.set(client.cid, client);
+    const firstTab = set.size === 0;
+    set.add(client);
+    this.send(client, { t: 'welcome', uid, cid: client.cid, username: client.user.username });   // cid lets the client identify itself (host detection) before a run starts
+    await this.pushFriends(uid).catch(() => {});
+    if (firstTab) await this.broadcastPresence(uid, true, client.user.username).catch(() => {});   // tell my friends I'm online
+  }
+
+  async onClose(client) {
+    const uid = String(client.user.uid);
+    this.leaveRoom(client, 'disconnect');
+    this.byCid.delete(client.cid);
+    this._rl.delete(client.cid);
+    const set = this.byUid.get(uid);
+    if (set) {
+      set.delete(client);
+      if (set.size === 0) { this.byUid.delete(uid); await this.broadcastPresence(uid, false, client.user.username).catch(() => {}); }
+    }
+  }
+
+  // ---- friends / presence ----------------------------------------------------
+  async friendGraphCached(uid) {
+    const c = this._fg.get(uid);
+    if (c && (this._now() - c.at) < FG_CACHE_MS) return c.g;   // absorb reload-spam without re-querying the DB
+    const g = await friendGraph(this.pool, uid);
+    this._fg.set(uid, { at: this._now(), g });
+    return g;
+  }
+  async friendListWithPresence(uid) {
+    const base = await this.friendGraphCached(uid);
+    // shallow-copy so live presence flags don't mutate the cached graph
+    const g = { friends: base.friends.map((f) => ({ ...f, online: this.isOnline(f.id) })), incoming: base.incoming, outgoing: base.outgoing };
+    return g;
+  }
+  async pushFriends(uid) {
+    if (!this.isOnline(uid)) return;
+    const g = await this.friendListWithPresence(uid);
+    this.sendToUid(uid, { t: 'friends', ...g });
+  }
+  // notify my online friends that my presence flipped
+  async broadcastPresence(uid, online, username) {
+    const g = await friendGraph(this.pool, uid);
+    for (const f of g.friends) if (this.isOnline(f.id)) this.sendToUid(f.id, { t: 'presence', uid: String(uid), username, online });
+  }
+  // called by the REST friend handlers (server.js wires hooks.onFriendChange -> here)
+  async onFriendChange(a, b) {
+    this._fg.delete(String(a)); this._fg.delete(String(b));   // bust the cache so both parties get the fresh graph
+    await this.pushFriends(a).catch(() => {}); await this.pushFriends(b).catch(() => {});
+  }
+
+  // ---- rooms (lobby) ---------------------------------------------------------
+  roomPublic(room) {
+    return {
+      code: room.code, hostCid: room.hostCid, started: room.started, cfg: room.cfg,
+      members: [...room.members.values()].map((m) => ({
+        cid: m.cid, uid: m.uid, username: m.username, ready: m.ready,
+        charId: m.charId, weaponId: m.weaponId, host: m.cid === room.hostCid,
+      })),
+    };
+  }
+  broadcastRoom(room) { const pub = { t: 'room:state', room: this.roomPublic(room) }; for (const m of room.members.values()) { const c = this.byCid.get(m.cid); if (c) this.send(c, pub); } }
+
+  createRoom(client, cfg = {}) {
+    if (this.rooms.size >= MAX_ROOMS) return this.send(client, { t: 'room:err', msg: '伺服器房間已滿，請稍後再試' });   // global memory backstop
+    if (this.roomOf.has(client.cid)) this.leaveRoom(client, 'switch');
+    let code; let tries = 0; do { code = this.genCode(); } while (this.rooms.has(code) && ++tries < 20);
+    const room = {
+      code, hostCid: client.cid, started: false, createdAt: this._now(),
+      cfg: { biomeId: cleanBiome(cfg.biomeId), difficulty: clampDiff(cfg.difficulty) },
+      members: new Map(),
+    };
+    room.members.set(client.cid, member(client, { ready: true, charId: cfg.charId, weaponId: cfg.weaponId }));
+    this.rooms.set(code, room);
+    this.roomOf.set(client.cid, code);
+    this.broadcastRoom(room);
+    return room;
+  }
+
+  joinRoom(client, code) {
+    code = String(code || '').toUpperCase().trim();
+    const room = this.rooms.get(code);
+    if (!room) return this.send(client, { t: 'room:err', msg: '房間不存在' });
+    if (room.started) return this.send(client, { t: 'room:err', msg: '該房間已開始遊戲' });
+    if (room.members.size >= MAX_ROOM) return this.send(client, { t: 'room:err', msg: '房間已滿（最多 ' + MAX_ROOM + ' 人）' });
+    if (this.roomOf.get(client.cid) === code) { this.broadcastRoom(room); return; }
+    if (this.roomOf.has(client.cid)) this.leaveRoom(client, 'switch');
+    room.members.set(client.cid, member(client, { ready: false }));
+    this.roomOf.set(client.cid, code);
+    this.broadcastRoom(room);
+  }
+
+  leaveRoom(client, reason = 'leave') {
+    const code = this.roomOf.get(client.cid);
+    if (!code) return;
+    this.roomOf.delete(client.cid);
+    const room = this.rooms.get(code);
+    if (!room) return;
+    const wasHost = room.hostCid === client.cid;
+    room.members.delete(client.cid);
+    if (room.members.size === 0) { this.rooms.delete(code); return; }
+    if (wasHost) {   // host left → tear the room down (no host migration in v1)
+      for (const m of room.members.values()) { const c = this.byCid.get(m.cid); if (c) { this.roomOf.delete(m.cid); this.send(c, { t: 'room:closed', reason: 'host-left' }); } }
+      this.rooms.delete(code);
+      return;
+    }
+    if (room.started) {   // a guest dropped mid-run → tell the host so it can despawn the avatar
+      const host = this.byCid.get(room.hostCid);
+      if (host) this.send(host, { t: 'peer:left', cid: client.cid });
+    }
+    this.broadcastRoom(room);
+  }
+
+  setReady(client, ready) { const r = this.myRoom(client); if (!r) return; const m = r.members.get(client.cid); if (m) { m.ready = !!ready; this.broadcastRoom(r); } }
+  setBuild(client, charId, weaponId) {
+    const r = this.myRoom(client); if (!r) return; const m = r.members.get(client.cid);
+    if (m) { if (typeof charId === 'string') m.charId = charId.slice(0, 40); if (typeof weaponId === 'string') m.weaponId = weaponId.slice(0, 40); this.broadcastRoom(r); }
+  }
+  setCfg(client, cfg) {   // host tweaks biome/difficulty in the lobby
+    const r = this.myRoom(client); if (!r || r.hostCid !== client.cid) return;
+    if (cfg && typeof cfg === 'object') { if ('biomeId' in cfg) r.cfg.biomeId = cleanBiome(cfg.biomeId); if ('difficulty' in cfg) r.cfg.difficulty = clampDiff(cfg.difficulty); this.broadcastRoom(r); }
+  }
+
+  startRoom(client) {
+    const r = this.myRoom(client);
+    if (!r) return this.send(client, { t: 'room:err', msg: '你不在房間中' });
+    if (r.hostCid !== client.cid) return this.send(client, { t: 'room:err', msg: '只有房主能開始' });
+    if (r.members.size < 2) return this.send(client, { t: 'room:err', msg: '需要至少 2 名玩家才能開始連線合作' });
+    for (const m of r.members.values()) if (m.cid !== r.hostCid && !m.ready) return this.send(client, { t: 'room:err', msg: '尚有玩家未準備' });
+    r.started = true;
+    const pub = this.roomPublic(r);
+    for (const m of r.members.values()) {
+      const c = this.byCid.get(m.cid); if (!c) continue;
+      this.send(c, { t: 'start', role: m.cid === r.hostCid ? 'host' : 'guest', you: m.cid, hostCid: r.hostCid, room: pub });
+    }
+  }
+
+  invite(client, toUid) {
+    const r = this.myRoom(client);
+    if (!r) return this.send(client, { t: 'room:err', msg: '先建立或加入房間再邀請' });
+    toUid = String(toUid);
+    if (!this.isOnline(toUid)) return this.send(client, { t: 'room:err', msg: '對方目前不在線上' });
+    // only invite accepted friends (avoid invite spam to strangers)
+    this.assertFriend(client.user.uid, toUid).then((ok) => {
+      if (!ok) return this.send(client, { t: 'room:err', msg: '只能邀請好友' });
+      this.sendToUid(toUid, { t: 'invite', from: { uid: String(client.user.uid), username: client.user.username }, code: r.code, cfg: r.cfg });
+      this.send(client, { t: 'invite:sent', to: toUid });
+    }).catch(() => {});
+  }
+  async assertFriend(a, b) { const g = await friendGraph(this.pool, a); return g.friends.some((f) => String(f.id) === String(b)); }
+
+  // ---- gameplay relay (raw passthrough; server never parses snapshots) --------
+  relayToHost(client, raw, parsed) {
+    const code = this.roomOf.get(client.cid); const room = code && this.rooms.get(code);
+    if (!room || !room.started || room.hostCid === client.cid) return;
+    const host = this.byCid.get(room.hostCid); if (!host) return;
+    // tag the sender so the host knows which avatar this input drives
+    this.send(host, { ...parsed, cid: client.cid });
+  }
+  relayToGuests(client, raw, parsed) {
+    const code = this.roomOf.get(client.cid); const room = code && this.rooms.get(code);
+    if (!room || !room.started || room.hostCid !== client.cid) return;
+    for (const m of room.members.values()) if (m.cid !== room.hostCid) { const c = this.byCid.get(m.cid); if (c) this.sendRaw(c, raw); }
+  }
+  relayChat(client, text) {
+    const r = this.myRoom(client); if (!r) return;
+    const msg = { t: 'chat', from: client.user.username, cid: client.cid, text: String(text || '').slice(0, 280) };
+    for (const m of r.members.values()) { const c = this.byCid.get(m.cid); if (c) this.send(c, msg); }
+  }
+
+  myRoom(client) { const code = this.roomOf.get(client.cid); return code ? this.rooms.get(code) : null; }
+
+  // ---- message dispatch ------------------------------------------------------
+  async onMessage(client, raw) {
+    let m; try { m = typeof raw === 'string' ? JSON.parse(raw) : raw; } catch (e) { return; }
+    if (!m || typeof m.t !== 'string') return;
+    if (!this._allow(client.cid, MSG_CLASS[m.t] || 'room')) return;   // drop messages over the per-connection rate
+    try {
+      switch (m.t) {
+        case 'hello': case 'friends:reload': await this.pushFriends(client.user.uid); break;
+        case 'room:create': this.createRoom(client, m.cfg || {}); break;
+        case 'room:join': this.joinRoom(client, m.code); break;
+        case 'room:leave': this.leaveRoom(client, 'leave'); break;
+        case 'room:ready': this.setReady(client, m.ready); break;
+        case 'room:build': this.setBuild(client, m.charId, m.weaponId); break;
+        case 'room:cfg': this.setCfg(client, m.cfg); break;
+        case 'room:start': this.startRoom(client); break;
+        case 'invite': this.invite(client, m.to); break;
+        case 'chat': this.relayChat(client, m.text); break;
+        case 'input': this.relayToHost(client, raw, m); break;
+        case 'snap': case 'runstart': case 'runend': case 'fx': this.relayToGuests(client, raw, m); break;
+        case 'ping': this.send(client, { t: 'pong', ts: m.ts }); break;
+        default: break;
+      }
+    } catch (e) { /* a malformed message must never crash the gateway */ }
+  }
+
+  stats() { return { users: this.byUid.size, conns: this.byCid.size, rooms: this.rooms.size }; }
+}
+
+// ---- helpers ----------------------------------------------------------------
+function clampDiff(d) { d = Math.floor(Number(d) || 1); return Math.max(1, Math.min(5, d)); }
+function cleanBiome(b) { return typeof b === 'string' && b ? b.slice(0, 40) : null; }   // bound the only free-form cfg field (validated like charId/weaponId/chat)
+function member(client, extra = {}) {
+  return { cid: client.cid, uid: String(client.user.uid), username: client.user.username, ready: false, charId: null, weaponId: null, ...extra };
+}

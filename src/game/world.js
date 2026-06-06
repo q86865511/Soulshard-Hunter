@@ -39,7 +39,9 @@ export class World {
     this.beams = [];        // transient lightning/laser visuals
     this.hazards = [];      // trap-terrain zones (lava/spikes/poison/thorns)
     this.particles = new Particles();
-    this.player = null;
+    this.player = null;          // the LOCAL keyboard-controlled player (single-player + co-op host's own avatar)
+    this.players = [];           // co-op: [localPlayer, ...remoteAvatars]; single-player: [player]
+    this.inputFor = null;        // co-op host sets this: (player) => netInputFrame | undefined (undefined = read keyboard)
     this.time = 0;
     this._grid = new Map();         // uniform spatial grid of alive enemies (broadphase; rebuilt per update)
     this._gridCell = TS * 4;        // 64px cells
@@ -47,6 +49,21 @@ export class World {
     // scene hooks
     this.onLevelUp = null; this.onEnemyKilled = null; this.onCollectGold = null; this.onEquipPickup = null;
   }
+
+  // ---- player set (single-player + co-op share these helpers) --------------
+  // The effective player list. Single-player code that only ever set `this.player`
+  // still works: we fall back to [player] so nearest/each/spawn all behave identically.
+  _playerSet() { return this.players.length ? this.players : (this.player ? [this.player] : []); }
+  eachPlayer(cb) { for (const p of this._playerSet()) if (p) cb(p); }
+  alivePlayers() { return this._playerSet().filter((p) => p && !p.dead); }
+  anyPlayerAlive() { return this._playerSet().some((p) => p && !p.dead); }
+  // closest LIVING player to (x,y); falls back to the local player so AI always has a ref.
+  nearestPlayer(x, y) {
+    let best = null, bd = Infinity;
+    for (const p of this._playerSet()) { if (!p || p.dead) continue; const d = dist2(x, y, p.x, p.y); if (d < bd) { bd = d; best = p; } }
+    return best || this.player || (this._playerSet()[0] || null);
+  }
+  randomPlayer() { const a = this.alivePlayers(); return a.length ? a[(Math.random() * a.length) | 0] : (this.player || null); }
 
   // 原#16: accumulate damage dealt by a named source (weapon/ability/etc.) for the
   // end-of-run damage ranking. Called from enemy.hurt + status DoT.
@@ -130,7 +147,7 @@ export class World {
   }
   // spawn just outside the camera view around the player (continuous spawning)
   spawnRing(defOrId, opts = {}) {
-    const p = this.player; if (!p) return null;
+    const p = this.randomPlayer(); if (!p) return null;   // co-op: spawn around a random living player so the swarm reaches everyone
     const viewR = Math.max(view.W, view.H) / 2 / camera.zoom + 24;
     for (let i = 0; i < 14; i++) {
       const a = Math.random() * TAU, r = viewR + Math.random() * 50;
@@ -147,15 +164,16 @@ export class World {
 
   dropLoot(e) {
     const floor = this.run.floor || 1;
-    const gMul = this.player?.stats?.goldMult ?? 1;
+    const lp = this.nearestPlayer(e.x, e.y) || this.player;   // co-op: scale loot off whoever's nearest the kill
+    const gMul = lp?.stats?.goldMult ?? 1;
     let gold = Math.round((e.gold || 0) * (1 + floor * 0.08) * gMul * BALANCE.GOLD_DROP_MULT);
     // scatter into a few coins
     let coins = clamp(Math.round(gold / 3), 1, 5);
     for (let i = 0; i < coins; i++) this.addPickup('gold', e.x, e.y, Math.ceil(gold / coins));
-    if (e.xp > 0) this.addPickup('xp', e.x, e.y, Math.round(e.xp * (this.player?.stats?.xpMult ?? 1)));
-    const luck = this.player?.stats?.luck ?? 0;
+    if (e.xp > 0) this.addPickup('xp', e.x, e.y, Math.round(e.xp * (lp?.stats?.xpMult ?? 1)));
+    const luck = lp?.stats?.luck ?? 0;
     const dropM = BALANCE.DROP_CHANCE_MULT;
-    const sMul = this.player?.stats?.shardMult ?? 1;   // wire the (previously inert) shard-income stat into the payload
+    const sMul = lp?.stats?.shardMult ?? 1;   // wire the (previously inert) shard-income stat into the payload
     if (e.shard && Math.random() < e.shard * (1 + luck) * BALANCE.SHARD_DROP_MULT) this.addPickup('shard', e.x, e.y, Math.max(1, Math.floor((e.boss ? 5 : 1) * sMul + Math.random())));   // stochastic round so fractional shardMult carries instead of rounding away
     else if (!e.boss && Math.random() < BALANCE.MOB_SHARD_BASE * (1 + luck * 0.5)) this.addPickup('shard', e.x, e.y, Math.max(1, Math.floor(sMul + Math.random())));   // 原#4: small mobs also drop shards
     if (Math.random() < (e.boss ? 1 : (0.03 + luck * 0.03) * dropM)) this.addPickup('heart', e.x, e.y, e.boss ? 30 : 15);
@@ -174,24 +192,25 @@ export class World {
     }
   }
 
-  collect(type, payload, x, y) {
+  collect(type, payload, x, y, collector = null) {
     const run = this.run;
+    const who = collector || this.player;   // co-op: the player who grabbed it (hearts heal them)
     switch (type) {
       case 'gold': run.gold += payload; run.goldEarned += payload; this.particles.text(x, y - 8, '+' + payload, { color: P.goldL, size: 11, weight: '800' }); Sfx.play('coin'); if (this.onCollectGold) this.onCollectGold(payload); break;
       case 'shard': run.shards += payload; this.particles.text(x, y - 8, '魂晶+' + payload, { color: P.shardL, size: 12 }); Sfx.play('shard'); break;
-      case 'heart': this.player.heal(payload); this.particles.text(x, y - 10, '+' + payload, { color: P.redL, size: 12 }); Sfx.play('heart'); break;
+      case 'heart': if (who) who.heal(payload); this.particles.text(x, y - 10, '+' + payload, { color: P.redL, size: 12 }); Sfx.play('heart'); break;
       case 'xp': this.gainXp(payload); break;
       case 'item': {   // B2: ground items are used the instant they're picked up (no storage)
         const def = payload;
         this.particles.text(x, y - 12, def.name, { color: P.shardL, size: 12, weight: '800' });
         if (def.desc) this.particles.text(x, y - 24, def.desc, { color: P.gray4, size: 10 });
-        try { def.use && def.use(this, this.player, run); } catch (e) { /* */ }
+        try { def.use && def.use(this, who || this.player, run); } catch (e) { /* */ }
         Sfx.play('pickup');
         break;
       }
-      case 'equip':    // B1: open a paused choose-to-equip menu (falls back to auto-equip)
+      case 'equip':    // B1: open a paused choose-to-equip menu (falls back to auto-equip; co-op auto-equips the grabber)
         if (this.onEquipPickup) this.onEquipPickup(payload);
-        else equipItem(this.player, run, payload);
+        else equipItem(who || this.player, run, payload, !who || who === this.player);   // a remote grabber gets the gear but doesn't clobber the host's run record
         this.particles.ring(x, y, P.goldL, 14, 80);
         Sfx.play('equip');
         break;
@@ -250,7 +269,11 @@ export class World {
     this.playerTempo = clamp(0.72 + rt / 240 * 0.55, 0.72, 1.28);
     this.enemyTempo = clamp(0.60 + rt / 210 * 0.68, 0.60, 1.30);
     this.rebuildGrid();   // broadphase for this frame (separation / targeting / combat / AoE)
-    if (this.player && !this.player.dead) this.player.update(dt, this);
+    // update every player. inputFor(p) is undefined for keyboard-driven locals (player
+    // reads input itself) and a net InputFrame for co-op remotes. Single-player → [player].
+    for (const p of this._playerSet()) {
+      if (p && !p.dead) p.update(dt, this, this.inputFor ? this.inputFor(p) : undefined);
+    }
 
     for (const e of this.enemies) e.update(dt, this);
     for (const p of this.projectiles) p.update(dt, this);
@@ -288,7 +311,6 @@ export class World {
   }
 
   resolveCombat() {
-    const player = this.player;
     for (const p of this.projectiles) {
       if (p.dead) continue;
       if (p.faction === 'player') {
@@ -299,19 +321,24 @@ export class World {
             e.hurt(p.damage, Math.cos(ang) * p.knockback, Math.sin(ang) * p.knockback, this, p.crit, p.src);
             p.hitSet.add(e);
             this.particles.hit(p.x, p.y, ang + Math.PI, p.color);
-            const ls = Math.min(BALANCE.LIFESTEAL_CAP, (player?.stats.lifesteal ?? 0) * BALANCE.LIFESTEAL_MULT);
-            if (player && ls > 0) player.heal(p.damage * ls);
+            const owner = this.nearestPlayer(p.x, p.y);   // co-op: lifesteal/on-hit hooks credit whoever is closest to the shot
+            const ls = Math.min(BALANCE.LIFESTEAL_CAP, (owner?.stats.lifesteal ?? 0) * BALANCE.LIFESTEAL_MULT);
+            if (owner && ls > 0) owner.heal(p.damage * ls);
             if (p.statusOnHit && Math.random() < (p.statusOnHit.chance ?? 1)) applyStatus(e, p.statusOnHit.type, this, p.statusOnHit);   // D6
             if (p.onHit) p.onHit(e, this);
-            if (player) for (const h of player.hooks.hit) h(e, p.damage, this);
+            if (owner) for (const h of owner.hooks.hit) h(e, p.damage, this);
             if (p.pierce > 0) p.pierce--; else { p.dead = true; }   // dead → cb early-returns for the rest
           }
         });
-      } else if (player && !player.dead) {
-        if (circleHit(p.x, p.y, p.radius, player.x, player.y, player.radius)) {
-          const landed = player.takeDamage(p.damage, Math.atan2(p.vy, p.vx), this);
-          if (landed && p.statusOnHit && Math.random() < (p.statusOnHit.chance ?? 1)) applyStatus(player, p.statusOnHit.type, this, p.statusOnHit);   // D6 (enemy ranged status — only on a real hit)
-          if (p.pierce > 0) p.pierce--; else p.dead = true;
+      } else {   // enemy projectile — can strike ANY living player
+        for (const player of this._playerSet()) {
+          if (!player || player.dead) continue;
+          if (circleHit(p.x, p.y, p.radius, player.x, player.y, player.radius)) {
+            const landed = player.takeDamage(p.damage, Math.atan2(p.vy, p.vx), this);
+            if (landed && p.statusOnHit && Math.random() < (p.statusOnHit.chance ?? 1)) applyStatus(player, p.statusOnHit.type, this, p.statusOnHit);   // D6 (enemy ranged status — only on a real hit)
+            if (p.pierce > 0) p.pierce--; else p.dead = true;
+            break;
+          }
         }
       }
     }
@@ -344,8 +371,7 @@ export class World {
     const b = e.def.deathBlast || {};
     const r = b.r || 42, dmg = b.dmg || Math.round((e.damage || 10) * 1.6), color = b.color || P.ember;
     this.spawnExplosion(e.x, e.y, r, color, dmg * 0.7, { knockback: 90 });   // visual + hurt other enemies
-    const p = this.player;
-    if (p && !p.dead && dist(p.x, p.y, e.x, e.y) < r + p.radius) p.takeDamage(dmg, Math.atan2(p.y - e.y, p.x - e.x), this);
+    this.eachPlayer((p) => { if (!p.dead && dist(p.x, p.y, e.x, e.y) < r + p.radius) p.takeDamage(dmg, Math.atan2(p.y - e.y, p.x - e.x), this); });
   }
 
   spawnExplosion(x, y, radius, color = P.ember, damage = 0, opts = {}) {
@@ -409,9 +435,8 @@ export class World {
     }
   }
   hazardStrike(h, def) {
-    const p = this.player;
     const dmg = def.dmg * BALANCE.TRAP_DMG_MULT * Math.min(2.2, 1 + (this.threat || 0) * 0.08);   // scales with threat, capped
-    if (p && !p.dead && dist(p.x, p.y, h.x, h.y) < h.r + p.radius) p.takeDamage(dmg, Math.atan2(p.y - h.y, p.x - h.x), this);
+    this.eachPlayer((p) => { if (!p.dead && dist(p.x, p.y, h.x, h.y) < h.r + p.radius) p.takeDamage(dmg, Math.atan2(p.y - h.y, p.x - h.x), this); });
     for (const e of this.enemies) { if (e.dead || e.spawnT > 0) continue; if (dist(e.x, e.y, h.x, h.y) < h.r + e.radius) e.hurt(dmg * 0.8, 0, 0, this, false); }
     this.particles.ring(h.x, h.y, def.color, 7, h.r * 3.5);
   }
@@ -472,7 +497,7 @@ export class World {
     const drawables = [];
     for (const pk of this.pickups) drawables.push(pk);
     for (const e of this.enemies) drawables.push(e);
-    if (this.player && !this.player.dead) drawables.push(this.player);
+    for (const p of this._playerSet()) if (p && !p.dead) drawables.push(p);   // co-op: all living avatars depth-sorted
     drawables.sort((a, b) => a.y - b.y);
     for (const d of drawables) d.draw(this);
     // projectiles above actors

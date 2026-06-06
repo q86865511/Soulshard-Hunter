@@ -3,6 +3,8 @@
 // <input> fields (password masking, autofill) and a scrollable table are far
 // nicer here than hand-drawn canvas widgets. Everything is offline-tolerant.
 import { Net } from './api.js';
+import { RT } from './rt.js';
+import { openSocial, initSocial } from './social.js';
 import { syncFromCloud } from '../game/state.js';
 import { getScene } from '../game/scene.js';
 import { refs } from '../game/scenes/refs.js';
@@ -78,7 +80,7 @@ let bar = null;
 export function mountNetBar() {
   ensureStyles();
   if (!bar) { bar = $('div', { id: 'net-bar' }); document.body.appendChild(bar); }
-  Net.onSessionExpired = () => { renderBar(); toast('雲端登入已過期，請重新登入'); };   // a background 401 flips the bar + warns
+  Net.onSessionExpired = () => { RT.close(); renderBar(); toast('雲端登入已過期，請重新登入'); };   // a background 401 also tears down the realtime socket (match the explicit-logout path)
   renderBar();
 }
 function renderBar() {
@@ -87,9 +89,11 @@ function renderBar() {
   if (Net.isLoggedIn()) {
     const u = Net.currentUser() || {};
     bar.appendChild($('button', { class: 'who', text: '☁ ' + (u.username || '已登入'), title: '雲端存檔已啟用', onclick: openAuth }));
-    bar.appendChild($('button', { text: '登出', onclick: () => { Net.logout(); renderBar(); toast('已登出（進度仍保留在本機）'); } }));
+    bar.appendChild($('button', { text: '👥 好友 / 連線', onclick: () => openSocial() }));
+    bar.appendChild($('button', { text: '登出', onclick: () => { RT.close(); Net.logout(); renderBar(); toast('已登出（進度仍保留在本機）'); } }));
   } else {
     bar.appendChild($('button', { text: '☁ 登入 / 註冊', onclick: openAuth }));
+    bar.appendChild($('button', { text: '👥 好友 / 連線', onclick: () => openSocial() }));
   }
   bar.appendChild($('button', { text: '🏆 排行榜', onclick: openLeaderboard }));
 }
@@ -131,6 +135,7 @@ export function openAuth() {
       msg.className = 'net-msg ok'; msg.textContent = '成功！同步雲端存檔中…';
       const s = await syncFromCloud();
       renderBar();
+      RT.ensure();   // open the realtime connection so friends see you online
       toast(s.pulled ? '已載入雲端存檔' : '帳號已建立，進度已上傳雲端');
       closeModal();
     } catch (e) {
@@ -218,5 +223,6 @@ export function openLeaderboard() {
 // Boot hook: mount the bar and, if a token is already stored, refresh the cloud save.
 export function initNet() {
   mountNetBar();
+  initSocial();   // friends/lobby UI + invite popups + realtime connect when logged in
   if (Net.isLoggedIn()) { syncFromCloud().then(() => renderBar()).catch(() => {}); }
 }

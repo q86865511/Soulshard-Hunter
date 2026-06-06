@@ -3,6 +3,15 @@ import { drawSprite, drawShadow, addShake, glowWorld } from '../engine/renderer.
 import { getSprite, frameAt } from '../engine/sprites.js';
 import { moveAxis, pressed } from '../engine/input.js';
 import { normalize, clamp } from '../engine/math.js';
+
+// Co-op: sanitise a networked move vector (clamp magnitude to 1 so a malicious/laggy
+// client can't speed-hack by sending an oversized vector).
+function clampAxis(mv) {
+  if (!mv) return { x: 0, y: 0 };
+  let x = +mv.x || 0, y = +mv.y || 0; const m = Math.hypot(x, y);
+  if (m > 1) { x /= m; y /= m; }
+  return { x, y };
+}
 import { P } from '../engine/palette.js';
 import { Sfx } from '../engine/audio.js';
 import { Weapons } from './content/registry.js';
@@ -140,7 +149,9 @@ export class Player {
     if (world.onPlayerDeath) world.onPlayerDeath();
   }
 
-  update(dt, world) {
+  // input (optional): co-op feeds remote avatars { move:{x,y}, dash } from the network.
+  // When omitted, the player reads the local keyboard (single-player + the host's own avatar).
+  update(dt, world, input) {
     this.t += dt;
     if (this.invuln > 0) this.invuln -= dt;
     if (this.flash > 0) this.flash -= dt;
@@ -149,7 +160,9 @@ export class Player {
     const { slowMult, controlled } = tickStatus(this, dt, world);   // D6
     if (this.dead) return;                                          // killed by a DoT
 
-    let ax = moveAxis();
+    const netDriven = input != null;
+    let ax = netDriven ? clampAxis(input.move) : moveAxis();
+    const dashHeld = netDriven ? !!input.dash : (pressed('dash'));
     if (controlled) ax = { x: 0, y: 0 };   // stunned / knocked up: rooted (weapons still auto-fire)
     this.moving = ax.x !== 0 || ax.y !== 0;
     if (this.moving) { this.faceX = ax.x || this.faceX; this.faceY = ax.y; if (ax.x === 0) this.faceY = ax.y; }
@@ -165,7 +178,7 @@ export class Player {
       if (this.moving) this.walkT += dt;
     }
 
-    if (!controlled && pressed('dash') && this.dashCd <= 0) {
+    if (!controlled && dashHeld && this.dashCd <= 0) {
       let dx = ax.x, dy = ax.y;
       if (dx === 0 && dy === 0) { dx = this.faceX; dy = this.faceY; }
       const n = normalize(dx, dy);
