@@ -4,6 +4,7 @@
 以及 **即時多人合作 + 好友/大廳/邀請**(Phase 2)——詳見 [`MULTIPLAYER_PLAN.md`](MULTIPLAYER_PLAN.md)。
 
 > English version: [`DEPLOY_ORACLE.md`](DEPLOY_ORACLE.md)
+> 第一次架站、想要「含解釋、從零到上線(涵蓋 CI/CD 與連線實測)」的完整導覽?看 [`DEPLOY_GUIDE.zh-TW.md`](DEPLOY_GUIDE.zh-TW.md)。
 
 架構:瀏覽器載入靜態遊戲;一台 **Caddy** 反向代理用 HTTPS 提供這些靜態檔案,把 `/api/*`
 轉送到 **Node(Fastify)** 伺服器(後者連 **PostgreSQL**),並把 `/rt` 的 **WebSocket**
