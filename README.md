@@ -1,7 +1,7 @@
 # 魂晶獵手 · Soulshard Hunter
 
 一款以原生 HTML5 Canvas + ES Modules 製作的 roguelike 像素生存遊戲（Vampire-Survivors 風格）。
-**所有美術都是程式即時生成的像素畫（無外部素材）；音效為 WebAudio 合成，配樂為 12 首實際錄製曲目**（`assets/music/`，依遊戲狀態自動切換、合成器為後備）。可純單機離線遊玩，**也可選擇性連上雲端後端**（帳號 · 跨裝置雲端存檔 · 共享排行榜）。
+**所有美術都是程式即時生成的像素畫（無外部素材）；音效為 WebAudio 合成，配樂為 12 首實際錄製曲目**（`assets/music/`，依遊戲狀態自動切換、合成器為後備）。可純單機離線遊玩，**也可選擇性連上雲端後端**（帳號 · 跨裝置雲端存檔 · 共享排行榜 · **1~3 人即時連線合作**）。
 
 **只需走位、武器自動攻擊**；探索多種生態大地圖、敵人不斷湧出，升級選武器與被動、滿級進化合成；帶回的金幣在城鎮解鎖角色、天賦與設施。
 
@@ -76,23 +76,45 @@ node tools/serve.mjs
 - **120 Hz 模擬**（低輸入延遲）、設定選單、排行榜、**小地圖（移至血量/衝刺 UI 下方、放大，與大地圖圖示一致）**、玩家**狀態列**、HUD 提示與 build 檢視頁
 - 所有難度 / 經濟 / 節奏數值集中於 `src/game/balance.js`，便於微調（**第六輪整體調硬**：補上半數武器漏掉的全域減傷、暴擊上限、meta 數值下修、怪物/首領更痛、收緊回復與經濟；難度集中於中後期與 meta 天花板，開局維持可玩）
 
-## 線上多人（雲端 · Phase 1）
+## 線上多人（雲端 + 即時合作）
 
-可**選擇性**啟用，不影響單機離線遊玩（未登入/連不上即自動退回本機 `localStorage`）。
+可**選擇性**啟用，**不影響單機離線遊玩**（未登入 / 連不上即自動退回本機 `localStorage`，不會卡開機或遊玩）。分兩部分：
 
-- **帳號 · 跨裝置雲端存檔 · 共享排行榜**：右下角帳號列可登入/註冊；存檔自動同步上雲（防抖），完局成績上傳排行榜。
-- **伺服器權威計分**：排行榜分數由伺服器以 `kills/stage/time/difficulty/reaper` **重算**（忽略客戶端宣稱值），防作弊。
-- 後端在 `server/`（Node + Fastify + PostgreSQL；JWT + bcryptjs + zod）。本機可一鍵起：
+- **Phase 1 — 雲端地基**：帳號 · 跨裝置雲端存檔 · 共享排行榜。右下角帳號列登入/註冊；存檔自動防抖同步上雲，完局成績上傳排行榜。**伺服器權威計分**：排行榜分數由伺服器以 `kills/stage/time/difficulty/reaper` **重算**（忽略客戶端宣稱值）防作弊。
+- **Phase 2 — 即時合作同屏（共視窗）**：1~3 人即時合作 + **好友 / 大廳 / 邀請**。採 **主機權威中繼（host-authoritative relay）**：開房玩家的瀏覽器跑權威遊戲模擬並以 ~18Hz 廣播世界快照，Node 伺服器只當**房間 / 中繼**（不跑模擬）。右下角「👥 好友 / 連線」可加好友、看在線、開房（4~5 碼房號）、邀請、開始；各客戶端渲染同一個世界、鏡頭各自跟隨自己。**單機路徑完全不變**（`world.players[]` 在單人時退化為 `[world.player]`）。
+
+### 伺服器部署（後端）
+
+後端在 `server/`（**Node + Fastify + PostgreSQL**；JWT + bcryptjs + zod + `ws`）。**同一支程式**同時提供 REST API（`/api/*`）與即時合作的 WebSocket 中繼（`/rt`）。
+
+本機一鍵起（Docker，含 Postgres，資料持久化於 `pgdata` volume）：
 
 ```bash
 cd server
 JWT_SECRET=$(node -e "console.log(require('crypto').randomBytes(48).toString('hex'))") docker compose up --build
-# 或無 Postgres 的純前端測試：  npm install && npm run dev:fakedb   （記憶體後端，重啟即清空）
-node test/smoke.mjs   # 後端端對端煙霧測試（18/18）
+# API + /rt → http://localhost:8787 ； Postgres → localhost:5432
+# 無 Postgres 的純前端測試： npm install && npm run dev:fakedb   （記憶體後端，重啟即清空、不持久）
+npm test   # 後端測試（帳號/存檔/排行榜 + 好友/房間/中繼，共 51 項）
 ```
 
-- 這是 [`docs/MULTIPLAYER_PLAN.md`](docs/MULTIPLAYER_PLAN.md) 的 **Phase 1（雲端地基）**；即時合作同屏為 Phase 2（尚未實作）。
-- **部署到 Oracle Cloud** 的完整步驟見 [`docs/DEPLOY_ORACLE.md`](docs/DEPLOY_ORACLE.md)。
+**正式部署到 Oracle Cloud（含 HTTPS、CI/CD 自動部署、連線實測）：**
+- 🚀 第一次架站、含解釋的完整導覽：[`docs/DEPLOY_GUIDE.zh-TW.md`](docs/DEPLOY_GUIDE.zh-TW.md)
+- 精簡步驟參考：[`docs/DEPLOY_ORACLE.md`](docs/DEPLOY_ORACLE.md) ／ [中文](docs/DEPLOY_ORACLE.zh-TW.md)
+- push 到 `main` 會經 GitHub Actions 自動部署到 VM（[`.github/workflows/deploy.yml`](.github/workflows/deploy.yml)）。
+
+> **存檔持久性**：本機 `localStorage` 一直都在（綁瀏覽器、跨重啟）；**雲端只有在「真的接了 PostgreSQL 的部署」才持久**（Oracle 上即是——資料存在 `pgdata` volume，重啟容器/重開機都不掉，且跨裝置）。`dev:fakedb` 的記憶體後端**重啟即清空**，僅供測試。
+
+### 前端如何連線
+
+前端的雲端呼叫是**離線優先**的，連線位址由 `src/net/api.js` 自動判斷，**無需設定**：
+
+- **開發**：頁面在 localhost（非 8787）→ REST 走 `http://localhost:8787`、WebSocket 走 `ws://localhost:8787/rt`。
+- **正式**：與 API 同源 → REST 走相對路徑 `/api/...`、WebSocket 走 `wss://<同網域>/rt`（由 Caddy 反向代理到後端）。
+- 可用 `localStorage['soulshard.api']` 手動覆寫 API 位址（測試用）。
+
+登入後取得 **JWT** 存於 `localStorage`：REST 以 `Authorization: Bearer <token>` 帶；WebSocket 因瀏覽器不能設標頭，改以 `/rt?token=<JWT>` 帶。後端用 `CORS_ORIGIN` 白名單限定可呼叫的網頁來源（正式環境設成你的網址）。
+
+前端網路模組在 `src/net/`（`api.js` REST · `rt.js` 即時 WS 客戶端 · `ui.js` 帳號列 · `social.js` 好友/大廳），合作協定（快照編解碼/主機端/橋接）在 `src/game/net/`，訪客合作場景在 `src/game/scenes/coop.js`。設計與分階段路線見 [`docs/MULTIPLAYER_PLAN.md`](docs/MULTIPLAYER_PLAN.md)，逐輪細節見 [`docs/changelog/`](docs/changelog/)（`ROUND6.md` 雲端 Phase 1、`ROUND7.md` 即時合作 Phase 2）。
 
 ## 架構
 
@@ -107,17 +129,22 @@ src/
   art/                          程序化美術（sprite 定義）
     core.js  icons.js  content_icons.js  hub.js
     gen/                        ← workflow 生成的美術（自動整合）
+  net/                          ← 雲端 + 即時連線客戶端（離線優先）
+    api.js(REST + JWT) rt.js(即時 WS) ui.js(帳號列) social.js(好友/大廳)
   game/
-    state.js                    存檔/局外 META、局內 run 狀態、數值
-    scene.js  scenes/           場景：title / hub / run（+ refs 解耦）
-    world.js  floor.js          地城世界（磚塊碰撞/實體/戰鬥）與樓層生成
+    state.js                    存檔/局外 META、局內 run 狀態、數值；雲端同步接點
+    scene.js  scenes/           場景：title / hub / run / coop（訪客合作）（+ refs 解耦）
+    world.js  floor.js          世界（磚塊碰撞/實體/戰鬥；players[] 多人化）與樓層生成
     player.js  enemy.js  projectile.js  pickup.js
+    net/                        ← 合作協定：protocol.js(快照編解碼) coophost.js coopbridge.js
     hud.js
     content/
       registry.js               ← 所有內容的註冊表（整合接縫）
       enemies/abilities/items/equipment/talents/facilities.js  核心內容
       gen/                      ← workflow 生成的內容（自動整合）
 tools/integrate.mjs             把 workflow 輸出（JSON）寫成可載入的檔案
+server/                         ← 後端（Node+Fastify+Postgres+ws）：REST API + /rt 即時中繼
+  src/  server.js  db.js  realtime.js(房間/在線/中繼)  social.js(好友)  wsgw.js(WS 閘道)
 ```
 
 ### 如何擴充內容
