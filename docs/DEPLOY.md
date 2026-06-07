@@ -203,6 +203,12 @@ yourname.duckdns.org {
 sudo systemctl reload caddy
 sudo systemctl status caddy --no-pager     # 確認 active (running)
 ```
+> ⚠️ **裝完後若開站回 403(憑證正常卻說無權限):** apt 版 Caddy 是以 `caddy` 使用者執行,而 Ubuntu 家目錄 `/home/ubuntu` 預設權限 `750`,others 進不去 → Caddy 讀不到靜態檔。一次修好:
+> ```bash
+> sudo chmod o+x /home/ubuntu
+> sudo chmod -R o+rX /home/ubuntu/soulshard
+> sudo systemctl reload caddy
+> ```
 > 💡 **反向代理在做什麼?** Caddy 站在 443 接所有請求,看網址前綴決定轉給誰:`/api/*` 和 `/rt` 轉給後端 Node,其餘給靜態檔。同時它幫你把整站變 HTTPS(憑證自動申請、自動續期)。
 > 💡 **為什麼 `/rt` 要單獨寫一條?** 合作用的 WebSocket 不在 `/api` 底下,沒這條的話它會被當成靜態檔處理而連不上。Caddy 的 `reverse_proxy` 會自動處理 WebSocket 升級,不用額外設定。
 > 💡 **前端不用任何設定**:因為遊戲和 API 同一個網域,前端的 `src/net/api.js` 在正式站會自動用同源的 `/api/...` 和 `wss://<網域>/rt`。
@@ -312,6 +318,7 @@ docker compose exec db pg_dump -U soulshard soulshard > ~/backup_$(date +%F).sql
 |------|----------------|
 | 網址打不開 / 一直轉圈 | 防火牆沒開齊(第 4 章兩道都要);或 DNS 還沒生效(等幾分鐘) |
 | 開得了但顯示憑證錯誤 | 80 埠沒開(Caddy 要靠它申請憑證);`journalctl -u caddy -f` 看錯誤 |
+| 開得了但回 **403 Forbidden**(憑證正常) | Caddy 以 `caddy` 使用者執行,讀不到家目錄裡的靜態檔(`/home/ubuntu` 預設 `750`,others 無權限)。修:`sudo chmod o+x /home/ubuntu && sudo chmod -R o+rX /home/ubuntu/soulshard && sudo systemctl reload caddy`。決定性測試:`sudo -u caddy cat /home/ubuntu/soulshard/index.html`(報 Permission denied 就是這個) |
 | 能登入但合作連不上 | Caddyfile 少了 `/rt` 那條;或前端不是走 https(必須 https 才能 wss) |
 | 後端起不來、log 說 JWT_SECRET | `.env` 沒設或太短(要 ≥32 隨機字元,見 5b) |
 | 自動部署失敗 | Actions log 看是哪步;多半是 3 個 Secret 填錯,或部署用戶沒 docker 權限 |
