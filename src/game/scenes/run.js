@@ -18,7 +18,7 @@ import { isUnlocked, cheatUnlockAll } from '../content/unlocks.js';
 import { STORY_QUESTS, trackedQuestState, fmtQuestVal } from '../content/quests.js';
 import { heroLore } from '../content/lore.js';
 import { EVENTS } from '../content/events.js';
-import { HIDDEN_ROOMS, hiddenRoomById } from '../content/hidden.js';
+import { HIDDEN_ROOMS, hiddenRoomById, claimHidden, hiddenClaimed } from '../content/hidden.js';
 import { Cheats } from '../cheats.js';
 import {
   camera, clear, vignette, uiText, uiRect, uiScale, view, addShake, drawSpriteUI, textWidth,
@@ -156,8 +156,17 @@ export const runScene = {
     if (map.shrine) this.setupShrine(map.shrine);
     this.npcs = (map.npcs || []).map((n) => ({ ...n })); this.nearNpc = null;   // E1 interactive NPCs
     // hidden rooms (隱藏房間): each map marker gets a random room type; entering pauses for a reward/choice
-    this.hiddenRooms = (map.hiddenRooms || []).map((h) => ({ x: h.x, y: h.y, id: HIDDEN_ROOMS[rng.int(0, HIDDEN_ROOMS.length - 1)].id, used: false }));
+    this.hiddenRooms = (map.hiddenRooms || []).map((h) => ({ x: h.x, y: h.y, id: HIDDEN_ROOMS[rng.int(0, HIDDEN_ROOMS.length - 1)].id, used: false, found: false }));
     this.nearHidden = null; this.hiddenPanel = null;
+    // #8: a locked vault chest (opened with a key dropped by a room guardian)
+    if (map.vault) this.world.addPickup('chest', map.vault.x, map.vault.y, 3, { locked: true });
+    // #8: room guardians — mini-elites (weaker than a mini-boss) that drop a key + chest when slain
+    for (const fr of (map.featureRooms || [])) {
+      const def = Enemies.get('brute') || Enemies.get('slime');
+      if (!def) continue;
+      const g = this.world.spawnEnemy(def, fr.x, fr.y, { hpScale: 6, dmgScale: 1.3, quiet: true });
+      if (g) { g.guardian = true; g.elite = true; g.scale = (g.scale || 1) * 1.4; }
+    }
     this.interactCap = 7; this.nextInteractAt = 16; this.chestRefreshT = 30;     // 原#2: timed refresh
 
     // time-based threat + a rotating roster of only 1-3 active enemy types
@@ -939,7 +948,12 @@ export const runScene = {
     this.nearNpc = null;
     for (const n of this.npcs) { if (!n.used && dist(this.player.x, this.player.y, n.x, n.y) < 22) { this.nearNpc = n; break; } }
     this.nearHidden = null;
-    for (const h of (this.hiddenRooms || [])) { if (!h.used && dist(this.player.x, this.player.y, h.x, h.y) < 24) { this.nearHidden = h; break; } }
+    for (const h of (this.hiddenRooms || [])) {
+      if (h.used) continue;
+      const dd = dist(this.player.x, this.player.y, h.x, h.y);
+      if (!h.found && dd < 46) { h.found = true; this.banner = '✦ 發現隱藏房間！'; this.bannerT = 2.0; try { this.world.particles.ring(h.x, h.y, P.shardL, 20, 110); Sfx.play('levelup'); } catch (e) { /* */ } }   // 隱藏: only revealed on approach
+      if (h.found && dd < 24) { this.nearHidden = h; break; }
+    }
     if (this.nearShrine && pressed('interact')) { this.useShrine(); }
     else if (this.nearNpc && pressed('interact')) { this.useNpc(this.nearNpc); }
     else if (this.nearHidden && pressed('interact')) { this.openHidden(this.nearHidden); }
@@ -1195,63 +1209,47 @@ export const runScene = {
   // ---- hidden rooms (隱藏房間) ---------------------------------------------
   openHidden(h) {
     const room = hiddenRoomById(h.id);
-    if (this.coop) {   // co-op can't pause the shared world → auto-take the first option
-      h.used = true; META.stats.hiddenRoomsFound = (META.stats.hiddenRoomsFound || 0) + 1;
-      let res = ''; try { res = room.options[0].apply(this) || ''; } catch (e) { /* */ }
+    h.used = true;
+    META.stats.hiddenRoomsFound = (META.stats.hiddenRoomsFound || 0) + 1;
+    const already = hiddenClaimed(room.id);
+    if (this.coop) {   // co-op can't pause the shared world → resolve immediately
+      const res = already ? '此密室已探索過' : (claimHidden(room.id) || '');
       this.banner = '隱藏房間 · ' + (res || room.name); this.bannerT = 2.8; Sfx.play('levelup');
       return;
     }
-    this.hiddenPanel = { room, h, hover: -1, t: 0 }; Sfx.play('levelup');
-  },
-  hiddenRects(n) {
-    const S = uiScale(); const w = Math.min(440 * S, view.W - 60 * S), bh = 46 * S, gap = 10 * S;
-    const x = view.W / 2 - w / 2; const totalH = n * bh + (n - 1) * gap; const y0 = view.H * 0.52 - totalH / 2 + 20 * S;
-    return Array.from({ length: n }, (_, i) => ({ x, y: y0 + i * (bh + gap), w, h: bh }));
+    this.hiddenPanel = { room, claimed: already, result: null, t: 0 }; Sfx.play('levelup');
   },
   updateHidden(dt) {
     const hp = this.hiddenPanel; hp.t += dt;
     if (settingsUI.open) { settingsUI.update(); return; }
-    const rects = this.hiddenRects(hp.room.options.length);
-    const mx = mouse.x * view.dpr, my = mouse.y * view.dpr;
-    hp.hover = -1; rects.forEach((r, i) => { if (inside(mx, my, r)) hp.hover = i; });
-    if (pressed('escape') || pressed('pause')) { this.hiddenPanel = null; return; }   // walk away — the room stays for later
-    let pick = -1;
-    if (mouse.justDown && hp.hover >= 0) pick = hp.hover;
-    if (pressed('slot1')) pick = 0; if (pressed('slot2') && hp.room.options[1]) pick = 1; if (pressed('slot3') && hp.room.options[2]) pick = 2;
-    if (pick >= 0 && pick < hp.room.options.length) {
-      hp.h.used = true; META.stats.hiddenRoomsFound = (META.stats.hiddenRoomsFound || 0) + 1;
-      let res = ''; try { res = hp.room.options[pick].apply(this) || ''; } catch (e) { /* */ }
-      this.banner = '隱藏房間 · ' + res; this.bannerT = 3.0; Sfx.play('levelup');
-      this.hiddenPanel = null;
-    }
+    if (pressed('escape') || pressed('pause')) { this.hiddenPanel = null; return; }
+    if (!(mouse.justDown || pressed('interact') || pressed('space') || pressed('slot1'))) return;
+    if (hp.result == null) {
+      hp.result = hp.claimed ? '此密室已被探索過 — 寶藏早已取走。' : (claimHidden(hp.room.id) || '此密室已被探索過。');
+      this.banner = '隱藏房間 · ' + hp.result; this.bannerT = 3.2; Sfx.play('levelup');
+    } else { this.hiddenPanel = null; }   // a second press closes
   },
   drawHiddenRooms() {
     if (!this.hiddenRooms) return; const S = uiScale();
     for (const h of this.hiddenRooms) {
-      if (h.used) continue;
+      if (h.used || !h.found) continue;   // invisible until discovered on approach
       const room = hiddenRoomById(h.id); const pulse = 0.5 + Math.sin(this.t * 3 + h.x * 0.1) * 0.5;
-      glowWorld(h.x, h.y - 4, 16 + pulse * 6, room.color, 0.18 + pulse * 0.12);
+      glowWorld(h.x, h.y - 4, 16 + pulse * 6, room.color, 0.2 + pulse * 0.12);
       strokeCircleWorld(h.x, h.y - 4, 11 + pulse * 2, room.color, 2);
       strokeCircleWorld(h.x, h.y - 4, 6, withAlpha(room.color, 0.7), 1.5);
       fillCircleWorld(h.x, h.y - 4, 2.5, room.color);
-      const ns = worldToScreen(h.x, h.y - 22); uiText('？', ns.x, ns.y, { size: 14 * S, align: 'center', color: room.color, weight: '900', shadowColor: withAlpha('#000', 0.8) });
+      const ns = worldToScreen(h.x, h.y - 22); uiText('✦', ns.x, ns.y, { size: 14 * S, align: 'center', color: room.color, weight: '900', shadowColor: withAlpha('#000', 0.8) });
       if (this.nearHidden === h) { const ps = worldToScreen(h.x, h.y + 10); uiText('按 E 進入隱藏房間', ps.x, ps.y, { size: 11 * S, align: 'center', color: withAlpha('#fff', 0.6 + Math.sin(this.t * 6) * 0.3), weight: '800' }); }
     }
   },
   drawHidden() {
     const S = uiScale(); const hp = this.hiddenPanel; const room = hp.room;
     uiRect(0, 0, view.W, view.H, withAlpha('#070912', 0.85));
-    uiText(room.name, view.W / 2, view.H * 0.3, { size: 30 * S, align: 'center', color: room.color, weight: '900', shadowColor: withAlpha('#000', 0.8) });
-    uiText(room.desc, view.W / 2, view.H * 0.3 + 30 * S, { size: 14 * S, align: 'center', color: P.gray3 });
-    const rects = this.hiddenRects(room.options.length); const mx = mouse.x * view.dpr, my = mouse.y * view.dpr;
-    rects.forEach((r, i) => {
-      const o = room.options[i]; const hov = hp.hover === i;
-      uiRect(r.x, r.y, r.w, r.h, withAlpha(hov ? '#27306a' : '#161b34', 0.97), { radius: 8 * S, stroke: hov ? room.color : withAlpha(room.color, 0.4), lw: hov ? 3 : 2 });
-      uiText((i + 1) + '.  ' + o.label, r.x + 14 * S, r.y + r.h / 2 + 4 * S, { size: 14 * S, color: '#fff', weight: '800' });
-      if (o.hint) uiText(o.hint, r.x + r.w - 12 * S, r.y + r.h / 2 + 4 * S, { size: 11 * S, align: 'right', color: withAlpha(room.color, 0.85), weight: '700' });
-    });
-    const lr = rects[rects.length - 1];
-    uiText('點擊或按 1 / 2 / 3 選擇　·　Esc 暫不取用', view.W / 2, lr.y + lr.h + 22 * S, { size: 11 * S, align: 'center', color: withAlpha('#fff', 0.5) });
+    uiText(room.name, view.W / 2, view.H * 0.34, { size: 30 * S, align: 'center', color: room.color, weight: '900', shadowColor: withAlpha('#000', 0.8) });
+    uiText(room.desc, view.W / 2, view.H * 0.34 + 30 * S, { size: 14 * S, align: 'center', color: P.gray3 });
+    if (hp.result != null) uiText(hp.result, view.W / 2, view.H * 0.5, { size: 15 * S, align: 'center', color: P.goldL, weight: '800' });
+    else if (hp.claimed) uiText('（此密室你已探索過）', view.W / 2, view.H * 0.5, { size: 13 * S, align: 'center', color: P.gray3 });
+    uiText(hp.result != null ? '點擊 / 按 E 關閉' : '點擊 / 按 E 探索此密室', view.W / 2, view.H * 0.62, { size: 12 * S, align: 'center', color: withAlpha('#fff', 0.6) });
     settingsUI.draw();
   },
 

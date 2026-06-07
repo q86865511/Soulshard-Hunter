@@ -4,7 +4,7 @@ import { getSprite, frameAt } from '../engine/sprites.js';
 import { dist, easeOutCubic } from '../engine/math.js';
 import { P } from '../engine/palette.js';
 
-const SPRITE_BY_TYPE = { gold: 'coin', shard: 'shard', heart: 'heart', xp: 'xp', chest: 'chest' };
+const SPRITE_BY_TYPE = { gold: 'coin', shard: 'shard', heart: 'heart', xp: 'xp', chest: 'chest', key: 'pickup_key' };
 
 export class Pickup {
   constructor(o) {
@@ -15,6 +15,7 @@ export class Pickup {
     this.price = o.price ?? 0;      // for shop pedestals
     this.hidden = o.hidden ?? false; // secret: invisible until the player is close
     this.revealed = !this.hidden;
+    this.locked = o.locked ?? false; // #8: a vault chest that needs a key (world.keys) to open
     this.sprite = o.sprite ?? (this.def && this.def.icon) ?? SPRITE_BY_TYPE[this.type] ?? 'coin';
     this.t = Math.random() * 6.28;
     this.age = 0;
@@ -51,6 +52,11 @@ export class Pickup {
         world.particles.text(this.x, this.y - 16, '發現隱藏寶箱！', { color: P.goldL, size: 13 });
       }
       if (this.revealed && !this.opened && d < player.radius + this.radius + 2) {
+        if (this.locked && (world.keys | 0) <= 0) {   // #8: locked vault — needs a key
+          if (this.t - (this._lockMsg || -9) > 1.2) { this._lockMsg = this.t; world.particles.text(this.x, this.y - 16, '🔒 需要鑰匙', { color: P.redL, size: 12 }); }
+          return;
+        }
+        if (this.locked) { world.keys = (world.keys | 0) - 1; world.particles.text(this.x, this.y - 16, '🔑 開鎖！', { color: P.goldL, size: 13 }); }
         this.opened = true; this.dead = true;
         world.particles.ring(this.x, this.y, P.goldL, 16, 90);
         world.openChest(this.x, this.y - 4, this.value || 1);

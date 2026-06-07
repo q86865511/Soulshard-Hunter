@@ -342,6 +342,21 @@ defineSprite('chest', 16, 14, (p) => {
   p.star4(12, 4, 2, P.goldL, P.white);
 }, { anchor: [8, 13] });
 
+// #8: a small golden key dropped by room guardians, spent on locked vault chests
+defineSprite('pickup_key', 12, 13, (p) => {
+  p.softShadow(6, 12, 4, 1, 0.3);
+  p.glow(6, 5, 3, P.goldL, 0.45, 4);
+  p.ring(6, 4, 3, P.gold);                 // bow (ring head)
+  p.ring(6, 4, 2, P.goldL);
+  p.px(6, 2, lighten(P.goldL, 0.3));
+  p.vline(7, 11, 6, P.gold);               // stem
+  p.px(6, 11, P.goldL);
+  p.px(7, 9, P.gold); p.px(7, 11, P.gold); p.px(8, 11, P.goldL);   // teeth
+  p.rimLight(P.rim, 0.4);
+  p.outline(P.ink);
+  p.star4(8, 3, 1.5, P.goldL, P.white);
+}, { anchor: [6, 12] });
+
 defineSprite('stairs', 20, 18, (p) => {
   for (let i = 0; i < 4; i++) {
     const y = 4 + i * 3;

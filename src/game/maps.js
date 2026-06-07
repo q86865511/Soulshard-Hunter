@@ -74,9 +74,10 @@ export function generateWorld(seedBiome) {
     const ox = rng.int(8, tw - 14), oy = rng.int(8, th - 14), len = rng.int(4, 9), horiz = rng.chance(0.5);
     for (let i = 0; i < len; i++) carve(ox + (horiz ? i * 2 : 0), oy + (horiz ? 0 : i * 2));
   }
-  // enclosure "rooms" with a doorway — extra terrain variety + cover (E1)
-  for (let r = 0; r < 5; r++) {
-    const rw = rng.int(5, 10), rh = rng.int(4, 8);
+  // enclosure "rooms" with doorways — #8: many more + varied sizes so the map reads as a
+  // warren of large/small chambers (still fully connected: each keeps doorway gaps + sealUnreachable below)
+  for (let r = 0, R = 10 + Math.round(6 * k); r < R; r++) {
+    const rw = rng.int(3, 12), rh = rng.int(3, 9);
     const ox = rng.int(3, tw - rw - 3), oy = rng.int(3, th - rh - 3);
     if (dist((ox + rw / 2) * TS, (oy + rh / 2) * TS, start.x, start.y) < 150) continue;
     const gap = rng.int(1, rw - 1), gy = rng.int(1, rh - 1);
@@ -123,9 +124,15 @@ export function generateWorld(seedBiome) {
   const npcs = [];
   for (const kind of ['well', 'soul', 'soul', 'shard', 'forge']) { const t = randFloor(tiles, tw, th); if (t && far(t.x, t.y, 90)) npcs.push({ kind, x: t.x, y: t.y, used: false }); }
 
-  // hidden rooms (隱藏房間): a couple of far, mysterious structures (run.js assigns each a type + handles entry)
+  // hidden room (隱藏房間, #6): at most ONE, ~55% of maps; run.js makes it a discoverable secret
+  // with a SAVE-PERMANENT, once-per-save reward (achievement/unlock/egg) — not a per-run buff.
   const hiddenRooms = [];
-  for (let i = 0; i < 2; i++) { const t = randFloor(tiles, tw, th); if (t && far(t.x, t.y, 120)) hiddenRooms.push({ x: t.x, y: t.y }); }
+  if (rng.chance(0.55)) { const t = randFloor(tiles, tw, th); if (t && far(t.x, t.y, 150)) hiddenRooms.push({ x: t.x, y: t.y }); }
+
+  // #8: room guardians (mini-elites weaker than a mini-boss; drop a key + chest) + a locked vault chest
+  const featureRooms = [];
+  for (let i = 0; i < 2; i++) { const t = randFloor(tiles, tw, th); if (t && far(t.x, t.y, 160)) featureRooms.push({ x: t.x, y: t.y }); }
+  let vault = null; { const t = randFloor(tiles, tw, th); if (t && far(t.x, t.y, 180)) vault = { x: t.x, y: t.y }; }
 
   // biome decorations — a rich mix of natural + man-made props: scattered singles,
   // tight feature clusters, and a few lined up against walls (built-up feel).
@@ -140,7 +147,7 @@ export function generateWorld(seedBiome) {
   return {
     tw, th, tiles, floorVar, decor, biome, boss: false,
     tileset: { floor: ['floor_' + biome.id, 'floor2_' + biome.id, 'floorx_' + biome.id], wall: 'wall_' + biome.id, wallTop: 'walltop_' + biome.id },
-    entrance: start, center: start, chests, secret, shrine, hazards, npcs, hiddenRooms,
+    entrance: start, center: start, chests, secret, shrine, hazards, npcs, hiddenRooms, featureRooms, vault,
   };
 }
 
