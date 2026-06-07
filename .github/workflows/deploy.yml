@@ -47,6 +47,10 @@ jobs:
             # pm2:
             # npm install --omit=dev && pm2 restart soulshard
 
-            # --- Health check (fails the deploy loudly if the API didn't come up) ---
-            sleep 4
-            curl -fsS http://localhost:8787/api/health && echo "  <- API healthy"
+            # --- Health check (retry: a --build rebuild + db-healthcheck wait can take >4s) ---
+            ok=0
+            for i in $(seq 1 15); do
+              sleep 2
+              if curl -fsS http://localhost:8787/api/health >/dev/null; then ok=1; echo "  <- API healthy (try $i)"; break; fi
+            done
+            [ "$ok" = 1 ] || { echo "API did not become healthy in ~30s"; docker compose logs --tail=40 api; exit 1; }
