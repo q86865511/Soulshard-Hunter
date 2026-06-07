@@ -30,7 +30,8 @@ jobs:
           host: ${{ secrets.OCI_HOST }}
           username: ${{ secrets.OCI_USER }}
           key: ${{ secrets.OCI_SSH_KEY }}
-          script_stop: true        # abort on the first failing command
+          # abort on the first failing command — handled by `set -e` in the script below
+          # (ssh-action@v1 dropped the old `script_stop` input; it warned and was ignored)
           script: |
             set -e
             cd ~/soulshard
