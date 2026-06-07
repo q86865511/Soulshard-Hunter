@@ -81,6 +81,16 @@ floor → neutral dark **grey** `#24262f`, wall → brighter saturated **blue** 
 base line + stronger bottom shade** so walls read as raised blocks, and the feature floor (FLOORS.crypt
 v2) is calmed to a soft grey so it never reads like a wall. Verified in a mock map + a live crypt run.
 
+## Raised-block walls across all biomes
+Extended the crypt "3D block" wall treatment to the other 9 biomes via a shared `wallBase(p,b,shade)`
+helper (`art/biomes.js`): every wall painter now adds a **2px lit top bevel + a dark grounding base
+line + a stronger bottom shade**, so walls read as raised blocks over the flat floor in cavern /
+frost / inferno / void / verdant / desert / swamp / abyss / celestial — each keeping its own
+flavour (crystal flecks, frost cracks, embers, moss caps, sandstone strata, slime film,
+bioluminescence, marble veins). **Hazards / traps are deliberately NOT touched** — they live in the
+run hazard system, not the `WALLS` painters, so traps stay flat and obvious (never look like a wall).
+Verified across all 9 biomes in a side-by-side mock render (0 errors).
+
 ## Corner bar retired
 The bottom-right `#net-bar` is hidden by default (`display:none`) — its functions now live in the
 centred title menu and the in-town Esc menu. `initNet` still wires the broadcast toast +
