@@ -26,6 +26,9 @@ import { dist, clamp } from '../../engine/math.js';
 import { P, withAlpha } from '../../engine/palette.js';
 import { Sfx, Music } from '../../engine/audio.js';
 import { settingsUI } from '../ui/settings.js';
+import { Net } from '../../net/api.js';
+import { openAuth, openLeaderboard, openAdmin, isModalOpen, netToast } from '../../net/ui.js';
+import { openSocial } from '../../net/social.js';
 import { Cheats } from '../cheats.js';
 import { cheatUnlockAll } from '../content/unlocks.js';
 
@@ -64,6 +67,7 @@ export const hubScene = {
     this.npcs = NPCS.map((n) => { const rm = R[n.room] || plaza, o = NPC_POS[n.id] || [0, 2]; return { def: n, x: rm.cx + o[0] * TS, y: rm.cy + o[1] * TS, facing: o[0] < 0 ? 1 : -1, t: (n.id.length % 6) }; });
 
     this.panel = null; this.tab = 0; this.near = null; this.t = 0;
+    this.escMenu = false;
     this.dialogue = null;
     this.panelScroll = 0; this.panelMaxScroll = 0;
     this.flash = ''; this.flashT = 0;
@@ -80,10 +84,12 @@ export const hubScene = {
     if (this.flashT > 0) this.flashT -= dt;
     for (const n of this.npcs) n.t += dt;
     if (settingsUI.open) { settingsUI.update(); return; }
+    if (this.escMenu) { this.updateEscMenu(); return; }   // Esc menu owns input while open
+    if (isModalOpen()) return;                            // a DOM net overlay (帳號/多人/排行榜) is up — freeze the town behind it
     if (this.dialogue) { this.updateDialogue(); return; }
     if (this.panel) { this.updatePanel(); return; }
     if (Cheats.enabled && mouse.justDown && this.hubCheatInput()) return;   // dev panel (Konami ↑↑↓↓←→←→BA) now works in the hub too
-    if (pressed('escape')) { settingsUI.show(null, { returnTitle: () => { saveMeta(); setScene(refs.title, {}); } }); return; }   // 大廳的設定也提供「返回主畫面」(首頁/存檔選擇)
+    if (pressed('escape')) { this.escMenu = true; Sfx.play('uiClick'); return; }   // Esc opens the town menu (帳號/多人/排行榜/設定/返回主畫面) — pick an option to open its page
 
     const ax = moveAxis(); const h = this.hero;
     h.moving = !!(ax.x || ax.y);
@@ -117,6 +123,56 @@ export const hubScene = {
     if (!act) return;
     if (act.def) this.openDialogue(act);          // an NPC
     else this.openPanel(act.panel);               // a building
+  },
+
+  // ---- town Esc menu (round-15): a small option menu first; each option opens its page ----
+  escMenuItems() {
+    const u = Net.currentUser() || {};
+    const items = [
+      { id: 'resume', label: '繼續遊戲', col: P.greenL },
+      { id: 'account', label: Net.isLoggedIn() ? ('☁ ' + (u.username || '帳號')) : '☁ 登入 / 註冊', col: P.shardL },
+      { id: 'multi', label: '👥 多人連線', col: P.shardL },
+      { id: 'leaderboard', label: '🏆 排行榜', col: P.shardL },
+    ];
+    if (Net.isAdmin()) items.push({ id: 'admin', label: '🛠 管理主控台', col: P.manaL });
+    items.push({ id: 'settings', label: '⚙ 設定', col: P.shardL });
+    items.push({ id: 'title', label: '🏠 返回主畫面', col: P.goldL });
+    return items;
+  },
+  escMenuLayout() {
+    const S = uiScale(); const items = this.escMenuItems();
+    const w = 300 * S, h = 46 * S, gap = 10 * S, x = view.W / 2 - w / 2;
+    const total = items.length * h + (items.length - 1) * gap, y0 = view.H / 2 - total / 2;
+    items.forEach((it, i) => { it.r = { x, y: y0 + i * (h + gap), w, h }; });
+    return items;
+  },
+  updateEscMenu() {
+    if (isModalOpen()) return;   // a DOM page is on top — it owns input until closed
+    if (pressed('escape') || pressed('pause')) { this.escMenu = false; return; }
+    if (!mouse.justDown) return;
+    const mx = mouse.x * view.dpr, my = mouse.y * view.dpr;
+    for (const it of this.escMenuLayout()) if (inside(mx, my, it.r)) { this.onEsc(it.id); return; }
+  },
+  onEsc(id) {
+    Sfx.play('uiClick');
+    if (id === 'resume') this.escMenu = false;
+    else if (id === 'account') openAuth();
+    else if (id === 'multi') { if (Net.isLoggedIn()) openSocial(); else { openAuth(); netToast('多人連線需要先登入帳號'); } }
+    else if (id === 'leaderboard') openLeaderboard();
+    else if (id === 'admin') openAdmin();
+    else if (id === 'settings') { this.escMenu = false; settingsUI.show(); }
+    else if (id === 'title') { this.escMenu = false; saveMeta(); setScene(refs.title, {}); }
+  },
+  drawEscMenu() {
+    const S = uiScale(); const mx = mouse.x * view.dpr, my = mouse.y * view.dpr;
+    uiRect(0, 0, view.W, view.H, withAlpha('#0b0d1a', 0.72));
+    const items = this.escMenuLayout();
+    uiText('選 單', view.W / 2, items[0].r.y - 30 * S, { size: 26 * S, align: 'center', color: '#fff', weight: '900' });
+    for (const it of items) {
+      const hov = inside(mx, my, it.r);
+      uiRect(it.r.x, it.r.y, it.r.w, it.r.h, withAlpha(hov ? '#27306a' : '#161b34', 0.96), { radius: 9 * S, stroke: hov ? it.col : withAlpha(it.col, 0.4), lw: hov ? 3 : 2 });
+      uiText(it.label, it.r.x + it.r.w / 2, it.r.y + it.r.h / 2 + 1 * S, { size: 16 * S, align: 'center', baseline: 'middle', color: hov ? '#fff' : '#cfe0ff', weight: '800' });
+    }
   },
 
   openPanel(id) { this.panel = id; this.tab = 0; this.panelScroll = 0; this.panelMaxScroll = 0; if (id === 'wardrobe') ensureSkinOffers(META); if (id === 'smith' && !this.forgeSel) this.forgeSel = (forgeableWeapons(META)[0] || {}).id || null; Sfx.play('uiClick'); },
@@ -589,6 +645,7 @@ export const hubScene = {
     if (this.dialogue) this.drawDialogue();
     if (this.confirm) this.drawConfirm();   // task 8: buy/reset confirmation on top
     if (Cheats.enabled) this.drawHubCheats();
+    if (this.escMenu) this.drawEscMenu();
     settingsUI.draw();
   },
 

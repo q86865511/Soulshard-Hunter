@@ -83,12 +83,26 @@ function toast(msg, ms = 2200) {
 }
 
 function closeModal() { const m = document.querySelector('.net-modal'); if (m) m.remove(); }
+export function isModalOpen() { return !!document.querySelector('.net-modal'); }
+
+// Backdrop click-to-close that ignores text-selection drags: only close when the press
+// AND release both land on the dim backdrop (not when a drag started inside an <input>
+// and ended on the backdrop — that used to close the modal while selecting text).
+function bindBackdropClose(modal) {
+  let downOnSelf = false;
+  modal.addEventListener('mousedown', (e) => { downOnSelf = (e.target === modal); });
+  modal.addEventListener('click', (e) => { if (e.target === modal && downOnSelf) closeModal(); downOnSelf = false; });
+  return modal;
+}
 
 // ---- account bar ----------------------------------------------------------
 let bar = null;
 export function mountNetBar() {
   ensureStyles();
-  if (!bar) { bar = $('div', { id: 'net-bar' }); document.body.appendChild(bar); }
+  // The corner bar is hidden by default now — login / 多人連線 / 排行榜 / 帳號 live in the
+  // centred title menu and the in-town Esc menu instead (a deliberate UX move off the tiny
+  // bottom-right chip). We still keep the element + onSessionExpired wiring for the toast path.
+  if (!bar) { bar = $('div', { id: 'net-bar', style: 'display:none' }); document.body.appendChild(bar); }
   Net.onSessionExpired = () => { RT.close(); renderBar(); toast('雲端登入已過期，請重新登入'); };   // a background 401 also tears down the realtime socket (match the explicit-logout path)
   renderBar();
 }
@@ -108,10 +122,43 @@ function renderBar() {
   bar.appendChild($('button', { text: '🏆 排行榜', onclick: openLeaderboard }));
 }
 
+export { toast as netToast };
+
+// ---- account panel (logged-in) --------------------------------------------
+// #4 fix: the 帳號 entry used to just reopen the leaderboard. Now it shows real account info.
+export function openAccountPanel() {
+  ensureStyles(); closeModal();
+  const u = Net.currentUser() || {};
+  const line = (k, v, col) => $('div', { style: 'display:flex;justify-content:space-between;gap:12px;padding:9px 2px;border-bottom:1px solid #1c2140' }, [
+    $('span', { style: 'color:#8ea0d8;font-size:12px', text: k }),
+    $('span', { style: 'color:' + (col || '#fff') + ';font-weight:800', text: v }),
+  ]);
+  const info = $('div', {}, [
+    line('帳號名稱', u.username || '—', '#ffd479'),
+    line('雲端存檔', '自動同步中', '#9be36b'),
+    Net.isAdmin() ? line('權限', '管理員 🛠', '#a8fff4') : null,
+    line('好友代碼', u.username || '—'),
+  ]);
+  const card = $('div', { class: 'net-card' }, [
+    $('h2', { text: '☁ 雲端帳號' }),
+    info,
+    $('div', { class: 'net-row' }, [
+      $('button', { class: 'net-ghost', text: '🏆 排行榜', onclick: () => { closeModal(); openLeaderboard(); } }),
+      Net.isAdmin() ? $('button', { class: 'net-ghost', text: '🛠 管理', onclick: () => { closeModal(); openAdmin(); } }) : null,
+    ].filter(Boolean)),
+    $('div', { class: 'net-row' }, [
+      $('button', { class: 'net-warn', text: '登出', onclick: () => { RT.close(); Net.logout(); renderBar(); closeModal(); toast('已登出（進度仍保留在本機）'); } }),
+      $('button', { class: 'net-primary', text: '關閉', onclick: closeModal }),
+    ]),
+  ]);
+  const modal = bindBackdropClose($('div', { class: 'net-modal' }, [card]));
+  document.body.appendChild(modal);
+}
+
 // ---- auth modal -----------------------------------------------------------
 export function openAuth() {
   ensureStyles(); closeModal();
-  if (Net.isLoggedIn()) { openLeaderboard(); return; }   // already in → just show the board
+  if (Net.isLoggedIn()) { openAccountPanel(); return; }   // logged in → account info (not the leaderboard)
   let tab = 'login';
   const user = $('input', { type: 'text', autocomplete: 'username', placeholder: '3–24 字元，英數與底線' });
   const pass = $('input', { type: 'password', autocomplete: 'current-password', placeholder: '至少 6 字元' });
@@ -169,7 +216,7 @@ export function openAuth() {
     ]),
   ]);
   setTab('login');
-  const modal = $('div', { class: 'net-modal', onclick: (e) => { if (e.target === modal) closeModal(); } }, [card]);
+  const modal = bindBackdropClose($('div', { class: 'net-modal' }, [card]));
   document.body.appendChild(modal);
   setTimeout(() => user.focus(), 30);
 }
@@ -239,7 +286,7 @@ export function openLeaderboard() {
       $('button', { class: 'net-primary', text: '關閉', onclick: closeModal }),
     ]),
   ]);
-  const modal = $('div', { class: 'net-modal', onclick: (e) => { if (e.target === modal) closeModal(); } }, [card]);
+  const modal = bindBackdropClose($('div', { class: 'net-modal' }, [card]));
   document.body.appendChild(modal);
   load();
 }
@@ -328,7 +375,7 @@ export function openAdmin() {
     body, msg,
     $('div', { class: 'net-row' }, [$('button', { class: 'net-ghost', text: '重新整理', onclick: render }), $('button', { class: 'net-primary', text: '關閉', onclick: closeModal })]),
   ]);
-  const modal = $('div', { class: 'net-modal', onclick: (e) => { if (e.target === modal) closeModal(); } }, [card]);
+  const modal = bindBackdropClose($('div', { class: 'net-modal' }, [card]));
   document.body.appendChild(modal);
   syncTabs(); render();
   const timer = setInterval(() => { if (!document.body.contains(modal)) { clearInterval(timer); return; } if (adminTab === 'overview' || adminTab === 'players') render(); }, 5000);   // live auto-refresh
