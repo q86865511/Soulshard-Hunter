@@ -37,4 +37,9 @@ export function initCoopBridge() {
     const start = pendingGuestStart; pendingGuestStart = null;
     setScene(refs.coop, { start, runstart: m });
   });
+
+  // Reconnected into a held in-run slot. If a run scene is live (host run.js / guest coop.js)
+  // it resumes itself; if not (e.g. the page was reloaded mid-run), don't linger as a ghost
+  // member — release the slot so the server can migrate/clean up.
+  RT.on('resume', () => { if (!RT.inRun) { try { RT.leaveRoom(); } catch (e) { /* */ } } });
 }

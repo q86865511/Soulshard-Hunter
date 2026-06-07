@@ -187,10 +187,126 @@ const caps = []; for (let i = 0; i < 6; i++) { const c = mkClient(carolId, 'caro
 ok(caps[5].closed === true, '6th concurrent socket for one account is rejected (cap 5)');
 ok(!rt.byCid.has(caps[5].cid), 'rejected socket is not registered');
 
-// host leaving closes the room for guests
+// ===== Phase 2.5: spectator + reconnect grace + host migration =====
+// state here: ROOM01 is started, A = host, B = guest, C = carol (connected, not in a room)
+
+// --- 中途觀戰: a spectator joins a live run ---
+C.sent.length = 0;
+await rt.onMessage(C, JSON.stringify({ t: 'room:spectate', code: 'ROOM01' }));
+const cStart = last(C, 'start');
+ok(cStart && cStart.role === 'spectator' && cStart.you === C.cid, 'spectator joins a live run → spectator start');
+ok(rt.rooms.get('ROOM01').members.get(C.cid).spectator === true, 'spectator recorded as non-player');
+A.sent.length = 0; C.sent.length = 0;
+await rt.onMessage(A, JSON.stringify({ t: 'runstart', map: { tw: 1 } }));   // host emits the map once
+ok(rt.rooms.get('ROOM01').lastRunStart, 'server caches the runstart map blob for late joiners');
+await rt.onMessage(A, JSON.stringify({ t: 'snap', f: 7 }));
+ok(last(C, 'snap') && last(C, 'snap').f === 7, 'spectator receives host snapshots');
+
+// --- 局中斷線重連: a player blips and reconnects within the grace window ---
+A.sent.length = 0;
+await rt.onClose(B);
+ok(rt.rooms.get('ROOM01').members.get(B.cid).disconnected === true, 'dropped player slot is HELD, not removed');
+ok(last(A, 'peer:left') && last(A, 'peer:left').cid === B.cid, 'host told to freeze the dropped avatar');
+ok(rt.pendingRejoin.has(B.cid), 'dropped player queued for rejoin (held by slot cid)');
+const B2 = mkClient(bobId, 'bob');
+await rt.onConnect(B2);
+ok(last(B2, 'resume') && last(B2, 'resume').role === 'guest' && last(B2, 'resume').you === B2.cid, 'reconnecting player gets a resume with its new cid');
+ok(last(A, 'peer:rejoin') && last(A, 'peer:rejoin').cid === B2.cid && last(A, 'peer:rejoin').prevCid === B.cid, 'host told to re-attach the avatar under the new cid');
+ok(rt.rooms.get('ROOM01').members.has(B2.cid) && !rt.rooms.get('ROOM01').members.has(B.cid), 'slot re-keyed to the new socket');
+ok(!rt.pendingRejoin.has(String(bobId)), 'rejoin consumed');
+
+// --- 房主重連: the host blips, players hold, host reconnects, broadcast resumes ---
+B2.sent.length = 0;
 await rt.onClose(A);
-ok(last(B, 'room:closed'), 'host disconnect closes the room (guest notified)');
-ok(rt.rooms.size === 0, 'room cleaned up after host left');
+ok(last(B2, 'host:waiting'), 'host blip → players told to hold');
+ok(rt.rooms.has('ROOM01'), 'room is NOT closed during the host grace window');
+ok(rt.pendingRejoin.has(A.cid), 'host queued for rejoin (held by slot cid)');
+const A2 = mkClient(aliceId, 'alice');
+await rt.onConnect(A2);
+ok(last(A2, 'resume') && last(A2, 'resume').role === 'host', 'reconnecting host gets a host resume');
+ok(rt.rooms.get('ROOM01').hostCid === A2.cid, 'host cid re-bound to the new socket');
+ok(last(B2, 'host:back'), 'players told the host is back');
+B2.sent.length = 0;
+await rt.onMessage(A2, JSON.stringify({ t: 'snap', f: 11 }));
+ok(last(B2, 'snap') && last(B2, 'snap').f === 11, 'host snapshots flow again from the new socket');
+
+// --- 房主轉移 (務實版): host truly leaves mid-run → migrate, room survives, party to a shared lobby ---
+B2.sent.length = 0;
+await rt.onClose(A2);                  // host drops again...
+rt._now = () => Date.now() + 999999;   // ...and never comes back: jump past the grace window
+rt.sweep();
+rt._now = () => Date.now();
+ok(rt.rooms.has('ROOM01'), 'room SURVIVES the host leaving (pragmatic host transfer)');
+ok(rt.rooms.get('ROOM01').hostCid === B2.cid, 'a remaining player is promoted to host');
+const mig = last(B2, 'host:migrated');
+ok(mig && mig.hostCid === B2.cid && mig.wasStarted === true, 'new host told it inherited a mid-run room (→ back to lobby)');
+ok(rt.rooms.get('ROOM01').started === false, 'the in-progress run ends on migration (sim died with the old host)');
+
+// --- host migration in the LOBBY (before any run) closes nothing either ---
+const E = mkClient(aliceId, 'alice'); const F = mkClient(bobId, 'bob');
+await rt.onConnect(E); await rt.onConnect(F);
+await rt.onMessage(E, JSON.stringify({ t: 'room:create', cfg: {} }));   // ROOM02
+await rt.onMessage(F, JSON.stringify({ t: 'room:join', code: 'ROOM02' }));
+F.sent.length = 0;
+await rt.onClose(E);   // lobby host leaves
+ok(rt.rooms.has('ROOM02'), 'lobby room survives the host leaving');
+ok(rt.rooms.get('ROOM02').hostCid === F.cid && (last(F, 'host:migrated') || {}).wasStarted === false, 'lobby host migrates to the remaining member (stays in lobby)');
+
+// ===== regression (review fixes) — fresh gateway for clean isolation =====
+const rt2 = new Realtime(pool, { genCode: (() => { let n = 0; const codes = ['RG01', 'RG02', 'RG03']; return () => codes[n++] || ('Y' + n); })() });
+let cid2 = 0;
+const mk2 = (uid, name) => ({ cid: 'r' + (++cid2), user: { uid: String(uid), username: name }, sent: [], send(s) { this.sent.push(JSON.parse(s)); }, close() { this.closed = true; } });
+
+// --- per-slot rejoin: one ACCOUNT holding two in-run slots (the self-coop two-tabs case) ---
+const H = mk2(aliceId, 'alice'); const T1 = mk2(bobId, 'bob'); const T2 = mk2(bobId, 'bob');
+await rt2.onConnect(H); await rt2.onConnect(T1); await rt2.onConnect(T2);
+await rt2.onMessage(H, JSON.stringify({ t: 'room:create', cfg: {} }));
+await rt2.onMessage(T1, JSON.stringify({ t: 'room:join', code: 'RG01' }));
+await rt2.onMessage(T2, JSON.stringify({ t: 'room:join', code: 'RG01' }));
+await rt2.onMessage(T1, JSON.stringify({ t: 'room:ready', ready: true }));
+await rt2.onMessage(T2, JSON.stringify({ t: 'room:ready', ready: true }));
+await rt2.onMessage(H, JSON.stringify({ t: 'room:start' }));
+await rt2.onClose(T1); await rt2.onClose(T2);
+ok(rt2.pendingRejoin.size === 2, 'both same-account in-run slots are held INDEPENDENTLY (per-slot keying, not overwritten)');
+ok([...rt2.rooms.get('RG01').members.values()].filter((m) => m.disconnected).length === 2, 'both slots disconnected, neither removed');
+const T1b = mk2(bobId, 'bob'); const T2b = mk2(bobId, 'bob');
+await rt2.onConnect(T1b); await rt2.onConnect(T2b);
+const rg = rt2.rooms.get('RG01');
+ok(last(T1b, 'resume') && last(T2b, 'resume'), 'both reconnecting tabs each get a resume');
+ok(rg.members.has(T1b.cid) && rg.members.has(T2b.cid) && !rg.members.has(T1.cid) && !rg.members.has(T2.cid), 'each tab reclaims a DISTINCT slot (re-keyed to new sockets)');
+ok(rt2.pendingRejoin.size === 0 && [...rg.members.values()].filter((m) => m.disconnected).length === 0, 'no orphaned husk left behind');
+
+// --- host leaves with only a spectator remaining → room closes (no spectator-as-host) ---
+const H2 = mk2(aliceId, 'alice'); const P2 = mk2(bobId, 'bob'); const S2 = mk2(carolId, 'carol');
+await rt2.onConnect(H2); await rt2.onConnect(P2); await rt2.onConnect(S2);
+await rt2.onMessage(H2, JSON.stringify({ t: 'room:create', cfg: {} }));
+await rt2.onMessage(P2, JSON.stringify({ t: 'room:join', code: 'RG02' }));
+await rt2.onMessage(P2, JSON.stringify({ t: 'room:ready', ready: true }));
+await rt2.onMessage(S2, JSON.stringify({ t: 'room:spectate', code: 'RG02' }));
+await rt2.onMessage(H2, JSON.stringify({ t: 'room:start' }));
+await rt2.onMessage(P2, JSON.stringify({ t: 'room:leave' }));   // the only other player leaves
+S2.sent.length = 0;
+await rt2.onMessage(H2, JSON.stringify({ t: 'room:leave' }));   // host leaves → only a spectator left
+ok(!rt2.rooms.has('RG02'), 'room with only a spectator is CLOSED (spectator never promoted to host)');
+ok(last(S2, 'room:closed'), 'the remaining spectator is told the room closed');
+
+// --- guest held through a host migration → resume routes it to the lobby, not a dead field ---
+const H3 = mk2(aliceId, 'alice'); const G3 = mk2(bobId, 'bob'); const W3 = mk2(carolId, 'carol');
+await rt2.onConnect(H3); await rt2.onConnect(G3); await rt2.onConnect(W3);
+await rt2.onMessage(H3, JSON.stringify({ t: 'room:create', cfg: {} }));
+await rt2.onMessage(G3, JSON.stringify({ t: 'room:join', code: 'RG03' }));
+await rt2.onMessage(W3, JSON.stringify({ t: 'room:join', code: 'RG03' }));
+await rt2.onMessage(G3, JSON.stringify({ t: 'room:ready', ready: true }));
+await rt2.onMessage(W3, JSON.stringify({ t: 'room:ready', ready: true }));
+await rt2.onMessage(H3, JSON.stringify({ t: 'room:start' }));
+await rt2.onClose(W3);                                          // carol drops (held)
+await rt2.onMessage(H3, JSON.stringify({ t: 'room:leave' }));   // host leaves mid-run → migrate to bob, room → lobby
+ok(rt2.rooms.get('RG03') && rt2.rooms.get('RG03').started === false && rt2.rooms.get('RG03').hostCid === G3.cid, 'host-left mid-run → room migrated to a lobby under the remaining player');
+const W3b = mk2(carolId, 'carol');
+await rt2.onConnect(W3b);
+const rz = last(W3b, 'resume');
+ok(rz && rz.started === false, 'reconnecting into a migrated room → resume reports started:false (client drops to lobby)');
+ok(rt2.rooms.get('RG03').members.has(W3b.cid), 'reconnected guest re-keyed into the lobby room');
 
 console.log(`\n${pass} passed, ${fail} failed`);
 await app.close();

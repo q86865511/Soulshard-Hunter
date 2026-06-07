@@ -36,6 +36,7 @@ export function attachRealtime(httpServer, realtime, { jwtSecret, path = '/rt', 
       if (ws.isAlive === false) { try { ws.terminate(); } catch (e) { /* */ } continue; }
       ws.isAlive = false; try { ws.ping(); } catch (e) { /* */ }
     }
+    try { realtime.sweep(); } catch (e) { /* expire reconnect-grace slots; never let it crash the heartbeat */ }
   }, 12000);
   if (hb.unref) hb.unref();
   wss.on('close', () => clearInterval(hb));

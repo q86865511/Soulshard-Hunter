@@ -3,7 +3,7 @@
 // server.js issues. No Postgres, no network, no open port. Run: node test/smoke.mjs
 process.env.SOULSHARD_NO_LISTEN = '1';
 process.env.JWT_SECRET = 'test-secret';
-const { buildApp } = await import('../src/server.js');
+const { buildApp, runPlausibility } = await import('../src/server.js');
 
 // ---- in-memory pool emulating the few queries server.js uses ----
 function makeFakePool() {
@@ -106,10 +106,19 @@ r = await J('GET', '/api/save', undefined, token);
 ok(r.statusCode === 200 && r.json().meta.gold === 5 && r.json().saveVersion === 2, 'GET /api/save round-trips the blob');
 
 // runs: score recomputed server-side, claimed score ignored
-r = await J('POST', '/api/runs', { kills: 100, stage: 3, time_s: 600, difficulty: 5, reaper: true, cleared: true, character: 'hunter', biome: 'crypt', score: 999999999 }, token);
-const expected = 100 * 12 + 3 * 400 + 600 + 5 * 600 + 5000; // = 11000
+r = await J('POST', '/api/runs', { kills: 100, stage: 3, time_s: 1200, difficulty: 5, reaper: true, cleared: true, character: 'hunter', biome: 'crypt', score: 999999999 }, token);
+const expected = 100 * 12 + 3 * 400 + 1200 + 5 * 600 + 5000; // = 11600
 ok(r.statusCode === 200 && r.json().run.score === expected, `POST /api/runs recomputes score (= ${expected}, claimed 999999999 ignored)`);
 ok((await J('POST', '/api/runs', { kills: 1, stage: 1, time_s: 10, difficulty: 9 }, token)).statusCode === 400, 'difficulty 9 → 400 (zod)');
+
+// anti-cheat plausibility gate — fabricated component combos → 422 (distinct from zod 400)
+ok((await J('POST', '/api/runs', { kills: 1, stage: 1, time_s: 30, difficulty: 1, cleared: true }, token)).statusCode === 422, 'cleared at 30s → 422 (clear impossible before 20:00 boss)');
+ok((await J('POST', '/api/runs', { kills: 1, stage: 1, time_s: 1200, difficulty: 1, reaper: true }, token)).statusCode === 422, 'reaper without a clear → 422');
+ok((await J('POST', '/api/runs', { kills: 100000, stage: 1, time_s: 60, difficulty: 1 }, token)).statusCode === 422, 'absurd kills for elapsed time → 422');
+ok((await J('POST', '/api/runs', { kills: 1, stage: 40, time_s: 1200, difficulty: 1 }, token)).statusCode === 422, 'stage 40 (> threat ceiling) → 422');
+// regression (review): threat keeps climbing on the Reaper past 20:00, so a legit clear+reaper reports a high stage — must NOT be rejected
+ok(runPlausibility({ kills: 4000, stage: 16, time_s: 1500, difficulty: 5, cleared: true, reaper: true }) === null, 'legit clear+reaper at stage 16 / ~25min passes the anti-cheat gate');
+ok(runPlausibility({ kills: 1, stage: 21, time_s: 1500, difficulty: 1, cleared: true }) !== null, 'stage 21 (beyond the headroom) is still rejected');
 
 // second player, lower score
 const t2 = (await J('POST', '/api/register', { username: 'rival', password: 'hunter123' })).json().token;

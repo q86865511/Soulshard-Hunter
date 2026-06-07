@@ -18,6 +18,7 @@ class RtClient {
     this.tries = 0;
     this.selfCid = null;
     this.room = null;           // latest room:state.room
+    this.inRun = false;         // true while a co-op run scene (host run.js or guest coop.js) is live — gates reconnect routing
     this.friends = []; this.incoming = []; this.outgoing = [];
     this.listeners = new Map(); // type -> Set<cb>
     this._timer = null;
@@ -77,6 +78,8 @@ class RtClient {
     else if (m.t === 'room:state') this.room = m.room;
     else if (m.t === 'room:closed') this.room = null;
     else if (m.t === 'start') { this.selfCid = m.you; if (m.room) this.room = m.room; }
+    else if (m.t === 'resume') { this.selfCid = m.you; if (m.room) this.room = m.room; }   // reconnected into a held in-run slot (new cid)
+    else if (m.t === 'room:host') { if (this.room) this.room.hostCid = m.hostCid; }          // host migrated/reconnected
   }
 
   // ---- outgoing --------------------------------------------------------------
@@ -84,6 +87,7 @@ class RtClient {
   reloadFriends() { this.send({ t: 'friends:reload' }); }
   createRoom(cfg) { this.send({ t: 'room:create', cfg: cfg || {} }); }
   joinRoom(code) { this.send({ t: 'room:join', code }); }
+  spectateRoom(code) { this.send({ t: 'room:spectate', code }); }   // 中途觀戰: watch a live (or lobby) room with no avatar
   leaveRoom() { this.send({ t: 'room:leave' }); this.room = null; }
   setReady(ready) { this.send({ t: 'room:ready', ready: !!ready }); }
   setBuild(charId, weaponId) { this.send({ t: 'room:build', charId, weaponId }); }
