@@ -30,37 +30,44 @@ let styled = false;
 function ensureStyles() {
   if (styled) return; styled = true;
   document.head.appendChild($('style', { html: `
-    #net-bar{position:fixed;right:12px;bottom:12px;z-index:50;display:flex;gap:6px;font:600 12px/1 system-ui,sans-serif}
-    #net-bar button{background:rgba(22,26,48,.82);color:#cdd3f0;border:1px solid #2a3052;border-radius:7px;padding:6px 10px;cursor:pointer;backdrop-filter:blur(3px)}
-    #net-bar button:hover{background:rgba(40,48,90,.92);color:#fff}
-    #net-bar .who{color:#ffd479}
-    .net-modal{position:fixed;inset:0;z-index:60;display:flex;align-items:center;justify-content:center;background:rgba(7,9,18,.72);font:14px/1.4 system-ui,sans-serif}
-    .net-card{background:#12152a;border:1px solid #2a3052;border-radius:12px;padding:22px;width:min(92vw,420px);color:#dfe3f5;box-shadow:0 18px 60px rgba(0,0,0,.6)}
-    .net-card.wide{width:min(94vw,640px)}
-    .net-card h2{margin:0 0 14px;font-size:20px;color:#a8fff4;text-align:center}
+    #net-bar{position:fixed;right:12px;bottom:12px;z-index:50;display:flex;gap:6px;font:700 12px/1 system-ui,sans-serif}
+    #net-bar button{background:linear-gradient(180deg,rgba(30,36,66,.9),rgba(18,22,42,.92));color:#cdd3f0;border:1px solid #2a3a6a;border-radius:8px;padding:7px 11px;cursor:pointer;backdrop-filter:blur(4px);transition:.15s;box-shadow:0 2px 8px rgba(0,0,0,.3)}
+    #net-bar button:hover{border-color:#48e0d0;color:#fff;box-shadow:0 0 12px rgba(72,224,208,.5);transform:translateY(-1px)}
+    #net-bar .who{color:#ffd479;border-color:#5a4a2a}
+    @keyframes nt-in{from{opacity:0;transform:translateY(14px) scale(.98)}to{opacity:1;transform:none}}
+    .net-modal{position:fixed;inset:0;z-index:60;display:flex;align-items:center;justify-content:center;background:radial-gradient(circle at 50% 40%,rgba(20,26,54,.6),rgba(5,7,16,.82));backdrop-filter:blur(5px);font:14px/1.5 system-ui,sans-serif}
+    .net-card{position:relative;background:linear-gradient(165deg,#1a2042,#0e1126 70%);border:1px solid #34407a;border-radius:14px;padding:24px;width:min(92vw,430px);color:#dfe3f5;box-shadow:0 20px 70px rgba(0,0,0,.6),inset 0 0 26px rgba(72,224,208,.12);animation:nt-in .22s ease-out}
+    .net-card::before{content:'';position:absolute;left:18px;right:18px;top:0;height:2px;background:linear-gradient(90deg,transparent,#48e0d0,#ffd479,transparent);border-radius:2px;opacity:.85}
+    .net-card.wide{width:min(94vw,660px)}
+    .net-card h2{margin:0 0 16px;font-size:21px;font-weight:900;letter-spacing:2px;text-align:center;background:linear-gradient(90deg,#a8fff4,#ffd479);-webkit-background-clip:text;background-clip:text;color:transparent;text-shadow:0 0 18px rgba(72,224,208,.3)}
     .net-tabs{display:flex;gap:8px;margin-bottom:14px}
-    .net-tabs button{flex:1;padding:8px;border-radius:8px;border:1px solid #2a3052;background:#171b34;color:#9aa3c8;cursor:pointer}
-    .net-tabs button.on{background:#27306a;color:#fff}
-    .net-card label{display:block;margin:10px 0 4px;color:#9aa3c8;font-size:12px}
-    .net-card input,.net-card select{width:100%;box-sizing:border-box;padding:9px 10px;border-radius:8px;border:1px solid #2a3052;background:#0e1124;color:#fff;font-size:14px}
+    .net-tabs button{flex:1;padding:9px;border-radius:9px;border:1px solid #2a3052;background:#141832;color:#9aa3c8;cursor:pointer;font-weight:700;transition:.15s}
+    .net-tabs button:hover{color:#cfe0ff;border-color:#3a4a8a}
+    .net-tabs button.on{background:linear-gradient(180deg,#2c3a8a,#1f2a66);color:#fff;border-color:#48e0d0;box-shadow:0 0 12px rgba(72,224,208,.35)}
+    .net-card label{display:block;margin:11px 0 4px;color:#8ea0d8;font-size:11px;letter-spacing:1px;text-transform:uppercase}
+    .net-card input,.net-card select{width:100%;box-sizing:border-box;padding:10px 11px;border-radius:9px;border:1px solid #2a3a6a;background:#0b0e20;color:#fff;font-size:14px;transition:.15s}
+    .net-card input:focus,.net-card select:focus{outline:none;border-color:#48e0d0;box-shadow:0 0 10px rgba(72,224,208,.35)}
     .net-row{display:flex;gap:8px;margin-top:16px}
-    .net-row button{flex:1;padding:10px;border-radius:8px;border:0;cursor:pointer;font-weight:700}
-    .net-primary{background:#48e0d0;color:#062a27}
-    .net-primary:hover{background:#6cf0e2}
-    .net-ghost{background:#1b2140;color:#cdd3f0}
-    .net-ghost:hover{background:#27305a}
-    .net-msg{min-height:18px;margin-top:10px;font-size:12px;text-align:center;color:#ff7b6b}
+    .net-row button{flex:1;padding:11px;border-radius:9px;border:0;cursor:pointer;font-weight:800;letter-spacing:1px;transition:.15s}
+    .net-row button:active{transform:translateY(1px)}
+    .net-primary{background:linear-gradient(180deg,#5cf0e0,#2bb5a6);color:#04221f;box-shadow:0 3px 0 #1c8478,0 0 14px rgba(72,224,208,.45)}
+    .net-primary:hover{filter:brightness(1.08)}
+    .net-primary:disabled{background:#2a4a48;color:#789;box-shadow:none;cursor:not-allowed}
+    .net-ghost{background:linear-gradient(180deg,#202852,#171d3c);color:#cdd3f0;border:1px solid #2e3a6e}
+    .net-ghost:hover{border-color:#4a5aa0;color:#fff}
+    .net-msg{min-height:18px;margin-top:10px;font-size:12px;text-align:center;color:#ff8a7a}
     .net-msg.ok{color:#9be36b}
     .net-filters{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
     .net-filters select{width:auto;flex:1;min-width:120px}
-    .net-table{max-height:52vh;overflow:auto;border:1px solid #222746;border-radius:8px}
+    .net-table{max-height:52vh;overflow:auto;border:1px solid #2a3056;border-radius:10px;box-shadow:inset 0 0 0 1px rgba(72,224,208,.08)}
     .net-table table{width:100%;border-collapse:collapse;font-size:13px}
-    .net-table th,.net-table td{padding:7px 9px;text-align:left;border-bottom:1px solid #1c2140;white-space:nowrap}
-    .net-table th{position:sticky;top:0;background:#171b34;color:#9aa3c8}
-    .net-table tr:nth-child(even) td{background:rgba(255,255,255,.02)}
-    .net-table .rank{color:#ffd479;font-weight:800}
-    .net-toast{position:fixed;left:50%;bottom:28px;transform:translateX(-50%);z-index:70;background:#171b34;border:1px solid #2a3052;color:#fff;padding:10px 16px;border-radius:9px;font:600 13px system-ui;opacity:0;transition:opacity .2s}
-    .net-toast.show{opacity:1}
+    .net-table th,.net-table td{padding:8px 10px;text-align:left;border-bottom:1px solid #1c2140;white-space:nowrap}
+    .net-table th{position:sticky;top:0;background:linear-gradient(180deg,#222a52,#171b34);color:#a8fff4;font-size:11px;letter-spacing:1px;text-transform:uppercase}
+    .net-table tr:nth-child(even) td{background:rgba(255,255,255,.025)}
+    .net-table tbody tr:hover td{background:rgba(72,224,208,.07)}
+    .net-table .rank{color:#ffd479;font-weight:900;text-shadow:0 0 8px rgba(255,212,121,.4)}
+    .net-toast{position:fixed;left:50%;bottom:28px;transform:translateX(-50%) translateY(8px);z-index:70;background:linear-gradient(180deg,#1f2548,#141833);border:1px solid #3a4a8a;color:#fff;padding:11px 18px;border-radius:10px;font:700 13px system-ui;opacity:0;transition:.25s;box-shadow:0 8px 30px rgba(0,0,0,.5),0 0 16px rgba(72,224,208,.2)}
+    .net-toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
   ` }));
 }
 
