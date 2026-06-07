@@ -9,8 +9,8 @@ import { Sfx } from '../../engine/audio.js';
 const inside = (mx, my, r) => r && mx >= r.x && mx <= r.x + r.w && my >= r.y && my <= r.y + r.h;
 
 export const settingsUI = {
-  open: false, onClose: null, confirmReset: false, returnHub: null, page: 'main', capturing: null,
-  show(onClose, opts = {}) { this.open = true; this.onClose = onClose || null; this.confirmReset = false; this.returnHub = opts.returnHub || null; this.page = 'main'; this.capturing = null; Sfx.play('uiClick'); },
+  open: false, onClose: null, confirmReset: false, returnHub: null, returnTitle: null, page: 'main', capturing: null,
+  show(onClose, opts = {}) { this.open = true; this.onClose = onClose || null; this.confirmReset = false; this.returnHub = opts.returnHub || null; this.returnTitle = opts.returnTitle || null; this.page = 'main'; this.capturing = null; Sfx.play('uiClick'); },
   hide() { this.open = false; this.confirmReset = false; this.capturing = null; saveMeta(); const cb = this.onClose; this.onClose = null; if (cb) cb(); },
 
   // ---- layout --------------------------------------------------------------
@@ -25,7 +25,7 @@ export const settingsUI = {
       rows.push({ key: t[0], label: t[1], type: 'toggle', x: x + pw * 0.34, y: y + 70 * S + (3 + i) * 42 * S, w: 56 * S, h: 24 * S }));
     const bw = 220 * S, bx = x + pw / 2 - bw / 2;
     const keys = { x: bx, y: y + ph - 178 * S, w: bw, h: 30 * S };
-    const home = this.returnHub ? { x: bx, y: y + ph - 142 * S, w: bw, h: 30 * S } : null;
+    const home = (this.returnHub || this.returnTitle) ? { x: bx, y: y + ph - 142 * S, w: bw, h: 30 * S } : null;
     const reset = { x: x + pw / 2 - 100 * S, y: y + ph - 96 * S, w: 200 * S, h: 30 * S };
     const close = { x: x + pw / 2 - 70 * S, y: y + ph - 50 * S, w: 140 * S, h: 36 * S };
     return { x, y, w: pw, h: ph, S, rows, keys, home, reset, close };
@@ -67,7 +67,7 @@ export const settingsUI = {
       if (!inside(mx, my, L.reset)) this.confirmReset = false;
       for (const r of L.rows) if (r.type === 'toggle' && inside(mx, my, r)) { META.settings[r.key] = !META.settings[r.key]; applySettings(); saveMeta(); Sfx.play('uiClick'); }
       if (inside(mx, my, L.keys)) { this.page = 'keys'; Sfx.play('uiClick'); }
-      else if (L.home && inside(mx, my, L.home)) { const fn = this.returnHub; this.open = false; this.returnHub = null; this.onClose = null; if (fn) fn(); }
+      else if (L.home && inside(mx, my, L.home)) { const fn = this.returnHub || this.returnTitle; this.open = false; this.returnHub = null; this.returnTitle = null; this.onClose = null; if (fn) fn(); }
       else if (inside(mx, my, L.reset)) {
         if (this.confirmReset) { const K = currentSlotKey(); try { const cur = localStorage.getItem(K); if (cur) localStorage.setItem(K + '.bak', cur); } catch (e) { /* */ } resetMeta(); applySettings(); this.confirmReset = false; Sfx.play('death'); }
         else { this.confirmReset = true; Sfx.play('uiClick'); }
@@ -108,7 +108,7 @@ export const settingsUI = {
     }
 
     this.btn(L.keys, '⌨ 按鍵設定', mx, my, P.shardL);
-    if (L.home) this.btn(L.home, '🏠 返回大廳', mx, my, P.goldL);
+    if (L.home) this.btn(L.home, this.returnHub ? '🏠 返回大廳' : '🏠 返回主畫面', mx, my, P.goldL);
 
     const hovR = inside(mx, my, L.reset);
     uiRect(L.reset.x, L.reset.y, L.reset.w, L.reset.h, withAlpha(this.confirmReset ? '#5a1a1a' : '#2a1820', 0.96), { radius: 6 * S, stroke: this.confirmReset ? P.red : P.redD, lw: 2 });
