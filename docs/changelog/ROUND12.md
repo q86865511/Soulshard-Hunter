@@ -41,4 +41,12 @@ crash, swarm + threat ramp intact).
   opens (`keys` 0); hidden room discovered on approach → claim banks +gold permanently →
   second claim refused (once-per-save). 0 console errors.
 
-## Part C — UI/UX polish (#9) — pending
+## Part C — UI/UX polish (#9) ✅
+A cohesive "Soulshard" theme for the DOM overlays (the least game-like surface — they were
+plain flat system-ui cards): the account bar, login/leaderboard modals (`net/ui.js`) and the
+friends/lobby overlay (`net/social.js`) now share gradient cards with a cyan→gold accent bar,
+gradient **gradient-text headers** with glow, glowing focus states on inputs, depth + glow on
+primary buttons (cyan gradient, press feedback), gradient/glowing active tabs, a richer
+leaderboard table (gradient sticky header, row hover, glowing rank), an entrance animation,
+and backdrop blur. CSS-only (every class/selector preserved) — verified in-browser, 0 errors.
+
