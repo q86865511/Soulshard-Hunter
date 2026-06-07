@@ -40,3 +40,9 @@ ban row) · **對局** (recent runs with 刪除) · **廣播** (send a server-wi
   400, broadcast accept/400, run history rows, delete-run, non-admin 403s); `social.smoke.mjs` 65/65.
 - Client verified in-browser: all 4 tabs render; players tab shows kick/ban/IP-ban + ban list +
   manual ban; 0 console errors.
+
+## Deploy robustness
+`.github/workflows/deploy.yml` health check now **retries for ~30s** (was a single `curl` after
+`sleep 4`) and dumps `docker compose logs api` on failure — a `--build` rebuild + db-healthcheck
+wait can exceed 4s and falsely fail an otherwise-good deploy (it flaked once this round).
+
