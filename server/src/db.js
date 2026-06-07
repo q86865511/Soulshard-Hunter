@@ -67,5 +67,15 @@ export async function initSchema(p = pool) {
       PRIMARY KEY (user_id, friend_id)
     );
     CREATE INDEX IF NOT EXISTS friendships_friend_idx ON friendships (friend_id, status);
+
+    -- admin moderation: account + IP bans
+    CREATE TABLE IF NOT EXISTS bans (
+      id         bigserial PRIMARY KEY,
+      kind       text NOT NULL,            -- 'user' (lowercased username) | 'ip'
+      value      text NOT NULL,
+      reason     text,
+      created_at timestamptz DEFAULT now(),
+      UNIQUE (kind, value)
+    );
   `);
 }

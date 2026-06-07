@@ -194,6 +194,9 @@ yourname.duckdns.org {
     # 靜態遊戲(直接餵 repo 工作目錄裡的檔)
     handle {
         root * /home/ubuntu/soulshard
+        # no-build ES modules: tell browsers to revalidate so every deploy is picked up
+        # immediately (otherwise players keep running cached old .js until the cache expires).
+        header Cache-Control "no-cache"
         file_server
         try_files {path} /index.html
     }

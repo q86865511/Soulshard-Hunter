@@ -55,6 +55,8 @@ function ensureStyles() {
     .net-primary:disabled{background:#2a4a48;color:#789;box-shadow:none;cursor:not-allowed}
     .net-ghost{background:linear-gradient(180deg,#202852,#171d3c);color:#cdd3f0;border:1px solid #2e3a6e}
     .net-ghost:hover{border-color:#4a5aa0;color:#fff}
+    .net-warn{background:linear-gradient(180deg,#43243a,#321c2c);color:#ffb4a8;border:1px solid #5a3045;border-radius:7px;cursor:pointer}
+    .net-warn:hover{filter:brightness(1.12)}
     .net-msg{min-height:18px;margin-top:10px;font-size:12px;text-align:center;color:#ff8a7a}
     .net-msg.ok{color:#9be36b}
     .net-filters{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
@@ -246,74 +248,97 @@ export function openLeaderboard() {
 const fmtUptime = (s) => { s = Math.floor(s || 0); const h = (s / 3600) | 0, m = ((s % 3600) / 60) | 0; return (h ? h + ' 小時 ' : '') + m + ' 分'; };
 const sectionTitle = (t) => $('div', { style: 'font-size:12px;color:#8ea0d8;letter-spacing:1px;margin:14px 0 6px;text-transform:uppercase;font-weight:700', text: t });
 
+const adminBtn = (label, cls, onclick) => $('button', { class: cls, style: 'flex:none;padding:5px 10px;font-size:12px', text: label, onclick });
+const tableInto = (el, head, rows) => {
+  el.innerHTML = '';
+  if (!rows.length) { el.appendChild($('div', { style: 'padding:12px;color:#9aa3c8;text-align:center', text: '（無資料）' })); return; }
+  const tb = $('tbody'); rows.forEach((r) => tb.appendChild($('tr', {}, r)));
+  el.appendChild($('table', {}, [$('thead', {}, [$('tr', {}, head.map((h) => $('th', { text: h })))]), tb]));
+};
+let adminTab = 'overview';
+
 export function openAdmin() {
   ensureStyles(); closeModal();
   if (!Net.isAdmin()) { toast('需要管理員權限'); return; }
   const status = $('div', { class: 'net-msg ok' });
-  const onlineBody = $('div', { class: 'net-table' });
-  const roomsBody = $('div', { class: 'net-table' });
+  const body = $('div', { style: 'min-height:170px' });
   const msg = $('div', { class: 'net-msg' });
+  const setMsg = (t, ok) => { msg.textContent = t || ''; msg.className = 'net-msg' + (ok ? ' ok' : ''); };
 
-  const load = async () => {
-    try {
-      const r = await Net.adminOverview();
-      status.className = 'net-msg ok';
-      status.textContent = `🟢 線上 ${r.totals.users} 人 · ${r.totals.conns} 連線 · ${r.totals.rooms} 房間 · 已運行 ${fmtUptime(r.health.uptime)}`;
-      // online players
-      onlineBody.innerHTML = '';
-      if (!(r.online || []).length) onlineBody.appendChild($('div', { style: 'padding:12px;color:#9aa3c8;text-align:center', text: '目前無人在線' }));
-      else {
-        const tb = $('tbody');
-        for (const u of r.online) tb.appendChild($('tr', {}, [
-          $('td', { text: u.username }), $('td', { text: '#' + u.uid }), $('td', { text: String(u.conns) }),
-          $('td', { text: (u.rooms && u.rooms.join(', ')) || '—' }),
-          $('td', {}, [$('button', { class: 'net-ghost', style: 'flex:none;padding:5px 10px;font-size:12px', text: '踢出', onclick: async () => { try { await Net.adminKick(u.uid); toast('已中斷 ' + u.username + ' 的連線'); load(); } catch (e) { msg.textContent = '踢出失敗'; } } })]),
-        ]));
-        onlineBody.appendChild($('table', {}, [$('thead', {}, [$('tr', {}, ['玩家', 'UID', '連線', '房間', ''].map((h) => $('th', { text: h })))]), tb]));
-      }
-      // rooms
-      roomsBody.innerHTML = '';
-      if (!(r.rooms || []).length) roomsBody.appendChild($('div', { style: 'padding:12px;color:#9aa3c8;text-align:center', text: '目前無房間' }));
-      else {
-        const tb = $('tbody');
-        for (const rm of r.rooms) {
-          const names = (rm.members || []).map((m) => m.username + (m.host ? '♛' : '') + (m.spectator ? '(觀)' : '') + (m.disconnected ? '⚠' : '')).join('、');
-          tb.appendChild($('tr', {}, [
-            $('td', { class: 'rank', text: rm.code }),
-            $('td', { text: rm.started ? (rm.runEnded ? '已結束' : '遊戲中') : '大廳' }),
-            $('td', { text: String((rm.members || []).length) }), $('td', { text: names || '—' }),
-            $('td', {}, [$('button', { class: 'net-warn', style: 'flex:none;padding:5px 10px;font-size:12px;background:linear-gradient(180deg,#43243a,#321c2c);color:#ffb4a8;border:1px solid #5a3045;border-radius:7px;cursor:pointer', text: '關閉', onclick: async () => { try { await Net.adminCloseRoom(rm.code); toast('已關閉房間 ' + rm.code); load(); } catch (e) { msg.textContent = '關閉失敗'; } } })]),
-          ]));
-        }
-        roomsBody.appendChild($('table', {}, [$('thead', {}, [$('tr', {}, ['房號', '狀態', '人數', '成員', ''].map((h) => $('th', { text: h })))]), tb]));
-      }
-    } catch (e) {
-      status.className = 'net-msg';
-      status.textContent = (e && e.status === 403) ? '需要管理員權限（請在 server/.env 的 ADMIN_USERS 加入你的帳號）' : '無法載入管理資料（伺服器未啟動？）';
-    }
+  const tabDefs = [['overview', '總覽'], ['players', '玩家'], ['runs', '對局'], ['cast', '廣播']];
+  const tabBtns = tabDefs.map(([id, label]) => $('button', { text: label, onclick: () => { adminTab = id; syncTabs(); render(); } }));
+  const syncTabs = () => tabBtns.forEach((b, i) => b.classList.toggle('on', tabDefs[i][0] === adminTab));
+
+  const refreshStatus = async () => {
+    try { const r = await Net.adminOverview(); status.className = 'net-msg ok'; status.textContent = `🟢 線上 ${r.totals.users} 人 · ${r.totals.conns} 連線 · ${r.totals.rooms} 房間 · 已運行 ${fmtUptime(r.health.uptime)}`; return r; }
+    catch (e) { status.className = 'net-msg'; status.textContent = (e && e.status === 403) ? '需要管理員權限（在 server/.env 的 ADMIN_USERS 加入你的帳號並重啟）' : '無法載入（伺服器未啟動？）'; return null; }
   };
 
+  async function render() {
+    setMsg('');
+    body.innerHTML = '';
+    if (adminTab === 'overview') {
+      const r = await refreshStatus(); if (!r) return;
+      const online = $('div', { class: 'net-table' }), rooms = $('div', { class: 'net-table' });
+      tableInto(online, ['玩家', 'UID', '連線', '房間'], (r.online || []).map((u) => [$('td', { text: u.username }), $('td', { text: '#' + u.uid }), $('td', { text: String(u.conns) }), $('td', { text: (u.rooms && u.rooms.join(', ')) || '—' })]));
+      tableInto(rooms, ['房號', '狀態', '人數', '成員'], (r.rooms || []).map((rm) => [$('td', { class: 'rank', text: rm.code }), $('td', { text: rm.started ? (rm.runEnded ? '已結束' : '遊戲中') : '大廳' }), $('td', { text: String((rm.members || []).length) }), $('td', { text: (rm.members || []).map((m) => m.username + (m.host ? '♛' : '') + (m.spectator ? '(觀)' : '') + (m.disconnected ? '⚠' : '')).join('、') || '—' })]));
+      body.append(sectionTitle('線上玩家'), online, sectionTitle('房間'), rooms);
+    } else if (adminTab === 'players') {
+      const r = await refreshStatus(); if (!r) return;
+      const online = $('div', { class: 'net-table' });
+      tableInto(online, ['玩家', 'UID', 'IP', '操作'], (r.online || []).map((u) => [
+        $('td', { text: u.username }), $('td', { text: '#' + u.uid }), $('td', { text: u.ip || '—' }),
+        $('td', { style: 'display:flex;gap:4px' }, [
+          adminBtn('踢出', 'net-ghost', async () => { try { await Net.adminKick(u.uid); toast('已踢出 ' + u.username); render(); } catch (e) { setMsg('踢出失敗'); } }),
+          adminBtn('封帳號', 'net-warn', async () => { try { await Net.adminBan('user', u.username, 'admin'); toast('已封鎖帳號 ' + u.username); render(); } catch (e) { setMsg('封鎖失敗'); } }),
+          u.ip ? adminBtn('封IP', 'net-warn', async () => { try { await Net.adminBan('ip', u.ip, 'admin'); toast('已封鎖 IP ' + u.ip); render(); } catch (e) { setMsg('封鎖失敗'); } }) : null,
+        ]),
+      ]));
+      const rooms = $('div', { class: 'net-table' });
+      tableInto(rooms, ['房號', '狀態', '人數', ''], (r.rooms || []).map((rm) => [$('td', { class: 'rank', text: rm.code }), $('td', { text: rm.started ? (rm.runEnded ? '已結束' : '遊戲中') : '大廳' }), $('td', { text: String((rm.members || []).length) }), $('td', {}, [adminBtn('關閉', 'net-warn', async () => { try { await Net.adminCloseRoom(rm.code); toast('已關閉 ' + rm.code); render(); } catch (e) { setMsg('關閉失敗'); } })])]));
+      const banTable = $('div', { class: 'net-table' });
+      try { const bl = (await Net.adminBans()).bans || []; tableInto(banTable, ['類型', '對象', '原因', ''], bl.map((b) => [$('td', { text: b.kind === 'user' ? '帳號' : 'IP' }), $('td', { text: b.value }), $('td', { text: b.reason || '—' }), $('td', {}, [adminBtn('解除', 'net-ghost', async () => { try { await Net.adminUnban(b.kind, b.value); toast('已解除封鎖'); render(); } catch (e) { setMsg('解除失敗'); } })])])); } catch (e) { /* */ }
+      const kindSel = $('select', { style: 'flex:none;width:88px' }, [$('option', { value: 'user', text: '帳號' }), $('option', { value: 'ip', text: 'IP' })]);
+      const valInp = $('input', { type: 'text', placeholder: '帳號或 IP', style: 'flex:1' });
+      const reasonInp = $('input', { type: 'text', placeholder: '原因（選填）', style: 'flex:1' });
+      const banRow = $('div', { class: 'net-row', style: 'margin-top:8px' }, [kindSel, valInp, reasonInp, $('button', { class: 'net-warn', style: 'flex:none;padding:0 14px', text: '封鎖', onclick: async () => { const v = valInp.value.trim(); if (!v) return setMsg('請輸入對象'); try { await Net.adminBan(kindSel.value, v, reasonInp.value.trim()); toast('已封鎖 ' + v); valInp.value = ''; reasonInp.value = ''; render(); } catch (e) { setMsg('封鎖失敗'); } } })]);
+      body.append(sectionTitle('線上玩家'), online, sectionTitle('房間'), rooms, sectionTitle('封鎖名單'), banTable, banRow);
+    } else if (adminTab === 'runs') {
+      const runsTable = $('div', { class: 'net-table' });
+      try {
+        const rows = (await Net.adminRuns(60)).rows || [];
+        tableInto(runsTable, ['玩家', '分數', '難度', '生態', '層', '擊殺', '時間', ''], rows.map((r) => [
+          $('td', { text: (r.username || '—') + (r.guest ? '(訪)' : '') }), $('td', { text: String(r.score) }), $('td', { text: 'D' + (r.difficulty || 1) }),
+          $('td', { text: BIOME_LABELS[r.biome] || r.biome || '—' }), $('td', { text: String(r.stage || 0) }), $('td', { text: String(r.kills || 0) }), $('td', { text: fmtTime(r.time_s) }),
+          $('td', {}, [adminBtn('刪除', 'net-warn', async () => { try { await Net.adminDeleteRun(r.id); toast('已刪除該紀錄'); render(); } catch (e) { setMsg('刪除失敗'); } })]),
+        ]));
+      } catch (e) { setMsg('無法載入對局'); }
+      body.append(sectionTitle('近期對局（刪除作弊 / 垃圾紀錄）'), runsTable);
+    } else {
+      const ta = $('input', { type: 'text', placeholder: '輸入要廣播給所有線上玩家的訊息', style: 'width:100%;margin-top:6px' });
+      ta.addEventListener('keydown', (e) => { if (e.key === 'Enter') sendBtn.click(); });
+      const sendBtn = $('button', { class: 'net-primary', text: '📢 發送廣播', onclick: async () => { const t = ta.value.trim(); if (!t) return setMsg('請輸入內容'); try { const r = await Net.adminBroadcast(t); toast('已廣播給 ' + (r.sent || 0) + ' 個連線'); ta.value = ''; setMsg('已送出', true); } catch (e) { setMsg('廣播失敗'); } } });
+      body.append(sectionTitle('全服廣播'), ta, $('div', { class: 'net-row' }, [sendBtn]));
+    }
+  }
+
   const card = $('div', { class: 'net-card wide' }, [
-    $('h2', { text: '🛠 管理者主控台' }),
-    status,
-    sectionTitle('線上玩家'), onlineBody,
-    sectionTitle('房間'), roomsBody,
-    msg,
-    $('div', { class: 'net-row' }, [
-      $('button', { class: 'net-ghost', text: '重新整理', onclick: load }),
-      $('button', { class: 'net-primary', text: '關閉', onclick: closeModal }),
-    ]),
+    $('h2', { text: '🛠 管理者主控台' }), status,
+    $('div', { class: 'net-tabs' }, tabBtns),
+    body, msg,
+    $('div', { class: 'net-row' }, [$('button', { class: 'net-ghost', text: '重新整理', onclick: render }), $('button', { class: 'net-primary', text: '關閉', onclick: closeModal })]),
   ]);
   const modal = $('div', { class: 'net-modal', onclick: (e) => { if (e.target === modal) closeModal(); } }, [card]);
   document.body.appendChild(modal);
-  load();
-  const timer = setInterval(() => { if (!document.body.contains(modal)) { clearInterval(timer); return; } load(); }, 4000);   // live auto-refresh
+  syncTabs(); render();
+  const timer = setInterval(() => { if (!document.body.contains(modal)) { clearInterval(timer); return; } if (adminTab === 'overview' || adminTab === 'players') render(); }, 5000);   // live auto-refresh
 }
 
 // Boot hook: mount the bar and, if a token is already stored, refresh the cloud save.
 export function initNet() {
   mountNetBar();
   initSocial();   // friends/lobby UI + invite popups + realtime connect when logged in
+  RT.on('broadcast', (m) => toast('📢 公告：' + (m && m.text ? m.text : ''), 6000));   // admin broadcast → banner for every connected client
   // boot: push-up only — the player hasn't picked a slot yet and the cloud blob is account-wide,
   // so a pull here could overwrite the active slot. The full pull happens on slot enter (title.enterSlot).
   if (Net.isLoggedIn()) {

@@ -114,6 +114,12 @@ export const Net = {
   adminOverview() { return req('/admin/overview', { authed: true }); },
   adminKick(uid) { return req('/admin/kick', { method: 'POST', authed: true, body: { uid } }); },
   adminCloseRoom(code) { return req('/admin/close-room', { method: 'POST', authed: true, body: { code } }); },
+  adminBans() { return req('/admin/bans', { authed: true }); },
+  adminBan(kind, value, reason) { return req('/admin/ban', { method: 'POST', authed: true, body: { kind, value, reason } }); },
+  adminUnban(kind, value) { return req('/admin/unban', { method: 'POST', authed: true, body: { kind, value } }); },
+  adminBroadcast(text) { return req('/admin/broadcast', { method: 'POST', authed: true, body: { text } }); },
+  adminRuns(limit) { return req('/admin/runs' + (limit ? '?limit=' + limit : ''), { authed: true }); },
+  adminDeleteRun(id) { return req('/admin/delete-run', { method: 'POST', authed: true, body: { id } }); },
 };
 
 // Debounced best-effort cloud-save push (called from state.saveMeta()).

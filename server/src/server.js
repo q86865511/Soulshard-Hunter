@@ -112,6 +112,7 @@ export async function buildApp(pool, { logger = false, rateMax = 120 } = {}) {
   app.post('/api/register', strictLimit, async (req, reply) => {
     const p = registerSchema.safeParse(req.body);
     if (!p.success) return reply.code(400).send({ error: 'invalid input', detail: p.error.issues });
+    if (realtime.isBannedIp(req.ip)) return reply.code(403).send({ error: '此 IP 已被封鎖' });
     const { username, password, email } = p.data;
     const hash = await bcrypt.hash(password, 10);
     try {
@@ -134,6 +135,7 @@ export async function buildApp(pool, { logger = false, rateMax = 120 } = {}) {
     if (!u || !(await bcrypt.compare(p.data.password, u.password_hash))) {
       return reply.code(401).send({ error: 'bad username or password' });
     }
+    if (realtime.isBannedUser(u.username)) return reply.code(403).send({ error: '此帳號已被封鎖' });
     await pool.query('UPDATE users SET last_login=now() WHERE id=$1', [u.id]);
     return { token: sign(u), user: { id: u.id, username: u.username, admin: isAdmin(u.username) } };
   });
@@ -181,6 +183,7 @@ export async function buildApp(pool, { logger = false, rateMax = 120 } = {}) {
   app.post('/api/runs/guest', guestRunLimit, async (req, reply) => {
     const p = guestRunSchema.safeParse(req.body);
     if (!p.success) return reply.code(400).send({ error: 'invalid run payload', detail: p.error.issues });
+    if (realtime.isBannedIp(req.ip)) return reply.code(403).send({ error: '此 IP 已被封鎖' });
     const c = p.data;
     const bad = runPlausibility(c);
     if (bad) return reply.code(422).send({ error: 'implausible run rejected', detail: bad });
@@ -227,6 +230,7 @@ export async function buildApp(pool, { logger = false, rateMax = 120 } = {}) {
   const realtime = new Realtime(pool);
   registerSocial(app, pool, auth, { onFriendChange: (a, b) => realtime.onFriendChange(a, b) });
   app.realtime = realtime;
+  await realtime.loadBans().catch(() => {});   // load account/IP ban list into memory
   app.get('/api/rt/stats', async () => realtime.stats());
 
   // ---- admin dashboard (gated by the ADMIN_USERS allowlist) ----------------
@@ -243,6 +247,41 @@ export async function buildApp(pool, { logger = false, rateMax = 120 } = {}) {
     const code = req.body && req.body.code;
     if (!code) return reply.code(400).send({ error: 'code required' });
     return { ok: true, closed: realtime.adminCloseRoom(code) };
+  });
+  // moderation: account + IP bans
+  app.get('/api/admin/bans', { preHandler: requireAdmin }, async () => ({ bans: await realtime.listBans() }));
+  app.post('/api/admin/ban', { preHandler: requireAdmin }, async (req, reply) => {
+    const { kind, value, reason } = req.body || {};
+    if ((kind !== 'user' && kind !== 'ip') || !value) return reply.code(400).send({ error: 'kind (user|ip) + value required' });
+    await realtime.ban(kind, value, reason);
+    return { ok: true };
+  });
+  app.post('/api/admin/unban', { preHandler: requireAdmin }, async (req, reply) => {
+    const { kind, value } = req.body || {};
+    if (!kind || !value) return reply.code(400).send({ error: 'kind + value required' });
+    await realtime.unban(kind, value);
+    return { ok: true };
+  });
+  // broadcast a banner to every connected client
+  app.post('/api/admin/broadcast', { preHandler: requireAdmin }, async (req, reply) => {
+    const text = req.body && req.body.text;
+    if (!text || !String(text).trim()) return reply.code(400).send({ error: 'text required' });
+    return { ok: true, sent: realtime.broadcast(String(text).trim().slice(0, 280)) };
+  });
+  // match history / leaderboard moderation
+  app.get('/api/admin/runs', { preHandler: requireAdmin }, async (req) => {
+    const limit = clampInt((req.query && req.query.limit) || 40, 1, 200);
+    const r = await pool.query(
+      `SELECT r.id, COALESCE(u.username, r.guest_name) AS username, (u.id IS NULL) AS guest,
+              r.score, r.stage, r.kills, r.character, r.biome, r.difficulty, r.time_s, r.cleared, r.reaper, r.coop_size, r.created_at
+       FROM runs r LEFT JOIN users u ON u.id = r.user_id ORDER BY r.created_at DESC LIMIT ${limit}`);
+    return { rows: r.rows };
+  });
+  app.post('/api/admin/delete-run', { preHandler: requireAdmin }, async (req, reply) => {
+    const id = req.body && req.body.id;
+    if (id == null) return reply.code(400).send({ error: 'id required' });
+    const r = await pool.query('DELETE FROM runs WHERE id=$1', [clampInt(id, 0, 1e15)]);
+    return { ok: true, deleted: r.rowCount };
   });
 
   return app;

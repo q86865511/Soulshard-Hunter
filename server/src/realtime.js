@@ -49,6 +49,8 @@ export class Realtime {
     this.rooms = new Map();     // code -> room
     this.roomOf = new Map();    // cid -> code
     this.pendingRejoin = new Map();   // prevCid -> { code, uid }  in-run disconnect held for reconnect (PER-SLOT: one account may hold >1 slot)
+    this.bannedUsers = new Set();     // lowercased usernames (admin moderation)
+    this.bannedIps = new Set();       // banned client IPs
     this._rl = new Map();       // cid -> { [class]: {t, ts} } token buckets
     this._fg = new Map();       // uid -> { at, g } friend-graph cache
     this._now = () => Date.now();
@@ -406,7 +408,7 @@ export class Realtime {
     for (const [uid, set] of this.byUid) {
       const conns = [...set];
       const rooms = [...new Set(conns.map((c) => this.roomOf.get(c.cid)).filter(Boolean))];
-      online.push({ uid, username: conns[0] ? conns[0].user.username : '?', conns: conns.length, rooms });
+      online.push({ uid, username: conns[0] ? conns[0].user.username : '?', conns: conns.length, rooms, ip: conns[0] ? (conns[0].ip || null) : null });
     }
     online.sort((a, b) => String(a.username).localeCompare(String(b.username)));
     const rooms = [...this.rooms.values()].map((r) => ({ ...this.roomPublic(r), runEnded: !!r.runEnded }));
@@ -424,6 +426,34 @@ export class Realtime {
     this._closeRoom(room, 'admin');
     return true;
   }
+
+  // ---- moderation (account / IP bans) + broadcast ---------------------------
+  async loadBans() {
+    try {
+      const r = await this.pool.query('SELECT kind, value FROM bans');
+      this.bannedUsers = new Set(); this.bannedIps = new Set();
+      for (const b of r.rows) { if (b.kind === 'user') this.bannedUsers.add(String(b.value).toLowerCase()); else if (b.kind === 'ip') this.bannedIps.add(String(b.value)); }
+    } catch (e) { /* bans table absent on very first boot (initSchema runs before buildApp in prod) */ }
+  }
+  isBannedUser(username) { return this.bannedUsers.has(String(username || '').toLowerCase()); }
+  isBannedIp(ip) { return !!ip && this.bannedIps.has(String(ip)); }
+  async ban(kind, value, reason) {
+    value = kind === 'user' ? String(value || '').toLowerCase() : String(value || '');
+    if (!value || (kind !== 'user' && kind !== 'ip')) return false;
+    await this.pool.query('INSERT INTO bans(kind, value, reason) VALUES($1,$2,$3) ON CONFLICT (kind, value) DO UPDATE SET reason=$3', [kind, value, reason || null]);
+    if (kind === 'user') { this.bannedUsers.add(value); this.kickUserByName(value); } else { this.bannedIps.add(value); this.kickByIp(value); }
+    return true;
+  }
+  async unban(kind, value) {
+    value = kind === 'user' ? String(value || '').toLowerCase() : String(value || '');
+    await this.pool.query('DELETE FROM bans WHERE kind=$1 AND value=$2', [kind, value]);
+    if (kind === 'user') this.bannedUsers.delete(value); else this.bannedIps.delete(value);
+    return true;
+  }
+  async listBans() { const r = await this.pool.query('SELECT kind, value, reason, created_at FROM bans ORDER BY created_at DESC'); return r.rows; }
+  kickUserByName(nameLower) { let n = 0; for (const c of this.byCid.values()) if (String(c.user.username).toLowerCase() === nameLower) { try { c.close(); n++; } catch (e) { /* */ } } return n; }
+  kickByIp(ip) { let n = 0; for (const c of this.byCid.values()) if (c.ip === ip) { try { c.close(); n++; } catch (e) { /* */ } } return n; }
+  broadcast(text) { const msg = { t: 'broadcast', text: String(text || '').slice(0, 280) }; for (const c of this.byCid.values()) this.send(c, msg); return this.byCid.size; }
 }
 
 // ---- helpers ----------------------------------------------------------------

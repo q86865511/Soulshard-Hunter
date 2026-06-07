@@ -16,9 +16,12 @@ export function attachRealtime(httpServer, realtime, { jwtSecret, path = '/rt', 
     let user;
     try { const p = jwt.verify(token, jwtSecret, { algorithms: ['HS256'] }); user = { uid: String(p.uid), username: p.username }; }
     catch (e) { socket.write('HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n'); socket.destroy(); return; }
+    // real client IP (behind Caddy: X-Forwarded-For) — used for IP bans
+    const ip = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim() || (req.socket && req.socket.remoteAddress) || '';
+    if (realtime.isBannedIp(ip) || realtime.isBannedUser(user.username)) { socket.write('HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n'); socket.destroy(); return; }
 
     wss.handleUpgrade(req, socket, head, (ws) => {
-      const client = { cid: 'c' + (++cidSeq), user, send: (s) => { try { ws.send(s); } catch (e) { /* */ } }, close: () => { try { ws.close(); } catch (e) { /* */ } } };
+      const client = { cid: 'c' + (++cidSeq), user, ip, send: (s) => { try { ws.send(s); } catch (e) { /* */ } }, close: () => { try { ws.close(); } catch (e) { /* */ } } };
       ws.isAlive = true;
       ws.on('pong', () => { ws.isAlive = true; });
       ws.on('message', (data, isBinary) => { if (isBinary) return; Promise.resolve(realtime.onMessage(client, data.toString())).catch(() => {}); });
