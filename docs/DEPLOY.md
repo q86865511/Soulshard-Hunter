@@ -259,9 +259,12 @@ ssh-copy-id -i ~/.ssh/soulshard_deploy.pub oracle
 ### 8c. 確認 deploy.yml 的重啟方式是 Docker
 打開 `.github/workflows/deploy.yml`,確認重啟區塊是 **Docker** 那行沒被註解(預設就是):
 ```yaml
+            # Docker (deps build inside the image — no host npm needed):
             docker compose up -d --build
-            # sudo systemctl restart soulshard
-            # pm2 ...
+            # systemd:
+            # npm install --omit=dev && sudo systemctl restart soulshard
+            # pm2:
+            # npm install --omit=dev && pm2 restart soulshard
 ```
 > 💡 因為密鑰寫在 VM 的 `server/.env`(第 5b 步),GitHub 自動跑 `docker compose up` 時會自動讀到,不用再傳密鑰。
 > ⚠️ 部署用的 `OCI_USER`(ubuntu)要能用 docker——第 5a 已 `usermod -aG docker`,沒問題。
