@@ -86,31 +86,39 @@ defineSprite('town_floor3', 16, 16, (p) => {
   p.sparkle(11, 5, withAlpha(P.shardL, 0.7), 1);                   // a second tiny twinkle
 }, { anchor: [0, 0] });
 
+// Town masonry tones — kept in the cool family but brighter + more saturated than the
+// polished floor (STONE #39406a) so the wall clearly reads as raised stone, not more floor.
+const TWALL   = '#505b95';   // raised masonry body
+const TWALL_D = '#2d3563';   // joint + grounding base shadow
+const TWALL_L = '#828fd6';   // lamp-lit top edge
+
 // Interior town wall — clean cut-stone (ashlar) blocks with a lamp-lit top edge.
 // Each course gets a top-left bevel highlight + a soft bottom-right seam so the
-// blocks read as raised masonry rather than a flat painted grid.
+// blocks read as raised masonry rather than a flat painted grid. A dark grounding
+// base line seats the block above the floor (matches the biome wall depth pass).
 defineSprite('town_wall', 16, 16, (p) => {
-  p.rect(0, 0, 16, 16, mix(P.wall, P.gray1, 0.25));
-  p.gradV(0, 0, 16, 7, mix(P.wall, P.gray2, 0.18), mix(P.wall, P.gray2, 0.10));  // upper course
-  p.gradV(0, 8, 16, 7, lighten(P.wall, 0.03), P.wall);                            // lower course
-  p.shadeBottom(0.10, 12);
+  p.rect(0, 0, 16, 16, mix(TWALL, P.gray1, 0.2));
+  p.gradV(0, 0, 16, 7, lighten(TWALL, 0.07), TWALL);          // upper course
+  p.gradV(0, 8, 16, 7, TWALL, darken(TWALL, 0.09));           // lower course
+  p.shadeBottom(0.14, 12);
 
   // Course + staggered vertical joints (soft, not black gaps).
-  p.hline(0, 15, 7, P.wallD);                         // course joint
-  p.vline(0, 6, 8, P.wallD);                          // staggered vertical joints
-  p.vline(8, 15, 4, P.wallD); p.vline(8, 15, 12, P.wallD);
+  p.hline(0, 15, 7, TWALL_D);                         // course joint
+  p.vline(0, 6, 8, TWALL_D);                          // staggered vertical joints
+  p.vline(8, 15, 4, TWALL_D); p.vline(8, 15, 12, TWALL_D);
 
   // Per-block bevel: highlight the top edge below each joint, shade above the next.
-  p.hline(0, 15, 8, lighten(P.wallL, 0.04));          // lower-course block tops catch light
-  p.hline(0, 7, 6, withAlpha(P.wallD, 0.5));          // soft seam shadow above the joint
+  p.hline(0, 15, 8, lighten(TWALL_L, 0.04));          // lower-course block tops catch light
+  p.hline(0, 7, 6, withAlpha(TWALL_D, 0.5));          // soft seam shadow above the joint
 
-  // Lamp-lit top edge.
-  p.hline(0, 15, 0, lighten(P.wallL, 0.10));          // top light catch
-  p.hline(0, 15, 1, P.wallL);
+  // Lamp-lit top edge (2px bright bevel).
+  p.hline(0, 15, 0, lighten(TWALL_L, 0.12));          // top light catch
+  p.hline(0, 15, 1, TWALL_L);
+  p.hline(0, 15, 15, darken(TWALL_D, 0.3));           // dark grounding base line → reads as a raised block
 
   // A couple of seeded weathering flecks (subtle, deterministic).
-  p.speckle(1, 2, 14, 12, withAlpha(P.wallD, 0.6), 4, 13);
-  p.speckle(1, 2, 14, 12, withAlpha(P.wallL, 0.5), 3, 41);
+  p.speckle(1, 2, 14, 12, withAlpha(TWALL_D, 0.6), 4, 13);
+  p.speckle(1, 2, 14, 12, withAlpha(TWALL_L, 0.5), 3, 41);
 }, { anchor: [0, 0] });
 
 // Plaza gatepost — a stone pillar with a glowing soulshard lantern. Two of these
@@ -157,13 +165,13 @@ defineSprite('town_gatepost', 12, 32, (p) => {
 // Front-facing top edge (one tile high above the floor, for depth).
 // A bright lamp-lit cap that grades down into a soft shadow where it meets the floor.
 defineSprite('town_wall_top', 16, 8, (p) => {
-  p.gradV(0, 0, 16, 8, mix(P.wall, P.gray2, 0.1), darken(P.wallD, 0.15));
-  p.rect(0, 0, 16, 3, P.wallL);                       // bright cap
-  p.gradV(0, 0, 16, 3, lighten(P.wallL, 0.10), P.wallL);
-  p.rect(0, 3, 16, 1, mix(P.wall, P.gray2, 0.2));
-  p.hline(0, 15, 2, lighten(P.wallL, 0.15));          // warm trim line
-  p.hline(0, 15, 0, lighten(P.wallL, 0.18));          // top glint edge
-  p.hline(0, 15, 7, darken(P.wallD, 0.4));            // soft drop shadow into floor
-  p.hline(0, 15, 6, withAlpha(darken(P.wallD, 0.4), 0.6));
-  p.speckle(1, 4, 14, 3, withAlpha(P.wallD, 0.5), 3, 19);   // faint lower-face grain
+  p.gradV(0, 0, 16, 8, mix(TWALL, P.gray2, 0.1), darken(TWALL_D, 0.15));
+  p.rect(0, 0, 16, 3, TWALL_L);                       // bright cap
+  p.gradV(0, 0, 16, 3, lighten(TWALL_L, 0.10), TWALL_L);
+  p.rect(0, 3, 16, 1, mix(TWALL, P.gray2, 0.2));
+  p.hline(0, 15, 2, lighten(TWALL_L, 0.15));          // warm trim line
+  p.hline(0, 15, 0, lighten(TWALL_L, 0.18));          // top glint edge
+  p.hline(0, 15, 7, darken(TWALL_D, 0.4));            // soft drop shadow into floor
+  p.hline(0, 15, 6, withAlpha(darken(TWALL_D, 0.4), 0.6));
+  p.speckle(1, 4, 14, 3, withAlpha(TWALL_D, 0.5), 3, 19);   // faint lower-face grain
 }, { anchor: [0, 0] });

@@ -21,7 +21,7 @@ export const BIOMES = [
 
   // ── NEW 5 (same field shape) ───────────────────────────────────────────────
   { id: 'verdant', name: '翠林森境', floor: '#26361f', floor2: '#2f4326', line: '#192611', wall: '#3a5230', wallD: '#243a1e', wallL: '#5f8444', decor: 'bd_verdant_tree', accent: P.leafL, fog: 'rgba(120,200,120,0.05)' },
-  { id: 'desert', name: '流沙荒漠', floor: '#caa260', floor2: '#d8b46a', line: '#9c7a3e', wall: '#b6904f', wallD: '#8a6a36', wallL: '#e8c98a', decor: 'bd_desert_cactus', accent: P.sandL, fog: 'rgba(240,220,160,0.06)' },
+  { id: 'desert', name: '流沙荒漠', floor: '#caa260', floor2: '#d8b46a', line: '#9c7a3e', wall: '#9a7334', wallD: '#634619', wallL: '#f0d188', decor: 'bd_desert_cactus', accent: P.sandL, fog: 'rgba(240,220,160,0.06)' },
   { id: 'swamp', name: '腐沼濕地', floor: '#2c3a26', floor2: '#37472d', line: '#1b2618', wall: '#3c4a2e', wallD: '#27331f', wallL: '#5e7240', decor: 'bd_swamp_willow', accent: P.slimeBog, fog: 'rgba(110,140,70,0.07)' },
   { id: 'abyss', name: '深淵海溝', floor: '#0f3046', floor2: '#143b54', line: '#0a2030', wall: '#16415c', wallD: '#0d2e44', wallL: '#2f6f96', decor: 'bd_abyss_coral', accent: P.oceanL, fog: 'rgba(20,80,120,0.08)' },
   { id: 'celestial', name: '天界雲海', floor: '#5a6fae', floor2: '#6a80c4', line: '#3e4f86', wall: '#7488c4', wallD: '#52639c', wallL: '#b9c8f0', decor: 'bd_cel_pillar', accent: P.astralL, fog: 'rgba(200,210,255,0.05)' },

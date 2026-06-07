@@ -91,6 +91,17 @@ bioluminescence, marble veins). **Hazards / traps are deliberately NOT touched**
 run hazard system, not the `WALLS` painters, so traps stay flat and obvious (never look like a wall).
 Verified across all 9 biomes in a side-by-side mock render (0 errors).
 
+## Town walls + desert contrast
+- **Town/hub walls** (`art/town_floor.js`): the wall used `P.wall` (#3d4570), nearly identical to the
+  polished floor (#39406a) — so rooms barely read. Gave the wall its own brighter, more-saturated
+  masonry tones (`TWALL` #505b95 / `TWALL_L` #828fd6 / `TWALL_D` #2d3563) + a **dark grounding base
+  line**, and matched `town_wall_top`. Walls now clearly read as raised masonry over the flagstone
+  floor (verified in a mock + a live hub render).
+- **Desert wall contrast** (`art/biomes.js`): the 流沙荒漠 wall (#b6904f) was nearly the same pale tan
+  as the sand floor (#caa260). Pulled it to a darker, richer ochre (#9a7334) with a deep base/joint
+  (#634619) and a bright sunlit top (#f0d188) — walls now read as darker raised sandstone blocks
+  against the pale sand. (Floors / hazards unchanged.)
+
 ## Corner bar retired
 The bottom-right `#net-bar` is hidden by default (`display:none`) — its functions now live in the
 centred title menu and the in-town Esc menu. `initNet` still wires the broadcast toast +
