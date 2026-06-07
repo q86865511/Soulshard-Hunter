@@ -181,6 +181,8 @@ ok((await J('GET', '/api/admin/overview')).statusCode === 401, 'admin overview w
 ok((await J('GET', '/api/admin/overview', undefined, t2)).statusCode === 403, 'admin overview as a non-admin → 403');
 r = await J('GET', '/api/admin/overview', undefined, token);
 ok(r.statusCode === 200 && r.json().totals && Array.isArray(r.json().online) && Array.isArray(r.json().rooms), 'admin overview (admin) → totals + online[] + rooms[]');
+// not-logged-in guests surface in the overview (a guest run was uploaded above → tracked by IP)
+ok(Array.isArray(r.json().guests) && r.json().guests.some((g) => g.name && g.ip), 'admin overview lists recent unlogged guests (name + IP)');
 ok((await J('POST', '/api/admin/kick', { uid: 999999 }, token)).json().closed === 0, 'admin kick of an offline uid → closed 0');
 ok((await J('POST', '/api/admin/close-room', { code: 'NOPE1' }, token)).json().closed === false, 'admin close of a missing room → false');
 ok((await J('POST', '/api/admin/kick', { uid: 1 }, t2)).statusCode === 403, 'admin kick as a non-admin → 403');

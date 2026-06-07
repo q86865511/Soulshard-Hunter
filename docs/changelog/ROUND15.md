@@ -108,6 +108,17 @@ The 8 central `town_gatepost` pillars were placed on the partition-wall line (ro
 floor** (`world.js makeCamp` — N/S → rows 14.5/25.5, W/E → cols 17.5/31.5) so they stand on the
 ground flanking each doorway. Verified all 8 bases now land on floor tiles (not wall tiles).
 
+## Admin: show not-logged-in guests
+Guests hold no live server connection (the realtime WS needs a JWT and single-player is offline),
+so they can't appear like "online" players. The one footprint the server can see is an anonymous
+**guest score upload** — so `realtime.js` now records those in `recentGuests` (keyed by IP:
+name / lastSeen / hits) and `adminOverview()` returns an `activeGuests()` list (last 15 min) +
+`totals.guests`. `/api/runs/guest` calls `touchGuest(req.ip, name)`. The admin **玩家** tab gained a
+**未登入訪客（近期活躍）** table (訪客 / IP / 最後活動 / 次數) with a **封IP / 解除** button, and the
+status line shows the guest count; a hint clarifies guests have no live connection. Verified:
+server smoke **52/52** (+1: overview lists recent guests w/ name+IP); client renders the table +
+ban controls (0 errors).
+
 ## Corner bar retired
 The bottom-right `#net-bar` is hidden by default (`display:none`) — its functions now live in the
 centred title menu and the in-town Esc menu. `initNet` still wires the broadcast toast +

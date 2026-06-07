@@ -293,6 +293,7 @@ export function openLeaderboard() {
 
 // ---- admin dashboard ------------------------------------------------------
 const fmtUptime = (s) => { s = Math.floor(s || 0); const h = (s / 3600) | 0, m = ((s % 3600) / 60) | 0; return (h ? h + ' 小時 ' : '') + m + ' 分'; };
+const fmtAgo = (ts) => { const d = Math.max(0, Date.now() - (ts || 0)); const m = Math.floor(d / 60000); return m <= 0 ? '剛剛' : (m < 60 ? m + ' 分鐘前' : Math.floor(m / 60) + ' 小時前'); };
 const sectionTitle = (t) => $('div', { style: 'font-size:12px;color:#8ea0d8;letter-spacing:1px;margin:14px 0 6px;text-transform:uppercase;font-weight:700', text: t });
 
 const adminBtn = (label, cls, onclick) => $('button', { class: cls, style: 'flex:none;padding:5px 10px;font-size:12px', text: label, onclick });
@@ -317,7 +318,7 @@ export function openAdmin() {
   const syncTabs = () => tabBtns.forEach((b, i) => b.classList.toggle('on', tabDefs[i][0] === adminTab));
 
   const refreshStatus = async () => {
-    try { const r = await Net.adminOverview(); status.className = 'net-msg ok'; status.textContent = `🟢 線上 ${r.totals.users} 人 · ${r.totals.conns} 連線 · ${r.totals.rooms} 房間 · 已運行 ${fmtUptime(r.health.uptime)}`; return r; }
+    try { const r = await Net.adminOverview(); status.className = 'net-msg ok'; status.textContent = `🟢 線上 ${r.totals.users} 人 · ${r.totals.conns} 連線 · 訪客 ${r.totals.guests || 0} · ${r.totals.rooms} 房間 · 已運行 ${fmtUptime(r.health.uptime)}`; return r; }
     catch (e) { status.className = 'net-msg'; status.textContent = (e && e.status === 403) ? '需要管理員權限（在 server/.env 的 ADMIN_USERS 加入你的帳號並重啟）' : '無法載入（伺服器未啟動？）'; return null; }
   };
 
@@ -349,7 +350,18 @@ export function openAdmin() {
       const valInp = $('input', { type: 'text', placeholder: '帳號或 IP', style: 'flex:1' });
       const reasonInp = $('input', { type: 'text', placeholder: '原因（選填）', style: 'flex:1' });
       const banRow = $('div', { class: 'net-row', style: 'margin-top:8px' }, [kindSel, valInp, reasonInp, $('button', { class: 'net-warn', style: 'flex:none;padding:0 14px', text: '封鎖', onclick: async () => { const v = valInp.value.trim(); if (!v) return setMsg('請輸入對象'); try { await Net.adminBan(kindSel.value, v, reasonInp.value.trim()); toast('已封鎖 ' + v); valInp.value = ''; reasonInp.value = ''; render(); } catch (e) { setMsg('封鎖失敗'); } } })]);
-      body.append(sectionTitle('線上玩家'), online, sectionTitle('房間'), rooms, sectionTitle('封鎖名單'), banTable, banRow);
+      // not-logged-in guests: they hold no live connection (single-player is offline / the WS needs a
+      // login), so we surface the only footprint the server can see — guests who recently uploaded a
+      // score — by IP, so they can still be banned.
+      const guests = $('div', { class: 'net-table' });
+      tableInto(guests, ['訪客', 'IP', '最後活動', '次數', '操作'], (r.guests || []).map((g) => [
+        $('td', { text: g.name || '訪客' }), $('td', { text: g.ip || '—' }), $('td', { text: fmtAgo(g.lastSeen) }), $('td', { text: String(g.hits || 0) }),
+        $('td', {}, [g.banned
+          ? adminBtn('解除', 'net-ghost', async () => { try { await Net.adminUnban('ip', g.ip); toast('已解除 ' + g.ip); render(); } catch (e) { setMsg('解除失敗'); } })
+          : adminBtn('封IP', 'net-warn', async () => { try { await Net.adminBan('ip', g.ip, 'guest'); toast('已封鎖 IP ' + g.ip); render(); } catch (e) { setMsg('封鎖失敗'); } })]),
+      ]));
+      const guestHint = $('div', { style: 'font-size:10px;color:#778;margin:2px 2px 0', text: '訪客無常駐連線（單人離線／連線需登入），此處顯示近 15 分鐘曾上傳成績的未登入玩家。' });
+      body.append(sectionTitle('線上玩家'), online, sectionTitle('未登入訪客（近期活躍）'), guests, guestHint, sectionTitle('房間'), rooms, sectionTitle('封鎖名單'), banTable, banRow);
     } else if (adminTab === 'runs') {
       const runsTable = $('div', { class: 'net-table' });
       try {

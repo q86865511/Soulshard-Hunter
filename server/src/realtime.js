@@ -51,6 +51,7 @@ export class Realtime {
     this.pendingRejoin = new Map();   // prevCid -> { code, uid }  in-run disconnect held for reconnect (PER-SLOT: one account may hold >1 slot)
     this.bannedUsers = new Set();     // lowercased usernames (admin moderation)
     this.bannedIps = new Set();       // banned client IPs
+    this.recentGuests = new Map();    // ip -> { ip, name, firstSeen, lastSeen, hits }  (not-logged-in players who touched the cloud)
     this._rl = new Map();       // cid -> { [class]: {t, ts} } token buckets
     this._fg = new Map();       // uid -> { at, g } friend-graph cache
     this._now = () => Date.now();
@@ -402,6 +403,27 @@ export class Realtime {
 
   stats() { return { users: this.byUid.size, conns: this.byCid.size, rooms: this.rooms.size }; }
 
+  // Record a not-logged-in (guest) cloud touch — guests hold NO live connection (the WS needs a
+  // JWT and single-player is offline), so the only guest footprint the server can see is an
+  // anonymous API hit (a guest score upload). Keyed by IP so an admin can still ban them.
+  GUEST_WINDOW = 15 * 60 * 1000;   // "recently active" = last 15 min
+  touchGuest(ip, name) {
+    if (!ip) return;
+    const now = this._now();
+    let g = this.recentGuests.get(ip);
+    if (!g) { g = { ip, name: name || '訪客', firstSeen: now, lastSeen: now, hits: 0 }; this.recentGuests.set(ip, g); }
+    g.lastSeen = now; g.hits += 1; if (name) g.name = name;
+    if (this.recentGuests.size > 500) {   // cap memory: drop the oldest beyond 400
+      const old = [...this.recentGuests.entries()].sort((a, b) => a[1].lastSeen - b[1].lastSeen);
+      for (let i = 0; i < old.length - 400; i++) this.recentGuests.delete(old[i][0]);
+    }
+  }
+  activeGuests(now = this._now()) {
+    return [...this.recentGuests.values()].filter((g) => now - g.lastSeen < this.GUEST_WINDOW)
+      .sort((a, b) => b.lastSeen - a.lastSeen).slice(0, 60)
+      .map((g) => ({ ip: g.ip, name: g.name, lastSeen: g.lastSeen, hits: g.hits, banned: this.isBannedIp(g.ip) }));
+  }
+
   // ---- admin dashboard ------------------------------------------------------
   adminOverview() {
     const online = [];
@@ -412,7 +434,8 @@ export class Realtime {
     }
     online.sort((a, b) => String(a.username).localeCompare(String(b.username)));
     const rooms = [...this.rooms.values()].map((r) => ({ ...this.roomPublic(r), runEnded: !!r.runEnded }));
-    return { totals: { users: this.byUid.size, conns: this.byCid.size, rooms: this.rooms.size }, online, rooms };
+    const guests = this.activeGuests();
+    return { totals: { users: this.byUid.size, conns: this.byCid.size, rooms: this.rooms.size, guests: guests.length }, online, guests, rooms };
   }
   kickUser(uid) {
     const set = this.byUid.get(String(uid));

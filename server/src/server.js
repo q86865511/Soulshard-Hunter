@@ -210,6 +210,7 @@ export async function buildApp(pool, { logger = false, rateMax = 120 } = {}) {
     const bad = runPlausibility(c);
     if (bad) return reply.code(422).send({ error: 'implausible run rejected', detail: bad });
     const name = String(c.name).replace(/[<>]/g, '').replace(/\s+/g, ' ').trim().slice(0, 16) || '訪客';
+    realtime.touchGuest(req.ip, name);   // surface this not-logged-in player in the admin console (bannable by IP)
     const score = computeScore(c);
     const r = await pool.query(
       `INSERT INTO runs(user_id, guest_name, score, stage, kills, character, biome, difficulty, time_s, cleared, reaper, coop_size)
