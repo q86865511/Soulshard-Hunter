@@ -51,6 +51,13 @@ ban row) · **對局** (recent runs with 刪除) · **廣播** (send a server-wi
 - Client verified in-browser: all 4 tabs render; players tab shows kick/ban/IP-ban + ban list +
   manual ban; 0 console errors.
 
+## 返回主畫面 from the hub
+The hub's ESC settings overlay had no way back to the **title / save-slot screen** (only the
+in-run settings offered 🏠 返回大廳). Added a `returnTitle` option to `settings.js` that reuses
+the same button slot — in-run it reads 🏠 返回大廳, in the hub it reads **🏠 返回主畫面** and
+`saveMeta()` + `setScene(refs.title)`. Wired from `hub.js`'s Esc handler. Verified in-browser:
+button renders, click closes the overlay and lands on the title screen, 0 errors.
+
 ## Deploy robustness
 `.github/workflows/deploy.yml` health check now **retries for ~30s** (was a single `curl` after
 `sleep 4`) and dumps `docker compose logs api` on failure — a `--build` rebuild + db-healthcheck

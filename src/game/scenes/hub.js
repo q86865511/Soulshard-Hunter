@@ -83,7 +83,7 @@ export const hubScene = {
     if (this.dialogue) { this.updateDialogue(); return; }
     if (this.panel) { this.updatePanel(); return; }
     if (Cheats.enabled && mouse.justDown && this.hubCheatInput()) return;   // dev panel (Konami ↑↑↓↓←→←→BA) now works in the hub too
-    if (pressed('escape')) { settingsUI.show(); return; }
+    if (pressed('escape')) { settingsUI.show(null, { returnTitle: () => { saveMeta(); setScene(refs.title, {}); } }); return; }   // 大廳的設定也提供「返回主畫面」(首頁/存檔選擇)
 
     const ax = moveAxis(); const h = this.hero;
     h.moving = !!(ax.x || ax.y);
