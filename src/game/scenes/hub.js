@@ -26,6 +26,8 @@ import { dist, clamp } from '../../engine/math.js';
 import { P, withAlpha } from '../../engine/palette.js';
 import { Sfx, Music } from '../../engine/audio.js';
 import { settingsUI } from '../ui/settings.js';
+import { Cheats } from '../cheats.js';
+import { cheatUnlockAll } from '../content/unlocks.js';
 
 const inside = (mx, my, r) => mx >= r.x && mx <= r.x + r.w && my >= r.y && my <= r.y + r.h;
 // NPC placement offsets within their room (tiles from room centre)
@@ -80,6 +82,7 @@ export const hubScene = {
     if (settingsUI.open) { settingsUI.update(); return; }
     if (this.dialogue) { this.updateDialogue(); return; }
     if (this.panel) { this.updatePanel(); return; }
+    if (Cheats.enabled && mouse.justDown && this.hubCheatInput()) return;   // dev panel (Konami ↑↑↓↓←→←→BA) now works in the hub too
     if (pressed('escape')) { settingsUI.show(); return; }
 
     const ax = moveAxis(); const h = this.hero;
@@ -585,7 +588,36 @@ export const hubScene = {
 
     if (this.dialogue) this.drawDialogue();
     if (this.confirm) this.drawConfirm();   // task 8: buy/reset confirmation on top
+    if (Cheats.enabled) this.drawHubCheats();
     settingsUI.draw();
+  },
+
+  // ---- hub dev panel (Konami ↑↑↓↓←→←→ B A toggles Cheats.enabled globally) -----
+  hubCheatButtons() {
+    const S = uiScale(); const w = 168 * S, h = 26 * S, gap = 6 * S, x = view.W - w - 10 * S; let y = 96 * S;
+    const items = [{ id: 'unlock', label: '解鎖全部內容＋關卡' }, { id: 'gold', label: '金幣 +9999' }, { id: 'guild', label: '公會聲望 +5000' }];
+    return items.map((it) => { const r = { ...it, x, y, w, h }; y += h + gap; return r; });
+  },
+  hubCheatInput() {
+    const mx = mouse.x * view.dpr, my = mouse.y * view.dpr;
+    for (const b of this.hubCheatButtons()) {
+      if (!inside(mx, my, b)) continue;
+      if (b.id === 'unlock') { cheatUnlockAll(META); this.feedback('已解鎖全部內容與關卡'); }
+      else if (b.id === 'gold') { META.gold += 9999; this.feedback('金幣 +9999'); }
+      else if (b.id === 'guild') { META.guild = META.guild || { xp: 0, claimed: {} }; META.guild.xp += 5000; this.feedback('公會聲望 +5000'); }
+      saveMeta();   // the sortie panel re-reads META.levels.unlocked on open, so newly-unlocked biomes appear automatically
+      return true;
+    }
+    return false;
+  },
+  drawHubCheats() {
+    const S = uiScale(); const mx = mouse.x * view.dpr, my = mouse.y * view.dpr;
+    uiText('☠ 開發者模式', view.W - 94 * S, 88 * S, { size: 12 * S, align: 'center', color: P.goldL, weight: '900' });
+    for (const b of this.hubCheatButtons()) {
+      const hov = inside(mx, my, b);
+      uiRect(b.x, b.y, b.w, b.h, withAlpha(hov ? '#3a2a1a' : '#1b1530', 0.95), { radius: 6 * S, stroke: withAlpha(P.goldL, hov ? 0.9 : 0.5), lw: hov ? 2 : 1 });
+      uiText(b.label, b.x + b.w / 2, b.y + b.h / 2 + 4 * S, { size: 11 * S, align: 'center', color: '#ffe9a0', weight: '700' });
+    }
   },
 
   drawQuestTracker() {
