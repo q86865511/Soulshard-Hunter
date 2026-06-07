@@ -11,6 +11,7 @@ function makeFakePool() {
   const users = [];           // { id, username, email, password_hash, last_login }
   const saves = new Map();    // uid -> { meta, save_version }
   const runs = [];            // { user_id, score, ... }
+  const bans = [];            // { kind, value, reason, created_at }
   let uid = 0, rid = 0;
   return {
     async query(sql, args = []) {
@@ -52,6 +53,18 @@ function makeFakePool() {
         runs.push(row);
         return { rows: [{ id: row.id, score: row.score, created_at: row.created_at }], rowCount: 1 };
       }
+      // --- bans (admin moderation) ---
+      if (s.startsWith('SELECT kind, value FROM bans')) return { rows: bans.map((b) => ({ kind: b.kind, value: b.value })), rowCount: bans.length };
+      if (s.startsWith('SELECT kind, value, reason, created_at FROM bans')) return { rows: bans.slice().reverse(), rowCount: bans.length };
+      if (s.startsWith('INSERT INTO bans')) { const [kind, value, reason] = args; const ex = bans.find((b) => b.kind === kind && b.value === value); if (ex) ex.reason = reason; else bans.push({ kind, value, reason, created_at: new Date().toISOString() }); return { rows: [], rowCount: 1 }; }
+      if (s.startsWith('DELETE FROM bans')) { const [kind, value] = args; const i = bans.findIndex((b) => b.kind === kind && b.value === value); if (i >= 0) bans.splice(i, 1); return { rows: [], rowCount: i >= 0 ? 1 : 0 }; }
+      // --- admin run history + deletion (must precede the leaderboard matcher below) ---
+      if (s.startsWith('SELECT r.id, COALESCE')) {
+        const m = s.match(/LIMIT (\d+)/); const limit = m ? Number(m[1]) : 40;
+        const rows = runs.slice().reverse().slice(0, limit).map((r) => ({ ...r, username: r.user_id != null ? (users.find((u) => String(u.id) === String(r.user_id)) || {}).username : r.guest_name, guest: r.user_id == null }));
+        return { rows, rowCount: rows.length };
+      }
+      if (s.startsWith('DELETE FROM runs')) { const id = args[0]; const i = runs.findIndex((r) => String(r.id) === String(id)); if (i >= 0) runs.splice(i, 1); return { rows: [], rowCount: i >= 0 ? 1 : 0 }; }
       if (s.includes('FROM runs r LEFT JOIN users u')) {
         // map positional args to the filters in the order server.js appends them
         let ai = 0; const filt = {};
@@ -167,6 +180,23 @@ ok(r.statusCode === 200 && r.json().totals && Array.isArray(r.json().online) && 
 ok((await J('POST', '/api/admin/kick', { uid: 999999 }, token)).json().closed === 0, 'admin kick of an offline uid → closed 0');
 ok((await J('POST', '/api/admin/close-room', { code: 'NOPE1' }, token)).json().closed === false, 'admin close of a missing room → false');
 ok((await J('POST', '/api/admin/kick', { uid: 1 }, t2)).statusCode === 403, 'admin kick as a non-admin → 403');
+
+// admin moderation — account bans (+ login enforcement)
+ok((await J('POST', '/api/admin/ban', { kind: 'user', value: 'rival', reason: 'cheating' }, token)).statusCode === 200, 'admin bans an account');
+ok((await J('GET', '/api/admin/bans', undefined, token)).json().bans.some((b) => b.kind === 'user' && b.value === 'rival'), 'ban shows in the ban list');
+ok((await J('POST', '/api/login', { username: 'rival', password: 'hunter123' })).statusCode === 403, 'banned account → login 403');
+ok((await J('POST', '/api/admin/unban', { kind: 'user', value: 'rival' }, token)).statusCode === 200, 'admin unbans the account');
+ok((await J('POST', '/api/login', { username: 'rival', password: 'hunter123' })).statusCode === 200, 'unbanned account logs in again');
+ok((await J('POST', '/api/admin/ban', { kind: 'x', value: 'y' }, token)).statusCode === 400, 'invalid ban kind → 400');
+// admin broadcast
+ok((await J('POST', '/api/admin/broadcast', { text: '伺服器將於 5 分鐘後維護' }, token)).json().ok === true, 'admin broadcast accepted');
+ok((await J('POST', '/api/admin/broadcast', {}, token)).statusCode === 400, 'broadcast without text → 400');
+// admin match history + leaderboard moderation
+const ar = await J('GET', '/api/admin/runs', undefined, token);
+ok(ar.statusCode === 200 && Array.isArray(ar.json().rows) && ar.json().rows.length > 0, 'admin run history returns rows');
+const delId = ar.json().rows[0].id;
+ok((await J('POST', '/api/admin/delete-run', { id: delId }, token)).json().deleted === 1, 'admin deletes a run from the leaderboard');
+ok((await J('POST', '/api/admin/delete-run', { id: delId }, t2)).statusCode === 403, 'delete-run as a non-admin → 403');
 
 console.log(`\n${pass} passed, ${fail} failed`);
 await app.close();
