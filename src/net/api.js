@@ -79,6 +79,7 @@ export const Net = {
   onSessionExpired: null,   // ui.js sets this to flip the bar + toast on a 401
   isLoggedIn: () => tokenAlive(token),
   currentUser: () => user,
+  isAdmin: () => !!(tokenAlive(token) && user && user.admin),
   authToken: () => (tokenAlive(token) ? token : null),   // rt.js needs the raw JWT for the ws URL
   apiBase,
   wsBase,
@@ -107,6 +108,12 @@ export const Net = {
     const qs = new URLSearchParams(clean).toString();
     return req('/leaderboard' + (qs ? '?' + qs : ''));
   },
+  // refresh the cached user (incl. admin flag) for a returning session
+  async refreshMe() { const d = await req('/me', { authed: true }); if (d && d.user) { user = { ...(user || {}), ...d.user }; try { localStorage.setItem(LS_USER, JSON.stringify(user)); } catch (e) { /* */ } } return d; },
+  // ---- admin dashboard (ADMIN_USERS allowlist; 403 otherwise) ----
+  adminOverview() { return req('/admin/overview', { authed: true }); },
+  adminKick(uid) { return req('/admin/kick', { method: 'POST', authed: true, body: { uid } }); },
+  adminCloseRoom(code) { return req('/admin/close-room', { method: 'POST', authed: true, body: { code } }); },
 };
 
 // Debounced best-effort cloud-save push (called from state.saveMeta()).

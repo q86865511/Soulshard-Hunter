@@ -399,6 +399,31 @@ export class Realtime {
   }
 
   stats() { return { users: this.byUid.size, conns: this.byCid.size, rooms: this.rooms.size }; }
+
+  // ---- admin dashboard ------------------------------------------------------
+  adminOverview() {
+    const online = [];
+    for (const [uid, set] of this.byUid) {
+      const conns = [...set];
+      const rooms = [...new Set(conns.map((c) => this.roomOf.get(c.cid)).filter(Boolean))];
+      online.push({ uid, username: conns[0] ? conns[0].user.username : '?', conns: conns.length, rooms });
+    }
+    online.sort((a, b) => String(a.username).localeCompare(String(b.username)));
+    const rooms = [...this.rooms.values()].map((r) => ({ ...this.roomPublic(r), runEnded: !!r.runEnded }));
+    return { totals: { users: this.byUid.size, conns: this.byCid.size, rooms: this.rooms.size }, online, rooms };
+  }
+  kickUser(uid) {
+    const set = this.byUid.get(String(uid));
+    if (!set) return 0;
+    let n = 0; for (const c of [...set]) { try { c.close(); n++; } catch (e) { /* */ } }
+    return n;
+  }
+  adminCloseRoom(code) {
+    const room = this.rooms.get(String(code || '').toUpperCase());
+    if (!room) return false;
+    this._closeRoom(room, 'admin');
+    return true;
+  }
 }
 
 // ---- helpers ----------------------------------------------------------------

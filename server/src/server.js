@@ -18,6 +18,9 @@ const JWT_SECRET = process.env.JWT_SECRET || 'dev-insecure-secret-change-me';
 const TOKEN_TTL = process.env.JWT_TTL || '30d';
 const CORS_ORIGIN = (process.env.CORS_ORIGIN || 'http://localhost:5173,http://127.0.0.1:5173')
   .split(',').map((s) => s.trim()).filter(Boolean);
+// admin dashboard allowlist: comma-separated usernames (set ADMIN_USERS in server/.env)
+const ADMIN_USERS = (process.env.ADMIN_USERS || '').split(',').map((s) => s.trim()).filter(Boolean);
+const isAdmin = (username) => !!username && ADMIN_USERS.includes(username);
 
 // ---- helpers --------------------------------------------------------------
 const clampInt = (v, lo, hi) => Math.max(lo, Math.min(hi, Math.floor(Number(v) || 0)));
@@ -33,6 +36,13 @@ async function auth(req, reply) {
   if (!m) return reply.code(401).send({ error: 'missing token' });
   try { req.user = jwt.verify(m[1], JWT_SECRET, { algorithms: ['HS256'] }); }   // pin the algorithm (no 'none'/alg-confusion)
   catch { return reply.code(401).send({ error: 'invalid token' }); }
+}
+
+// preHandler: valid token AND an allowlisted admin username (else 403)
+async function requireAdmin(req, reply) {
+  await auth(req, reply);
+  if (!req.user) return;   // auth already sent 401
+  if (!isAdmin(req.user.username)) return reply.code(403).send({ error: 'admin only' });
 }
 
 // Server-authoritative score — mirrors run.js finishRun(), with per-field caps.
@@ -109,7 +119,7 @@ export async function buildApp(pool, { logger = false, rateMax = 120 } = {}) {
         'INSERT INTO users(username, email, password_hash) VALUES($1,$2,$3) RETURNING id, username',
         [username, email || null, hash]);
       const user = r.rows[0];
-      return { token: sign(user), user: { id: user.id, username: user.username } };
+      return { token: sign(user), user: { id: user.id, username: user.username, admin: isAdmin(user.username) } };
     } catch (e) {
       if (e.code === '23505') return reply.code(409).send({ error: 'username or email already taken' });
       throw e;
@@ -125,10 +135,10 @@ export async function buildApp(pool, { logger = false, rateMax = 120 } = {}) {
       return reply.code(401).send({ error: 'bad username or password' });
     }
     await pool.query('UPDATE users SET last_login=now() WHERE id=$1', [u.id]);
-    return { token: sign(u), user: { id: u.id, username: u.username } };
+    return { token: sign(u), user: { id: u.id, username: u.username, admin: isAdmin(u.username) } };
   });
 
-  app.get('/api/me', { preHandler: auth }, async (req) => ({ user: req.user }));
+  app.get('/api/me', { preHandler: auth }, async (req) => ({ user: { ...req.user, admin: isAdmin(req.user.username) } }));
 
   // cloud save: whole META blob (JSONB)
   app.get('/api/save', { preHandler: auth }, async (req) => {
@@ -218,6 +228,22 @@ export async function buildApp(pool, { logger = false, rateMax = 120 } = {}) {
   registerSocial(app, pool, auth, { onFriendChange: (a, b) => realtime.onFriendChange(a, b) });
   app.realtime = realtime;
   app.get('/api/rt/stats', async () => realtime.stats());
+
+  // ---- admin dashboard (gated by the ADMIN_USERS allowlist) ----------------
+  app.get('/api/admin/overview', { preHandler: requireAdmin }, async () => ({
+    health: { ok: true, uptime: Math.floor(process.uptime()), now: Date.now() },
+    ...realtime.adminOverview(),
+  }));
+  app.post('/api/admin/kick', { preHandler: requireAdmin }, async (req, reply) => {
+    const uid = req.body && req.body.uid;
+    if (uid == null) return reply.code(400).send({ error: 'uid required' });
+    return { ok: true, closed: realtime.kickUser(uid) };
+  });
+  app.post('/api/admin/close-room', { preHandler: requireAdmin }, async (req, reply) => {
+    const code = req.body && req.body.code;
+    if (!code) return reply.code(400).send({ error: 'code required' });
+    return { ok: true, closed: realtime.adminCloseRoom(code) };
+  });
 
   return app;
 }
