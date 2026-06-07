@@ -102,6 +102,12 @@ Verified across all 9 biomes in a side-by-side mock render (0 errors).
   (#634619) and a bright sunlit top (#f0d188) — walls now read as darker raised sandstone blocks
   against the pale sand. (Floors / hazards unchanged.)
 
+## Plaza gateposts no longer sit on the walls
+The 8 central `town_gatepost` pillars were placed on the partition-wall line (rows 13/26, cols
+16/32), so their bases rendered on top of the walls. Moved each one tile **inward onto the plaza
+floor** (`world.js makeCamp` — N/S → rows 14.5/25.5, W/E → cols 17.5/31.5) so they stand on the
+ground flanking each doorway. Verified all 8 bases now land on floor tiles (not wall tiles).
+
 ## Corner bar retired
 The bottom-right `#net-bar` is hidden by default (`display:none`) — its functions now live in the
 centred title menu and the in-town Esc menu. `initNet` still wires the broadcast toast +

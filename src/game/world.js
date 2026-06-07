@@ -605,12 +605,15 @@ export function makeCamp() {
   put('hub_house', R.market, -3, -2); put('town_barrel', R.market, 3, 2); put('town_barrel', R.market, 4.5, 2.5);
   // PLAZA — lamps at the corners, torches, a banner
   put('hub_lamp', R.plaza, -5, 3, 0); put('hub_lamp', R.plaza, 5, 3, 1); put('hub_lamp', R.plaza, -5, -3, 1); put('hub_lamp', R.plaza, 5, -3, 0);
-  // proper GATEWAYS: two stone gateposts flank each 4-tile plaza doorway, placed at the
-  // ACTUAL opening edges (N/S openings = cols 23-26 on rows 13/26 → flank cols 22.5/27.5;
-  // W/E openings = rows 18-21 on cols 16/32 → flank rows 17.5/22.5). Sized + aligned to the gaps.
+  // proper GATEWAYS: two stone gateposts flank each 4-tile plaza doorway. The bases sit ONE
+  // tile INSIDE the plaza (on floor, not on the partition-wall line) so the posts read as
+  // standing on the ground beside each opening — not "built on the wall". (Plaza = cols 16-32 /
+  // rows 13-26, walls on 16/32 & 13/26; interior floor cols 17-31 / rows 14-25. N/S openings =
+  // cols 23-26 → flank cols 22.5/27.5 on floor rows 14.5/25.5; W/E openings = rows 18-21 → flank
+  // rows 17.5/22.5 on floor cols 17.5/31.5.)
   const gates = [
-    [22.5, 13.5], [27.5, 13.5], [22.5, 26.5], [27.5, 26.5],   // N (→guild) + S (→garden)
-    [16.5, 17.5], [16.5, 22.5], [32.5, 17.5], [32.5, 22.5],   // W (→blacksmith) + E (→achievements)
+    [22.5, 14.5], [27.5, 14.5], [22.5, 25.5], [27.5, 25.5],   // N (→guild) + S (→garden)
+    [17.5, 17.5], [17.5, 22.5], [31.5, 17.5], [31.5, 22.5],   // W (→blacksmith) + E (→achievements)
   ];
   for (const [gx, gy] of gates) D.push({ sprite: 'town_gatepost', x: gx * TS, y: gy * TS, phase: 0 });
   // polished town tileset (soft flagstone joints) instead of the dungeon's dark grid
