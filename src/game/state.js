@@ -8,7 +8,21 @@ import { Audio } from '../engine/audio.js';
 import { setShakeEnabled } from '../engine/renderer.js';
 import { Net, queueCloudSave, postRunResult } from '../net/api.js';   // cloud save + leaderboard (offline-first)
 
-const SAVE_KEY = 'soulshard.save.v1';
+const SAVE_KEY = 'soulshard.save.v1';            // legacy single-save key (migrated into slot 0 on first load)
+const SLOT_COUNT = 3;
+const ACTIVE_KEY = 'soulshard.activeSlot';
+const slotKey = (i) => SAVE_KEY + '.slot' + i;
+let _slot = 0;                                    // which slot META currently represents (saveMeta writes here)
+let _migrated = false;
+function migrateLegacy() {
+  if (_migrated) return; _migrated = true;
+  try { const legacy = localStorage.getItem(SAVE_KEY); if (legacy && !localStorage.getItem(slotKey(0))) localStorage.setItem(slotKey(0), legacy); }
+  catch (e) { /* */ }
+}
+export function activeSlot() { try { const v = parseInt(localStorage.getItem(ACTIVE_KEY), 10); return (v >= 0 && v < SLOT_COUNT) ? v : 0; } catch (e) { return 0; } }
+export function setActiveSlot(i) { _slot = (i >= 0 && i < SLOT_COUNT) ? i : 0; try { localStorage.setItem(ACTIVE_KEY, String(_slot)); } catch (e) { /* */ } }
+export function currentSlot() { return _slot; }
+export function currentSlotKey() { return slotKey(_slot); }
 const SAVE_VERSION = 2;
 // Save-version migration ladder: SAVE_MIGRATIONS[v](parsed) transforms a v-save in place to v+1.
 // Empty today (round-6 changes are additive, covered by the backfills in loadMeta) — the seam
@@ -23,9 +37,9 @@ const DEFAULT_META = () => ({
   unlocked: { abilities: [], equipment: [], weapons: ['wand'], characters: ['hunter'], items: [] },
   loadoutWeapon: 'wand',
   selectedCharacter: 'hunter',
-  stats: { runs: 0, kills: 0, bestFloor: 0, bestStage: 0, bestScore: 0, bestTime: 0, bossKills: 0, reaperKills: 0, miniBossKills: 0, clears: 0, deaths: 0, totalGold: 0, history: [],
+  stats: { runs: 0, kills: 0, bestFloor: 0, bestStage: 0, bestScore: 0, bestTime: 0, bossKills: 0, reaperKills: 0, miniBossKills: 0, clears: 0, deaths: 0, totalGold: 0, playTime: 0, history: [],
     // round-5: extra lifetime stats for the expanded achievements (task 2)
-    charClears: {}, noDmgClears: 0, bestCharLevel: 0, bondsTriggered: 0, forgeUpgrades: 0, npcTalks: 0 },
+    charClears: {}, noDmgClears: 0, bestCharLevel: 0, bondsTriggered: 0, forgeUpgrades: 0, npcTalks: 0, hiddenRoomsFound: 0 },
   settings: { master: 0.9, sfx: 0.75, music: 0.5, shake: true, muted: false },
   achievements: [],      // unlocked achievement ids
   questIndex: 0,         // current story-quest chapter
@@ -50,9 +64,12 @@ export function applySettings() {
 
 export let META = DEFAULT_META();
 
-export function loadMeta() {
+export function loadMeta(slot) {
+  migrateLegacy();
+  if (slot != null) _slot = (slot >= 0 && slot < SLOT_COUNT) ? slot : 0; else _slot = activeSlot();
+  try { localStorage.setItem(ACTIVE_KEY, String(_slot)); } catch (e) { /* */ }
   try {
-    const raw = localStorage.getItem(SAVE_KEY);
+    const raw = localStorage.getItem(slotKey(_slot));
     if (raw) {
       const parsed = JSON.parse(raw);
       let _sv = (typeof parsed.version === 'number') ? parsed.version : 1;   // run the migration ladder before merging
@@ -88,8 +105,9 @@ export function loadMeta() {
       for (const k of ['charClears']) if (!META.stats[k] || typeof META.stats[k] !== 'object') META.stats[k] = {};
       for (const k of ['noDmgClears', 'bestCharLevel', 'bondsTriggered', 'forgeUpgrades', 'npcTalks']) if (typeof META.stats[k] !== 'number') META.stats[k] = 0;
       if (typeof META.saveSeq !== 'number') META.saveSeq = 0;
+      if (typeof META.stats.playTime !== 'number') META.stats.playTime = 0;
       META.version = SAVE_VERSION;
-    }
+    } else { META = DEFAULT_META(); }   // empty slot → fresh save
   } catch (e) { console.warn('load save failed', e); META = DEFAULT_META(); }
   try { reconcileUnlocks(META); } catch (e) { /* */ }   // re-grant achievement unlocks (A2)
   return META;
@@ -97,23 +115,56 @@ export function loadMeta() {
 
 export function saveMeta() {
   // saveSeq = strictly-increasing, clock-safe conflict key for cloud-vs-local; savedAt is a tie-break only
-  try { META.saveSeq = (META.saveSeq || 0) + 1; META.savedAt = Date.now(); localStorage.setItem(SAVE_KEY, JSON.stringify(META)); }
+  try { META.saveSeq = (META.saveSeq || 0) + 1; META.savedAt = Date.now(); META.slot = _slot; localStorage.setItem(slotKey(_slot), JSON.stringify(META)); }   // stamp the slot so cloud sync only reconciles like-with-like
   catch (e) { console.warn('save failed', e); }
-  queueCloudSave(getMeta, SAVE_VERSION);   // debounced cloud push if logged in (no-op otherwise)
+  queueCloudSave(getMeta, SAVE_VERSION);   // debounced cloud push if logged in (no-op otherwise) — syncs the ACTIVE slot
 }
 
 export function resetMeta() { META = DEFAULT_META(); saveMeta(); }
 
 export function getMeta() { return META; }
 
+// ---- save slots (title-screen slot picker) --------------------------------
+// Lightweight headers for each of the 3 local slots, read WITHOUT disturbing the live META.
+export function slotSummaries() {
+  migrateLegacy();
+  const act = activeSlot();
+  const out = [];
+  for (let i = 0; i < SLOT_COUNT; i++) {
+    let s = null;
+    try { const raw = localStorage.getItem(slotKey(i)); if (raw) s = JSON.parse(raw); } catch (e) { /* */ }
+    if (!s) { out.push({ i, empty: true, active: i === act }); continue; }
+    const st = s.stats || {};
+    out.push({
+      i, empty: false, active: i === act,
+      gold: s.gold || 0, playTime: st.playTime || 0, achievements: (s.achievements || []).length,
+      bestStage: st.bestStage || 0, bestScore: st.bestScore || 0, runs: st.runs || 0, clears: st.clears || 0,
+      char: s.selectedCharacter || 'hunter', biomesUnlocked: (s.levels && s.levels.unlocked) || 1, savedAt: s.savedAt || 0,
+    });
+  }
+  return out;
+}
+export function deleteSlot(i) {
+  try { localStorage.removeItem(slotKey(i)); localStorage.removeItem(slotKey(i) + '.precloud.bak'); } catch (e) { /* */ }
+  if (i === _slot) {
+    // active slot deleted: re-point to a valid slot + reload, so a later saveMeta()/cloud push
+    // never writes the emptied slot. Prefer the first remaining non-empty slot, else slot 0.
+    let next = 0;
+    for (let k = 0; k < SLOT_COUNT; k++) { if (k === i) continue; let raw = null; try { raw = localStorage.getItem(slotKey(k)); } catch (e) { /* */ } if (raw) { next = k; break; } }
+    setActiveSlot(next); loadMeta(next);
+  }
+}
+export const SLOTS = SLOT_COUNT;
+
 // Replace the in-memory + local save with a cloud blob (used right after login),
 // reusing loadMeta()'s migration path so partial/old cloud saves are normalised.
 export function importMeta(obj) {
   if (!obj || typeof obj !== 'object') return false;
+  if (typeof obj.slot === 'number' && obj.slot !== _slot) return false;   // never write another slot's cloud blob into this slot
   try {
-    const prev = localStorage.getItem(SAVE_KEY);
-    if (prev) localStorage.setItem(SAVE_KEY + '.precloud.bak', prev);   // recoverable backup before clobbering local
-    localStorage.setItem(SAVE_KEY, JSON.stringify(obj));
+    const prev = localStorage.getItem(slotKey(_slot));
+    if (prev) localStorage.setItem(slotKey(_slot) + '.precloud.bak', prev);   // recoverable backup before clobbering the active slot
+    localStorage.setItem(slotKey(_slot), JSON.stringify(obj));
   } catch (e) { return false; }   // couldn't stage the blob → report failure (don't claim success)
   loadMeta();
   applySettings();
@@ -123,16 +174,25 @@ export function importMeta(obj) {
 // After login: reconcile cloud vs local by the savedAt marker so a logged-in player
 // never silently loses NEWER guest progress to an OLDER cloud save (and vice-versa).
 // A .precloud.bak is written before any overwrite, so the result is always recoverable.
-export async function syncFromCloud() {
+export async function syncFromCloud(opts = {}) {
   if (!Net.isLoggedIn()) return { ok: false };
   try {
     const r = await Net.getSave();
     const cloud = r && r.meta;
     if (cloud) {
+      // the cloud blob is one-per-account; only reconcile it with the slot it came from
+      const cloudSlot = (typeof cloud.slot === 'number') ? cloud.slot : 0;   // legacy blobs (no slot) belong to slot 0 (where legacy saves migrate)
+      if (cloudSlot !== _slot) {
+        try { await Net.putSave(getMeta(), SAVE_VERSION); } catch (e) { /* */ }   // different slot → never pull; just push this slot up
+        return { ok: true, skipped: true, slotMismatch: true };
+      }
       // reconcile by saveSeq (clock-safe), savedAt only as tie-break
       const cs = cloud.saveSeq || 0, ls = META.saveSeq || 0;
       const cloudNewer = cs > ls || (cs === ls && (cloud.savedAt || 0) > (META.savedAt || 0));
-      if (cloudNewer) { return importMeta(cloud) ? { ok: true, pulled: true } : { ok: false }; }
+      if (cloudNewer) {
+        if (opts.pushOnly) return { ok: true, pulled: false, deferred: true };   // boot: don't clobber a slot before the player enters it
+        return importMeta(cloud) ? { ok: true, pulled: true } : { ok: false };
+      }
       await Net.putSave(getMeta(), SAVE_VERSION);   // local is newer → keep it, push up
       return { ok: true, pushed: true, keptLocal: true };
     }
@@ -213,6 +273,7 @@ export function bankRun(run) {
   META.stats.runs += 1;
   META.stats.kills += run.kills;
   META.stats.totalGold += run.gold;
+  META.stats.playTime = (META.stats.playTime || 0) + Math.floor(run.time || 0);   // accumulated 遊戲時數 (shown on the save-slot picker)
   META.stats.bestFloor = Math.max(META.stats.bestFloor, run.floor);
   META.stats.bestStage = Math.max(META.stats.bestStage || 0, run.stage || run.floor || 1);
   META.stats.bestScore = Math.max(META.stats.bestScore || 0, run.score || 0);

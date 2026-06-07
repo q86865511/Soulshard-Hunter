@@ -1,7 +1,7 @@
 // Reusable settings overlay (volumes / screen-shake / mute / reset save).
 import { uiRect, uiText, uiScale, view, uiBar } from '../../engine/renderer.js';
 import { mouse, pressed } from '../../engine/input.js';
-import { META, saveMeta, applySettings, resetMeta } from '../state.js';
+import { META, saveMeta, applySettings, resetMeta, currentSlotKey } from '../state.js';
 import { P, withAlpha } from '../../engine/palette.js';
 import { Sfx } from '../../engine/audio.js';
 
@@ -40,7 +40,7 @@ export const settingsUI = {
       if (!inside(mx, my, L.reset)) this.confirmReset = false;
       for (const r of L.rows) if (r.type === 'toggle' && inside(mx, my, r)) { META.settings[r.key] = !META.settings[r.key]; applySettings(); saveMeta(); Sfx.play('uiClick'); }
       if (inside(mx, my, L.reset)) {
-        if (this.confirmReset) { const K = 'soulshard.save.v1'; try { localStorage.setItem(K + '.bak', localStorage.getItem(K) || ''); } catch (e) {} resetMeta(); applySettings(); this.confirmReset = false; Sfx.play('death'); }
+        if (this.confirmReset) { const K = currentSlotKey(); try { const cur = localStorage.getItem(K); if (cur) localStorage.setItem(K + '.bak', cur); } catch (e) {} resetMeta(); applySettings(); this.confirmReset = false; Sfx.play('death'); }   // back up the ACTIVE slot (not the legacy key) before wiping it
         else { this.confirmReset = true; Sfx.play('uiClick'); }
       } else if (inside(mx, my, L.close)) this.hide();
     }

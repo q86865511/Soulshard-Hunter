@@ -19,6 +19,11 @@ export const STORY_QUESTS = [
   { id: 's13', title: '第十三章 · 萬骸', story: '你走過的路鋪滿屍骸，多到連魂晶都來不及吞噬。', desc: '累計擊殺 5000 名敵人', prog: (s) => s.kills || 0, goal: 5000, reward: 2200 },
   { id: 's14', title: '第十四章 · 不朽傳說', story: '弒神者之名響徹諸界。死神已不只一次倒在你的刃下。', desc: '累計擊殺死神 3 次', prog: (s) => s.reaperKills || 0, goal: 3, reward: 2800 },
   { id: 's15', title: '終章 · 魂晶之主', story: '萬千魂晶終歸於一人之手。你直視深淵盡頭——那裡只剩你的倒影。', desc: '達到威脅 13 級', prog: (s) => s.bestStage || 0, goal: 13, reward: 4000 },
+  // 逆星之章 (act 2): the永夜 didn't end when you became its master — it just changed how it watches you.
+  { id: 's16', title: '逆星 · 餘燼未熄', story: '成為魂晶之主後，永夜並未終結——它只是換了個方式凝視你。', desc: '累計擊殺 10000 名敵人', prog: (s) => s.kills || 0, goal: 10000, reward: 5000 },
+  { id: 's17', title: '逆星 · 跨界者', story: '你開始在不同的生態間來去自如，像在自家後院散步。', desc: '累計通關 6 次', prog: (s) => s.clears || 0, goal: 6, reward: 6500 },
+  { id: 's18', title: '逆星 · 死神獵人', story: '收割者見到你已學會轉身就逃——可惜，你更快。', desc: '累計擊殺死神 5 次', prog: (s) => s.reaperKills || 0, goal: 5, reward: 9000 },
+  { id: 's19', title: '逆星 · 超越', story: '當分數失去意義，你終於明白：你追逐的從來不是魂晶，而是「還能不能再強一點」。', desc: '單局分數突破 80000', prog: (s) => s.bestScore || 0, goal: 80000, reward: 13000 },
 ];
 
 // 一般任務 (regular bounties) — accepted/tracked from the guild, claimed once done.

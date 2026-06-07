@@ -16,7 +16,9 @@ import { exclusiveFor } from '../content/exclusives.js';
 import { BALANCE, weaponMaxLevel } from '../balance.js';
 import { isUnlocked } from '../content/unlocks.js';
 import { STORY_QUESTS, trackedQuestState, fmtQuestVal } from '../content/quests.js';
+import { heroLore } from '../content/lore.js';
 import { EVENTS } from '../content/events.js';
+import { HIDDEN_ROOMS, hiddenRoomById } from '../content/hidden.js';
 import { Cheats } from '../cheats.js';
 import {
   camera, clear, vignette, uiText, uiRect, uiScale, view, addShake, drawSpriteUI, textWidth,
@@ -153,6 +155,9 @@ export const runScene = {
     this.anvilBuys = 0; this.gearBuys = 0; this.shopChoice = null;   // 原#4: shop is global now (B key), not shrine-gated
     if (map.shrine) this.setupShrine(map.shrine);
     this.npcs = (map.npcs || []).map((n) => ({ ...n })); this.nearNpc = null;   // E1 interactive NPCs
+    // hidden rooms (隱藏房間): each map marker gets a random room type; entering pauses for a reward/choice
+    this.hiddenRooms = (map.hiddenRooms || []).map((h) => ({ x: h.x, y: h.y, id: HIDDEN_ROOMS[rng.int(0, HIDDEN_ROOMS.length - 1)].id, used: false }));
+    this.nearHidden = null; this.hiddenPanel = null;
     this.interactCap = 7; this.nextInteractAt = 16; this.chestRefreshT = 30;     // 原#2: timed refresh
 
     // time-based threat + a rotating roster of only 1-3 active enemy types
@@ -182,7 +187,14 @@ export const runScene = {
     this.bannerT = 2.6;
     // G3: a brief cinematic recounting the current story chapter
     const q = STORY_QUESTS[META.questIndex || 0];
-    this.story = q ? { title: q.title, text: q.story, t: 6.5, dur: 6.5 } : null;
+    const lore = heroLore(this.run.characterId);
+    const who = (Characters.get(this.run.characterId) || {}).name || '';
+    this.story = (q || lore) ? {
+      title: q ? q.title : (who + (lore ? ' · ' + lore.epithet : '')),
+      text: q ? q.story : (lore ? lore.lore : ''),
+      quote: lore ? lore.quote : null, who, chapter: !!q,
+      t: 6.5, dur: 6.5,
+    } : null;
   },
 
   tierCapNow() { return Math.min(4, 1 + Math.floor(this.threat / 2)); },
@@ -876,6 +888,7 @@ export const runScene = {
       return;
     }
     if (this.paused) { this.updatePause(); return; }
+    if (this.hiddenPanel) { this.updateHidden(dt); return; }   // a hidden room pauses the run for its choice
     if (this.choice) { this.updateChoice(); return; }
     if (this.equipChoice) { this.updateEquipChoice(); return; }   // B1 equip menu pauses the field
     if (this.eventChoice) { this.updateEventChoice(); return; }   // 原#3 mini-boss event pauses the field
@@ -925,8 +938,11 @@ export const runScene = {
     this.nearShrine = !!(this.shrinePos && !this.shrineUsed && dist(this.player.x, this.player.y, this.shrinePos.x, this.shrinePos.y) < 20);
     this.nearNpc = null;
     for (const n of this.npcs) { if (!n.used && dist(this.player.x, this.player.y, n.x, n.y) < 22) { this.nearNpc = n; break; } }
+    this.nearHidden = null;
+    for (const h of (this.hiddenRooms || [])) { if (!h.used && dist(this.player.x, this.player.y, h.x, h.y) < 24) { this.nearHidden = h; break; } }
     if (this.nearShrine && pressed('interact')) { this.useShrine(); }
     else if (this.nearNpc && pressed('interact')) { this.useNpc(this.nearNpc); }
+    else if (this.nearHidden && pressed('interact')) { this.openHidden(this.nearHidden); }
     else if (this.cleared && pressed('interact')) { this.finishRun(true); return; }   // leave as a win during the Reaper window
     // C2: surface a "can-fuse" hint (without revealing the recipe) on the rising edge
     const fr = fusionAvailable(this.run, this.player);
@@ -1176,10 +1192,74 @@ export const runScene = {
   flashShop(msg) { this.shopFlash = msg; this.shopFlashT = 1.2; },
 
   // ---- render --------------------------------------------------------------
+  // ---- hidden rooms (隱藏房間) ---------------------------------------------
+  openHidden(h) {
+    const room = hiddenRoomById(h.id);
+    if (this.coop) {   // co-op can't pause the shared world → auto-take the first option
+      h.used = true; META.stats.hiddenRoomsFound = (META.stats.hiddenRoomsFound || 0) + 1;
+      let res = ''; try { res = room.options[0].apply(this) || ''; } catch (e) { /* */ }
+      this.banner = '隱藏房間 · ' + (res || room.name); this.bannerT = 2.8; Sfx.play('levelup');
+      return;
+    }
+    this.hiddenPanel = { room, h, hover: -1, t: 0 }; Sfx.play('levelup');
+  },
+  hiddenRects(n) {
+    const S = uiScale(); const w = Math.min(440 * S, view.W - 60 * S), bh = 46 * S, gap = 10 * S;
+    const x = view.W / 2 - w / 2; const totalH = n * bh + (n - 1) * gap; const y0 = view.H * 0.52 - totalH / 2 + 20 * S;
+    return Array.from({ length: n }, (_, i) => ({ x, y: y0 + i * (bh + gap), w, h: bh }));
+  },
+  updateHidden(dt) {
+    const hp = this.hiddenPanel; hp.t += dt;
+    if (settingsUI.open) { settingsUI.update(); return; }
+    const rects = this.hiddenRects(hp.room.options.length);
+    const mx = mouse.x * view.dpr, my = mouse.y * view.dpr;
+    hp.hover = -1; rects.forEach((r, i) => { if (inside(mx, my, r)) hp.hover = i; });
+    if (pressed('escape') || pressed('pause')) { this.hiddenPanel = null; return; }   // walk away — the room stays for later
+    let pick = -1;
+    if (mouse.justDown && hp.hover >= 0) pick = hp.hover;
+    if (pressed('slot1')) pick = 0; if (pressed('slot2') && hp.room.options[1]) pick = 1; if (pressed('slot3') && hp.room.options[2]) pick = 2;
+    if (pick >= 0 && pick < hp.room.options.length) {
+      hp.h.used = true; META.stats.hiddenRoomsFound = (META.stats.hiddenRoomsFound || 0) + 1;
+      let res = ''; try { res = hp.room.options[pick].apply(this) || ''; } catch (e) { /* */ }
+      this.banner = '隱藏房間 · ' + res; this.bannerT = 3.0; Sfx.play('levelup');
+      this.hiddenPanel = null;
+    }
+  },
+  drawHiddenRooms() {
+    if (!this.hiddenRooms) return; const S = uiScale();
+    for (const h of this.hiddenRooms) {
+      if (h.used) continue;
+      const room = hiddenRoomById(h.id); const pulse = 0.5 + Math.sin(this.t * 3 + h.x * 0.1) * 0.5;
+      glowWorld(h.x, h.y - 4, 16 + pulse * 6, room.color, 0.18 + pulse * 0.12);
+      strokeCircleWorld(h.x, h.y - 4, 11 + pulse * 2, room.color, 2);
+      strokeCircleWorld(h.x, h.y - 4, 6, withAlpha(room.color, 0.7), 1.5);
+      fillCircleWorld(h.x, h.y - 4, 2.5, room.color);
+      const ns = worldToScreen(h.x, h.y - 22); uiText('？', ns.x, ns.y, { size: 14 * S, align: 'center', color: room.color, weight: '900', shadowColor: withAlpha('#000', 0.8) });
+      if (this.nearHidden === h) { const ps = worldToScreen(h.x, h.y + 10); uiText('按 E 進入隱藏房間', ps.x, ps.y, { size: 11 * S, align: 'center', color: withAlpha('#fff', 0.6 + Math.sin(this.t * 6) * 0.3), weight: '800' }); }
+    }
+  },
+  drawHidden() {
+    const S = uiScale(); const hp = this.hiddenPanel; const room = hp.room;
+    uiRect(0, 0, view.W, view.H, withAlpha('#070912', 0.85));
+    uiText(room.name, view.W / 2, view.H * 0.3, { size: 30 * S, align: 'center', color: room.color, weight: '900', shadowColor: withAlpha('#000', 0.8) });
+    uiText(room.desc, view.W / 2, view.H * 0.3 + 30 * S, { size: 14 * S, align: 'center', color: P.gray3 });
+    const rects = this.hiddenRects(room.options.length); const mx = mouse.x * view.dpr, my = mouse.y * view.dpr;
+    rects.forEach((r, i) => {
+      const o = room.options[i]; const hov = hp.hover === i;
+      uiRect(r.x, r.y, r.w, r.h, withAlpha(hov ? '#27306a' : '#161b34', 0.97), { radius: 8 * S, stroke: hov ? room.color : withAlpha(room.color, 0.4), lw: hov ? 3 : 2 });
+      uiText((i + 1) + '.  ' + o.label, r.x + 14 * S, r.y + r.h / 2 + 4 * S, { size: 14 * S, color: '#fff', weight: '800' });
+      if (o.hint) uiText(o.hint, r.x + r.w - 12 * S, r.y + r.h / 2 + 4 * S, { size: 11 * S, align: 'right', color: withAlpha(room.color, 0.85), weight: '700' });
+    });
+    const lr = rects[rects.length - 1];
+    uiText('點擊或按 1 / 2 / 3 選擇　·　Esc 暫不取用', view.W / 2, lr.y + lr.h + 22 * S, { size: 11 * S, align: 'center', color: withAlpha('#fff', 0.5) });
+    settingsUI.draw();
+  },
+
   render() {
     this.world.draw();
     if (this.shrinePos) this.drawShrine();
     this.drawNpcs();
+    this.drawHiddenRooms();
     this.drawEvents();
     vignette(0.42);
     drawLowHpWarning(this.player, this.t);
@@ -1201,6 +1281,7 @@ export const runScene = {
     if (this.coop && this.coopPick && !this.coopMenu) this.drawCoopPick();
     if (this.dead) { if (this.won) this.drawWon(); else this.drawDeath(); }
     if (this.paused) this.drawPause();
+    if (this.hiddenPanel) this.drawHidden();
     if (this.coop && this.coopMenu) this.drawCoopMenu();
     settingsUI.draw();
     this.drawCheatPanel();   // F2 dev overlay (on top of everything)
@@ -1480,10 +1561,11 @@ export const runScene = {
     uiRect(0, by, view.W, bandH, withAlpha('#05060c', 0.82 * a));
     uiRect(0, by, view.W, 2 * S, withAlpha(P.shardL, 0.5 * a));
     uiRect(0, by + bandH - 2 * S, view.W, 2 * S, withAlpha(P.shardL, 0.5 * a));
-    uiText('第 ' + ((META.questIndex || 0) + 1) + ' 章', view.W / 2, by + 22 * S, { size: 12 * S, align: 'center', color: withAlpha(P.shardL, a), weight: '700' });
+    uiText(st.chapter ? ('第 ' + ((META.questIndex || 0) + 1) + ' 章') : (st.who || '角色'), view.W / 2, by + 22 * S, { size: 12 * S, align: 'center', color: withAlpha(P.shardL, a), weight: '700' });
     uiText(st.title, view.W / 2, by + 44 * S, { size: 24 * S, align: 'center', color: withAlpha(P.goldL, a), weight: '900', shadowColor: withAlpha('#000', a) });
     const reveal = Math.floor(Math.min(st.text.length, (st.dur - st.t) / 0.03));   // typewriter reveal
     this.wrapText(st.text.slice(0, reveal), view.W / 2, by + 76 * S, view.W * 0.7, 14 * S, withAlpha('#d8e0f0', a));
+    if (st.quote) uiText('「' + st.quote + '」　— ' + (st.who || ''), view.W / 2, by + bandH - 34 * S, { size: 12.5 * S, align: 'center', color: withAlpha(P.shardL, a * 0.95), weight: '700' });   // 角色劇情: signature battle quote
     uiText('按 空白鍵 跳過', view.W / 2, by + bandH - 14 * S, { size: 11 * S, align: 'center', color: withAlpha('#fff', 0.4 * a) });
   },
 
