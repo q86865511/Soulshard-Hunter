@@ -3,6 +3,8 @@ import { setScene } from '../scene.js';
 import { refs } from './refs.js';
 import { META, loadMeta, applySettings, setActiveSlot, activeSlot, slotSummaries, deleteSlot, syncFromCloud } from '../state.js';
 import { Net } from '../../net/api.js';
+import { openAuth, openLeaderboard, isModalOpen, netToast } from '../../net/ui.js';
+import { openSocial } from '../../net/social.js';
 import { Characters } from '../content/registry.js';
 import { uiText, uiRect, uiScale, view, drawSpriteUI, vignette, ctxRaw } from '../../engine/renderer.js';
 import { getSprite, frameAt } from '../../engine/sprites.js';
@@ -26,10 +28,19 @@ export const titleScene = {
 
   // ---- layout (shared by update hit-testing + render) ----------------------
   layoutMenu() {
-    const S = uiScale(); const w = 260 * S, h = 50 * S, gap = 14 * S; const x = view.W / 2 - w / 2; const y0 = view.H * 0.6;
+    const S = uiScale();
+    // two big buttons (single vs multiplayer) + a row of three smaller (排行榜 · 帳號 · 設定)
+    const bw = Math.min(210 * S, (view.W - 60 * S) / 2), bh = 66 * S, bgap = 20 * S;
+    const totalBig = bw * 2 + bgap, x0 = view.W / 2 - totalBig / 2, yBig = view.H * 0.58;
+    const sw = (totalBig - 2 * 9 * S) / 3, sh = 42 * S, sgap = 9 * S, ySub = yBig + bh + 18 * S;
+    const u = Net.currentUser() || {};
+    const acct = Net.isLoggedIn() ? ('☁ ' + (u.username || '帳號')) : '☁ 登入 / 註冊';
     return [
-      { id: 'play', label: '開始遊戲', r: { x, y: y0, w, h } },
-      { id: 'settings', label: '設定', r: { x, y: y0 + (h + gap), w, h } },
+      { id: 'single', label: '🗡 單人遊戲', big: true, r: { x: x0, y: yBig, w: bw, h: bh } },
+      { id: 'multi', label: '🌐 多人連線', big: true, r: { x: x0 + bw + bgap, y: yBig, w: bw, h: bh } },
+      { id: 'leaderboard', label: '🏆 排行榜', r: { x: x0, y: ySub, w: sw, h: sh } },
+      { id: 'account', label: acct, r: { x: x0 + sw + sgap, y: ySub, w: sw, h: sh } },
+      { id: 'settings', label: '⚙ 設定', r: { x: x0 + 2 * (sw + sgap), y: ySub, w: sw, h: sh } },
     ];
   },
   layoutSlots() {
@@ -72,16 +83,24 @@ export const titleScene = {
     }
 
     // menu
+    if (isModalOpen()) return;   // a DOM overlay (login / 多人 / 排行榜) is up — don't let canvas keys/clicks drive the title behind it
     if (pressed('escape')) { settingsUI.show(); return; }
     if (mouse.justDown) {
-      for (const b of this.layoutMenu()) if (inside(mx, my, b.r)) {
-        if (b.id === 'play') { this.slots = slotSummaries(); this.mode = 'slots'; this.confirm = -1; }
-        else if (b.id === 'settings') settingsUI.show();
-        return;
-      }
+      for (const b of this.layoutMenu()) if (inside(mx, my, b.r)) { this.onMenu(b.id); return; }
     }
-    if (pressed('space') || pressed('enter')) this.enterSlot(activeSlot());   // quick-start into the last-used slot
+    if (pressed('space') || pressed('enter')) this.enterSlot(activeSlot());   // quick-start straight into the last-used slot
   },
+
+  onMenu(id) {
+    if (id === 'single') this.startSingle();
+    else if (id === 'multi') {
+      if (Net.isLoggedIn()) openSocial();
+      else { openAuth(); netToast('多人連線需要先登入帳號'); }
+    } else if (id === 'leaderboard') openLeaderboard();
+    else if (id === 'account') openAuth();
+    else if (id === 'settings') settingsUI.show();
+  },
+  startSingle() { this.slots = slotSummaries(); this.mode = 'slots'; this.confirm = -1; },
 
   // ---- render --------------------------------------------------------------
   render() {
@@ -122,8 +141,10 @@ export const titleScene = {
     const mx = mouse.x * view.dpr, my = mouse.y * view.dpr;
     for (const b of this.layoutMenu()) {
       const hov = inside(mx, my, b.r);
-      uiRect(b.r.x, b.r.y, b.r.w, b.r.h, withAlpha(hov ? '#27306a' : '#161b34', 0.96), { radius: 10 * S, stroke: hov ? P.shardL : withAlpha(P.shardL, 0.4), lw: hov ? 3 : 2 });
-      uiText(b.label, b.r.x + b.r.w / 2, b.r.y + b.r.h / 2 + 6 * S, { size: 19 * S, align: 'center', color: hov ? '#fff' : '#cfe0ff', weight: '800' });
+      const accent = b.id === 'multi' ? P.goldL : P.shardL;
+      const baseBg = b.big ? (b.id === 'multi' ? '#2a2342' : '#16223a') : '#141832';
+      uiRect(b.r.x, b.r.y, b.r.w, b.r.h, withAlpha(hov ? '#27306a' : baseBg, 0.96), { radius: 10 * S, stroke: hov ? accent : withAlpha(accent, b.big ? 0.55 : 0.35), lw: hov ? 3 : 2 });
+      uiText(b.label, b.r.x + b.r.w / 2, b.r.y + b.r.h / 2 + (b.big ? 7 : 5) * S, { size: (b.big ? 21 : 14) * S, align: 'center', color: hov ? '#fff' : (b.big ? '#eaf2ff' : '#cfe0ff'), weight: b.big ? '900' : '800' });
     }
     uiText('金庫 ' + META.gold + '　·　最深 第 ' + (META.stats.bestStage || 0) + ' 區　·　最高分 ' + (META.stats.bestScore || 0), view.W / 2, view.H * 0.93, { size: 12 * S, align: 'center', color: P.gray2 });
     uiText('空白鍵 快速進入上次存檔　·　Esc 設定', view.W / 2, view.H * 0.97, { size: 11 * S, align: 'center', color: withAlpha(P.gray2, 0.7) });

@@ -84,6 +84,28 @@ const registerSchema = z.object({
   email: z.string().email().max(160).optional().nullable(),
 });
 const loginSchema = z.object({ username: z.string().min(1), password: z.string().min(1) });
+
+// Turn the first zod issue into a human-readable Chinese message so the client can show
+// the REAL reason (was a generic "invalid input"). Falls back gracefully for any field.
+function zodMsg(err) {
+  const i = err && err.issues && err.issues[0];
+  if (!i) return '輸入格式不正確';
+  const f = i.path && i.path[0];
+  if (f === 'username') {
+    if (i.code === 'too_small') return '帳號至少需要 3 個字元';
+    if (i.code === 'too_big') return '帳號最多 24 個字元';
+    if (i.code === 'invalid_string') return '帳號只能使用英文字母、數字與底線（_）';
+    return '帳號格式不正確（3–24 字元，英數與底線）';
+  }
+  if (f === 'password') {
+    if (i.code === 'too_small') return '密碼至少需要 6 個字元';
+    if (i.code === 'too_big') return '密碼太長（最多 160 個字元）';
+    if (i.code === 'custom') return '密碼太長（UTF-8 上限 72 位元組，請改短一點）';
+    return '密碼格式不正確（至少 6 個字元）';
+  }
+  if (f === 'email') return '電子郵件格式不正確';
+  return '輸入格式不正確';
+}
 const saveSchema = z.object({ meta: z.record(z.any()), saveVersion: z.number().int().nonnegative() });
 const runSchema = z.object({
   kills: z.number().int().nonnegative().max(100000),
@@ -111,7 +133,7 @@ export async function buildApp(pool, { logger = false, rateMax = 120 } = {}) {
 
   app.post('/api/register', strictLimit, async (req, reply) => {
     const p = registerSchema.safeParse(req.body);
-    if (!p.success) return reply.code(400).send({ error: 'invalid input', detail: p.error.issues });
+    if (!p.success) return reply.code(400).send({ error: zodMsg(p.error) });
     if (realtime.isBannedIp(req.ip)) return reply.code(403).send({ error: '此 IP 已被封鎖' });
     const { username, password, email } = p.data;
     const hash = await bcrypt.hash(password, 10);
@@ -122,18 +144,18 @@ export async function buildApp(pool, { logger = false, rateMax = 120 } = {}) {
       const user = r.rows[0];
       return { token: sign(user), user: { id: user.id, username: user.username, admin: isAdmin(user.username) } };
     } catch (e) {
-      if (e.code === '23505') return reply.code(409).send({ error: 'username or email already taken' });
+      if (e.code === '23505') return reply.code(409).send({ error: '此帳號或電子郵件已被註冊' });
       throw e;
     }
   });
 
   app.post('/api/login', strictLimit, async (req, reply) => {
     const p = loginSchema.safeParse(req.body);
-    if (!p.success) return reply.code(400).send({ error: 'invalid input' });
+    if (!p.success) return reply.code(400).send({ error: '請輸入帳號與密碼' });
     const r = await pool.query('SELECT id, username, password_hash FROM users WHERE username=$1', [p.data.username]);
     const u = r.rows[0];
     if (!u || !(await bcrypt.compare(p.data.password, u.password_hash))) {
-      return reply.code(401).send({ error: 'bad username or password' });
+      return reply.code(401).send({ error: '帳號或密碼錯誤' });
     }
     if (realtime.isBannedUser(u.username)) return reply.code(403).send({ error: '此帳號已被封鎖' });
     await pool.query('UPDATE users SET last_login=now() WHERE id=$1', [u.id]);

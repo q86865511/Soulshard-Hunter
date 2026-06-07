@@ -115,9 +115,13 @@ const token = r.json().token;
 ok((await J('POST', '/api/register', { username: 'tester', password: 'hunter123' })).statusCode === 409, 'duplicate username → 409');
 ok((await J('POST', '/api/register', { username: 'ab', password: 'hunter123' })).statusCode === 400, 'short username → 400 (zod)');
 ok((await J('POST', '/api/register', { username: 'goodname', password: '123' })).statusCode === 400, 'short password → 400 (zod)');
+// errors are human-readable Chinese (not "invalid input")
+ok((await J('POST', '/api/register', { username: 'goodname', password: '123' })).json().error.includes('密碼'), 'short password → Chinese reason (密碼…)');
+ok((await J('POST', '/api/register', { username: 'ab', password: 'hunter123' })).json().error.includes('帳號'), 'short username → Chinese reason (帳號…)');
 
 // login
 ok((await J('POST', '/api/login', { username: 'tester', password: 'wrong' })).statusCode === 401, 'wrong password → 401');
+ok((await J('POST', '/api/login', { username: 'tester', password: 'wrong' })).json().error.includes('帳號或密碼'), 'wrong password → Chinese reason');
 r = await J('POST', '/api/login', { username: 'tester', password: 'hunter123' });
 ok(r.statusCode === 200 && !!r.json().token, 'login correct → token');
 

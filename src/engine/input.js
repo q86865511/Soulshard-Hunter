@@ -60,10 +60,21 @@ export function captureNextKey(cb) { captureCb = cb; }   // grab the next raw e.
 
 function code(e) { return KEYMAP[e.code] || e.code; }
 
+// Is the keystroke aimed at a DOM text field (login/register inputs, leaderboard name…)?
+// When so we must NOT preventDefault or register it as a game key — otherwise WASD/Space
+// never reach the <input> (and instead drive the hidden game behind the overlay).
+function typingInField(e) {
+  const t = e && e.target;
+  if (!t) return false;
+  const tag = t.tagName;
+  return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || t.isContentEditable === true;
+}
+
 export function initInput(canvas, getScale) {
   canvasEl = canvas;
 
   window.addEventListener('keydown', (e) => {
+    if (typingInField(e)) return;   // let the focused DOM field receive the key untouched
     if (captureCb) { const cb = captureCb; captureCb = null; e.preventDefault(); if (e.code !== 'Escape') cb(e.code); return; }   // rebind capture (Esc cancels)
     const k = code(e);
     if (['up','down','left','right','space','dash','pause','build'].includes(k) || e.code === 'Tab') e.preventDefault();
@@ -72,6 +83,7 @@ export function initInput(canvas, getScale) {
   }, { passive: false });
 
   window.addEventListener('keyup', (e) => {
+    if (typingInField(e)) return;   // mirror the keydown guard so a field keyup never leaks into the game
     const k = code(e);
     keys.delete(k);
     justUp.add(k);
