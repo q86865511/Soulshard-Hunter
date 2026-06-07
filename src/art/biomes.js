@@ -13,7 +13,7 @@ import { P, lighten, darken, mix, withAlpha, tint } from '../engine/palette.js';
 
 export const BIOMES = [
   // ── original 5 (id + field shape UNCHANGED) ────────────────────────────────
-  { id: 'crypt', name: '幽影地穴', floor: P.floor, floor2: P.floor2, line: P.floorLine, wall: P.wall, wallD: P.wallD, wallL: P.wallL, decor: 'torch', accent: P.shardL, fog: 'rgba(10,12,26,0.0)' },
+  { id: 'crypt', name: '幽影地穴', floor: '#24262f', floor2: '#2c2f3b', line: '#15161e', wall: '#48548f', wallD: '#2d3563', wallL: '#7585cf', decor: 'torch', accent: P.shardL, fog: 'rgba(10,12,26,0.0)' },
   { id: 'cavern', name: '水晶洞窟', floor: '#1c2a2e', floor2: '#243638', line: '#121e20', wall: '#2e4a4e', wallD: '#1f3236', wallL: '#4a7076', decor: 'crystal', accent: P.shard, fog: 'rgba(20,40,44,0.05)' },
   { id: 'frost', name: '霜寒冰原', floor: '#1e2a3a', floor2: '#26344a', line: '#16202e', wall: '#37506e', wallD: '#243a52', wallL: '#5f86b0', decor: 'ice', accent: P.ice, fog: 'rgba(160,220,255,0.05)' },
   { id: 'inferno', name: '熔岩深淵', floor: '#2a1816', floor2: '#36201c', line: '#1c0e0c', wall: '#4a2a22', wallD: '#321c16', wallL: '#7a4030', decor: 'lava', accent: P.ember, fog: 'rgba(60,20,10,0.06)' },
@@ -37,8 +37,8 @@ export const BIOMES = [
 const FLOORS = {
   // ── crypt: aged flagstone, pale worn feature ────────────────────────────────
   crypt: (p, b, v) => {
-    if (v === 2) { // worn pale flagstone catching a shaft of light
-      p.gradV(0, 0, 16, 16, lighten(b.floor, 0.22), lighten(b.floor, 0.10));
+    if (v === 2) { // worn pale flagstone catching a shaft of light (kept a calm GREY so it never reads like the blue wall)
+      p.gradV(0, 0, 16, 16, lighten(b.floor, 0.14), lighten(b.floor, 0.05));
       p.hline(0, 15, 15, b.line); p.vline(0, 15, 15, b.line);
       p.hline(0, 15, 7, mix(b.floor, b.line, 0.4)); p.vline(7, 15, 8, mix(b.floor, b.line, 0.4));
       p.px(5, 5, lighten(b.floor2, 0.2)); p.px(10, 10, b.floor2);
@@ -210,11 +210,12 @@ const FLOORS = {
 // ENHANCED: a soft top-left light face + bottom shade for chunky volume, one accent glint.
 const WALLS = {
   crypt: (p, b) => {
-    p.gradV(0, 0, 16, 16, lighten(b.wall, 0.06), darken(b.wall, 0.06));
+    p.gradV(0, 0, 16, 16, lighten(b.wall, 0.08), darken(b.wall, 0.10));
     p.hline(0, 15, 7, b.wallD); p.vline(0, 6, 8, b.wallD); p.vline(8, 15, 12, b.wallD);
-    p.hline(0, 15, 0, b.wallL); p.vline(0, 6, 0, lighten(b.wallL, 0.06));
+    p.hline(0, 15, 0, lighten(b.wallL, 0.08)); p.hline(0, 15, 1, b.wallL); p.vline(0, 6, 0, lighten(b.wallL, 0.06)); // bright 2px lit top → reads as a raised block
+    p.hline(0, 15, 15, darken(b.wallD, 0.32)); // dark base line grounds the wall above the floor
     p.px(2, 3, withAlpha(P.moss, 0.3)); // faint moss in a joint
-    p.shadeBottom(0.12);
+    p.shadeBottom(0.16);
   },
   cavern: (p, b) => {
     p.gradV(0, 0, 16, 16, lighten(b.wall, 0.05), darken(b.wall, 0.08));

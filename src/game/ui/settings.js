@@ -14,9 +14,13 @@ export const settingsUI = {
   hide() { this.open = false; this.confirmReset = false; this.capturing = null; saveMeta(); const cb = this.onClose; this.onClose = null; if (cb) cb(); },
 
   // ---- layout --------------------------------------------------------------
+  // The panel is designed at 520×500 UI-units. fitScale() shrinks the WHOLE panel (so its
+  // internal offsets stay consistent) to fit the viewport — fixes button↔row overlap on short
+  // / 1080p / scaled screens where uiScale() alone would cap the height and collide the content.
+  fitScale() { return Math.min(uiScale(), (view.W * 0.94) / 520, (view.H * 0.94) / 500); },
   layout() {
-    const S = uiScale();
-    const pw = Math.min(view.W * 0.84, 520 * S), ph = Math.min(view.H * 0.82, 500 * S);
+    const S = this.fitScale();
+    const pw = 520 * S, ph = 500 * S;
     const x = (view.W - pw) / 2, y = (view.H - ph) / 2;
     const rows = [];
     [['master', '主音量'], ['sfx', '音效'], ['music', '音樂']].forEach((s, i) =>
@@ -31,8 +35,8 @@ export const settingsUI = {
     return { x, y, w: pw, h: ph, S, rows, keys, home, reset, close };
   },
   keysLayout() {
-    const S = uiScale();
-    const pw = Math.min(view.W * 0.84, 520 * S), ph = Math.min(view.H * 0.82, 500 * S);
+    const S = this.fitScale();
+    const pw = 520 * S, ph = 500 * S;
     const x = (view.W - pw) / 2, y = (view.H - ph) / 2;
     const rows = REBINDABLE.map((b, i) => ({ ...b, x: x + pw * 0.5, y: y + 64 * S + i * 36 * S, w: pw * 0.34, h: 26 * S }));
     const back = { x: x + pw / 2 - 70 * S, y: y + ph - 50 * S, w: 140 * S, h: 36 * S };

@@ -62,6 +62,25 @@ Beautified the 多人連線 (好友 / 房間 / 大廳) overlay to match the cent
 - Verified in preview (680×820): both tabs render centred (1280px window → equal 360px gutters),
   6 badges in a 3-member room, room-code shine, 0 console errors.
 
+## Settings panel auto-scales (fixes 1080p / short-screen overlap)
+On a 2K screen the settings panel was fine, but on shorter screens (e.g. 1600×900, or 1080p with
+browser zoom) `uiScale()` jumped to 2 while the panel height was capped at `view.H*0.82` — so the
+bottom buttons (按鍵設定 / 返回 / 重置 / 關閉) climbed up into the sliders/toggles. Fix: `settings.js`
+now derives a **`fitScale()`** that shrinks the WHOLE 520×500 design to fit the viewport
+(`min(uiScale, view.W*0.94/520, view.H*0.94/500)`), so internal offsets stay consistent and the
+panel never overlaps at any resolution. Verified: 1600×900 → fitScale 1.69, no overlap, fits;
+1920×1080 → fitScale 2, no overlap. (Audited the other full-screen pages: the hub building panels
+**scroll**, the results screen **caps + clips** its lists, the shop is centred — none overlapped.)
+
+## Crypt floor↔wall contrast (#2)
+The 幽影地穴 floor (`#23263f`) and wall (`#3d4570`) were too close in lightness and both blue, and
+the pale *feature* floor sat at the same brightness as the wall — so "gray floor vs blue wall"
+blurred together. Retuned **only the crypt** palette (the other 9 biomes have their own colours):
+floor → neutral dark **grey** `#24262f`, wall → brighter saturated **blue** `#48548f` with a bright
+`wallL` `#7585cf`; darker grout. `art/biomes.js` WALLS.crypt now draws a **2px lit top bevel + a dark
+base line + stronger bottom shade** so walls read as raised blocks, and the feature floor (FLOORS.crypt
+v2) is calmed to a soft grey so it never reads like a wall. Verified in a mock map + a live crypt run.
+
 ## Corner bar retired
 The bottom-right `#net-bar` is hidden by default (`display:none`) — its functions now live in the
 centred title menu and the in-town Esc menu. `initNet` still wires the broadcast toast +
