@@ -224,5 +224,7 @@ export function openLeaderboard() {
 export function initNet() {
   mountNetBar();
   initSocial();   // friends/lobby UI + invite popups + realtime connect when logged in
-  if (Net.isLoggedIn()) { syncFromCloud().then(() => renderBar()).catch(() => {}); }
+  // boot: push-up only — the player hasn't picked a slot yet and the cloud blob is account-wide,
+  // so a pull here could overwrite the active slot. The full pull happens on slot enter (title.enterSlot).
+  if (Net.isLoggedIn()) { syncFromCloud({ pushOnly: true }).then(() => renderBar()).catch(() => {}); }
 }

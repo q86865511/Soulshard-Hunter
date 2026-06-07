@@ -1,7 +1,8 @@
 // Title / main menu scene: main menu (開始遊戲 / 設定) + a 3-slot save picker.
 import { setScene } from '../scene.js';
 import { refs } from './refs.js';
-import { META, loadMeta, applySettings, setActiveSlot, activeSlot, slotSummaries, deleteSlot } from '../state.js';
+import { META, loadMeta, applySettings, setActiveSlot, activeSlot, slotSummaries, deleteSlot, syncFromCloud } from '../state.js';
+import { Net } from '../../net/api.js';
 import { Characters } from '../content/registry.js';
 import { uiText, uiRect, uiScale, view, drawSpriteUI, vignette, ctxRaw } from '../../engine/renderer.js';
 import { getSprite, frameAt } from '../../engine/sprites.js';
@@ -41,6 +42,8 @@ export const titleScene = {
 
   enterSlot(i) {
     setActiveSlot(i); loadMeta(i); try { applySettings(); } catch (e) { /* */ }
+    // now that a slot is committed, reconcile it with the cloud (slot-gated; safe to pull)
+    try { if (Net.isLoggedIn()) syncFromCloud().then(() => { try { applySettings(); } catch (e) { /* */ } }).catch(() => {}); } catch (e) { /* */ }
     setScene(refs.hub, {});
   },
 

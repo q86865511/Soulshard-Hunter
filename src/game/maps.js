@@ -123,6 +123,10 @@ export function generateWorld(seedBiome) {
   const npcs = [];
   for (const kind of ['well', 'soul', 'soul', 'shard', 'forge']) { const t = randFloor(tiles, tw, th); if (t && far(t.x, t.y, 90)) npcs.push({ kind, x: t.x, y: t.y, used: false }); }
 
+  // hidden rooms (隱藏房間): a couple of far, mysterious structures (run.js assigns each a type + handles entry)
+  const hiddenRooms = [];
+  for (let i = 0; i < 2; i++) { const t = randFloor(tiles, tw, th); if (t && far(t.x, t.y, 120)) hiddenRooms.push({ x: t.x, y: t.y }); }
+
   // biome decorations — a rich mix of natural + man-made props: scattered singles,
   // tight feature clusters, and a few lined up against walls (built-up feel).
   const decor = [];
@@ -136,7 +140,7 @@ export function generateWorld(seedBiome) {
   return {
     tw, th, tiles, floorVar, decor, biome, boss: false,
     tileset: { floor: ['floor_' + biome.id, 'floor2_' + biome.id, 'floorx_' + biome.id], wall: 'wall_' + biome.id, wallTop: 'walltop_' + biome.id },
-    entrance: start, center: start, chests, secret, shrine, hazards, npcs,
+    entrance: start, center: start, chests, secret, shrine, hazards, npcs, hiddenRooms,
   };
 }
 
