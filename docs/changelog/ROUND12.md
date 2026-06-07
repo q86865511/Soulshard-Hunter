@@ -21,5 +21,24 @@ Guests (not logged in) could already **view** the public leaderboard; now they c
   422, guest row on board flagged `guest`, registered+guest coexist). Client verified
   in-browser: guest leaderboard overlay + named-upload row render (0 console errors).
 
-## Part B — hidden-room rework + room-based maps (#6 + #8) — in progress
+## Part B — room-based maps + hidden-room rework (#8 + #6) ✅
+The core loop is VS-style **open-arena survival**, so this is an *additive* layer (no dungeon
+rewrite that would break swarm/boss/spawn) — verified by a 3000-frame headless autoplay (no
+crash, swarm + threat ramp intact).
+
+- **More rooms (#8)**: `maps.js generateWorld` now carves **many more, size-varied enclosure
+  chambers** (≈16–20, doorways kept; `sealUnreachable` still guarantees connectivity) so the
+  map reads as a warren of large/small rooms with higher randomness.
+- **Guardians + keys + locked vault (#8)**: each map spawns ~2 **room guardians** (beefy
+  elites, weaker than a mini-boss; `e.guardian`) that drop a **🔑 key + chest** on death
+  (`world.dropLoot`). A **locked vault chest** (`{locked:true}`) needs a key to open
+  (`world.keys`, spent in `pickup.js`). New `key` pickup type + `pickup_key` sprite (art/core.js).
+- **Hidden rooms reworked (#6)**: now **genuinely hidden** — ≤1 per map (~55%), the marker is
+  **invisible until you walk up to it** ("✦ 發現隱藏房間"), and the reward is **SAVE-PERMANENT,
+  once per save** (permanent gold / content unlock / 開發者彩蛋), tracked in `META.hidden.claimed`
+  — no more per-run buffs. `content/hidden.js` rewritten (vault/archive/relic/egg).
+- Verified in-browser: guardian death → key dropped → collected (`keys` 1) → locked vault
+  opens (`keys` 0); hidden room discovered on approach → claim banks +gold permanently →
+  second claim refused (once-per-save). 0 console errors.
+
 ## Part C — UI/UX polish (#9) — pending

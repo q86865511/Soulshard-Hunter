@@ -36,6 +36,7 @@ export class World {
     this.enemies = [];
     this.projectiles = [];
     this.pickups = [];
+    this.keys = 0;   // #8: keys dropped by room guardians, spent to open locked vault chests
     this.beams = [];        // transient lightning/laser visuals
     this.hazards = [];      // trap-terrain zones (lava/spikes/poison/thorns)
     this.particles = new Particles();
@@ -163,6 +164,7 @@ export class World {
   addBeam(x0, y0, x1, y1, color = P.emberL) { this.beams.push({ x0, y0, x1, y1, color, life: 0.14, max: 0.14 }); }
 
   dropLoot(e) {
+    if (e.guardian) { this.addPickup('key', e.x, e.y, 1); this.addPickup('chest', e.x, e.y, 2); }   // #8: room guardian → key + chest
     const floor = this.run.floor || 1;
     const lp = this.nearestPlayer(e.x, e.y) || this.player;   // co-op: scale loot off whoever's nearest the kill
     const gMul = lp?.stats?.goldMult ?? 1;
@@ -200,6 +202,7 @@ export class World {
       case 'shard': run.shards += payload; this.particles.text(x, y - 8, '魂晶+' + payload, { color: P.shardL, size: 12 }); Sfx.play('shard'); break;
       case 'heart': if (who) who.heal(payload); this.particles.text(x, y - 10, '+' + payload, { color: P.redL, size: 12 }); Sfx.play('heart'); break;
       case 'xp': this.gainXp(payload); break;
+      case 'key': this.keys = (this.keys || 0) + (payload || 1); this.particles.text(x, y - 10, '🔑 鑰匙 +' + (payload || 1), { color: P.goldL, size: 12, weight: '800' }); Sfx.play('shard'); break;
       case 'item': {   // B2: ground items are used the instant they're picked up (no storage)
         const def = payload;
         this.particles.text(x, y - 12, def.name, { color: P.shardL, size: 12, weight: '800' });

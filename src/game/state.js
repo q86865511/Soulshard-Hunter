@@ -54,6 +54,7 @@ const DEFAULT_META = () => ({
   forge: {},                             // 5-5 weaponId -> { level, effects:[id,...] } out-of-run weapon upgrades
   skinShop: { roll: 0, offers: [], nextRoll: 0 },   // 5-6 clothing store: rotating offers + 30-min refresh timer (task-10)
   npc: { met: {} },                      // 5-1 npc id -> true once talked to (for "new" markers / story gating)
+  hidden: { claimed: {} },               // #6 hidden-room rewards claimed (save-permanent, once each)
   flags: {},
 });
 
@@ -104,6 +105,8 @@ export function loadMeta(slot) {
       if (!Array.isArray(META.skinShop.offers)) META.skinShop.offers = [];
       if (!META.npc || typeof META.npc !== 'object') META.npc = { met: {} };
       if (!META.npc.met || typeof META.npc.met !== 'object') META.npc.met = {};
+      if (!META.hidden || typeof META.hidden !== 'object') META.hidden = { claimed: {} };
+      if (!META.hidden.claimed || typeof META.hidden.claimed !== 'object') META.hidden.claimed = {};
       for (const k of ['charClears']) if (!META.stats[k] || typeof META.stats[k] !== 'object') META.stats[k] = {};
       for (const k of ['noDmgClears', 'bestCharLevel', 'bondsTriggered', 'forgeUpgrades', 'npcTalks']) if (typeof META.stats[k] !== 'number') META.stats[k] = 0;
       if (typeof META.saveSeq !== 'number') META.saveSeq = 0;
