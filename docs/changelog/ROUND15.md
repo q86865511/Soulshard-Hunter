@@ -46,6 +46,22 @@ The 帳號 entry used to just reopen the leaderboard when logged in. `net/ui.js 
 is a new distinct panel — **☁ 雲端帳號** showing 帳號名稱 / 雲端存檔狀態 / 好友代碼 (+ 權限 for
 admins) with 登出 / 排行榜 / [管理] buttons. `openAuth()` routes to it when logged in.
 
+## Co-op page polish (`net/social.js`)
+Beautified the 多人連線 (好友 / 房間 / 大廳) overlay to match the centred title/account look:
+- Header is now **🌐 多人連線** + a `CO-OP · 好友與即時合作` subtitle, with the same top accent bar
+  (`.sl-card::before`) as the other cards; tabs gained icons (👥 好友 / 🚪 連線房間).
+- Section headers (`.sl-sec h3`) get a cyan left-accent + emoji (➕加好友 · 📩收到的邀請 · 🤝好友 ·
+  🎫房號 · 🧑‍🤝‍🧑隊員 · 🎮你的角色 · ⚔關卡設定 · ✉邀請線上好友).
+- Member rows now use **pill badges** (`.sl-badge` host/ready/idle/spec/char) + an online dot
+  (pulsing when connected, ⚠斷線 styling when dropped) instead of plain coloured text.
+- Room code block is bigger with an animated shine; buttons lift on hover; list rows glow + slide
+  on hover.
+- **Fixes carried over:** the stale "請先在右下角登入" hint (the corner bar is gone) → "請先登入
+  雲端帳號"; and the same drag-safe `bindBackdropClose` so selecting text in the add-friend /
+  room-code fields no longer closes the modal.
+- Verified in preview (680×820): both tabs render centred (1280px window → equal 360px gutters),
+  6 badges in a 3-member room, room-code shine, 0 console errors.
+
 ## Corner bar retired
 The bottom-right `#net-bar` is hidden by default (`display:none`) — its functions now live in the
 centred title menu and the in-town Esc menu. `initNet` still wires the broadcast toast +
