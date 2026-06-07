@@ -3,6 +3,16 @@
 Expands the round-13 admin dashboard into a full moderation console, and fixes a deploy
 gotcha (browsers serving stale JS after an update).
 
+## The 🛠 button never appeared — TWO real causes (fixed)
+1. **compose never forwarded `ADMIN_USERS` into the container.** `docker-compose.yml`'s api
+   `environment:` block listed DATABASE_URL/JWT_SECRET/CORS_ORIGIN but **not** `ADMIN_USERS`.
+   Docker Compose only uses `.env` for `${VAR}` *substitution* — it does not inject a var into
+   the container unless it's in `environment:` (or `env_file:`). So `process.env.ADMIN_USERS`
+   was **undefined inside the container** → `isAdmin()` always false → `/api/me` returned
+   `admin:false` for everyone. Fix: added `ADMIN_USERS: ${ADMIN_USERS:-}` to the api service.
+2. **Browser cache of the no-build ES modules** (below) — even after #1, players keep running
+   the old `.js` until a hard refresh / the Caddy `no-cache` header is applied on the VM.
+
 ## Stale-JS fix (why the 🛠 button "didn't appear")
 The admin button + `refreshMe()` shipped in round 13, but browsers cache the no-build ES
 modules, so players keep running the old `.js` until the cache expires (a hard refresh shows
