@@ -5,7 +5,7 @@
 import { Net } from './api.js';
 import { RT } from './rt.js';
 import { openSocial, initSocial } from './social.js';
-import { syncFromCloud } from '../game/state.js';
+import { syncFromCloud, lastGuestRun, clearLastGuestRun } from '../game/state.js';
 import { getScene } from '../game/scene.js';
 import { refs } from '../game/scenes/refs.js';
 
@@ -24,7 +24,7 @@ const $ = (tag, props = {}, kids = []) => {
   return e;
 };
 
-const BIOME_LABELS = { '': '全部生態', crypt: '幽影地穴', cavern: '水晶洞窟', frost: '霜寒冰原', inferno: '熔岩深淵', void: '虛空裂界' };
+const BIOME_LABELS = { '': '全部生態', crypt: '幽影地穴', cavern: '水晶洞窟', frost: '霜寒冰原', inferno: '熔岩深淵', void: '虛空裂界', verdant: '翠林森境', desert: '流沙荒漠', swamp: '腐沼濕地', abyss: '深淵海溝', celestial: '天界雲海' };
 
 let styled = false;
 function ensureStyles() {
@@ -206,10 +206,24 @@ export function openLeaderboard() {
   };
   [biome, diff, period].forEach((s) => s.addEventListener('change', load));
 
+  // guest upload: not logged in but just finished a run → let them post it under a self-name
+  let guestSection = null;
+  if (!Net.isLoggedIn() && lastGuestRun) {
+    const nameInp = $('input', { type: 'text', placeholder: '暱稱（把最近一場成績上傳排行榜）', maxlength: 16, style: 'flex:2' });
+    const up = $('button', { class: 'net-primary', text: '上傳成績', style: 'flex:1' });
+    up.addEventListener('click', async () => {
+      const nm = nameInp.value.trim(); if (!nm) { msg.className = 'net-msg'; msg.textContent = '請先輸入暱稱'; return; }
+      up.disabled = true;
+      try { await Net.postGuestRun({ ...lastGuestRun, name: nm }); clearLastGuestRun(); toast('成績已上傳排行榜！'); if (guestSection) guestSection.remove(); load(); }
+      catch (e) { up.disabled = false; msg.className = 'net-msg'; msg.textContent = e && e.message ? '上傳失敗：' + e.message : '上傳失敗（伺服器未啟動？）'; }
+    });
+    guestSection = $('div', {}, [$('div', { style: 'font-size:12px;color:#9aa3c8;margin-top:6px' }, [document.createTextNode('🎮 訪客模式 — 輸入暱稱即可上傳本機最近一場成績')]), $('div', { class: 'net-row', style: 'margin-top:6px' }, [nameInp, up])]);
+  }
+
   const card = $('div', { class: 'net-card wide' }, [
     $('h2', { text: '🏆 共享排行榜' }),
     $('div', { class: 'net-filters' }, [biome, diff, period]),
-    msg, body,
+    msg, body, guestSection,
     $('div', { class: 'net-row' }, [
       $('button', { class: 'net-ghost', text: '重新整理', onclick: load }),
       $('button', { class: 'net-primary', text: '關閉', onclick: closeModal }),

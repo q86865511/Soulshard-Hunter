@@ -101,6 +101,7 @@ export const Net = {
   getSave() { return req('/save', { authed: true }); },
   putSave(meta, saveVersion) { return req('/save', { method: 'PUT', authed: true, body: { meta, saveVersion } }); },
   postRun(run) { return req('/runs', { method: 'POST', authed: true, body: run }); },
+  postGuestRun(run) { return req('/runs/guest', { method: 'POST', body: run }); },   // 訪客模式: no token, body carries a self-entered name
   leaderboard(params = {}) {
     const clean = {}; for (const k in params) if (params[k] != null && params[k] !== '') clean[k] = params[k];
     const qs = new URLSearchParams(clean).toString();

@@ -40,23 +40,36 @@ function makeFakePool() {
         return { rows: [], rowCount: 1 };
       }
       if (s.startsWith('INSERT INTO runs')) {
-        const [user_id, score, stage, kills, character, biome, difficulty, time_s, cleared, reaper] = args;
-        const row = { id: ++rid, user_id, score, stage, kills, character, biome, difficulty, time_s, cleared, reaper, coop_size: 1, created_at: new Date().toISOString() };
+        let row;
+        if (s.includes('guest_name')) {   // guest submission: VALUES(NULL, name, score, ...)
+          const [guest_name, score, stage, kills, character, biome, difficulty, time_s, cleared, reaper] = args;
+          row = { id: ++rid, user_id: null, guest_name, score, stage, kills, character, biome, difficulty, time_s, cleared, reaper, coop_size: 1, created_at: new Date().toISOString() };
+        } else {
+          const [user_id, score, stage, kills, character, biome, difficulty, time_s, cleared, reaper] = args;
+          row = { id: ++rid, user_id, guest_name: null, score, stage, kills, character, biome, difficulty, time_s, cleared, reaper, coop_size: 1, created_at: new Date().toISOString() };
+        }
         runs.push(row);
         return { rows: [{ id: row.id, score: row.score, created_at: row.created_at }], rowCount: 1 };
       }
-      if (s.includes('FROM runs r JOIN users u')) {
+      if (s.includes('FROM runs r LEFT JOIN users u')) {
         // map positional args to the filters in the order server.js appends them
         let ai = 0; const filt = {};
         if (s.includes('r.biome = $')) filt.biome = args[ai++];
         if (s.includes('r.difficulty = $')) filt.difficulty = args[ai++];
         if (s.includes('r.character = $')) filt.character = args[ai++];
         const m = s.match(/LIMIT (\d+)/); const limit = m ? Number(m[1]) : 25;
-        let rows = runs
-          .filter((r) => (filt.biome == null || r.biome === filt.biome)
-            && (filt.difficulty == null || r.difficulty === filt.difficulty)
-            && (filt.character == null || r.character === filt.character))
-          .map((r) => ({ ...r, username: (users.find((u) => String(u.id) === String(r.user_id)) || {}).username }))
+        const ident = (r) => (r.user_id != null ? 'u' + r.user_id : 'g:' + String(r.guest_name || '').toLowerCase());
+        const best = new Map();   // identity -> best row (mirror DISTINCT ON best-per-identity)
+        for (const r of runs) {
+          if (r.user_id == null && !r.guest_name) continue;
+          if (filt.biome != null && r.biome !== filt.biome) continue;
+          if (filt.difficulty != null && r.difficulty !== filt.difficulty) continue;
+          if (filt.character != null && r.character !== filt.character) continue;
+          const k = ident(r); const cur = best.get(k);
+          if (!cur || r.score > cur.score) best.set(k, r);
+        }
+        const rows = [...best.values()]
+          .map((r) => ({ ...r, username: r.user_id != null ? (users.find((u) => String(u.id) === String(r.user_id)) || {}).username : r.guest_name, guest: r.user_id == null }))
           .sort((a, b) => b.score - a.score)
           .slice(0, limit);
         return { rows, rowCount: rows.length };
@@ -132,6 +145,16 @@ ok(rows[0].score >= rows[1].score && rows[0].username === 'tester', 'leaderboard
 ok(rows[0].username != null, 'leaderboard joins username');
 r = await J('GET', '/api/leaderboard?biome=frost');
 ok(r.json().rows.length === 1 && r.json().rows[0].username === 'rival', 'leaderboard biome filter works');
+
+// guest leaderboard upload — no account, self-entered name (訪客模式)
+r = await J('POST', '/api/runs/guest', { name: 'WanderingZ', kills: 200, stage: 5, time_s: 700, difficulty: 3, biome: 'crypt', score: 1 });
+ok(r.statusCode === 200 && r.json().run.score === (200 * 12 + 5 * 400 + 700 + 3 * 600), 'guest run accepted + scored server-side');
+ok((await J('POST', '/api/runs/guest', { kills: 1, stage: 1, time_s: 100, difficulty: 1 })).statusCode === 400, 'guest run without a name → 400');
+ok((await J('POST', '/api/runs/guest', { name: 'Cheater', kills: 100000, stage: 1, time_s: 30, difficulty: 1 })).statusCode === 422, 'guest run hits the anti-cheat gate → 422');
+const lb = (await J('GET', '/api/leaderboard')).json().rows;
+const guestRow = lb.find((x) => x.username === 'WanderingZ');
+ok(guestRow && guestRow.guest === true, 'guest run appears on the leaderboard, flagged as guest');
+ok(lb.some((x) => x.username === 'tester' && !x.guest), 'registered + guest runs coexist on the board');
 
 console.log(`\n${pass} passed, ${fail} failed`);
 await app.close();
