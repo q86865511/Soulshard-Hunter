@@ -31,3 +31,21 @@ export function isUnlocked(meta, kind, id) {
   if (!locked.includes(id)) return true;
   return !!(meta && meta.unlocked && Array.isArray(meta.unlocked[kind]) && meta.unlocked[kind].includes(id));
 }
+
+// Dev cheat "解鎖全部": unlock ALL content AND every biome/difficulty (the previous version
+// only touched content, leaving the levels locked). Shared by the run + hub dev panels.
+import { Weapons, Abilities, Equipment, Characters, Items } from './registry.js';
+import { BIOMES } from '../../art/biomes.js';
+export function cheatUnlockAll(meta) {
+  if (!meta) return;
+  meta.unlocked = meta.unlocked || {};
+  meta.unlocked.weapons = Weapons.ids();
+  meta.unlocked.abilities = Abilities.ids();
+  meta.unlocked.equipment = Equipment.ids();
+  meta.unlocked.characters = Characters.ids();
+  meta.unlocked.items = Items.ids();
+  meta.levels = meta.levels || { unlocked: 1, diff: {} };
+  meta.levels.unlocked = BIOMES.length;                 // every biome
+  meta.levels.diff = meta.levels.diff || {};
+  for (const b of BIOMES) meta.levels.diff[b.id] = 5;   // every difficulty
+}

@@ -16,7 +16,7 @@ export const mouse = {
 let canvasEl = null;
 
 // Map common synonyms to canonical action keys
-const KEYMAP = {
+const DEFAULT_KEYMAP = {
   ArrowUp: 'up', KeyW: 'up',
   ArrowDown: 'down', KeyS: 'down',
   ArrowLeft: 'left', KeyA: 'left',
@@ -26,6 +26,37 @@ const KEYMAP = {
   KeyE: 'interact', KeyQ: 'swap', KeyR: 'reload', KeyF: 'ability', KeyP: 'pause', Tab: 'build', KeyM: 'minimap', KeyB: 'shop',
   Digit1: 'slot1', Digit2: 'slot2', Digit3: 'slot3', Digit4: 'slot4',
 };
+let KEYMAP = { ...DEFAULT_KEYMAP };
+
+// Actions the player may rebind from Settings (movement stays WASD+arrows). A binding in
+// META.settings.keybinds (action -> physical code) is applied over the defaults at boot.
+export const REBINDABLE = [
+  { action: 'dash', label: '衝刺' }, { action: 'interact', label: '互動 / 拾取' },
+  { action: 'ability', label: '主動技能' }, { action: 'pause', label: '暫停選單' },
+  { action: 'build', label: '查看 Build' }, { action: 'minimap', label: '小地圖' },
+  { action: 'shop', label: '商店' }, { action: 'swap', label: '切換武器' },
+];
+// rebuild KEYMAP = defaults + per-action overrides (an override replaces ALL default codes for that action)
+export function applyKeybinds(overrides) {
+  KEYMAP = { ...DEFAULT_KEYMAP };
+  if (overrides && typeof overrides === 'object') {
+    for (const action in overrides) {
+      const codeStr = overrides[action];
+      if (!codeStr) continue;
+      for (const c of Object.keys(KEYMAP)) if (KEYMAP[c] === action) delete KEYMAP[c];
+      KEYMAP[codeStr] = action;
+    }
+  }
+}
+export function currentKeyFor(action) { for (const c of Object.keys(KEYMAP)) if (KEYMAP[c] === action) return c; return null; }
+export function keyLabel(codeStr) {
+  if (!codeStr) return '—';
+  const m = { ArrowUp: '↑', ArrowDown: '↓', ArrowLeft: '←', ArrowRight: '→', Space: '空白', ShiftLeft: 'Shift', ShiftRight: 'Shift', Enter: 'Enter', Escape: 'Esc', Tab: 'Tab' };
+  return m[codeStr] || String(codeStr).replace(/^Key/, '').replace(/^Digit/, '');
+}
+
+let captureCb = null;
+export function captureNextKey(cb) { captureCb = cb; }   // grab the next raw e.code (for rebinding)
 
 function code(e) { return KEYMAP[e.code] || e.code; }
 
@@ -33,6 +64,7 @@ export function initInput(canvas, getScale) {
   canvasEl = canvas;
 
   window.addEventListener('keydown', (e) => {
+    if (captureCb) { const cb = captureCb; captureCb = null; e.preventDefault(); if (e.code !== 'Escape') cb(e.code); return; }   // rebind capture (Esc cancels)
     const k = code(e);
     if (['up','down','left','right','space','dash','pause','build'].includes(k) || e.code === 'Tab') e.preventDefault();
     if (!keys.has(k)) justDown.add(k);

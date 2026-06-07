@@ -14,7 +14,7 @@ import { equipItem } from '../content/equipment.js';
 import { BONDS, activeBonds, checkBonds } from '../content/bonds.js';
 import { exclusiveFor } from '../content/exclusives.js';
 import { BALANCE, weaponMaxLevel } from '../balance.js';
-import { isUnlocked } from '../content/unlocks.js';
+import { isUnlocked, cheatUnlockAll } from '../content/unlocks.js';
 import { STORY_QUESTS, trackedQuestState, fmtQuestVal } from '../content/quests.js';
 import { heroLore } from '../content/lore.js';
 import { EVENTS } from '../content/events.js';
@@ -850,7 +850,7 @@ export const runScene = {
     const L = this.pauseLayout(); const mx = mouse.x * view.dpr, my = mouse.y * view.dpr;
     if (mouse.justDown) {
       if (inside(mx, my, L.resume)) { this.paused = false; Sfx.play('uiClick'); }
-      else if (inside(mx, my, L.settings)) settingsUI.show();
+      else if (inside(mx, my, L.settings)) settingsUI.show(null, { returnHub: () => this.abandon() });   // settings menu also offers 返回大廳 in-run
       else if (inside(mx, my, L.quit)) this.abandon();
     }
   },
@@ -1274,8 +1274,10 @@ export const runScene = {
     if (this.story && this.story.t > 0) this.drawStory();
     if (this.challenge) this.drawChallenge();
     if (this.shopOpen) this.drawShopPanel();
+    // level-up has input priority (update() resolves this.choice first), so it must also draw ON TOP —
+    // show only the active one so the equip window never hides the level-up cards behind it
     if (this.choice) this.drawChoice();
-    if (this.equipChoice) this.drawEquipChoice();
+    else if (this.equipChoice) this.drawEquipChoice();
     if (this.eventChoice) this.drawEventChoice();
     if (this.coop) this.drawCoopTags();
     if (this.coop && this.coopPick && !this.coopMenu) this.drawCoopPick();
@@ -1600,7 +1602,7 @@ export const runScene = {
     else if (id === 'level') { this.levelQueue++; }
     else if (id === 'spawn') { for (let i = 0; i < 8; i++) w.spawnRing(this.pickSpawnType(), { hpScale: this.diffMul, dmgScale: this.diffMul }); }
     else if (id === 'kill') { for (const e of w.enemies) if (!e.boss) e.dead = true; this.banner = '作弊：清場'; this.bannerT = 1.2; }
-    else if (id === 'unlock') { META.unlocked.weapons = Weapons.ids(); META.unlocked.abilities = Abilities.ids(); META.unlocked.equipment = Equipment.ids(); META.unlocked.characters = Characters.ids(); saveMeta(); this.banner = '作弊：已解鎖全部內容'; this.bannerT = 1.6; }
+    else if (id === 'unlock') { cheatUnlockAll(META); saveMeta(); this.banner = '作弊：已解鎖全部內容與關卡'; this.bannerT = 1.6; }
     else if (id === 'clear') { if (!this.cleared) this.clearLevel(); }
   },
   drawCheatPanel() {
