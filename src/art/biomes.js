@@ -208,6 +208,12 @@ const FLOORS = {
 // Per-biome WALL painters — CLEAN cut-stone (clear low-frequency block + light top edge,
 // at most one small thematic accent) so walls read as solid structure, not busy texture.
 // ENHANCED: a soft top-left light face + bottom shade for chunky volume, one accent glint.
+// Round-16: shared wall "raised block" depth. A dark grounding base line + a bottom shade so
+// every wall reads as a 3D block standing over the flat floor (matches the crypt fix). Call it
+// LAST in a biome's wall painter. NOTE: floors and hazards/TRAPS deliberately do NOT use this —
+// a trap must stay flat and obvious on the ground, never look like a wall.
+function wallBase(p, b, shade = 0.15) { p.hline(0, 15, 15, darken(b.wallD, 0.3)); p.shadeBottom(shade); }
+
 const WALLS = {
   crypt: (p, b) => {
     p.gradV(0, 0, 16, 16, lighten(b.wall, 0.08), darken(b.wall, 0.10));
@@ -218,69 +224,69 @@ const WALLS = {
     p.shadeBottom(0.16);
   },
   cavern: (p, b) => {
-    p.gradV(0, 0, 16, 16, lighten(b.wall, 0.05), darken(b.wall, 0.08));
+    p.gradV(0, 0, 16, 16, lighten(b.wall, 0.07), darken(b.wall, 0.1));
     p.rect(2, 3, 5, 4, darken(b.wall, 0.14)); p.rect(9, 8, 4, 4, darken(b.wall, 0.12));
-    p.hline(0, 15, 0, b.wallL);
+    p.hline(0, 15, 0, lighten(b.wallL, 0.08)); p.hline(0, 15, 1, b.wallL); // 2px lit top bevel
     p.px(5, 5, withAlpha(b.accent, 0.5)); p.px(11, 10, withAlpha(b.accent, 0.35)); // embedded crystal flecks
-    p.shadeBottom(0.12);
+    wallBase(p, b, 0.15);
   },
   frost: (p, b) => {
-    p.gradV(0, 0, 16, 16, lighten(b.wall, 0.06), darken(b.wall, 0.05));
-    p.hline(0, 15, 7, b.wallD); p.hline(0, 15, 0, lighten(b.wallL, 0.1)); p.hline(0, 15, 1, b.wallL);
+    p.gradV(0, 0, 16, 16, lighten(b.wall, 0.07), darken(b.wall, 0.08));
+    p.hline(0, 15, 7, b.wallD); p.hline(0, 15, 0, lighten(b.wallL, 0.12)); p.hline(0, 15, 1, b.wallL);
     p.px(4, 4, withAlpha(P.ice, 0.4)); p.px(11, 9, withAlpha(P.white, 0.35)); // frost glints
     p.line(3, 10, 8, 5, withAlpha(P.ice, 0.2));
-    p.shadeBottom(0.12);
+    wallBase(p, b, 0.14);
   },
   inferno: (p, b) => {
-    p.gradV(0, 0, 16, 16, lighten(b.wall, 0.06), darken(b.wall, 0.08));
-    p.hline(0, 15, 7, b.wallD); p.hline(0, 15, 0, b.wallL);
+    p.gradV(0, 0, 16, 16, lighten(b.wall, 0.07), darken(b.wall, 0.11));
+    p.hline(0, 15, 7, b.wallD); p.hline(0, 15, 0, lighten(b.wallL, 0.08)); p.hline(0, 15, 1, b.wallL); // 2px lit top bevel
     p.px(4, 11, P.ember); p.px(4, 10, withAlpha(P.emberL, 0.6)); // glowing crack ember
     p.px(11, 5, withAlpha(P.ember, 0.4));
-    p.shadeBottom(0.1);
+    wallBase(p, b, 0.14);
   },
   void: (p, b) => {
-    p.gradV(0, 0, 16, 16, lighten(b.wall, 0.05), darken(b.wall, 0.08));
-    p.hline(0, 15, 7, b.wallD); p.hline(0, 15, 0, b.wallL);
+    p.gradV(0, 0, 16, 16, lighten(b.wall, 0.07), darken(b.wall, 0.11));
+    p.hline(0, 15, 7, b.wallD); p.hline(0, 15, 0, lighten(b.wallL, 0.08)); p.hline(0, 15, 1, b.wallL); // 2px lit top bevel
     p.px(11, 4, P.manaL); p.px(11, 5, withAlpha(P.purpleL, 0.5)); p.px(4, 10, withAlpha(P.manaL, 0.35));
-    p.shadeBottom(0.12);
+    wallBase(p, b, 0.15);
   },
 
   // ── NEW ──
   verdant: (p, b) => { // mossy stone
-    p.gradV(0, 0, 16, 16, lighten(b.wall, 0.05), darken(b.wall, 0.08));
-    p.hline(0, 15, 7, b.wallD); p.hline(0, 15, 0, b.wallL);
+    p.gradV(0, 0, 16, 16, lighten(b.wall, 0.07), darken(b.wall, 0.11));
+    p.hline(0, 15, 7, b.wallD); p.hline(0, 15, 0, lighten(b.wallL, 0.08)); p.hline(0, 15, 1, b.wallL); // 2px lit top bevel
     p.rect(2, 1, 6, 2, withAlpha(P.moss, 0.6)); p.rect(9, 5, 4, 2, withAlpha(P.leafD, 0.6)); // moss caps
     p.px(3, 3, P.leafL); p.px(11, 9, withAlpha(P.moss, 0.5));
-    p.shadeBottom(0.12);
+    wallBase(p, b, 0.15);
   },
   desert: (p, b) => { // layered sandstone
-    p.gradV(0, 0, 16, 16, lighten(b.wall, 0.06), darken(b.wall, 0.06));
+    p.gradV(0, 0, 16, 16, lighten(b.wall, 0.07), darken(b.wall, 0.08));
     p.hline(0, 15, 5, withAlpha(b.wallD, 0.7)); p.hline(0, 15, 10, withAlpha(b.wallD, 0.7)); // strata
-    p.hline(0, 15, 0, b.wallL); p.hline(0, 15, 6, withAlpha(P.sandL, 0.25)); p.hline(0, 15, 11, withAlpha(P.sandL, 0.2));
+    p.hline(0, 15, 0, lighten(b.wallL, 0.08)); p.hline(0, 15, 1, b.wallL); p.hline(0, 15, 6, withAlpha(P.sandL, 0.25)); p.hline(0, 15, 11, withAlpha(P.sandL, 0.2)); // 2px lit top bevel
     p.px(13, 3, withAlpha(P.sandL, 0.5));
-    p.shadeBottom(0.1);
+    wallBase(p, b, 0.13);
   },
   swamp: (p, b) => { // dripping bog stone
-    p.gradV(0, 0, 16, 16, lighten(b.wall, 0.05), darken(b.wall, 0.1));
-    p.hline(0, 15, 7, b.wallD); p.hline(0, 15, 0, b.wallL);
+    p.gradV(0, 0, 16, 16, lighten(b.wall, 0.07), darken(b.wall, 0.12));
+    p.hline(0, 15, 7, b.wallD); p.hline(0, 15, 0, lighten(b.wallL, 0.08)); p.hline(0, 15, 1, b.wallL); // 2px lit top bevel
     p.rect(1, 0, 5, 3, withAlpha(P.slimeBog, 0.5)); p.rect(10, 0, 4, 2, withAlpha(P.bogL, 0.5)); // slime film
     p.vline(0, 6, 4, withAlpha(P.toxic, 0.3)); // drip
     p.px(12, 9, withAlpha(P.murk, 0.6));
-    p.shadeBottom(0.14);
+    wallBase(p, b, 0.16);
   },
   abyss: (p, b) => { // dark reef rock
-    p.gradV(0, 0, 16, 16, lighten(b.wall, 0.05), darken(b.wall, 0.12));
-    p.hline(0, 15, 7, b.wallD); p.hline(0, 15, 0, b.wallL);
+    p.gradV(0, 0, 16, 16, lighten(b.wall, 0.07), darken(b.wall, 0.14));
+    p.hline(0, 15, 7, b.wallD); p.hline(0, 15, 0, lighten(b.wallL, 0.08)); p.hline(0, 15, 1, b.wallL); // 2px lit top bevel
     p.px(4, 4, P.neonL); p.px(4, 3, withAlpha(P.neon, 0.5)); // bioluminescent spot
     p.px(11, 10, withAlpha(P.oceanL, 0.5)); p.px(11, 9, withAlpha(P.neon, 0.3));
-    p.shadeBottom(0.16);
+    wallBase(p, b, 0.17);
   },
   celestial: (p, b) => { // astral marble
-    p.gradV(0, 0, 16, 16, lighten(b.wall, 0.08), darken(b.wall, 0.05));
-    p.hline(0, 15, 0, lighten(b.wallL, 0.12)); p.hline(0, 15, 1, b.wallL);
+    p.gradV(0, 0, 16, 16, lighten(b.wall, 0.1), darken(b.wall, 0.08));
+    p.hline(0, 15, 0, lighten(b.wallL, 0.14)); p.hline(0, 15, 1, b.wallL);
     p.line(2, 13, 9, 4, withAlpha(P.cloud, 0.4)); p.line(9, 4, 14, 9, withAlpha(P.skyL, 0.35)); // veins
     p.px(12, 3, P.star); p.px(4, 10, withAlpha(P.astralL, 0.5));
-    p.shadeBottom(0.08);
+    wallBase(p, b, 0.1);
   },
 };
 
