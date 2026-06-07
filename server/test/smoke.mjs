@@ -3,6 +3,7 @@
 // server.js issues. No Postgres, no network, no open port. Run: node test/smoke.mjs
 process.env.SOULSHARD_NO_LISTEN = '1';
 process.env.JWT_SECRET = 'test-secret';
+process.env.ADMIN_USERS = 'tester';   // make 'tester' an admin for the admin-endpoint tests
 const { buildApp, runPlausibility } = await import('../src/server.js');
 
 // ---- in-memory pool emulating the few queries server.js uses ----
@@ -155,6 +156,17 @@ const lb = (await J('GET', '/api/leaderboard')).json().rows;
 const guestRow = lb.find((x) => x.username === 'WanderingZ');
 ok(guestRow && guestRow.guest === true, 'guest run appears on the leaderboard, flagged as guest');
 ok(lb.some((x) => x.username === 'tester' && !x.guest), 'registered + guest runs coexist on the board');
+
+// admin dashboard (ADMIN_USERS=tester; t2/rival is a normal user)
+ok((await J('GET', '/api/me', undefined, token)).json().user.admin === true, '/api/me flags the allowlisted user as admin');
+ok((await J('GET', '/api/me', undefined, t2)).json().user.admin === false, '/api/me: a normal user is not admin');
+ok((await J('GET', '/api/admin/overview')).statusCode === 401, 'admin overview without a token → 401');
+ok((await J('GET', '/api/admin/overview', undefined, t2)).statusCode === 403, 'admin overview as a non-admin → 403');
+r = await J('GET', '/api/admin/overview', undefined, token);
+ok(r.statusCode === 200 && r.json().totals && Array.isArray(r.json().online) && Array.isArray(r.json().rooms), 'admin overview (admin) → totals + online[] + rooms[]');
+ok((await J('POST', '/api/admin/kick', { uid: 999999 }, token)).json().closed === 0, 'admin kick of an offline uid → closed 0');
+ok((await J('POST', '/api/admin/close-room', { code: 'NOPE1' }, token)).json().closed === false, 'admin close of a missing room → false');
+ok((await J('POST', '/api/admin/kick', { uid: 1 }, t2)).statusCode === 403, 'admin kick as a non-admin → 403');
 
 console.log(`\n${pass} passed, ${fail} failed`);
 await app.close();

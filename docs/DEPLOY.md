@@ -148,6 +148,7 @@ cp .env.example .env
 # 產生一把強的 JWT 密鑰並寫進 .env:
 echo "JWT_SECRET=$(openssl rand -hex 48)" >> .env
 echo "CORS_ORIGIN=https://yourname.duckdns.org" >> .env   # 換成你的網域
+echo "ADMIN_USERS=你的帳號" >> .env                       # (選填) 可開「🛠 管理者主控台」的帳號，多個用逗號分隔
 ```
 > 💡 **為什麼用 `.env` 檔而不是手動 export?** 因為等一下接了自動部署(第 8 章),GitHub 會用一個**全新的登入工作階段**來重啟服務,那個 session 沒有你手動 export 的環境變數。把密鑰寫進 `server/.env`(這個檔被 git 忽略、不會上傳、`git reset` 也不會動它),Docker Compose 會**自動讀它**,手動跟自動部署就都能用。
 >
