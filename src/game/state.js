@@ -126,6 +126,11 @@ export function resetMeta() { META = DEFAULT_META(); saveMeta(); }
 
 export function getMeta() { return META; }
 
+// last finished run's leaderboard components while NOT logged in — lets the leaderboard
+// overlay offer a guest upload (with a self-entered name). Cleared after a successful upload.
+export let lastGuestRun = null;
+export function clearLastGuestRun() { lastGuestRun = null; }
+
 // ---- save slots (title-screen slot picker) --------------------------------
 // Lightweight headers for each of the 3 local slots, read WITHOUT disturbing the live META.
 export function slotSummaries() {
@@ -309,18 +314,18 @@ export function bankRun(run) {
   try { restockSkinShop(META); } catch (e) { /* ignore */ }   // 5-6: fresh clothing-store stock next visit
   saveMeta();
   // upload the run to the shared leaderboard (best-effort; score recomputed server-side)
-  try {
-    postRunResult({
-      kills: run.kills || 0,
-      stage: run.stage || run.floor || 1,
-      time_s: Math.floor(run.time || 0),
-      difficulty: run.difficulty || 1,
-      cleared: !!run.cleared,
-      reaper: !!(run.reaperKills > 0 || run.reaperSlain),
-      character: run.characterId || null,
-      biome: run.biomeId || null,
-      coop_size: run.coopSize || 1,   // Phase 2: party size for the shared leaderboard
-    });
-  } catch (e) { /* ignore */ }
+  const runPayload = {
+    kills: run.kills || 0,
+    stage: run.stage || run.floor || 1,
+    time_s: Math.floor(run.time || 0),
+    difficulty: run.difficulty || 1,
+    cleared: !!run.cleared,
+    reaper: !!(run.reaperKills > 0 || run.reaperSlain),
+    character: run.characterId || null,
+    biome: run.biomeId || null,
+    coop_size: run.coopSize || 1,   // Phase 2: party size for the shared leaderboard
+  };
+  try { postRunResult(runPayload); } catch (e) { /* ignore */ }                       // logged in → auto-upload
+  try { if (!Net.isLoggedIn()) lastGuestRun = runPayload; } catch (e) { /* ignore */ }  // guest → offer a named upload from the leaderboard overlay
   return { newAchievements: newAch, newCharacters: newChars };   // for the results screen (原#1)
 }

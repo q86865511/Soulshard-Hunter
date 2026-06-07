@@ -164,6 +164,25 @@ export async function buildApp(pool, { logger = false, rateMax = 120 } = {}) {
     return { ok: true, run: r.rows[0] };
   });
 
+  // guest leaderboard upload — no account, a self-entered display name. Same anti-cheat gate;
+  // tighter per-IP rate limit (anonymous → can't be tied to an account).
+  const guestRunSchema = runSchema.extend({ name: z.string().trim().min(1).max(16) });
+  const guestRunLimit = { config: { rateLimit: { max: 10, timeWindow: '1 minute' } } };
+  app.post('/api/runs/guest', guestRunLimit, async (req, reply) => {
+    const p = guestRunSchema.safeParse(req.body);
+    if (!p.success) return reply.code(400).send({ error: 'invalid run payload', detail: p.error.issues });
+    const c = p.data;
+    const bad = runPlausibility(c);
+    if (bad) return reply.code(422).send({ error: 'implausible run rejected', detail: bad });
+    const name = String(c.name).replace(/[<>]/g, '').replace(/\s+/g, ' ').trim().slice(0, 16) || '訪客';
+    const score = computeScore(c);
+    const r = await pool.query(
+      `INSERT INTO runs(user_id, guest_name, score, stage, kills, character, biome, difficulty, time_s, cleared, reaper, coop_size)
+       VALUES(NULL,$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id, score, created_at`,
+      [name, score, c.stage, c.kills, c.character || null, c.biome || null, c.difficulty, c.time_s, !!c.cleared, !!c.reaper, c.coop_size || 1]);
+    return { ok: true, run: r.rows[0] };
+  });
+
   app.get('/api/leaderboard', async (req) => {
     const q = req.query || {};
     const where = []; const args = [];
@@ -175,13 +194,16 @@ export async function buildApp(pool, { logger = false, rateMax = 120 } = {}) {
     const limit = clampInt(q.limit || 25, 1, 100);
     // best-per-player board: DISTINCT ON keeps each user's single best row (within the
     // active filters), so one player can't flood the visible leaderboard with dupes.
+    // identity = the user id, or (for anonymous guests) the lowercased guest name — so each
+    // registered player AND each guest name keeps only their single best row (no dupe flooding).
+    const idExpr = `COALESCE(u.id::text, 'g:' || lower(r.guest_name))`;
     const sql = `
-      SELECT t.username, t.score, t.stage, t.kills, t.character, t.biome, t.difficulty, t.time_s, t.cleared, t.reaper, t.coop_size, t.created_at FROM (
-        SELECT DISTINCT ON (r.user_id) u.username, r.score, r.stage, r.kills, r.character, r.biome,
-               r.difficulty, r.time_s, r.cleared, r.reaper, r.coop_size, r.created_at, r.user_id
-        FROM runs r JOIN users u ON u.id = r.user_id
-        ${where.length ? 'WHERE ' + where.join(' AND ') : ''}
-        ORDER BY r.user_id, r.score DESC
+      SELECT t.username, t.guest, t.score, t.stage, t.kills, t.character, t.biome, t.difficulty, t.time_s, t.cleared, t.reaper, t.coop_size, t.created_at FROM (
+        SELECT DISTINCT ON (${idExpr}) COALESCE(u.username, r.guest_name) AS username, (u.id IS NULL) AS guest,
+               r.score, r.stage, r.kills, r.character, r.biome, r.difficulty, r.time_s, r.cleared, r.reaper, r.coop_size, r.created_at
+        FROM runs r LEFT JOIN users u ON u.id = r.user_id
+        WHERE (u.id IS NOT NULL OR r.guest_name IS NOT NULL)${where.length ? ' AND ' + where.join(' AND ') : ''}
+        ORDER BY ${idExpr}, r.score DESC
       ) t
       ORDER BY t.score DESC
       LIMIT ${limit}`;

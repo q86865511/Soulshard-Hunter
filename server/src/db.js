@@ -33,7 +33,8 @@ export async function initSchema(p = pool) {
 
     CREATE TABLE IF NOT EXISTS runs (
       id          bigserial PRIMARY KEY,
-      user_id     bigint REFERENCES users(id) ON DELETE CASCADE,
+      user_id     bigint REFERENCES users(id) ON DELETE CASCADE,   -- NULL for anonymous guest submissions
+      guest_name  text,                                            -- display name for a guest run (user_id NULL)
       score       int  NOT NULL,
       stage       int,
       kills       int,
@@ -46,6 +47,7 @@ export async function initSchema(p = pool) {
       coop_size   int DEFAULT 1,
       created_at  timestamptz DEFAULT now()
     );
+    ALTER TABLE runs ADD COLUMN IF NOT EXISTS guest_name text;     -- migrate existing deployments
 
     CREATE INDEX IF NOT EXISTS runs_score_idx       ON runs (score DESC);
     CREATE INDEX IF NOT EXISTS runs_biome_diff_idx  ON runs (biome, difficulty, score DESC);
