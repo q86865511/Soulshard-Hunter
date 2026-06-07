@@ -28,30 +28,42 @@ function ensureStyles() {
   document.head.appendChild($('style', { html: `
     @keyframes sl-in{from{opacity:0;transform:translateY(14px) scale(.98)}to{opacity:1;transform:none}}
     .sl-modal{position:fixed;inset:0;z-index:60;display:flex;align-items:center;justify-content:center;background:radial-gradient(circle at 50% 40%,rgba(20,26,54,.6),rgba(5,7,16,.82));backdrop-filter:blur(5px);font:14px/1.5 system-ui,sans-serif}
-    .sl-card{position:relative;background:linear-gradient(165deg,#1a2042,#0e1126 70%);border:1px solid #34407a;border-radius:14px;padding:22px;width:min(94vw,560px);max-height:86vh;overflow:auto;color:#dfe3f5;box-shadow:0 20px 70px rgba(0,0,0,.6),inset 0 0 26px rgba(72,224,208,.1);animation:sl-in .22s ease-out}
-    .sl-card h2{margin:0 0 14px;font-size:20px;font-weight:900;letter-spacing:2px;text-align:center;background:linear-gradient(90deg,#a8fff4,#ffd479);-webkit-background-clip:text;background-clip:text;color:transparent;text-shadow:0 0 16px rgba(72,224,208,.3)}
+    .sl-card{position:relative;background:linear-gradient(165deg,#1a2042,#0e1126 70%);border:1px solid #34407a;border-radius:14px;padding:24px;width:min(94vw,560px);max-height:86vh;overflow:auto;color:#dfe3f5;box-shadow:0 20px 70px rgba(0,0,0,.6),inset 0 0 26px rgba(72,224,208,.12);animation:sl-in .22s ease-out}
+    .sl-card::before{content:'';position:absolute;left:18px;right:18px;top:0;height:2px;background:linear-gradient(90deg,transparent,#48e0d0,#ffd479,transparent);border-radius:2px;opacity:.85}
+    .sl-card h2{margin:0 0 4px;font-size:21px;font-weight:900;letter-spacing:2px;text-align:center;background:linear-gradient(90deg,#a8fff4,#ffd479);-webkit-background-clip:text;background-clip:text;color:transparent;text-shadow:0 0 16px rgba(72,224,208,.3)}
+    .sl-sub{margin:0 0 14px;text-align:center;font-size:11px;letter-spacing:2px;color:#7c87b8}
     .sl-tabs{display:flex;gap:8px;margin-bottom:14px}
     .sl-tabs button{flex:1;padding:9px;border-radius:9px;border:1px solid #2a3052;background:#141832;color:#9aa3c8;cursor:pointer;font-weight:700;transition:.15s}
     .sl-tabs button:hover{color:#cfe0ff;border-color:#3a4a8a}
     .sl-tabs button.on{background:linear-gradient(180deg,#2c3a8a,#1f2a66);color:#fff;border-color:#48e0d0;box-shadow:0 0 12px rgba(72,224,208,.35)}
-    .sl-sec{margin:12px 0}
-    .sl-sec h3{margin:0 0 8px;font-size:12px;color:#8ea0d8;font-weight:700;letter-spacing:1px;text-transform:uppercase}
+    .sl-sec{margin:14px 0}
+    .sl-sec h3{margin:0 0 9px;padding-left:9px;font-size:12px;color:#8ea0d8;font-weight:700;letter-spacing:1px;text-transform:uppercase;border-left:3px solid #48e0d0;line-height:1.1}
     .sl-row{display:flex;gap:8px;align-items:center;margin:6px 0}
     .sl-row input,.sl-row select{flex:1;box-sizing:border-box;padding:9px 10px;border-radius:8px;border:1px solid #2a3a6a;background:#0b0e20;color:#fff;transition:.15s}
     .sl-row input:focus,.sl-row select:focus{outline:none;border-color:#48e0d0;box-shadow:0 0 10px rgba(72,224,208,.3)}
     .sl-list{display:flex;flex-direction:column;gap:6px}
-    .sl-item{display:flex;align-items:center;gap:8px;padding:9px 11px;border:1px solid #25305a;border-radius:9px;background:linear-gradient(180deg,#161c3a,#121733);transition:.15s}
-    .sl-item:hover{border-color:#3a4a8a}
+    .sl-item{display:flex;align-items:center;gap:8px;padding:10px 12px;border:1px solid #25305a;border-radius:10px;background:linear-gradient(180deg,#161c3a,#121733);transition:.15s}
+    .sl-item:hover{border-color:#48e0d0;transform:translateX(2px);box-shadow:0 0 14px rgba(72,224,208,.12)}
     .sl-item .nm{flex:1;font-weight:700}
-    .sl-dot{width:9px;height:9px;border-radius:50%;background:#555c7a}
-    .sl-dot.on{background:#5be36b;box-shadow:0 0 8px #5be36b}
-    .sl-btn{padding:8px 13px;border-radius:8px;border:0;cursor:pointer;font-weight:800;font-size:13px;letter-spacing:.5px;transition:.15s}
+    .sl-dot{width:9px;height:9px;border-radius:50%;background:#555c7a;flex:none}
+    .sl-dot.on{background:#5be36b;box-shadow:0 0 8px #5be36b;animation:sl-pulse 1.8s ease-in-out infinite}
+    @keyframes sl-pulse{0%,100%{box-shadow:0 0 6px #5be36b}50%{box-shadow:0 0 12px #5be36b,0 0 3px #fff}}
+    .sl-badge{display:inline-block;padding:3px 10px;border-radius:999px;font-size:11px;font-weight:800;letter-spacing:.5px;white-space:nowrap}
+    .sl-badge.host{background:rgba(255,212,121,.16);color:#ffd479;border:1px solid rgba(255,212,121,.45)}
+    .sl-badge.ready{background:rgba(91,227,107,.15);color:#7ef08e;border:1px solid rgba(91,227,107,.45)}
+    .sl-badge.idle{background:rgba(120,130,160,.14);color:#9aa3c8;border:1px solid #2e3a6e}
+    .sl-badge.spec{background:rgba(138,180,255,.15);color:#8ab4ff;border:1px solid rgba(138,180,255,.45)}
+    .sl-badge.char{background:rgba(72,224,208,.12);color:#a8fff4;border:1px solid rgba(72,224,208,.32)}
+    .sl-btn{padding:9px 14px;border-radius:8px;border:0;cursor:pointer;font-weight:800;font-size:13px;letter-spacing:.5px;transition:.15s}
+    .sl-btn:hover{transform:translateY(-1px)}
     .sl-btn:active{transform:translateY(1px)}
     .sl-pri{background:linear-gradient(180deg,#5cf0e0,#2bb5a6);color:#04221f;box-shadow:0 2px 0 #1c8478,0 0 12px rgba(72,224,208,.4)}.sl-pri:hover{filter:brightness(1.08)}
     .sl-pri:disabled{background:#2a4a48;color:#789;box-shadow:none;cursor:not-allowed}
     .sl-gho{background:linear-gradient(180deg,#202852,#171d3c);color:#cdd3f0;border:1px solid #2e3a6e}.sl-gho:hover{border-color:#4a5aa0;color:#fff}
     .sl-warn{background:linear-gradient(180deg,#43243a,#321c2c);color:#ffb4a8;border:1px solid #5a3045}.sl-warn:hover{filter:brightness(1.1)}
-    .sl-code{font:900 23px ui-monospace,monospace;letter-spacing:4px;color:#ffd479;text-align:center;padding:10px;background:#0b0e20;border-radius:9px;border:1px dashed #5a4a2a;text-shadow:0 0 12px rgba(255,212,121,.4)}
+    .sl-code{position:relative;overflow:hidden;font:900 26px ui-monospace,monospace;letter-spacing:6px;color:#ffd479;text-align:center;padding:13px;background:linear-gradient(180deg,#11142c,#0a0c1c);border-radius:10px;border:1px dashed #6a5630;text-shadow:0 0 14px rgba(255,212,121,.5)}
+    .sl-code::after{content:'';position:absolute;top:0;left:-60%;width:40%;height:100%;background:linear-gradient(90deg,transparent,rgba(255,255,255,.14),transparent);transform:skewX(-20deg);animation:sl-shine 3.4s ease-in-out infinite}
+    @keyframes sl-shine{0%,60%{left:-60%}100%{left:130%}}
     .sl-msg{min-height:16px;margin-top:8px;font-size:12px;text-align:center;color:#ff8a7a}
     .sl-msg.ok{color:#9be36b}
     .sl-crown{color:#ffd479;text-shadow:0 0 8px rgba(255,212,121,.5)}
@@ -75,11 +87,20 @@ function toast(msg, ms = 2400) {
 
 function closeModal() { const m = document.querySelector('.sl-modal'); if (m) { if (m._cleanup) m._cleanup(); m.remove(); } }
 
+// Close on backdrop click only when the press AND release both land on the dim area —
+// a text-selection drag out of an input must not close the modal (matches net/ui.js).
+function bindBackdropClose(modal) {
+  let downOnSelf = false;
+  modal.addEventListener('mousedown', (e) => { downOnSelf = (e.target === modal); });
+  modal.addEventListener('click', (e) => { if (e.target === modal && downOnSelf) closeModal(); downOnSelf = false; });
+  return modal;
+}
+
 // ---- the social modal (friends + lobby) -----------------------------------
 let activeTab = 'friends';
 export function openSocial(tab) {
   ensureStyles();
-  if (!Net.isLoggedIn()) { toast('請先在右下角登入雲端帳號，再使用好友／連線'); return; }
+  if (!Net.isLoggedIn()) { toast('請先登入雲端帳號，再使用好友／連線'); return; }
   closeModal();
   RT.ensure();
   if (tab) activeTab = tab;
@@ -89,8 +110,8 @@ export function openSocial(tab) {
   const msg = $('div', { class: 'sl-msg' });
   const setMsg = (t, ok) => { msg.textContent = t || ''; msg.className = 'sl-msg' + (ok ? ' ok' : ''); };
 
-  const tabFriends = $('button', { text: '好友' });
-  const tabLobby = $('button', { text: '連線房間' });
+  const tabFriends = $('button', { text: '👥 好友' });
+  const tabLobby = $('button', { text: '🚪 連線房間' });
   const setTab = (t) => { activeTab = t; tabFriends.classList.toggle('on', t === 'friends'); tabLobby.classList.toggle('on', t === 'lobby'); render(); };
   tabFriends.addEventListener('click', () => setTab('friends'));
   tabLobby.addEventListener('click', () => setTab('lobby'));
@@ -102,12 +123,13 @@ export function openSocial(tab) {
   }
 
   const card = $('div', { class: 'sl-card' }, [
-    $('h2', { text: '好友與連線合作' }),
+    $('h2', { text: '🌐 多人連線' }),
+    $('div', { class: 'sl-sub', text: 'CO-OP · 好友與即時合作' }),
     $('div', { class: 'sl-tabs' }, [tabFriends, tabLobby]),
     body, msg,
     $('div', { class: 'sl-row', style: 'margin-top:14px' }, [$('button', { class: 'sl-btn sl-gho', text: '關閉', style: 'flex:1', onclick: closeModal })]),
   ]);
-  const modal = $('div', { class: 'sl-modal', onclick: (e) => { if (e.target === modal) closeModal(); } }, [card]);
+  const modal = bindBackdropClose($('div', { class: 'sl-modal' }, [card]));
 
   // live updates while open
   const reRender = () => render();
@@ -135,7 +157,7 @@ function renderFriends(setMsg) {
   };
   inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') add(); });
   wrap.appendChild($('div', { class: 'sl-sec' }, [
-    $('h3', { text: '加好友' }),
+    $('h3', { text: '➕ 加好友' }),
     $('div', { class: 'sl-row' }, [inp, $('button', { class: 'sl-btn sl-pri', text: '送出', onclick: add })]),
   ]));
   // incoming
@@ -146,7 +168,7 @@ function renderFriends(setMsg) {
       $('button', { class: 'sl-btn sl-pri', text: '接受', onclick: async () => { try { await Net.acceptFriend(f.id); RT.reloadFriends(); setMsg('已接受', true); } catch (e) { setMsg('失敗'); } } }),
       $('button', { class: 'sl-btn sl-gho', text: '拒絕', onclick: async () => { try { await Net.declineFriend(f.id); RT.reloadFriends(); } catch (e) { /* */ } } }),
     ]));
-    wrap.appendChild($('div', { class: 'sl-sec' }, [$('h3', { text: '收到的邀請 (' + RT.incoming.length + ')' }), list]));
+    wrap.appendChild($('div', { class: 'sl-sec' }, [$('h3', { text: '📩 收到的邀請 (' + RT.incoming.length + ')' }), list]));
   }
   // friends
   const flist = $('div', { class: 'sl-list' });
@@ -159,7 +181,7 @@ function renderFriends(setMsg) {
       $('button', { class: 'sl-btn sl-warn', text: '刪除', onclick: async () => { try { await Net.removeFriend(f.id); RT.reloadFriends(); } catch (e) { /* */ } } }),
     ]));
   }
-  wrap.appendChild($('div', { class: 'sl-sec' }, [$('h3', { text: '好友' + (RT.outgoing && RT.outgoing.length ? '（待對方接受 ' + RT.outgoing.length + '）' : '') }), flist]));
+  wrap.appendChild($('div', { class: 'sl-sec' }, [$('h3', { text: '🤝 好友' + (RT.outgoing && RT.outgoing.length ? '（待對方接受 ' + RT.outgoing.length + '）' : '') }), flist]));
   return wrap;
 }
 
@@ -177,7 +199,7 @@ function renderLobby(setMsg) {
   const wrap = $('div');
   if (!RT.room) {
     wrap.appendChild($('div', { class: 'sl-sec' }, [
-      $('h3', { text: '建立或加入房間（1~3 人即時合作）' }),
+      $('h3', { text: '🚪 建立或加入房間（1~3 人即時合作）' }),
       $('div', { class: 'sl-row' }, [$('button', { class: 'sl-btn sl-pri', text: '＋ 建立房間', style: 'flex:1', onclick: () => { RT.createRoom(defaultCfg()); } })]),
     ]));
     const code = $('input', { type: 'text', placeholder: '輸入房號加入', maxlength: 6, style: 'text-transform:uppercase' });
@@ -195,7 +217,7 @@ function renderLobby(setMsg) {
 
   // room code
   wrap.appendChild($('div', { class: 'sl-sec' }, [
-    $('h3', { text: '房號（分享給好友）' }),
+    $('h3', { text: '🎫 房號（分享給好友）' }),
     $('div', { class: 'sl-code', text: room.code }),
     $('div', { class: 'sl-row' }, [$('button', { class: 'sl-btn sl-gho', text: '複製房號', style: 'flex:1', onclick: () => { try { navigator.clipboard.writeText(room.code); toast('已複製房號'); } catch (e) { /* */ } } })]),
   ]));
@@ -204,22 +226,27 @@ function renderLobby(setMsg) {
   const list = $('div', { class: 'sl-list' });
   for (const m of room.members) {
     const char = Characters.get(m.charId || 'hunter');
+    const statusBadge = m.host
+      ? $('span', { class: 'sl-badge host', text: '♛ 房主' })
+      : m.spectator ? $('span', { class: 'sl-badge spec', text: '👁 觀戰' })
+        : $('span', { class: 'sl-badge ' + (m.ready ? 'ready' : 'idle'), text: m.ready ? '✓ 已準備' : '未準備' });
     list.appendChild($('div', { class: 'sl-item' }, [
-      $('span', { class: 'nm', html: (m.host ? '<span class="sl-crown">♛ </span>' : '') + m.username + (m.cid === RT.selfCid ? '（你）' : '') + (m.disconnected ? ' <span style="color:#ff9">⚠ 斷線</span>' : '') }),
-      $('span', { style: 'font-size:12px;color:#9aa3c8', text: m.spectator ? '—' : (char ? char.name : (m.charId || '—')) }),
-      $('span', { style: 'font-size:12px;color:' + (m.host ? '#ffd479' : (m.spectator ? '#8ab4ff' : (m.ready ? '#5be36b' : '#778'))), text: m.host ? '房主' : (m.spectator ? '👁 觀戰' : (m.ready ? '✓ 已準備' : '未準備')) }),
+      $('span', { class: 'sl-dot' + (m.disconnected ? '' : ' on') }),
+      $('span', { class: 'nm', html: m.username + (m.cid === RT.selfCid ? '（你）' : '') + (m.disconnected ? ' <span style="color:#ffb454">⚠ 斷線</span>' : '') }),
+      m.spectator ? null : $('span', { class: 'sl-badge char', text: char ? char.name : (m.charId || '—') }),
+      statusBadge,
     ]));
   }
   const playerCount = room.members.filter((m) => !m.spectator).length;
   const specCount = room.members.length - playerCount;
-  wrap.appendChild($('div', { class: 'sl-sec' }, [$('h3', { text: '隊員 (' + playerCount + '/3)' + (specCount ? '　觀戰 ' + specCount : '') }), list]));
+  wrap.appendChild($('div', { class: 'sl-sec' }, [$('h3', { text: '🧑‍🤝‍🧑 隊員 (' + playerCount + '/3)' + (specCount ? '　觀戰 ' + specCount : '') }), list]));
 
   // my character pick (spectators have no avatar, so no pick)
   if (!meSpec) {
     const owned = Characters.all().filter((c) => isUnlocked(META, 'characters', c.id));
     const sel = $('select', {}, owned.map((c) => $('option', { value: c.id, text: c.name, selected: (me.charId || 'hunter') === c.id ? 'selected' : null })));
     sel.addEventListener('change', () => { const c = Characters.get(sel.value); RT.setBuild(sel.value, c ? c.startWeapon : 'w_soulbolt'); });
-    wrap.appendChild($('div', { class: 'sl-sec' }, [$('h3', { text: '你的角色' }), $('div', { class: 'sl-row' }, [sel])]));
+    wrap.appendChild($('div', { class: 'sl-sec' }, [$('h3', { text: '🎮 你的角色' }), $('div', { class: 'sl-row' }, [sel])]));
   }
 
   // host: biome + difficulty
@@ -228,7 +255,7 @@ function renderLobby(setMsg) {
     const dsel = $('select', {}, ['1', '2', '3', '4', '5'].map((d) => $('option', { value: d, text: '難度 ' + d, selected: String(room.cfg.difficulty || 1) === d ? 'selected' : null })));
     const apply = () => RT.setCfg({ biomeId: bsel.value, difficulty: +dsel.value });
     bsel.addEventListener('change', apply); dsel.addEventListener('change', apply);
-    wrap.appendChild($('div', { class: 'sl-sec' }, [$('h3', { text: '關卡設定（房主）' }), $('div', { class: 'sl-row' }, [bsel, dsel])]));
+    wrap.appendChild($('div', { class: 'sl-sec' }, [$('h3', { text: '⚔ 關卡設定（房主）' }), $('div', { class: 'sl-row' }, [bsel, dsel])]));
   }
 
   // invite online friends
@@ -239,7 +266,7 @@ function renderLobby(setMsg) {
       $('span', { class: 'sl-dot on' }), $('span', { class: 'nm', text: f.username }),
       $('button', { class: 'sl-btn sl-pri', text: '邀請', onclick: () => { RT.invite(f.id); setMsg('已邀請 ' + f.username, true); } }),
     ]));
-    wrap.appendChild($('div', { class: 'sl-sec' }, [$('h3', { text: '邀請線上好友' }), fl]));
+    wrap.appendChild($('div', { class: 'sl-sec' }, [$('h3', { text: '✉ 邀請線上好友' }), fl]));
   }
 
   // actions
