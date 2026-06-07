@@ -49,7 +49,7 @@
                                        └─────────────────────────────┘
 ```
 
-為何 server-authoritative 勝過 deterministic lockstep:遊戲有 **72 處 `Math.random()`**,lockstep 需要全部改成種子 RNG 且任一處浮點不一致就 desync;server-authoritative 不要求決定性(伺服器算、客戶端顯示),可沿用現有 RNG,且天然防作弊、支援中途觀戰/重連。
+為何 server-authoritative 勝過 deterministic lockstep:遊戲有 **93 處 `Math.random()`**,lockstep 需要全部改成種子 RNG 且任一處浮點不一致就 desync;server-authoritative 不要求決定性(伺服器算、客戶端顯示),可沿用現有 RNG,且天然防作弊、支援中途觀戰/重連。
 
 ---
 
@@ -143,10 +143,10 @@ CREATE INDEX ON runs (biome, difficulty, score DESC);
 
 ### 前端改動(以「最小侵入」接上現有存檔層)
 現有存檔層集中在 `src/game/state.js` — 這是最佳接點:
-- `loadMeta()`(state.js:40):登入後改為先 `GET /api/save`,把回傳 META 灌入記憶體;離線/未登入則 fallback 現有 `localStorage`。
-- `saveMeta()`(state.js:69):本地寫入後,**debounce** 呼叫 `PUT /api/save` 同步上雲(沿用既有所有呼叫點,不必改散落各處的 `saveMeta()`)。
-- `bankRun()`(state.js:143):完局時除了現有本地 stats,額外 `POST /api/runs` 上傳分數(分數欄位在 run.js 的 `finishRun()` 已算好,約 score 公式處)。
-- 登入流程接點:boot 在 `src/main.js:53` `setScene(refs.title)`。新增 `src/game/scenes/login.js`,在 title 前(或以 overlay)要求登入;成功後再 `loadMeta()`。可選「訪客=純本地」維持現狀。
+- `loadMeta()`(state.js:53):登入後改為先 `GET /api/save`,把回傳 META 灌入記憶體;離線/未登入則 fallback 現有 `localStorage`。
+- `saveMeta()`(state.js:98):本地寫入後,**debounce** 呼叫 `PUT /api/save` 同步上雲(沿用既有所有呼叫點,不必改散落各處的 `saveMeta()`)。
+- `bankRun()`(state.js:211):完局時除了現有本地 stats,額外 `POST /api/runs` 上傳分數(分數欄位在 run.js 的 `finishRun()` 已算好,約 score 公式處)。
+- 登入流程接點:boot 在 `src/main.js:69` `setScene(refs.title)`。新增 `src/game/scenes/login.js`,在 title 前(或以 overlay)要求登入;成功後再 `loadMeta()`。可選「訪客=純本地」維持現狀。
 - 新增薄 `src/net/api.js`(fetch 包裝 + 存 JWT)。新增 `src/game/scenes/leaderboard.js` 或在 hub 加排行榜面板(`src/game/scenes/hub.js` 的 station 模式)。
 
 **Phase 1 不需要動模擬碼**,風險低,可獨立驗收。
@@ -159,13 +159,13 @@ CREATE INDEX ON runs (biome, difficulty, score DESC);
 
 ### A. 單人 → 多人重構(`world.player` → `world.players[]`)
 全程式有多處寫死「只有一個玩家」,需改為陣列 + 「對最近玩家」邏輯:
-- world.js:42 `this.player` → `this.players[]`;`spawnRing`(world.js:131)、`dropLoot`(world.js:148)、`gainXp`(world.js:234)以「最近/全體玩家」計算。
+- world.js:42 `this.player` → `this.players[]`;`spawnRing`(world.js:149)、`dropLoot`(world.js:165)、`gainXp`(world.js:249)以「最近/全體玩家」計算。
 - 怪物 AI 鎖定:enemy.js:113 用 `world.player` → 改為挑最近玩家。
 - 撿取:pickup.js:44 偵測單一玩家 → 改為偵測全體。
 - 進度設計決策:**每人各自武器/等級**(建議,各撿各的)還是共享;升級選單需 per-player。
 
 ### B. 輸入解耦(讓伺服器能餵遠端玩家輸入)
-- 現在 player.js:134 直接呼叫 `moveAxis()`/`pressed()` 讀全域鍵盤。改成 `player.update(dt, world, inputFrame)`,把輸入封裝成每幀 `InputFrame { move:{x,y}, dash, interact, ... }` 從外層傳入。
+- 現在 player.js:163 直接呼叫 `moveAxis()`/`pressed()` 讀全域鍵盤。改成 `player.update(dt, world, inputFrame)`,把輸入封裝成每幀 `InputFrame { move:{x,y}, dash, interact, ... }` 從外層傳入。
 - 玩家端:每幀把本地輸入打包送伺服器(僅需移動向量 + 幾個動作鍵,頻寬極小)。
 
 ### C. 序列化/快照層(`game/net/snapshot.js`)
