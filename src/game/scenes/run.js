@@ -902,7 +902,9 @@ export const runScene = {
     if (Cheats.enabled && Cheats.fast) dt *= 3;   // F2 time-warp
     this.run.time += dt;
     this.threat = 1 + Math.floor(this.run.time / BALANCE.THREAT_PERIOD);   // ~1 -> 13 over the 20-min level
-    this.run.stage = this.threat; this.run.floor = this.threat;   // keep loot/score scaling alive
+    // report-cap stage at the threat ceiling (threat keeps climbing past 20:00 during the Reaper window;
+    // an uncapped stage would trip the server's anti-cheat plausibility gate on legit clear+reaper runs)
+    this.run.stage = Math.min(this.threat, BALANCE.THREAT_CEIL); this.run.floor = this.threat;   // keep loot/score scaling alive
     this.world.threat = this.threat;   // hazards read this to scale (capped)
     // screen shake stays gentle by default, swelling only when near death
     const hpFrac = this.player.maxHp ? this.player.hp / this.player.maxHp : 1;

@@ -45,6 +45,28 @@ export function computeScore(c) {
   return Math.floor(kills * 12 + stage * 400 + time + diff * 600 + (reaper ? 5000 : 0));
 }
 
+// Anti-cheat plausibility gate: reject runs whose components are physically
+// impossible for the engine, so the (server-recomputed) score can't be inflated
+// with fabricated inputs. Returns a reason string when implausible, else null.
+//   - kills: bounded by elapsed time (the on-screen swarm caps at ~260; this ceiling
+//     is far above any real run) and scaled by party size for co-op.
+//   - cleared: the biome final boss only spawns at 20:00 (BALANCE.LEVEL_TIME=1200),
+//     so a clear cannot happen before then — a generous floor catches blatant fakes.
+//   - reaper: only descends AFTER a clear, so reaper without cleared is impossible.
+//   - stage: in run.js stage = the threat level reached (ceiling ~13), not a level
+//     index. The client now report-caps it at the ceiling, but threat keeps climbing
+//     while the player lingers on the Reaper past 20:00, so allow headroom (20) to avoid
+//     false-rejecting legitimate clear+reaper runs from older/unpatched clients.
+const ANTICHEAT = { KILL_BASE: 80, MAX_KPS: 30, MIN_CLEAR_TIME: 1000, MAX_STAGE: 20 };
+export function runPlausibility(c) {
+  const party = clampInt(c.coop_size || 1, 1, 3);
+  if (c.kills > ANTICHEAT.KILL_BASE + c.time_s * ANTICHEAT.MAX_KPS * party) return 'kills implausible for elapsed time';
+  if (c.stage > ANTICHEAT.MAX_STAGE) return 'stage out of plausible range';
+  if (c.cleared && c.time_s < ANTICHEAT.MIN_CLEAR_TIME) return 'cleared flag with too little elapsed time';
+  if (c.reaper && !c.cleared) return 'reaper flag without a clear';
+  return null;
+}
+
 // ---- validation schemas ---------------------------------------------------
 const registerSchema = z.object({
   username: z.string().min(3).max(24).regex(/^[A-Za-z0-9_]+$/, 'letters, digits, underscore only'),
@@ -132,6 +154,8 @@ export async function buildApp(pool, { logger = false, rateMax = 120 } = {}) {
     const p = runSchema.safeParse(req.body);
     if (!p.success) return reply.code(400).send({ error: 'invalid run payload', detail: p.error.issues });
     const c = p.data;
+    const bad = runPlausibility(c);
+    if (bad) return reply.code(422).send({ error: 'implausible run rejected', detail: bad });   // anti-cheat: fabricated components
     const score = computeScore(c);
     const r = await pool.query(
       `INSERT INTO runs(user_id, score, stage, kills, character, biome, difficulty, time_s, cleared, reaper, coop_size)

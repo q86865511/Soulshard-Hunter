@@ -177,14 +177,16 @@ function renderLobby(setMsg) {
     ]));
     const code = $('input', { type: 'text', placeholder: '輸入房號加入', maxlength: 6, style: 'text-transform:uppercase' });
     const join = () => { const c = code.value.trim().toUpperCase(); if (c) RT.joinRoom(c); };
+    const spectate = () => { const c = code.value.trim().toUpperCase(); if (c) RT.spectateRoom(c); };   // 中途觀戰: works even on a started room
     code.addEventListener('keydown', (e) => { if (e.key === 'Enter') join(); });
-    wrap.appendChild($('div', { class: 'sl-sec' }, [$('div', { class: 'sl-row' }, [code, $('button', { class: 'sl-btn sl-gho', text: '加入', onclick: join })])]));
+    wrap.appendChild($('div', { class: 'sl-sec' }, [$('div', { class: 'sl-row' }, [code, $('button', { class: 'sl-btn sl-gho', text: '加入', onclick: join }), $('button', { class: 'sl-btn sl-gho', text: '觀戰', onclick: spectate })])]));
     return wrap;
   }
 
   const room = RT.room;
   const me = room.members.find((m) => m.cid === RT.selfCid) || {};
   const isHost = room.hostCid === RT.selfCid;
+  const meSpec = !!me.spectator;
 
   // room code
   wrap.appendChild($('div', { class: 'sl-sec' }, [
@@ -198,18 +200,22 @@ function renderLobby(setMsg) {
   for (const m of room.members) {
     const char = Characters.get(m.charId || 'hunter');
     list.appendChild($('div', { class: 'sl-item' }, [
-      $('span', { class: 'nm', html: (m.host ? '<span class="sl-crown">♛ </span>' : '') + m.username + (m.cid === RT.selfCid ? '（你）' : '') }),
-      $('span', { style: 'font-size:12px;color:#9aa3c8', text: char ? char.name : (m.charId || '—') }),
-      $('span', { style: 'font-size:12px;color:' + (m.host ? '#ffd479' : (m.ready ? '#5be36b' : '#778')), text: m.host ? '房主' : (m.ready ? '✓ 已準備' : '未準備') }),
+      $('span', { class: 'nm', html: (m.host ? '<span class="sl-crown">♛ </span>' : '') + m.username + (m.cid === RT.selfCid ? '（你）' : '') + (m.disconnected ? ' <span style="color:#ff9">⚠ 斷線</span>' : '') }),
+      $('span', { style: 'font-size:12px;color:#9aa3c8', text: m.spectator ? '—' : (char ? char.name : (m.charId || '—')) }),
+      $('span', { style: 'font-size:12px;color:' + (m.host ? '#ffd479' : (m.spectator ? '#8ab4ff' : (m.ready ? '#5be36b' : '#778'))), text: m.host ? '房主' : (m.spectator ? '👁 觀戰' : (m.ready ? '✓ 已準備' : '未準備')) }),
     ]));
   }
-  wrap.appendChild($('div', { class: 'sl-sec' }, [$('h3', { text: '隊員 (' + room.members.length + '/3)' }), list]));
+  const playerCount = room.members.filter((m) => !m.spectator).length;
+  const specCount = room.members.length - playerCount;
+  wrap.appendChild($('div', { class: 'sl-sec' }, [$('h3', { text: '隊員 (' + playerCount + '/3)' + (specCount ? '　觀戰 ' + specCount : '') }), list]));
 
-  // my character pick
-  const owned = Characters.all().filter((c) => isUnlocked(META, 'characters', c.id));
-  const sel = $('select', {}, owned.map((c) => $('option', { value: c.id, text: c.name, selected: (me.charId || 'hunter') === c.id ? 'selected' : null })));
-  sel.addEventListener('change', () => { const c = Characters.get(sel.value); RT.setBuild(sel.value, c ? c.startWeapon : 'w_soulbolt'); });
-  wrap.appendChild($('div', { class: 'sl-sec' }, [$('h3', { text: '你的角色' }), $('div', { class: 'sl-row' }, [sel])]));
+  // my character pick (spectators have no avatar, so no pick)
+  if (!meSpec) {
+    const owned = Characters.all().filter((c) => isUnlocked(META, 'characters', c.id));
+    const sel = $('select', {}, owned.map((c) => $('option', { value: c.id, text: c.name, selected: (me.charId || 'hunter') === c.id ? 'selected' : null })));
+    sel.addEventListener('change', () => { const c = Characters.get(sel.value); RT.setBuild(sel.value, c ? c.startWeapon : 'w_soulbolt'); });
+    wrap.appendChild($('div', { class: 'sl-sec' }, [$('h3', { text: '你的角色' }), $('div', { class: 'sl-row' }, [sel])]));
+  }
 
   // host: biome + difficulty
   if (isHost) {
@@ -234,8 +240,11 @@ function renderLobby(setMsg) {
   // actions
   const actions = $('div', { class: 'sl-row' });
   if (isHost) {
-    const canStart = room.members.length >= 2 && room.members.every((m) => m.host || m.ready);
-    actions.appendChild($('button', { class: 'sl-btn sl-pri', text: room.members.length < 2 ? '需 2 人以上' : (canStart ? '開始遊戲' : '等待隊員準備'), disabled: canStart ? null : 'disabled', style: 'flex:2', onclick: () => RT.startRun() }));
+    const players = room.members.filter((m) => !m.spectator);   // spectators don't gate the start
+    const canStart = players.length >= 2 && players.every((m) => m.host || m.ready);
+    actions.appendChild($('button', { class: 'sl-btn sl-pri', text: players.length < 2 ? '需 2 人以上' : (canStart ? '開始遊戲' : '等待隊員準備'), disabled: canStart ? null : 'disabled', style: 'flex:2', onclick: () => RT.startRun() }));
+  } else if (meSpec) {
+    actions.appendChild($('span', { style: 'flex:2;color:#8ab4ff;font-weight:700;align-self:center', text: '👁 觀戰中（房主開始後自動進入）' }));
   } else {
     const meMember = room.members.find((m) => m.cid === RT.selfCid) || {};
     actions.appendChild($('button', { class: 'sl-btn ' + (meMember.ready ? 'sl-gho' : 'sl-pri'), text: meMember.ready ? '取消準備' : '準備', style: 'flex:2', onclick: () => RT.setReady(!meMember.ready) }));
@@ -268,4 +277,5 @@ export function initSocial() {
   RT.on('invite', (m) => showInvite(m));
   RT.on('rt:open', () => RT.reloadFriends());
   RT.on('room:err', (m) => toast(m && m.msg ? m.msg : '連線操作失敗'));
+  RT.on('start', () => closeModal());   // run begins → drop the lobby overlay so the canvas (run / coop / spectate) is visible
 }

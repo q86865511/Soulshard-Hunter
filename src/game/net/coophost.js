@@ -27,8 +27,9 @@ export class CoopHost {
   // guests to start. Called from run.js buildWorld once the local host player exists.
   setup(scene, localPlayer) {
     this.scene = scene;
-    // stable order: host first, then by cid (so snapshot player indices are deterministic)
-    const mem = this.room.members.slice().sort((a, b) => ((b.host ? 1 : 0) - (a.host ? 1 : 0)) || String(a.cid).localeCompare(String(b.cid)));
+    // stable order: host first, then by cid (so snapshot player indices are deterministic).
+    // spectators (中途觀戰) get no avatar — they only receive snapshots.
+    const mem = this.room.members.filter((m) => !m.spectator).sort((a, b) => ((b.host ? 1 : 0) - (a.host ? 1 : 0)) || String(a.cid).localeCompare(String(b.cid)));
     this.players = mem.map((m) => {
       const charId = m.charId || 'hunter';
       const char = Characters.get(charId) || Characters.get('hunter');
@@ -60,6 +61,15 @@ export class CoopHost {
     }));
     // a guest dropped (clean WS close) → freeze + retire its avatar (sim keeps going for the rest)
     this._subs.push(RT.on('peer:left', (m) => this.retire(m.cid)));
+    // a guest reconnected within the grace window → re-attach its avatar under the new cid (局中斷線重連)
+    this._subs.push(RT.on('peer:rejoin', (m) => this.reattach(m.prevCid, m.cid)));
+    // our own (host) socket reconnected → re-bind selfCid + the local slot's cid; broadcasting auto-resumes (房主重連)
+    this._subs.push(RT.on('resume', (m) => {
+      if (!m || m.role !== 'host' || !m.you) return;
+      this.selfCid = m.you;
+      const ls = this.players.find((p) => p.isLocal);
+      if (ls) { ls.cid = m.you; if (ls.player) ls.player.cid = m.you; }
+    }));
     // a guest picked a level-up option → apply it to that guest's avatar
     this._subs.push(RT.on('levelpick', (m) => {
       const slot = this.players.find((p) => p.cid === m.cid);
@@ -67,13 +77,28 @@ export class CoopHost {
     }));
 
     RT.runStart(buildRunStart(scene));   // hand guests the map + roster so they can build their puppet world
+    RT.inRun = true;                     // mark a co-op run live (a reconnect mid-run resumes in place, not back to lobby)
   }
 
-  // retire a remote avatar (disconnect, by clean close OR input-silence timeout) + end-check
+  // retire a remote avatar (disconnect, by clean close OR input-silence timeout) + end-check.
+  // The slot is RETAINED (frozen) so a reconnect within the grace window can re-attach it.
   retire(cid) {
     const slot = this.players.find((p) => p.cid === cid);
-    if (slot && slot.player && !slot.left) { slot.left = true; slot.player.netInput = { move: { x: 0, y: 0 }, dash: false }; slot.player.dead = true; }
+    if (slot && slot.player && !slot.left) {
+      slot.left = true;
+      slot.wasDead = !!slot.player.dead;   // remember combat-death vs alive-but-frozen, so a rejoin doesn't revive a truly-dead avatar
+      slot.player.netInput = { move: { x: 0, y: 0 }, dash: false };
+      slot.player.dead = true;
+    }
     if (this.scene && !this.scene.dead && !this.scene.world.anyPlayerAlive()) this.scene.onDeath();
+  }
+
+  // a retired guest reconnected (new cid): un-freeze its avatar in place (局中斷線重連)
+  reattach(prevCid, newCid) {
+    const slot = this.players.find((p) => p.cid === prevCid);
+    if (!slot) return;
+    slot.cid = newCid; slot.left = false; slot.silentT = 0;
+    if (slot.player) { slot.player.dead = !!slot.wasDead; slot.player.cid = newCid; slot.player.netInput = { move: { x: 0, y: 0 }, dash: false }; }
   }
 
   // host->guest: hand a guest its level-up choices (the host owns the apply via levelpick)
@@ -120,5 +145,5 @@ export class CoopHost {
   }
 
   end(result) { if (RT.isConnected()) RT.runEnd(result || {}); this.dispose(); }
-  dispose() { for (const u of this._subs) try { u(); } catch (e) { /* */ } this._subs = []; }
+  dispose() { RT.inRun = false; for (const u of this._subs) try { u(); } catch (e) { /* */ } this._subs = []; }
 }

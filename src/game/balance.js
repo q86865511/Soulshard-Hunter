@@ -13,6 +13,7 @@ export const BALANCE = {
   BIGBOSS_TIME: 20 * 60,                     // the level's final boss at 20:00
   REAPER_DELAY: 30,                          // killable Reaper 30s after big boss dies
   THREAT_PERIOD: 99,                         // round-6: ceiling now hits the documented ~13 (was 112 → capped at 11) + brisker ramp
+  THREAT_CEIL: 13,                           // reported stage cap (= floor(LEVEL_TIME/THREAT_PERIOD)+1); threat itself keeps climbing during the Reaper window
   // The Reaper is the hidden ENDGAME superboss — a huge DPS check that only a heavily
   // stacked build can out-damage (hpScale = (BASE + threat*PER) * diffMul). Damage is
   // high but tempered so a stacked/defensive build survives a few hits (not a one-shot).
