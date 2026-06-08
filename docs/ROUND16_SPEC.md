@@ -109,6 +109,7 @@ Round 16 是一次以**玩家回饋為核心的 UX 大修**，不改動核心戰
 |------|------|-------------|
 | 8.1 | **拾取範圍與武器範圍分離且皆可升級（新）** | `state.js`、`balance.js`、`player.js`、`talents.js`、`abilities.js` |
 | 8.2 | **羈絆系統可見化（新）** | `run.js` build 面板、升級選項、`hub.js` 圖鑑 |
+| 8.3 | **詛咒效果與負面效果強化（新）** | `content/equipment.js`、`content/abilities.js`、`status.js` |
 
 ### 九、經濟平衡
 | 編號 | 項目 | 主要異動檔案 |
@@ -116,6 +117,7 @@ Round 16 是一次以**玩家回饋為核心的 UX 大修**，不改動核心戰
 | 9.1 | **金幣獲取 nerf（太好賺）（新）** | `balance.js`、`talents.js`、`abilities.js`、`facilities.js`、`events.js`、gen 檔 |
 | 9.2 | **城鎮消費全面調漲（天賦、設施、鍛造太便宜）（新）** | `balance.js`、`talents.js`、`facilities.js`、`content/forge.js` |
 | 9.3 | **城鎮升級動態定價（VS 式：每次升級後其餘漲價）（新）** | `balance.js`、`hub.js` 各 panel、`state.js` |
+| 9.4 | **裝備百分比加成改為加法堆疊（新）** | `player.js`、`balance.js`、`content/equipment.js` |
 
 ### 十、Bug 修正與後期關卡調整
 | 編號 | 項目 | 主要異動檔案 |
@@ -1481,6 +1483,150 @@ self.addEventListener('fetch', e => {
 - 列出所有羈絆與需求（`name` + `desc` + `bonusDesc`），**曾達成過的**標亮（存 `META.bondsSeen[]`），未達成的顯示需求供玩家規劃 build。
 - 對應現有 `stats.bondsTriggered` 統計；新增 `META.bondsSeen` 記錄首次達成的羈絆 id 集合。
 
+## 8.3 詛咒效果與負面效果強化（新增）
+
+### 設計目標
+
+強化遊戲中的「高風險高報酬」設計維度：
+1. 新增裝備詛咒（`curse`）稀有度等級——有強力加成但附帶強制缺點
+2. 強化現有負面狀態效果（bleed / poison / burn / slow）數值，讓它們對玩家構成真正威脅
+3. 新增「詛咒」敵人技能（透過 `status_tags.js`），使部分精英/Boss 能對玩家施加詛咒狀態
+
+---
+
+### 8.3-A 詛咒裝備等級（新稀有度）
+
+**現況：** `content/equipment.js` 裝備僅有普通/稀有/史詩三個等級，無內建缺點裝備。
+
+**設計：** 新增 `curse` 稀有度，視覺上以紫紅邊框 + 紅色骷髏圖示標識。詛咒裝備提供**強於史詩等級**的加成，但強制附帶一條 `penalty` 負面效果。
+
+**裝備定義結構（`content/equipment.js`）：**
+```js
+Equipment.register({
+  id: 'cursed_bloodring',
+  name: '血契戒指',
+  rarity: 'curse',          // ← 新稀有度
+  slot: 'trinket',
+  statDelta: { critChance: 0.30, attackSpeed: 0.25 },
+  penalty: { maxHp: -0.25 }, // 最大 HP -25%（相對乘數）
+  desc: '暴擊率 +30%、攻速 +25%，但最大 HP 降低 25%',
+  penaltyDesc: '最大 HP -25%',
+});
+```
+
+**`penalty` 欄位語意：**
+- 正負數值均為**相對基礎值的百分比修正**（additive，符合 9.4 的加法堆疊原則）
+- `penalty` 在 `equipItem()` 裡與 `statDelta` 一起套用（合併成一個 `finalDelta`）
+- 解除裝備時需同步還原 `penalty` 部分
+
+**視覺表示（`run.js` equipChoice / `hud.js` 裝備欄）：**
+```
+┌─────────────────────────────────────┐  ← 紫紅邊框 (#9b59b6)
+│ ☠ [詛咒] 血契戒指                    │
+│ 暴擊率 +30%  攻速 +25%              │  ← 正加成（綠色）
+│ ─────────────────────────────────── │
+│ ⚠ 最大 HP -25%                     │  ← 負面警示（紅色）
+└─────────────────────────────────────┘
+```
+
+在 `RARITY_COLORS`（`4.5-B` 已新增）加入詛咒色：
+```js
+const RARITY_COLORS = {
+  // ...existing...
+  curse: { tag: '#4a0e1a', border: '#9b59b6', icon: '☠' },
+};
+```
+
+**掉落機率：** 詛咒裝備不在普通掉落池；僅在以下情況出現：
+- 20 分鐘 FINAL_BOSS 擊殺後掉落箱（固定 1 件詛咒）
+- 隱藏房間聖物（`4.16` 已有 UI 框，新增詛咒聖物種類）
+- D4/D5 難度下的精英怪掉落（機率 5%）
+
+**初始詛咒裝備列表（5 件，橫跨三槽）：**
+
+| ID | 名稱 | 加成 | 詛咒懲罰 |
+|---|---|---|---|
+| `cursed_bloodring` | 血契戒指 | 暴擊 +30%、攻速 +25% | 最大 HP -25% |
+| `cursed_glassmantle` | 玻璃披風 | 全傷害 +40%、移動 +20% | 防禦 -50%、受傷閃爍更強 |
+| `cursed_soulbrand` | 魂烙印記 | 技能冷卻 -35%、射程 +40% | 每 5 秒扣 5 HP（DoT 不可中斷） |
+| `cursed_greedmark` | 貪婪烙印 | 金幣獲取 +100%、XP +50% | 無法撿取治療物品 |
+| `cursed_voidplate` | 虛空甲 | 最大 HP +60%、護甲 +30% | 移速 -35%、無法使用衝刺 |
+
+---
+
+### 8.3-B 強化負面狀態效果數值（`status.js`）
+
+**現況：** `status.js` 的 bleed/poison/burn 對玩家實際傷害相對低，不構成戰術威脅。
+
+**調整目標：** 對玩家施加的負面狀態在 D3+ 應能**顯著縮短生存窗口**，讓玩家需要主動閃避/治療。
+
+**數值調整表：**
+
+| 效果 | 現況（估） | 調整後 | `status.js` 欄位 |
+|---|---|---|---|
+| `bleed` DoT / 秒 | 3–5 | `8 + threat*0.8` | `BLEED_DPS` |
+| `poison` DoT / 秒 | 2–4 | `5 + threat*0.6`，疊加上限 3 層 | `POISON_DPS`、`POISON_STACKS` |
+| `burn` DoT / 秒 | 4–6 | `12 + threat*1.0`，持續 3 秒 | `BURN_DPS` |
+| `slow` 減速比例 | 30% | 40%（D3+）/ 30%（D1–2） | `SLOW_FACTOR` |
+| `stun` 持續時間 | 0.8 s | 0.6 s（防止卡死，已有 boss 豁免） | `STUN_DUR` |
+| `curse`（新） | 無 | 技能冷卻 +50%、治療效果 -60%，持續 8 s | — |
+
+**`balance.js` 新增常數：**
+```js
+BLEED_DPS: 8,              // 玩家受到流血 DoT 基礎值
+POISON_DPS: 5,             // 中毒基礎值（可疊加）
+POISON_STACKS: 3,          // 中毒最大疊加層
+BURN_DPS: 12,              // 燃燒基礎值
+CURSE_COOLDOWN_MUL: 1.5,   // 詛咒狀態：冷卻時間乘數
+CURSE_HEAL_MUL: 0.4,       // 詛咒狀態：治療效果乘數（-60%）
+CURSE_DURATION: 8,         // 詛咒狀態持續秒數
+```
+
+**`status.js` `applyStatus` / `tickStatus` 修改要點：**
+```js
+// tickStatus 中 player 受 curse 時：
+if (tag === 'curse') {
+  player.stats.cooldownMul = (player.stats.cooldownMul || 1) * BALANCE.CURSE_COOLDOWN_MUL;
+  player.stats.healMul     = (player.stats.healMul || 1)    * BALANCE.CURSE_HEAL_MUL;
+  // 在 status 到期時還原（記錄 applyTime，tickStatus 比對）
+}
+```
+
+---
+
+### 8.3-C 敵人詛咒技能（`content/status_tags.js`）
+
+部分精英敵人（threat ≥ 8）與所有 FINAL_BOSS 可對玩家施加 `curse` 狀態：
+
+```js
+// content/status_tags.js
+export const ENEMY_STATUS_CHANCE = {
+  // ...existing bleed/poison/slow...
+  curse: { chance: 0.12, minThreat: 8, duration: BALANCE.CURSE_DURATION },
+};
+```
+
+HUD 狀態圖示列（`4.14` 已有 patron 圖示行）新增 `curse` 骷髏圖示（紫色，含倒數圓弧）。
+
+---
+
+### 8.3-D 詛咒裝備的 UI 整合
+
+- **equipChoice 卡片**（`run.js`）：詛咒裝備卡片底部紅色警示區顯示 `⚠ {penaltyDesc}`，字色 `#e74c3c`
+- **裝備欄 HUD**（`hud.js`）：已裝備詛咒裝備的槽位邊框改為紫紅色脈衝動畫
+- **成就解鎖條件（新增）：**
+  - 「詛咒鑑賞家」：在同一局中裝備 2 件詛咒裝備並通關
+  - 「鐵石心腸」：攜帶 `cursed_greedmark` 通關且金幣 ≥ 5,000
+
+---
+
+**驗證：**
+- 詛咒裝備 `rarity: 'curse'` 正確顯示紫紅邊框、☠ 圖示、紅色 penaltyDesc
+- `equipItem()` 同時套用 `statDelta` + `penalty`；解除時正確還原
+- D3 局玩家受 bleed+poison 同時存在時，DPS ≈ `13 + threat*1.4`，大約 30 秒可讓玩家從滿血到半血
+- `curse` 狀態施加後冷卻欄位 ×1.5 / 治療 ×0.4 正確作用，8 秒後還原
+- 詛咒裝備不在普通掉落池，僅 FINAL_BOSS / 隱藏房間 / D4–5 精英觸發
+
 ---
 
 # 九、經濟平衡
@@ -1598,6 +1744,104 @@ const displayCost = scaledCost(item.baseCost, META.hub.talentPurchases);
 - `N` = `META.hub.talentPurchases`，`%` = `Math.round((BALANCE.HUB_COST_GROWTH^N - 1) * 100)`。
 
 **平衡建議：** `HUB_COST_GROWTH = 1.08`（每次 +8%）搭配 9.2 的基礎費用 ×2.0，玩家前 5 次升級成本可接受，後期需明顯取捨。可用 `__DBG.meta().hub` 查看目前計數器值驗證。
+
+---
+
+## 9.4 裝備百分比加成改為加法堆疊（新增）
+
+### 問題
+
+目前遊戲中多個百分比加成（金幣倍率、暴擊率、移動速度加成、傷害加成等）採用**乘法疊加**，導致多件裝備/天賦/設施同時作用時加成翻倍爆炸（「複利效應」）。
+
+例如：
+- 天賦 `t_gold` 財運 +36% + 設施 `f_bank` 金庫 +25% + 裝備 `ring_greed` +30%
+- 乘法：`1.36 × 1.25 × 1.30 = 2.21×`（221%），比任何單項都強得多
+- 加法：`1 + 0.36 + 0.25 + 0.30 = 1.91×`，仍然強，但更線性、可預測
+
+### 設計原則
+
+所有**百分比加法補正**（bonus%）改為在計算前**加總後乘一次基礎值**：
+
+```
+final = base × (1 + Σ all_bonus_pct)   // 加法堆疊，封頂由各項 CAP 控制
+```
+
+相對地，以下**保持乘法**（語意是「獨立乘數」而非累積加成）：
+- `diffMul`（難度倍率）× `ENEMY_HP_MULT` 等系統性乘數
+- Patron 祝福的一次性「本局 ×1.5 傷害」類特殊效果
+
+### 受影響的 stat 欄位（`ADDITIVE_STATS`）
+
+```js
+// balance.js
+export const ADDITIVE_STATS = [
+  'goldMult',        // 金幣獲取倍率
+  'critChance',      // 暴擊機率
+  'moveSpeedMult',   // 移動速度加成
+  'damageMult',      // 傷害加成
+  'xpMult',          // 經驗值倍率
+  'healMult',        // 治療效果
+  'cooldownMult',    // 冷卻縮短（值越小越快，所以為減法堆疊：1 - Σ reduction）
+  'pickupRadius',    // 拾取半徑（絕對值加法，非倍率）
+];
+```
+
+各項上限常數（`balance.js`）：
+
+| stat | 上限常數 | 值 |
+|---|---|---|
+| `goldMult` | `GOLD_MULT_CAP` | 3.0（已有，確認套用） |
+| `critChance` | `CRIT_CAP` | 0.6（已有，確認套用） |
+| `moveSpeedMult` | `MOVE_SPEED_CAP` | 2.5 |
+| `damageMult` | `DAMAGE_MULT_CAP` | 4.0 |
+| `xpMult` | `XP_MULT_CAP` | 3.0 |
+| `healMult` | `HEAL_MULT_CAP` | 2.0 |
+| `cooldownMult`（縮減）| `COOLDOWN_RED_CAP` | 0.65（最多縮 35%） |
+
+### 實作位置（`player.js`）
+
+`player.computeStats()` 或等效的 stat 重算函式中，加法堆疊計算方式：
+
+```js
+// player.js computeStats() 或 applyStatSources()
+function sumAdditive(sources, key) {
+  // sources = [talent_deltas, facility_deltas, equipment_statDelta, bond_bonus, ...]
+  let total = 0;
+  for (const src of sources) total += (src[key] ?? 0);
+  return total;
+}
+
+// 範例：goldMult
+const goldBonuses = sumAdditive(allSources, 'goldMult');
+player.stats.goldMult = Math.min(1 + goldBonuses, BALANCE.GOLD_MULT_CAP);
+
+// 範例：cooldownMult（縮減型，反向）
+const cooldownReduction = sumAdditive(allSources, 'cooldownReduction');
+player.stats.cooldownMult = Math.max(1 - cooldownReduction, BALANCE.COOLDOWN_RED_CAP);
+```
+
+### 與現有系統整合
+
+| 現有機制 | 處理方式 |
+|---|---|
+| `makeBaseStats()` 的基礎值 | 不變，基礎值為 0 加成（goldMult 基礎 = 1） |
+| 天賦 `t_gold`、設施 `f_bank` | 改存 `statDelta.goldMult: 0.04 * level`（加法貢獻） |
+| 裝備 `statDelta` | 直接是加法貢獻值（如 `goldMult: 0.30` = +30%） |
+| Bond bonus | 加入 `allSources` 列表，不再 `*=` 原值 |
+| 8.3 的詛咒 `penalty` | 同樣以加法貢獻（負值）計算，如 `maxHp: -0.25` |
+
+### 影響評估
+
+- **金幣：** 9.1 + 9.2 + 9.3 + 9.4 四者合力，「滿裝金幣流」上限從約 4× 降至約 2.5×（仍有意義但不溢出）
+- **暴擊：** 多暴擊 build 上限 60%（`CRIT_CAP`），不再可超過（舊版乘法可達 80%+）
+- **傷害：** `damageMult` 上限 4.0，防止一刀秒 boss
+- **玩家感受：** 各項加成的邊際效益更線性，玩家更容易預測成長曲線
+
+**驗證：**
+- 同時裝備三件金幣相關道具，`player.stats.goldMult` ≤ 3.0
+- 移除一件後 goldMult 下降（加法：線性下降；乘法：下降更多 — 確認是線性）
+- `critChance` 全堆暴擊 build 上限停在 0.6
+- `__DBG.scene().player.stats` 即時查看堆疊結果
 
 ---
 
@@ -1918,12 +2162,15 @@ const pos = safeSpawnPos(world, bossRadius * 2 + 8);
 43. 武器射程可升級：升級「鷹眼」天賦或「遠視符文」被動後，武器自動鎖敵距離明顯變遠（`aimRange` 成長，受上限 clamp）。
 44. 拾取範圍可升級：升「感知」天賦後魂晶吸取半徑變大；與武器射程互不影響。
 45. 羈絆可見化：Tab build 面板列出全部羈絆（已達成／接近／未達成三態並標出缺口）；升級選項對可推進羈絆的選項標「★ 羈絆」；城鎮圖鑑可回顧。
+46. 詛咒裝備：`rarity: 'curse'` 呈現紫紅邊框 + ☠ 圖示 + 紅色 penaltyDesc；`equipItem()` 同時套用 `statDelta` + `penalty`；解除時正確還原；詛咒裝備不在普通掉落池。
+47. 負面狀態增強：D3 局玩家同時受 bleed+poison 時 DPS ≈ `13 + threat×1.4`；`curse` 狀態使冷卻 ×1.5 / 治療 ×0.4，8 秒後還原；HUD 狀態圖示行顯示骷髏圖示（紫色）。
 
 **九、經濟平衡**
-46. 金幣 nerf：`GOLD_DROP_MULT 0.35`、`goldMult` 受 `GOLD_MULT_CAP 3.0` 封頂；各加成（財運／拾荒者／貪婪之觸／金庫／貪婪之戒／麥達斯）依表調降。
-47. sim 驗證：D3 完整 20 分鐘局，nerf 後單局入庫金幣明顯降低、中後期不再溢出；開局 5 分鐘節奏仍可接受。gen 檔改動已同步 workflow 來源或記錄重套。
-48. 天賦費用調漲 ×2.0、設施費用調漲 ×2.0、鍛造費用調漲（等級 ×2.0 / 特效依 slot 遞增）；一次完整 D1 通關後天賦最多升至 40–50% 滿；`TALENT_COST_MUL` 等常數在 `balance.js` 集中管理。
-49. 動態定價（VS 式）：同面板內升級 N 次後，顯示費用為 `baseCost × 1.08^N`；panel 頂部小字提示已升次數與費用漲幅；重置清零計數器。
+48. 金幣 nerf：`GOLD_DROP_MULT 0.35`、`goldMult` 受 `GOLD_MULT_CAP 3.0` 封頂；各加成（財運／拾荒者／貪婪之觸／金庫／貪婪之戒／麥達斯）依表調降。
+49. sim 驗證：D3 完整 20 分鐘局，nerf 後單局入庫金幣明顯降低、中後期不再溢出；開局 5 分鐘節奏仍可接受。gen 檔改動已同步 workflow 來源或記錄重套。
+50. 天賦費用調漲 ×2.0、設施費用調漲 ×2.0、鍛造費用調漲（等級 ×2.0 / 特效依 slot 遞增）；一次完整 D1 通關後天賦最多升至 40–50% 滿；`TALENT_COST_MUL` 等常數在 `balance.js` 集中管理。
+51. 動態定價（VS 式）：同面板內升級 N 次後，顯示費用為 `baseCost × 1.08^N`；panel 頂部小字提示已升次數與費用漲幅；重置清零計數器。
+52. 加法堆疊：同時裝備三件金幣道具 `player.stats.goldMult ≤ 3.0`（線性下降驗證）；`critChance` 全堆 build 上限停在 0.6；`__DBG.scene().player.stats` 即時查看。
 
 **十、Bug 修正與後期關卡調整**
 48. 武器進化後（如魂晶彈→魂晶風暴），升級選項**不再**出現已演化的基礎武器（魂晶彈不在池中）。
@@ -2009,9 +2256,14 @@ const pos = safeSpawnPos(world, bossRadius * 2 + 8);
 【任務系統補充】
 - 任務 def 新增 `requires` 欄位，系列任務循序解鎖；鎖定任務顯示 🔒 灰色行 + 前置名稱。
 
+【戰鬥數值與 build 系統補充】
+- 詛咒裝備（新稀有度）：紫紅邊框 + ☠ 圖示；有強加成但附帶 penalty（最大 HP 降低 / DoT / 道具撿取限制等）；5 件初始詛咒裝備；僅 FINAL_BOSS / 隱藏房間 / D4–5 精英掉落。
+- 負面狀態數值強化：bleed/poison/burn DoT 值依 threat 動態提升；新增 curse 狀態（冷卻 +50%、治療 -60%，8 秒）；部分精英 / 所有 FINAL_BOSS 可施咒；新增對應 HUD 狀態圖示。
+
 【經濟平衡補充】
 - 天賦費用 ×2.0、設施費用 ×2.0、鍛造費用 ×2.0（等級）至 ×3.0（第 3 特效）；搭配金幣 nerf，城鎮升級需跨多局取捨；費用倍數集中至 balance.js 管理。
 - 動態定價（VS 式）：同面板每次升級後其餘項目費用 ×1.08；META.hub.{panel}Purchases 記錄次數；重置清零；面板頂部顯示已升次數與漲幅說明。
+- 百分比加成改加法堆疊：goldMult / critChance / moveSpeedMult / damageMult / xpMult / healMult / cooldownMult 全部改為 `1 + Σ bonuses`；各項設上限常數（GOLD_MULT_CAP 3.0、CRIT_CAP 0.6、DAMAGE_MULT_CAP 4.0 等）；防止多件裝備疊乘爆炸。
 
 【新手引導與難度】
 - 城鎮引導劇情（全玩家適用）+ 首局戰鬥提示 + 首局 HUD 暫停說明。
