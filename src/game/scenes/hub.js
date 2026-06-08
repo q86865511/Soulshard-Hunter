@@ -27,7 +27,7 @@ import { P, withAlpha } from '../../engine/palette.js';
 import { Sfx, Music } from '../../engine/audio.js';
 import { settingsUI } from '../ui/settings.js';
 import { Net } from '../../net/api.js';
-import { openAuth, openLeaderboard, openAdmin, isModalOpen, netToast } from '../../net/ui.js';
+import { openAuth, openLeaderboard, openAdmin, openFeedback, isModalOpen, netToast } from '../../net/ui.js';
 import { openSocial } from '../../net/social.js';
 import { Cheats } from '../cheats.js';
 import { cheatUnlockAll } from '../content/unlocks.js';
@@ -135,6 +135,7 @@ export const hubScene = {
       { id: 'leaderboard', label: '🏆 排行榜', col: P.shardL },
     ];
     if (Net.isAdmin()) items.push({ id: 'admin', label: '🛠 管理主控台', col: P.manaL });
+    items.push({ id: 'feedback', label: '⚑ 回報問題', col: P.goldL });
     items.push({ id: 'settings', label: '⚙ 設定', col: P.shardL });
     items.push({ id: 'title', label: '🏠 返回主畫面', col: P.goldL });
     return items;
@@ -160,6 +161,7 @@ export const hubScene = {
     else if (id === 'multi') { if (Net.isLoggedIn()) openSocial(); else { openAuth(); netToast('多人連線需要先登入帳號'); } }
     else if (id === 'leaderboard') openLeaderboard();
     else if (id === 'admin') openAdmin();
+    else if (id === 'feedback') openFeedback();
     else if (id === 'settings') { this.escMenu = false; settingsUI.show(); }
     else if (id === 'title') { this.escMenu = false; saveMeta(); setScene(refs.title, {}); }
   },

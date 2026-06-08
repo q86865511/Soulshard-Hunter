@@ -9,6 +9,7 @@ import { newRun, bankRun, META, saveMeta } from '../state.js';
 import { setScene } from '../scene.js';
 import { refs } from './refs.js';
 import { RT } from '../../net/rt.js';   // Phase 2 co-op: leave-room on host abandon
+import { Net } from '../../net/api.js';   // round16/7.3: "playing now" heartbeat (offline-first; no-op without a server)
 import { Enemies, Equipment, Abilities, Weapons, Characters } from '../content/registry.js';
 import { equipItem } from '../content/equipment.js';
 import { BONDS, activeBonds, checkBonds } from '../content/bonds.js';
@@ -127,7 +128,21 @@ export const runScene = {
     this.eventChoice = null; this.challenge = null;   // 原#3 mini-boss event + timed challenge
     this.newlyUnlocked = [];   // 原#1 results screen: achievements unlocked this run
     this.buildWorld();
+    this._startPresence();   // round16/7.3: announce "playing now" (REST heartbeat; offline-first)
   },
+
+  // round16/7.3 — lightweight "playing now" heartbeat so the admin console can see who is
+  // mid-run (logged-in OR offline guest). Best-effort; no server → silent no-op.
+  _presenceInfo() { return { name: (Net.currentUser() || {}).username || '訪客', biome: this.run && this.run.biomeId, difficulty: this.run && this.run.difficulty }; },
+  _startPresence() {
+    this._stopPresence();
+    try { Net.pingPlaying(this._presenceInfo()); } catch (e) { /* */ }
+    this._presenceTimer = setInterval(() => { try { Net.pingPlaying(this._presenceInfo()); } catch (e) { /* */ } }, 30000);
+  },
+  _stopPresence() {
+    if (this._presenceTimer) { clearInterval(this._presenceTimer); this._presenceTimer = null; try { Net.stopPlayingBeat(); } catch (e) { /* */ } }
+  },
+  exit() { this._stopPresence(); },
 
   // ---- the level battleground (one biome, 30 min, final-boss climax) --------
   buildWorld() {

@@ -118,6 +118,12 @@ const runSchema = z.object({
   biome: z.string().max(40).optional().nullable(),
   coop_size: z.number().int().min(1).max(3).optional(),   // Phase 2 co-op party size
 });
+// round16/7.1: player feedback (no login required; JWT, if present, attaches user_id)
+const feedbackSchema = z.object({
+  category: z.enum(['ui', 'gameplay', 'bug', 'content', 'other']),
+  content:  z.string().trim().min(5).max(1000),
+  name:     z.string().trim().max(24).optional().nullable(),
+});
 
 const strictLimit = { config: { rateLimit: { max: 15, timeWindow: '1 minute' } } };          // auth
 const saveLimit = { preHandler: auth, config: { rateLimit: { max: 60, timeWindow: '1 minute' } } };   // cloud save (client debounces at ~24/min)
@@ -247,6 +253,36 @@ export async function buildApp(pool, { logger = false, rateMax = 120 } = {}) {
     return { rows: r.rows };
   });
 
+  // round16/7.1: submit player feedback (public; an optional Bearer token attaches user_id)
+  app.post('/api/feedback', { config: { rateLimit: { max: 8, timeWindow: '1 minute' } } }, async (req, reply) => {
+    const p = feedbackSchema.safeParse(req.body || {});
+    if (!p.success) return reply.code(400).send({ error: zodMsg(p.error) });
+    if (realtime.isBannedIp(req.ip)) return reply.code(403).send({ error: '此 IP 已被封鎖' });
+    let userId = null;
+    const m = (req.headers.authorization || '').match(/^Bearer (.+)$/);
+    if (m) { try { userId = jwt.verify(m[1], JWT_SECRET, { algorithms: ['HS256'] }).uid; } catch (e) { /* anonymous */ } }
+    const { category, content, name } = p.data;
+    await pool.query('INSERT INTO feedback (user_id, guest_name, category, content) VALUES ($1,$2,$3,$4)',
+      [userId, userId ? null : (name || null), category, content]);
+    return { ok: true };
+  });
+
+  // round16/7.3: "playing now" heartbeat — works for logged-in users AND offline guests.
+  // High-frequency (~every 30s/client): keep its own modest per-IP rate bucket.
+  app.post('/api/presence/play', { config: { rateLimit: { max: 40, timeWindow: '1 minute' } } }, async (req, reply) => {
+    const { sid, name, biome, difficulty } = req.body || {};
+    if (!sid) return reply.code(400).send({ error: 'sid required' });
+    let nm = String(name || '訪客').slice(0, 24), isGuest = true;
+    const m = (req.headers.authorization || '').match(/^Bearer (.+)$/);
+    if (m) { try { const u = jwt.verify(m[1], JWT_SECRET, { algorithms: ['HS256'] }); if (u.username) { nm = u.username; isGuest = false; } } catch (e) { /* treat as guest */ } }
+    realtime.touchPlaying({ sid: String(sid).slice(0, 64), name: nm, guest: isGuest, biome, difficulty });
+    return { ok: true };
+  });
+  app.post('/api/presence/stop', { config: { rateLimit: { max: 40, timeWindow: '1 minute' } } }, async (req) => {
+    const sid = req.body && req.body.sid; if (sid) realtime.stopPlaying(String(sid).slice(0, 64));
+    return { ok: true };
+  });
+
   // ---- Phase 2: social (friends) + realtime co-op gateway -------------------
   // The friend REST routes are testable via inject(); the realtime gateway is a
   // socket-less object here (attached to the live HTTP server post-listen, below).
@@ -256,6 +292,17 @@ export async function buildApp(pool, { logger = false, rateMax = 120 } = {}) {
   await realtime.loadBans().catch(() => {});   // load account/IP ban list into memory
   app.get('/api/rt/stats', async () => realtime.stats());
 
+  // round16/7.6: central audit-log writer — called by every admin mutation. Self-catches:
+  // a logging failure must NEVER block the moderation action it is recording.
+  async function logAdmin(req, action, target, detail) {
+    try {
+      await pool.query('INSERT INTO admin_logs (admin_username, action, target, detail) VALUES ($1,$2,$3,$4)',
+        [(req.user && req.user.username) || '?', action,
+         target == null ? null : String(target).slice(0, 200),
+         detail == null ? null : String(detail).slice(0, 500)]);
+    } catch (e) { try { req.log && req.log.warn({ err: String(e) }, 'audit log failed'); } catch (_) { /* */ } }
+  }
+
   // ---- admin dashboard (gated by the ADMIN_USERS allowlist) ----------------
   app.get('/api/admin/overview', { preHandler: requireAdmin }, async () => ({
     health: { ok: true, uptime: Math.floor(process.uptime()), now: Date.now() },
@@ -264,12 +311,16 @@ export async function buildApp(pool, { logger = false, rateMax = 120 } = {}) {
   app.post('/api/admin/kick', { preHandler: requireAdmin }, async (req, reply) => {
     const uid = req.body && req.body.uid;
     if (uid == null) return reply.code(400).send({ error: 'uid required' });
-    return { ok: true, closed: realtime.kickUser(uid) };
+    const closed = realtime.kickUser(uid);
+    await logAdmin(req, 'kick', uid, 'closed ' + closed);
+    return { ok: true, closed };
   });
   app.post('/api/admin/close-room', { preHandler: requireAdmin }, async (req, reply) => {
     const code = req.body && req.body.code;
     if (!code) return reply.code(400).send({ error: 'code required' });
-    return { ok: true, closed: realtime.adminCloseRoom(code) };
+    const closed = realtime.adminCloseRoom(code);
+    await logAdmin(req, 'close-room', code);
+    return { ok: true, closed };
   });
   // moderation: account + IP bans
   app.get('/api/admin/bans', { preHandler: requireAdmin }, async () => ({ bans: await realtime.listBans() }));
@@ -277,19 +328,24 @@ export async function buildApp(pool, { logger = false, rateMax = 120 } = {}) {
     const { kind, value, reason } = req.body || {};
     if ((kind !== 'user' && kind !== 'ip') || !value) return reply.code(400).send({ error: 'kind (user|ip) + value required' });
     await realtime.ban(kind, value, reason);
+    await logAdmin(req, 'ban', kind + ':' + value, reason);
     return { ok: true };
   });
   app.post('/api/admin/unban', { preHandler: requireAdmin }, async (req, reply) => {
     const { kind, value } = req.body || {};
     if (!kind || !value) return reply.code(400).send({ error: 'kind + value required' });
     await realtime.unban(kind, value);
+    await logAdmin(req, 'unban', kind + ':' + value);
     return { ok: true };
   });
   // broadcast a banner to every connected client
   app.post('/api/admin/broadcast', { preHandler: requireAdmin }, async (req, reply) => {
     const text = req.body && req.body.text;
     if (!text || !String(text).trim()) return reply.code(400).send({ error: 'text required' });
-    return { ok: true, sent: realtime.broadcast(String(text).trim().slice(0, 280)) };
+    const msg = String(text).trim().slice(0, 280);
+    const sent = realtime.broadcast(msg);
+    await logAdmin(req, 'broadcast', 'all(' + sent + ')', msg);
+    return { ok: true, sent };
   });
   // match history / leaderboard moderation
   app.get('/api/admin/runs', { preHandler: requireAdmin }, async (req) => {
@@ -303,8 +359,98 @@ export async function buildApp(pool, { logger = false, rateMax = 120 } = {}) {
   app.post('/api/admin/delete-run', { preHandler: requireAdmin }, async (req, reply) => {
     const id = req.body && req.body.id;
     if (id == null) return reply.code(400).send({ error: 'id required' });
-    const r = await pool.query('DELETE FROM runs WHERE id=$1', [clampInt(id, 0, 1e15)]);
+    const rid = clampInt(id, 0, 1e15);
+    const r = await pool.query('DELETE FROM runs WHERE id=$1', [rid]);
+    await logAdmin(req, 'delete-run', rid);
     return { ok: true, deleted: r.rowCount };
+  });
+
+  // round16/7.1: admin feedback inbox (optional ?status filter) + status/note update
+  app.get('/api/admin/feedback', { preHandler: requireAdmin }, async (req) => {
+    const q = req.query || {};
+    const params = [clampInt(q.limit || 100, 1, 500), clampInt(q.offset || 0, 0, 1e6)];
+    let where = '';
+    if (q.status) { params.push(String(q.status)); where = `WHERE f.status = $3`; }
+    const r = await pool.query(
+      `SELECT f.id, COALESCE(u.username, f.guest_name, '訪客') AS author, f.category, f.content,
+              f.status, f.admin_note, f.created_at
+       FROM feedback f LEFT JOIN users u ON u.id = f.user_id ${where}
+       ORDER BY f.created_at DESC LIMIT $1 OFFSET $2`, params);
+    return { rows: r.rows };
+  });
+  app.patch('/api/admin/feedback/:id', { preHandler: requireAdmin }, async (req, reply) => {
+    const schema = z.object({
+      status: z.enum(['pending', 'reviewing', 'fixed', 'dismissed']).optional(),
+      admin_note: z.string().max(500).optional(),
+    });
+    const p = schema.safeParse(req.body || {});
+    if (!p.success) return reply.code(400).send({ error: zodMsg(p.error) });
+    const id = parseInt(req.params.id);
+    if (!id) return reply.code(400).send({ error: 'invalid id' });
+    const sets = [], vals = [id];
+    if (p.data.status !== undefined) sets.push(`status = $${vals.push(p.data.status)}`);
+    if (p.data.admin_note !== undefined) sets.push(`admin_note = $${vals.push(p.data.admin_note)}`);
+    if (!sets.length) return reply.code(400).send({ error: 'nothing to update' });
+    sets.push(`updated_at = now()`);
+    await pool.query(`UPDATE feedback SET ${sets.join(', ')} WHERE id = $1`, vals);
+    await logAdmin(req, 'feedback', id, p.data.status || (p.data.admin_note != null ? 'note' : ''));
+    return { ok: true };
+  });
+
+  // round16/7.6: admin audit log (newest first, paginated)
+  app.get('/api/admin/logs', { preHandler: requireAdmin }, async (req) => {
+    const q = req.query || {};
+    const r = await pool.query(
+      `SELECT id, admin_username, action, target, detail, created_at
+       FROM admin_logs ORDER BY created_at DESC LIMIT $1 OFFSET $2`,
+      [clampInt(q.limit || 100, 1, 500), clampInt(q.offset || 0, 0, 1e6)]);
+    return { rows: r.rows };
+  });
+
+  // round16/7.7: stats dashboard — cheap COUNT aggregates + live numbers. A missing table
+  // (e.g. feedback on a pre-migration deploy) degrades that field to 0 rather than 500-ing.
+  app.get('/api/admin/stats', { preHandler: requireAdmin }, async () => {
+    const count = (sql) => pool.query(sql).then((r) => Number((r.rows[0] && r.rows[0].n) || 0)).catch(() => 0);
+    const [users, active24h, runs, runsToday, guestRuns, bans, feedbackPending] = await Promise.all([
+      count(`SELECT count(*) n FROM users`),
+      count(`SELECT count(*) n FROM users WHERE last_login > now() - interval '24 hours'`),
+      count(`SELECT count(*) n FROM runs`),
+      count(`SELECT count(*) n FROM runs WHERE created_at >= date_trunc('day', now())`),
+      count(`SELECT count(*) n FROM runs WHERE user_id IS NULL`),
+      count(`SELECT count(*) n FROM bans`),
+      count(`SELECT count(*) n FROM feedback WHERE status = 'pending'`),
+    ]);
+    const top = await pool.query(
+      `SELECT COALESCE(u.username, r.guest_name, '訪客') AS name, max(r.score) AS score
+       FROM runs r LEFT JOIN users u ON u.id = r.user_id
+       WHERE (u.id IS NOT NULL OR r.guest_name IS NOT NULL)
+       GROUP BY 1 ORDER BY score DESC LIMIT 5`).then((r) => r.rows).catch(() => []);
+    const ov = realtime.adminOverview();
+    return {
+      accounts: { total: users, active24h },
+      runs: { total: runs, today: runsToday, guest: guestRuns },
+      moderation: { activeBans: bans, pendingFeedback: feedbackPending },
+      live: { online: ov.totals.users, playing: ov.totals.playing || 0, rooms: ov.totals.rooms },
+      topPlayers: top,
+    };
+  });
+
+  // round16/7.8: single-player inspect (account + lifetime stats + recent runs + ban state)
+  app.get('/api/admin/player/:uid', { preHandler: requireAdmin }, async (req, reply) => {
+    const uid = parseInt(req.params.uid);
+    if (!uid) return reply.code(400).send({ error: 'invalid uid' });
+    const u = (await pool.query('SELECT id, username, email, created_at, last_login FROM users WHERE id=$1', [uid])).rows[0];
+    if (!u) return reply.code(404).send({ error: 'not found' });
+    const agg = (await pool.query('SELECT count(*) AS runs, COALESCE(max(score),0) AS best FROM runs WHERE user_id=$1', [uid])).rows[0] || {};
+    const recent = (await pool.query(
+      `SELECT id, score, stage, kills, character, biome, difficulty, time_s, cleared, created_at
+       FROM runs WHERE user_id=$1 ORDER BY created_at DESC LIMIT 10`, [uid])).rows;
+    return {
+      account: { id: u.id, username: u.username, email: u.email, created_at: u.created_at, last_login: u.last_login },
+      stats: { runCount: Number(agg.runs || 0), bestScore: Number(agg.best || 0) },
+      recentRuns: recent,
+      ban: { user: realtime.isBannedUser(u.username) },
+    };
   });
 
   return app;

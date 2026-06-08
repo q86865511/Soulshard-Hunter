@@ -77,5 +77,30 @@ export async function initSchema(p = pool) {
       created_at timestamptz DEFAULT now(),
       UNIQUE (kind, value)
     );
+
+    -- player feedback (round 16 / 7.1): submitted from the in-town ESC menu; no login required
+    CREATE TABLE IF NOT EXISTS feedback (
+      id          bigserial PRIMARY KEY,
+      user_id     bigint REFERENCES users(id) ON DELETE SET NULL,
+      guest_name  text,
+      category    text NOT NULL,
+      content     text NOT NULL,
+      status      text NOT NULL DEFAULT 'pending',   -- 'pending' | 'reviewing' | 'fixed' | 'dismissed'
+      admin_note  text,
+      created_at  timestamptz DEFAULT now(),
+      updated_at  timestamptz DEFAULT now()
+    );
+    CREATE INDEX IF NOT EXISTS feedback_status_idx ON feedback (status, created_at DESC);
+
+    -- admin audit log (round 16 / 7.6): every admin mutation leaves a trail
+    CREATE TABLE IF NOT EXISTS admin_logs (
+      id             bigserial PRIMARY KEY,
+      admin_username text NOT NULL,
+      action         text NOT NULL,        -- 'kick' | 'ban' | 'unban' | 'close-room' | 'broadcast' | 'delete-run' | 'feedback'
+      target         text,                 -- affected object (uid / username / ip / room code / run id)
+      detail         text,                 -- reason / truncated message / status change
+      created_at     timestamptz DEFAULT now()
+    );
+    CREATE INDEX IF NOT EXISTS admin_logs_time_idx ON admin_logs (created_at DESC);
   `);
 }

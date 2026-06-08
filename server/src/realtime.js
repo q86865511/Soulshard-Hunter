@@ -52,6 +52,7 @@ export class Realtime {
     this.bannedUsers = new Set();     // lowercased usernames (admin moderation)
     this.bannedIps = new Set();       // banned client IPs
     this.recentGuests = new Map();    // ip -> { ip, name, firstSeen, lastSeen, hits }  (not-logged-in players who touched the cloud)
+    this.livePlayers = new Map();     // sid -> { name, guest, biome, difficulty, startedAt, lastBeat }  (round16/7.3: who is playing RIGHT NOW, via REST heartbeat — covers offline single-player + guests)
     this._rl = new Map();       // cid -> { [class]: {t, ts} } token buckets
     this._fg = new Map();       // uid -> { at, g } friend-graph cache
     this._now = () => Date.now();
@@ -424,6 +425,35 @@ export class Realtime {
       .map((g) => ({ ip: g.ip, name: g.name, lastSeen: g.lastSeen, hits: g.hits, banned: this.isBannedIp(g.ip) }));
   }
 
+  // ---- live "playing now" heartbeat (round16/7.3) ---------------------------
+  // Single-player is fully offline and the WS gateway needs a JWT, so a player IN a run
+  // (especially a guest) is invisible to the admin until they UPLOAD a finished score.
+  // A lightweight REST heartbeat (covers logged-in + guests) makes "playing now" visible.
+  PLAYING_WINDOW = 60 * 1000;   // a heartbeat older than this = no longer playing
+  touchPlaying({ sid, name, guest, biome, difficulty }) {
+    if (!sid) return;
+    const prev = this.livePlayers.get(sid);
+    this.livePlayers.set(sid, {
+      name: String(name || '訪客').slice(0, 24), guest: !!guest,
+      biome: biome == null ? null : String(biome).slice(0, 40),
+      difficulty: difficulty == null ? null : Number(difficulty),
+      startedAt: prev?.startedAt ?? this._now(), lastBeat: this._now(),
+    });
+    if (this.livePlayers.size > 400) {   // cap memory: drop the stalest beyond 300
+      const old = [...this.livePlayers.entries()].sort((a, b) => a[1].lastBeat - b[1].lastBeat);
+      for (let i = 0; i < old.length - 300; i++) this.livePlayers.delete(old[i][0]);
+    }
+  }
+  stopPlaying(sid) { if (sid) this.livePlayers.delete(sid); }
+  activePlaying(now = this._now()) {
+    const out = [];
+    for (const [sid, p] of this.livePlayers) {
+      if (now - p.lastBeat > this.PLAYING_WINDOW) this.livePlayers.delete(sid);   // lazy-expire stale beats
+      else out.push({ name: p.name, guest: p.guest, biome: p.biome, difficulty: p.difficulty, elapsed: Math.floor((now - p.startedAt) / 1000) });
+    }
+    return out.sort((a, b) => b.elapsed - a.elapsed).slice(0, 80);
+  }
+
   // ---- admin dashboard ------------------------------------------------------
   adminOverview() {
     const online = [];
@@ -435,7 +465,8 @@ export class Realtime {
     online.sort((a, b) => String(a.username).localeCompare(String(b.username)));
     const rooms = [...this.rooms.values()].map((r) => ({ ...this.roomPublic(r), runEnded: !!r.runEnded }));
     const guests = this.activeGuests();
-    return { totals: { users: this.byUid.size, conns: this.byCid.size, rooms: this.rooms.size, guests: guests.length }, online, guests, rooms };
+    const playing = this.activePlaying();
+    return { totals: { users: this.byUid.size, conns: this.byCid.size, rooms: this.rooms.size, guests: guests.length, playing: playing.length }, online, guests, rooms, playing };
   }
   kickUser(uid) {
     const set = this.byUid.get(String(uid));

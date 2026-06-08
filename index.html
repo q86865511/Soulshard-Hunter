@@ -66,5 +66,13 @@
     });
   </script>
   <script type="module" src="./src/main.js"></script>
+  <script>
+    // round16/7.4 — offline cache. Registered ONLY in production: the dev server (tools/serve.mjs)
+    // is intentionally no-cache so edited ES modules never go stale; a SW would defeat that and
+    // silently break local testing. See sw.js for the staleness-aware strategy.
+    if ('serviceWorker' in navigator && !/^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname)) {
+      window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));
+    }
+  </script>
 </body>
 </html>
