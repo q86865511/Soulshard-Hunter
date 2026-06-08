@@ -33,6 +33,7 @@ Round 16 是一次以**玩家回饋為核心的 UX 大修**，不改動核心戰
 | 1.5 | 選單／按鈕對比與外框 (原#24) | `hub.js` ESC menu + 各 panel |
 | 1.6 | **全局 UI 尺寸一致化（選單→子面板字型與元件比例統一）（新）** | `engine/renderer.js`、`hub.js`、`run.js`、`scenes/title.js`、`hud.js` |
 | 1.7 | **Hub ESC 選單垂直置中修正（新）** | `scenes/hub.js` |
+| 1.8 | **全域數字改用像素點陣字體（新）** | `engine/renderer.js`、`index.html`、`hud.js`、`hub.js` |
 
 ### 二、城鎮：對話與場景
 | 編號 | 項目 | 主要異動檔案 |
@@ -59,6 +60,7 @@ Round 16 是一次以**玩家回饋為核心的 UX 大修**，不改動核心戰
 | 3.8 | **造型商店 UI 大改版：兩層選擇 + 全角色池 + 隱藏造型高價（新）** | `content/skinshop.js`、`hub.js` wardrobe panel |
 | 3.9 | **城鎮消費重置功能完整化（新）** | `hub.js` 各 panel |
 | 3.10 | **造型來源角色顯示 + 造型類成就（新）** | `content/characters.js` SKINS、`content/achievements.js`、`hub.js` wardrobe |
+| 3.11 | **個人小屋統計欄文字溢出修正 + 遊戲用語統一（新）** | `hub.js` personal panel、`state.js`、`balance.js` |
 
 ### 四、跑局內 HUD 與互動
 | 編號 | 項目 | 主要異動檔案 |
@@ -103,6 +105,7 @@ Round 16 是一次以**玩家回饋為核心的 UX 大修**，不改動核心戰
 | 6.3 | 首局 HUD 暫停說明 + 升級卡片外框 (原#40) | `run.js`、`hud.js` |
 | 6.4 | 難度選擇說明文字 (原#12) | `hub.js` `drawSortie()` |
 | 6.5 | **新增「劇情難度」（新）** | `balance.js`、`run.js`、`hub.js`、`world.js`、`server` |
+| 6.6 | **無限模式（無盡挑戰）（新）** | `run.js`、`balance.js`、`hub.js`、`hud.js`、`server/src/server.js` |
 
 ### 七、新系統與後端
 | 編號 | 項目 | 主要異動檔案 |
@@ -408,6 +411,69 @@ items.forEach((label, i) => {
 
 ---
 
+## 1.8 全域數字改用像素點陣字體（新增）
+
+**需求：** 截圖顯示「最高威脅 13」、「最深 第 3 區」等數字使用一般系統字型，與遊戲的像素風格格格不入。統一將所有**數值型顯示**（HP、金幣、威脅等級、時間計數器、結算分數、個人小屋統計等）改用像素點陣字體，保留中文標籤仍用楷體。
+
+**字體選擇（推薦）：**
+
+| 候選 | 特性 | 載入方式 |
+|------|------|---------|
+| **Press Start 2P** | Google Fonts、免費、完整 ASCII + 數字、方塊感強 | `<link>` CDN |
+| **Pixel Operator Mono** | 更纖細、可讀性高 | 本地 `.woff2` |
+| **自製數字 bitmap spritesheet** | 零外部依賴，完全控制 | `defineSprite` + `Painter` |
+
+> 建議使用 **Press Start 2P**（CDN 最快，已被廣泛用於 pixel 遊戲）；若離線環境需要則改 local `.woff2`。
+
+**`index.html` 載入：**
+
+```html
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+```
+
+**`engine/renderer.js` 新增常數：**
+
+```js
+export const PIXEL_FONT  = "'Press Start 2P', monospace";  // 數字 / 統計值
+export const BODY_FONT   = "標楷體, 'DFKai-SB', serif";    // 中文說明文字（已有）
+export const HYBRID_FONT = "'Press Start 2P', 標楷體, serif"; // 混排（如「威脅 13」）
+```
+
+**套用原則：**
+
+| 類型 | 字體 | 範例 |
+|------|------|------|
+| 純數字（HP 條、金幣計數、計時器、威脅值、排行榜分數） | `PIXEL_FONT` | `"13"` `"02:45"` `"9,830"` |
+| 統計數值（個人小屋、結算頁） | `PIXEL_FONT` | `"第3區"` `"178"` |
+| 混排標籤（「威脅 13」「存活 04:32」） | 中文部分 `BODY_FONT`，數字部分 `PIXEL_FONT`（分兩次 `fillText`）| |
+| 所有說明文字、NPC 對話、按鈕標籤 | `BODY_FONT`（不變） | |
+
+**實作步驟：**
+
+1. `index.html` 加入 Google Fonts `<link>`。
+2. `engine/renderer.js` export `PIXEL_FONT`。
+3. `hud.js`：HP / 金幣 / 計時 / 威脅等純數字改用 `PIXEL_FONT`，字號同比例調降 ~10%（Press Start 2P 字形較寬）。
+4. `hub.js` personal panel：統計欄數值部分改 `PIXEL_FONT`。
+5. 結算頁 (`run.js` draw 函式)：各排行分數、時間欄改 `PIXEL_FONT`。
+6. DOM 排行榜 overlay (`net/ui.js`)：`.leaderboard-score` class 加 `font-family: var(--pixel-font)`。
+
+**字號補正：** Press Start 2P 在 canvas `fillText` 時視覺尺寸比相同 px 的系統字大約寬 20%，統一在使用 `PIXEL_FONT` 時乘以 `0.82` 換算：
+```js
+const numSize = UI.FONT_BODY * S * 0.82;   // 數字的實際畫布 px
+```
+
+---
+
+**驗證：**
+- HUD 右上角威脅值（`13`）、HP 數字、計時器字型為像素點陣風格，中文標籤仍為楷體。
+- 個人小屋統計欄數值為 `PIXEL_FONT`，與同行中文標籤視覺明顯區分。
+- 結算頁傷害數字、排名分數為像素字體。
+- 視窗縮放（800×500 / 1920×1080）下像素字體不模糊（canvas `imageSmoothingEnabled = false` 已設定）。
+- 字體載入前 fallback 為 `monospace`，不出現版面錯位。
+
+---
+
 # 二、城鎮：對話與場景
 
 ## 2.1 對話框新增主角頭像（右側）(原#3)
@@ -694,6 +760,88 @@ function claimAll(META) {
    - 鍛造：「確定重置 {武器名} 的鍛造特效？將退還鍛造花費。」
 3. **衣帽間加購買不退款說明**：`drawWardrobe()` 頂部顯示小字「造型購買後不可退款。」（灰字）。
 4. **按鈕標準樣式**：`↺ 重置天賦`、`↺ 重置設施`、`↺ 重置鍛造`，三處樣式統一（字號、顏色、位置）。
+
+---
+
+## 3.11 個人小屋統計欄文字溢出修正 + 遊戲用語統一（新增）
+
+### 3.11-A 統計欄文字溢出修正
+
+**問題（截圖觀察）：** 個人小屋的「最深 第 3 區」在統計卡片（stat card）中文字超出方框右側邊界，原因為標籤 + 數值的總寬度超過卡片 `w`。
+
+**修正方式：**
+
+```js
+// hub.js — drawPersonal() 統計欄繪製邏輯
+function drawStatCard(ctx, x, y, w, label, value, S) {
+  // 先量測完整文字寬
+  const fullText = `${label} ${value}`;
+  ctx.font = `${UI.FONT_CAPTION * S}px ${BODY_FONT}`;
+  const tw = ctx.measureText(fullText).width;
+
+  if (tw <= w - 8 * S) {
+    // 放得下：正常繪製
+    ctx.fillText(label, x + 4 * S, y + ...);
+    ctx.fillText(value, x + w - ..., y + ...);  // 數值靠右
+  } else {
+    // 放不下：縮短標籤，數值截斷加 tooltip
+    const shortLabel = truncate(label, w * 0.55, ctx);
+    const shortValue = truncate(value, w * 0.40, ctx);
+    ctx.fillText(shortLabel, x + 4 * S, y + ...);
+    ctx.fillText(shortValue, x + w - ..., y + ...);
+    // 懸停 tooltip（與現有 tooltip 系統對接）
+    registerTooltip(x, y, w, cardH, fullText);
+  }
+}
+
+function truncate(text, maxW, ctx) {
+  if (ctx.measureText(text).width <= maxW) return text;
+  let t = text;
+  while (t.length > 1 && ctx.measureText(t + '…').width > maxW) t = t.slice(0, -1);
+  return t + '…';
+}
+```
+
+> **簡化備選**：將統計卡片寬度整體加寬，或將值欄獨立換行顯示（`label` 上行、`value` 下行，card `h` 加倍）——後者在統計項目多時更整齊。
+
+---
+
+### 3.11-B 遊戲用語統一「最深」
+
+**問題：** 「最深」在個人小屋、結算頁、成就文字中有多種用法：
+- 個人小屋卡片：`最深 第 N 區`
+- 成就：`抵達第 N 生態系`
+- Hub 選角：`第 N 生態系（已解鎖）`
+
+術語應統一為**「生態系（Biome）」**，且在所有數值顯示位置統一格式。
+
+**統一標準：**
+
+| 顯示位置 | 舊寫法 | 新寫法 |
+|----------|--------|--------|
+| 個人小屋統計卡 | `最深 第 3 區` | `最深生態系　#3` |
+| 結算頁「本局資訊」 | `生態系 第3區` | `第 3 生態系` |
+| 成就說明 | `抵達第 N 生態系` | `抵達第 N 生態系`（保持一致）|
+| Hub 選角副標 | `已探索至第 3 區` | `已探索至第 3 生態系` |
+| HUD（無此顯示） | — | — |
+
+**`state.js` `bankRun` 對應欄位：** `meta.stats.deepestBiome`（integer，現有）— 不改結構，只改**展示字串**。
+
+**統一格式 helper：**
+```js
+// game/state.js 或 engine/renderer.js
+export function biomeLabel(n) {
+  return `第 ${n} 生態系`;
+}
+// 用法：`最深生態系  ${biomeLabel(meta.stats.deepestBiome)}`
+```
+
+---
+
+**驗證：**
+- 個人小屋統計卡最長字串（如「最深生態系  第 10 生態系」）不超出卡片邊界；文字溢出時有截斷 + tooltip。
+- 全域搜尋 `第.*區` 無殘留（除了已明確豁免的地方）；所有顯示位置改用 `biomeLabel()` 或 `#N` 格式。
+- 結算頁「本局資訊」中生態系名稱為「第 N 生態系」格式。
 
 ---
 
@@ -1811,6 +1959,131 @@ this.storyMode = (d <= 0);
 | `src/game/scenes/hub.js` | `drawSortie()` clamp / `maxDiff()` | 允許 0 |
 | `src/game/scenes/run.js` | `diffMul` 計算（見 B）、難度橫幅顯示字串 | 0 顯示「劇情」 |
 | `src/net/ui.js` | 排行榜／admin 對局表 `'D'+(difficulty||1)` | 0 顯示「劇情」 |
+
+---
+
+## 6.6 無限模式（無盡挑戰）（新增）
+
+**概念：** 標準跑局有 20 分鐘上限與固定最終 Boss；無限模式移除時間上限，改以**固定週期不斷循環 Boss**，威脅等級無限累積，直到玩家死亡為止。考驗 build 的長線可持續性而非 20 分鐘衝刺。
+
+---
+
+### 6.6-A 模式定義
+
+| 屬性 | 標準模式 | 無限模式 |
+|------|---------|---------|
+| 時長 | 20 分鐘 | 無上限（死亡結束）|
+| 威脅上限 | ~13（`THREAT_CEIL`）| 無上限（持續成長）|
+| 最終 Boss | 20:00 固定生成 | 無最終 Boss |
+| Boss 時機 | 5 / 10 / 15 min 固定 | 每 `ENDLESS_BOSS_INTERVAL` 秒一波（預設 180s）|
+| Boss 來源 | 本生態系小 Boss 池 + 最終 Boss | 全生態系 Boss 池隨機輪替（**含跨生態系**）|
+| 通關條件 | 擊殺最終 Boss | 無（只有死亡）|
+| Reaper | 30s 後登場 | **不登場**（取消 Reaper 計時）|
+| 排行榜 | 現有排行榜 | 獨立無限模式排行榜（`mode: 'endless'`）|
+| 解鎖條件 | 預設可用 | 通關任意生態系一次後解鎖 |
+
+---
+
+### 6.6-B `run.js` 核心變更
+
+```js
+// run.js — 新增 mode 旗標
+this.run.mode = opts.mode || 'normal';   // 'normal' | 'endless'
+const isEndless = this.run.mode === 'endless';
+
+// 威脅成長：endless 不 clamp
+const rawThreat = Math.floor(elapsedMin * BALANCE.THREAT_PER_MIN);
+this.threat = isEndless
+  ? rawThreat                                          // 無上限
+  : Math.min(rawThreat, BALANCE.THREAT_CEIL);          // 標準上限 ~13
+
+// Boss 計時：endless 用固定間隔
+if (isEndless) {
+  // 每 ENDLESS_BOSS_INTERVAL 秒觸發一波隨機跨生態系 Boss
+  if (this._endlessBossTimer <= 0) {
+    this._endlessBossWave = (this._endlessBossWave || 0) + 1;
+    spawnEndlessBoss(this._endlessBossWave);
+    this._endlessBossTimer = BALANCE.ENDLESS_BOSS_INTERVAL;
+  }
+  this._endlessBossTimer -= dt;
+} else {
+  miniBossTick(dt);    // 標準 5/10/15 min
+}
+
+// 結束條件：endless 只有死亡（無 clearLevel）
+if (isEndless && !world.anyPlayerAlive()) {
+  finishRun({ endless: true, waves: this._endlessBossWave });
+}
+
+// Reaper：endless 不召喚
+if (!isEndless) reaperTick(dt);
+```
+
+**`balance.js` 新增常數：**
+
+```js
+ENDLESS_BOSS_INTERVAL: 180,   // 每 3 分鐘一波 Boss
+ENDLESS_THREAT_PER_WAVE: 1.5, // 每波 Boss 後威脅額外 +1.5（on top of 時間成長）
+```
+
+---
+
+### 6.6-C Boss 池（跨生態系輪替）
+
+```js
+// content/registry.js 或 run.js
+function spawnEndlessBoss(wave) {
+  // 取所有生態系的 Boss 池（排除最終 Boss）
+  const pool = Enemies.all().filter(e => e.boss && !e.isFinalBoss);
+  // 用 wave number 做 seeded 選取（同局同波次一致）
+  const idx  = wave % pool.length;
+  const def  = pool[idx];
+  world.spawnBoss(def.id, { x: centerX, y: centerY });
+  // 橫幅提示：「波次 N：${def.name} 降臨！」
+  showWaveBanner(wave, def.name);
+}
+```
+
+---
+
+### 6.6-D HUD 顯示
+
+- 左上計時器：不再倒數，改為正數「存活 **mm:ss**」。
+- 波次提示：每波 Boss 降臨時全屏橫幅「**波次 N** ─ {Boss名} 降臨！」（類似 patron 橫幅），停留 3 秒。
+- 右側 HUD 新增一列：「**波次 N**」，以 `PIXEL_FONT` 顯示（配合 1.8）。
+- 威脅值顯示：無上限，顯示實際值（如「威脅 **27**」）。
+
+---
+
+### 6.6-E 入口 / 選角
+
+```js
+// hub.js drawSortie()
+// 難度列下方新增切換按鈕（或 tab）
+// ┌────────────────────────────────────┐
+// │  [一般模式]  [無限模式 🔓]          │
+// └────────────────────────────────────┘
+// 解鎖條件：meta.stats.biomeClears >= 1
+const endlessUnlocked = (meta.stats.biomeClears || 0) >= 1;
+```
+
+---
+
+### 6.6-F 結算 / 排行榜
+
+- 結算頁顯示：「存活 mm:ss」「擊殺 Boss N 波」「最高威脅 XX」，無「通關」字樣。
+- `bankRun` 標記 `mode: 'endless'`；`POST /api/runs` 傳入，後端分開入庫。
+- 排行榜新增「無限模式」tab（以 `waves` 降序，同波次以 `elapsedTime` 升序）。
+
+---
+
+**驗證：**
+- 選角切到「無限模式」後出擊，計時器正數計時、右側顯示「波次 N」。
+- 每 180 秒出現一波 Boss 橫幅，擊殺後計數器 +1、威脅值繼續成長（不 clamp 在 13）。
+- 死亡後進結算頁顯示「波次 N」「存活時間」而非「通關時間」。
+- 無限模式排行榜正確顯示並以波次排序。
+- 無最終 Boss 生成（20:00 沒有 clearLevel 觸發）；Reaper 不登場。
+- 通關任意生態系前，無限模式按鈕顯示為灰色鎖定。
 
 ---
 
@@ -3282,6 +3555,7 @@ for (const charId of CHARS_WITH_MULTI_SKINS) {
 5. 按鈕對比：ESC 選單與各 panel 按鈕邊框清晰，hover 高亮。
 6. UI 尺寸一致化：標題畫面大按鈕字體 = Hub 面板主標題（同 `FONT_TITLE×S` = 22px）；ESC 選單選項 = Hub 面板分區標題（`FONT_HEADING×S` = 16px）；選單→子面板的字體差距不超過一個代幣等級；主要行動按鈕高度均為 `36×S`（±2px）。
 7. Hub ESC 選單垂直置中：面板內按鈕群組上下留白相近（目視偏差 ≤ 4px）；視窗 800×500 與 1920×1080 下均成立；6 個選項按鈕完整可見、無截斷。
+8. 像素點陣字體：HUD 威脅值、HP 數字、計時器、金幣計數字型為 Press Start 2P（或等效像素字體）；個人小屋統計欄數值、結算頁分數同；中文標籤仍為楷體；字體載入前 fallback 顯示正常。
 
 **二、城鎮對話與場景**
 6. 對話框右側出現英雄頭像 + 名字；換角色後正確；左下「◀ 上一頁」第 2 頁起出現、可往回。
@@ -3301,6 +3575,7 @@ for (const charId of CHARS_WITH_MULTI_SKINS) {
 18. 出擊選角縮放後初始武器不與名稱重疊。
 19. 個人小屋無半形標點；ESC 說明獨立一行。
 19b. 天賦/設施/鍛造重置按鈕在所有解析度下均可見（panel 右上角）；點擊彈確認框；衣帽間顯示「造型購買不可退款」說明。
+19c. 個人小屋統計欄：最長統計值（如「最深生態系  第 10 生態系」）不超出卡片邊界；超長文字截斷加 `…` 並有 hover tooltip；全域用語改「第 N 生態系」格式，無「第 N 區」殘留。
 
 **四、跑局 HUD 與互動**
 20. HUD：金幣圖示與數字對齊；地圖名獨立放大；衝刺欄間距正確；左側對齊。
@@ -3347,6 +3622,7 @@ for (const charId of CHARS_WITH_MULTI_SKINS) {
 35. 重置 `META.tutorialHUDDone` → 首局開始 2 秒後暫停顯示 HUD 標注，按鍵繼續。
 36. 出擊各難度下方顯示說明文字。
 37. **劇情難度**：出擊可選「劇情」（在 D1 左、永遠可選）；該局敵人明顯極弱、掉落變多；幾乎不會死；結算分數打折／排行榜不顯示該局。
+38. **無限模式**：通關任意生態系後解鎖；選角切「無限模式」出擊後計時器正數計時、右側顯示「波次 N」；每 180 秒觸發一波隨機跨生態系 Boss + 橫幅提示；死亡後結算頁顯示「波次 N」「存活時間」；無限模式排行榜以波次排序；Reaper 不登場；20 分鐘不觸發 clearLevel。
 
 **七、新系統與後端**
 38. 玩家回饋：ESC「⚑ 回報問題」→ 送出 → toast；後台「回饋」tab 可查看／篩選／改狀態／存備註／下載 JSON；未登入可送。
@@ -3395,6 +3671,7 @@ for (const charId of CHARS_WITH_MULTI_SKINS) {
 - UI 縮放改連續值，修正小視窗跑版與大螢幕過大；選單／按鈕加外框與色差。
 - 全局 UI 尺寸一致化：建立 `UI` 代幣系統（`FONT_TITLE/HEADING/BODY/CAPTION`、`BTN_H`、`ICON_SM/MD/LG`、`GAP_SM/MD/LG`）；標題選單與子面板字體差距不超過一個代幣等級，消除「選單大→子面板小」的視覺割裂。
 - Hub ESC 選單垂直置中：修正按鈕群組固定 padding-top 導致面板下半部空白的問題；改為計算標題 + 按鈕群總高後動態置中，800×500 與 1920×1080 均正確。
+- 全域數字改用像素點陣字體：HUD 數值（HP / 金幣 / 計時 / 威脅值）、個人小屋統計欄、結算頁分數改用 Press Start 2P（`PIXEL_FONT` 常數）；中文標籤保留楷體；`renderer.js` export `PIXEL_FONT` / `BODY_FONT` / `HYBRID_FONT`，數字字號 ×0.82 補正。
 
 【城鎮對話與場景】
 - 對話框右側新增主角頭像與名稱、左下新增上一頁按鈕。
@@ -3407,6 +3684,7 @@ for (const charId of CHARS_WITH_MULTI_SKINS) {
 - 鐵匠鋪跑版修正 + 營地設施改方格等級條；教堂天賦全面修正（對齊／分類框／hover 說明）。
 - 公會圖層與 XP 空條修正；衣帽間進貨按鈕移位；成就黃字下移 + 篩選分頁 + 可領提示徽章。
 - 出擊選角初始武器縮放不重疊；個人小屋標點與 ESC 排版。
+- 個人小屋統計欄文字溢出修正：超長文字截斷 + hover tooltip；全域用語統一為「第 N 生態系」格式（新增 `biomeLabel(n)` helper），移除「第 N 區」混用。
 
 【跑局 HUD 與互動】
 - HUD 佈局全面修正（金幣對齊／地圖名放大／衝刺間距／左側對齊）。
@@ -3481,6 +3759,7 @@ for (const charId of CHARS_WITH_MULTI_SKINS) {
 【新手引導與難度】
 - 城鎮引導劇情（全玩家適用）+ 首局戰鬥提示 + 首局 HUD 暫停說明。
 - 難度選擇說明文字；新增「劇情難度」（敵人極弱、掉落更佳、幾乎必過、不列入排行榜）。
+- 新增「無限模式」（無盡挑戰）：通關任意生態系後解鎖；移除 20 分鐘上限與 Reaper；威脅無限累積；每 180 秒輪替跨生態系 Boss；`run.mode='endless'` 旗標；獨立排行榜以波次排序。
 
 【新系統與後端】
 - 玩家回饋系統（ESC 入口 + feedback 資料表 + REST API + 後台「回饋」分頁，可篩選／改狀態／下載 JSON）。
