@@ -74,6 +74,7 @@ Round 16 是一次以**玩家回饋為核心的 UX 大修**，不改動核心戰
 | 4.12 | **撿取裝備時對比顯示目前裝備效果（新）** | `run.js` `openEquipChoice`／`drawEquipDiff` |
 | 4.13 | **大地圖（M鍵）玩家標示醒目化（角色頭貼）（新）** | `run.js` minimap 渲染 |
 | 4.14 | **祝福神（贊助者）新效果觸發提示（新）** | `run.js` patron event UI |
+| 4.15 | **anvilChoice 三選一卡片對齊 + 替換失去效果顯示（新）** | `run.js` `drawAnvilChoice()` |
 
 ### 五、任務與成就系統
 | 編號 | 項目 | 主要異動檔案 |
@@ -122,6 +123,7 @@ Round 16 是一次以**玩家回饋為核心的 UX 大修**，不改動核心戰
 | 10.3 | **死神移速大幅加強** | `src/game/content/enemies.js` |
 | 10.4 | **武器進化路徑顯示（build 面板）** | `run.js`、`hud.js` |
 | 10.5 | **裝備掉落機率降低** | `balance.js` |
+| 10.6 | **金幣／道具被磁鐵彈走（排斥 Bug）** | `src/game/pickup.js`（或 `player.js` 吸附邏輯） |
 
 ---
 
@@ -848,6 +850,88 @@ queuePatronToast(patron) {
 
 **C. `content/events.js` patron 定義補齊 `effectDesc`：**
 每個 patron 加 `effectDesc: '...'` 欄位，中文描述實際效果（如「每局金幣獲取 +15%」「受到暴擊傷害時額外觸發衝刺」），供 A/B 兩處顯示。
+
+## 4.15 anvilChoice 三選一卡片對齊 + 替換失去效果顯示（新增）
+
+**此節適用兩個裝備選擇面板：**
+- `anvilChoice`（鍛造砧三選一，如截圖「選擇一件裝備」）
+- `equipChoice`（地面撿取裝備，同 4.12，合併補齊）
+
+---
+
+**A. 三張卡片「替換後」文字統一高度（版面對齊問題）**
+
+**問題（截圖可見）：** 三張卡片因說明文字（`desc`）長短不同，「替換後」標頭出現在不同 Y 位置，看起來凌亂，數字對比也難以左右掃讀。
+
+**根因：** `替換後` 的 Y = `cardY + descEndY`（依內容動態增長）。
+
+**修正：** 固定卡片版面分區，description 區塊有最大高度，超出以 tooltip/截斷處理，「替換後」永遠從固定 Y 起始：
+
+```
+┌─ 卡片固定高度 ──────────────────────┐
+│  [圖示]  名稱 · 欄位          ← 固定行
+│  ┌─ desc 區 max 3 行 ────────────┐  │
+│  │ 說明文字（超出 → 末行「…」）   │  │
+│  └────────────────────────────┘  │
+│  ─────── 替換後 ─────────────────── │  ← 固定 Y（所有卡片同高）
+│  屬性  現值 → 新值                   │
+│  ……                                 │
+│  ─── 失去效果 ───────────────────── │  ← 固定在統計末尾（見 B）
+│  ✕ {目前裝備效果說明}               │
+└─────────────────────────────────────┘
+```
+
+**實作要點（`run.js` `drawAnvilChoice()` / `drawEquipCard()`）：**
+```js
+const DESC_MAX_LINES = 3;           // desc 最多 3 行
+const DESC_ZONE_H    = DESC_MAX_LINES * lineH;   // 固定 desc 區高度
+const STAT_Y_START   = cardY + iconH + nameH + gapH + DESC_ZONE_H + labelH;
+// 所有卡片的「替換後」均從 STAT_Y_START 開始
+```
+- desc 超過 3 行時在第 3 行末加「…」，hover 顯示完整 tooltip。
+- **卡片總高度固定**（`cardH` 常數），不依內容伸縮。
+
+---
+
+**B. 替換後顯示「失去效果」（即將消失的目前裝備文字效果）**
+
+**問題：** 面板的「替換後」區塊只顯示**數字屬性**的變化（生命 497→457 等），但**不顯示目前裝備的文字特效**（如「暴擊觸發閃電鏈」「受擊反彈」等 `desc` 中描述的機制性效果）——替換後這些效果消失，玩家完全看不到。
+
+**目標：** 「替換後」區塊末尾加一個「失去效果」子區，明確告知將失去哪些文字效果：
+
+```
+替換後
+生命上限  497  →  457  ↓（紅）
+暴擊率     42%  →  62%  ↑（綠）
+…
+
+━━ 失去效果 ━━━━━━━━━━━━━━━━━━━
+✕ 移速 +30%、閃避 +20%（玻璃疾風）  ← 目前飾品的 desc 全文，橙色
+```
+
+**顯示規則：**
+- 只在**該 slot 已裝備某件裝備**時顯示（空欄位不顯示此區）。
+- 取目前裝備 `Equipment.get(run.equipment[slot])?.desc`。
+- 若目前裝備 desc 與新裝備 desc **完全相同**，省略失去效果區（沒有意義）。
+- 顏色：橙色 `#f6ad55`（比紅色醒目但不如紅色緊張，屬「提醒」而非「警告」）；前置 `✕` 圖示。
+- 文字超過 2 行時，第 2 行末「…」，hover 顯示完整。
+- **武器欄（signature weapon）** 特例：`run.equipment.weapon` 的目前裝備是簽名武器，失去效果區顯示其武器名稱 + 關鍵屬性（傷害/射速），而非 desc。
+
+**實作要點（`run.js`）：**
+```js
+function drawLostEffect(slot, cardX, cardY, S) {
+  const curId = run.equipment?.[slot];
+  if (!curId) return 0;   // 空欄位，不顯示，回傳高度 0
+  const curDef = Equipment.get(curId);
+  if (!curDef?.desc) return 0;
+  const newDef = /* 本卡片的裝備 def */;
+  if (curDef.desc === newDef.desc) return 0;  // 同 desc 省略
+
+  // 繪製「失去效果」分隔線 + desc 文字（橙色，最多 2 行）
+  uiText('✕ ' + curDef.desc, cardX + pad, curY, { color: '#f6ad55', size: 10*S, maxWidth: cardW - pad*2 });
+  return usedH;  // 回傳佔用高度，讓呼叫方調整 cardH
+}
+```
 
 ---
 
@@ -1576,6 +1660,40 @@ if (isReaper && world.player.speed >= this.speed) {
 
 **附加調整：** 裝備撿取面板顯示時，同時更新 `_pickupLog`（見 4.2），讓玩家即使 Esc 拒絕也有記錄可查。
 
+## 10.6 金幣／道具被磁鐵彈走（排斥 Bug）
+
+**問題：** 玩家反映金幣有時會被「彈走」——道具本來靠近，卻在接近時突然反方向飛離，類似磁鐵排斥。懷疑與「拾取範圍 +60%」被動有關（`pickupRange` 從 ~26 提高到 ~42）。
+
+**根因分析（`pickup.js` 或 `player.js` 磁鐵吸附邏輯）：**
+
+**路徑 A — 速度過衝（最可能）：**
+若吸附公式為 `速度 = ATTRACT_SPEED`（固定值，不依距離縮減），道具在最後一幀可能飛過玩家位置，下一幀方向反轉，形成振盪：
+```js
+// Bug 寫法（固定速度，不感知距離）：
+const dx = px - cx, dy = py - cy;
+const dist = Math.sqrt(dx * dx + dy * dy);
+vx = dx / dist * ATTRACT_SPEED;   // 距離 1px 時速度仍是 ATTRACT_SPEED
+vy = dy / dist * ATTRACT_SPEED;
+```
+→ 修正：速度上限 clamp 到「不超過剩餘距離」，確保永遠不會過衝：
+```js
+const speed = Math.min(ATTRACT_SPEED, dist);   // ← 加上 dist 上限
+vx = dx / dist * speed;
+vy = dy / dist * speed;
+```
+
+**路徑 B — 大半徑時 overlap 觸發碰撞推力：**
+`pickupRange +60%` 使吸附半徑超過某些物理碰撞半徑（如其他掉落物、玩家碰撞體），道具在途中被推力打亂方向。
+→ 修正：道具進入「吸附狀態」（`attracting = true`）後**停用碰撞推力**（跳過 entity-to-entity separation），只保留世界邊界碰撞。
+
+**路徑 C — 範圍圓超出地圖邊界的反彈：**
+`pickupRange +60%` 讓吸附判定圓觸及地圖邊界，邊界反射邏輯給道具加了反向速度。
+→ 修正：道具吸附時 bypass 邊界反彈，只做 clamp（停在邊界，不反彈）。
+
+**修正優先序：** 先試 A（最簡單），確認是否解決 85% 案例；B/C 再觀察。
+
+**驗證：** 用 `遠視符文` 被動（`aimRange ×1.20`）或直接在 `balance.js` 調高 `pickupRange` 到 50+，在密集掉金幣的情況下跑 1–2 分鐘，確認無排斥飛走現象。
+
 ---
 
 # 驗證方式（依分類）
@@ -1625,6 +1743,8 @@ if (isReaper && world.player.speed >= this.speed) {
 29f. 撿取裝備面板左右並排「目前裝備效果 ↔ 新裝備效果」，下方保留替換後差值；空欄位顯示「（此欄位目前無裝備）」。
 30. 大地圖（M）玩家位置顯示角色頭像框（圓形遮罩 + 白邊），zOrder 最高蓋過敵人點；多人局各玩家各自頭像。
 31. 祝福神選擇後中央上方橫幅顯示「{贊助者名} 的祝福已生效！+ 效果說明」停留 5 秒；HUD 右下角持久顯示已觸發贊助者小圖示，hover 有 tooltip。
+32. anvilChoice 三選一裝備卡片：「替換後」標頭在三張卡中**同一高度**（desc 區固定 3 行最大，超出截斷 tooltip）；有目前裝備的 slot 在「替換後」末尾顯示橙色「✕ {目前裝備效果}」；空欄位不顯示失去效果區。
+33. 金幣不再被排斥彈走；`pickupRange +60%` 大範圍情況下仍正常吸附，無振盪反彈。
 
 **五、任務與成就**
 30. 存活 2:57 時任務追蹤**不**顯示滿格／完成樣式。
@@ -1733,6 +1853,8 @@ if (isReaper && world.player.speed >= this.speed) {
 - 升級卡片稀有度顏色：普通深灰框、稀有水藍框、史詩亮紫框、傳說橙金框，與 tag 底色統一。
 - 大地圖（M）玩家以角色頭像圓框顯示（zOrder 最高），多人各自頭像。
 - 祝福神選擇後：中央橫幅 Toast（5 秒）＋ HUD 持久贊助者圖示列（hover tooltip）；events.js 補齊 effectDesc 欄位。
+- anvilChoice 三選一卡片固定版面：「替換後」同高對齊（desc 固定 3 行）；末尾顯示橙色「✕ 失去效果」，揭示替換後消失的目前裝備文字效果。
+- 修正金幣排斥 Bug：吸附速度 clamp 到 min(ATTRACT_SPEED, dist)，避免過衝反向；進入吸附狀態後停用 entity-to-entity 推力。
 
 【任務系統補充】
 - 任務 def 新增 `requires` 欄位，系列任務循序解鎖；鎖定任務顯示 🔒 灰色行 + 前置名稱。
