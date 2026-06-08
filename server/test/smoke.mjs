@@ -12,7 +12,9 @@ function makeFakePool() {
   const saves = new Map();    // uid -> { meta, save_version }
   const runs = [];            // { user_id, score, ... }
   const bans = [];            // { kind, value, reason, created_at }
-  let uid = 0, rid = 0;
+  const feedback = [];        // { id, user_id, guest_name, category, content, status, admin_note, created_at }
+  const adminLogs = [];       // { id, admin_username, action, target, detail, created_at }
+  let uid = 0, rid = 0, fid = 0, lid = 0;
   return {
     async query(sql, args = []) {
       const s = sql.replace(/\s+/g, ' ').trim();
@@ -65,6 +67,65 @@ function makeFakePool() {
         return { rows, rowCount: rows.length };
       }
       if (s.startsWith('DELETE FROM runs')) { const id = args[0]; const i = runs.findIndex((r) => String(r.id) === String(id)); if (i >= 0) runs.splice(i, 1); return { rows: [], rowCount: i >= 0 ? 1 : 0 }; }
+      // --- round16/7.1 feedback ---
+      if (s.startsWith('INSERT INTO feedback')) {
+        const [user_id, guest_name, category, content] = args;
+        feedback.push({ id: ++fid, user_id, guest_name, category, content, status: 'pending', admin_note: null, created_at: new Date().toISOString() });
+        return { rows: [], rowCount: 1 };
+      }
+      if (s.startsWith('SELECT f.id, COALESCE(u.username, f.guest_name')) {
+        let rows = feedback.slice();
+        if (s.includes('WHERE f.status = $3')) rows = rows.filter((f) => f.status === args[2]);
+        rows = rows.sort((a, b) => (a.created_at < b.created_at ? 1 : -1)).slice(0, args[0])
+          .map((f) => ({ id: f.id, author: (f.user_id != null ? (users.find((u) => String(u.id) === String(f.user_id)) || {}).username : null) || f.guest_name || '訪客', category: f.category, content: f.content, status: f.status, admin_note: f.admin_note, created_at: f.created_at }));
+        return { rows, rowCount: rows.length };
+      }
+      if (s.startsWith('UPDATE feedback SET')) {
+        const f = feedback.find((x) => String(x.id) === String(args[0]));
+        if (f) { const ms = s.match(/status = \$(\d)/), mn = s.match(/admin_note = \$(\d)/); if (ms) f.status = args[Number(ms[1]) - 1]; if (mn) f.admin_note = args[Number(mn[1]) - 1]; }
+        return { rows: [], rowCount: f ? 1 : 0 };
+      }
+      // --- round16/7.6 admin audit log ---
+      if (s.startsWith('INSERT INTO admin_logs')) {
+        const [admin_username, action, target, detail] = args;
+        adminLogs.push({ id: ++lid, admin_username, action, target, detail, created_at: new Date().toISOString() });
+        return { rows: [], rowCount: 1 };
+      }
+      if (s.startsWith('SELECT id, admin_username, action')) {
+        const rows = adminLogs.slice().reverse().slice(0, args[0]);
+        return { rows, rowCount: rows.length };
+      }
+      // --- round16/7.7 stats counts + top players ---
+      if (s === 'SELECT count(*) n FROM users') return { rows: [{ n: users.length }], rowCount: 1 };
+      if (s.startsWith('SELECT count(*) n FROM users WHERE last_login')) return { rows: [{ n: users.filter((u) => u.last_login).length }], rowCount: 1 };
+      if (s === 'SELECT count(*) n FROM runs') return { rows: [{ n: runs.length }], rowCount: 1 };
+      if (s.startsWith('SELECT count(*) n FROM runs WHERE created_at')) return { rows: [{ n: runs.length }], rowCount: 1 };
+      if (s.startsWith('SELECT count(*) n FROM runs WHERE user_id IS NULL')) return { rows: [{ n: runs.filter((r) => r.user_id == null).length }], rowCount: 1 };
+      if (s === 'SELECT count(*) n FROM bans') return { rows: [{ n: bans.length }], rowCount: 1 };
+      if (s.startsWith('SELECT count(*) n FROM feedback')) return { rows: [{ n: feedback.filter((f) => f.status === 'pending').length }], rowCount: 1 };
+      if (s.startsWith("SELECT COALESCE(u.username, r.guest_name, '訪客') AS name, max(r.score)")) {
+        const best = new Map();
+        for (const r of runs) {
+          if (r.user_id == null && !r.guest_name) continue;
+          const name = r.user_id != null ? (users.find((u) => String(u.id) === String(r.user_id)) || {}).username : r.guest_name;
+          const cur = best.get(name); if (cur == null || r.score > cur) best.set(name, r.score);
+        }
+        const rows = [...best.entries()].map(([name, score]) => ({ name, score })).sort((a, b) => b.score - a.score).slice(0, 5);
+        return { rows, rowCount: rows.length };
+      }
+      // --- round16/7.8 player inspect ---
+      if (s.startsWith('SELECT id, username, email, created_at, last_login FROM users WHERE id')) {
+        const u = users.find((x) => String(x.id) === String(args[0]));
+        return { rows: u ? [{ id: u.id, username: u.username, email: u.email || null, created_at: u.created_at || null, last_login: u.last_login || null }] : [], rowCount: u ? 1 : 0 };
+      }
+      if (s.startsWith('SELECT count(*) AS runs, COALESCE(max(score),0) AS best FROM runs WHERE user_id')) {
+        const rs = runs.filter((r) => String(r.user_id) === String(args[0]));
+        return { rows: [{ runs: rs.length, best: rs.reduce((m, r) => Math.max(m, r.score), 0) }], rowCount: 1 };
+      }
+      if (s.startsWith('SELECT id, score, stage, kills, character, biome, difficulty, time_s, cleared, created_at FROM runs WHERE user_id')) {
+        const rs = runs.filter((r) => String(r.user_id) === String(args[0])).slice().reverse().slice(0, 10);
+        return { rows: rs, rowCount: rs.length };
+      }
       if (s.includes('FROM runs r LEFT JOIN users u')) {
         // map positional args to the filters in the order server.js appends them
         let ai = 0; const filt = {};
@@ -203,6 +264,63 @@ ok(ar.statusCode === 200 && Array.isArray(ar.json().rows) && ar.json().rows.leng
 const delId = ar.json().rows[0].id;
 ok((await J('POST', '/api/admin/delete-run', { id: delId }, token)).json().deleted === 1, 'admin deletes a run from the leaderboard');
 ok((await J('POST', '/api/admin/delete-run', { id: delId }, t2)).statusCode === 403, 'delete-run as a non-admin → 403');
+
+// ---- round16/7.1 player feedback ----
+ok((await J('POST', '/api/feedback', { category: 'bug', content: '城鎮 NPC 對話卡住了' })).json().ok === true, 'feedback submit (guest, no token) → ok');
+ok((await J('POST', '/api/feedback', { category: 'ui', content: 'abcd' })).statusCode === 400, 'feedback too-short content → 400');
+ok((await J('POST', '/api/feedback', { category: 'nope', content: 'invalid category here' })).statusCode === 400, 'feedback bad category → 400');
+await J('POST', '/api/feedback', { category: 'gameplay', content: '希望增加更多武器選擇', name: 'PlayerA' }, token);
+let fb = await J('GET', '/api/admin/feedback', undefined, token);
+ok(fb.statusCode === 200 && fb.json().rows.length >= 2, 'admin feedback list returns rows');
+ok((await J('GET', '/api/admin/feedback')).statusCode === 401, 'admin feedback without token → 401');
+ok((await J('GET', '/api/admin/feedback', undefined, t2)).statusCode === 403, 'admin feedback as non-admin → 403');
+const fbId = fb.json().rows[0].id;
+ok((await J('PATCH', '/api/admin/feedback/' + fbId, { status: 'fixed', admin_note: '已於 R16 修正' }, token)).json().ok === true, 'admin patch feedback status + note');
+fb = await J('GET', '/api/admin/feedback?status=fixed', undefined, token);
+ok(fb.json().rows.some((f) => f.id === fbId && f.status === 'fixed'), 'feedback status filter reflects the patch');
+
+// ---- round16/7.3 live "playing now" heartbeat ----
+ok((await J('POST', '/api/presence/play', { sid: 'sid-guest-1', name: 'GuestRunner', biome: 'crypt', difficulty: 3 })).json().ok === true, 'presence play (guest) → ok');
+ok((await J('POST', '/api/presence/play', { name: 'NoSid' })).statusCode === 400, 'presence play without sid → 400');
+await J('POST', '/api/presence/play', { sid: 'sid-user-1', name: 'spoofed', biome: 'frost', difficulty: 2 }, token);   // token → name forced to username
+let ov = await J('GET', '/api/admin/overview', undefined, token);
+ok(Array.isArray(ov.json().playing) && ov.json().playing.length >= 2, 'admin overview lists playing-now players');
+ok(ov.json().playing.some((p) => p.name === 'tester' && p.guest === false), 'logged-in heartbeat → username + guest=false (no spoof)');
+ok(ov.json().playing.some((p) => p.name === 'GuestRunner' && p.guest === true), 'guest heartbeat → guest=true');
+ok(ov.json().totals.playing >= 2, 'overview totals.playing reflects active players');
+await J('POST', '/api/presence/stop', { sid: 'sid-guest-1' });
+ov = await J('GET', '/api/admin/overview', undefined, token);
+ok(!ov.json().playing.some((p) => p.name === 'GuestRunner'), 'stopped player drops off the playing list');
+
+// ---- round16/7.6 admin audit log (kick/ban/unban/broadcast/delete-run/feedback ran above) ----
+const logs = await J('GET', '/api/admin/logs', undefined, token);
+ok(logs.statusCode === 200 && Array.isArray(logs.json().rows) && logs.json().rows.length > 0, 'admin logs returns rows');
+ok(logs.json().rows.every((l) => l.admin_username === 'tester'), 'audit rows attribute the acting admin');
+ok(logs.json().rows.some((l) => l.action === 'broadcast'), 'broadcast was audited');
+ok(logs.json().rows.some((l) => l.action === 'ban'), 'ban was audited');
+ok(logs.json().rows.some((l) => l.action === 'delete-run'), 'delete-run was audited');
+ok(logs.json().rows.some((l) => l.action === 'feedback'), 'feedback status change was audited');
+ok((await J('GET', '/api/admin/logs', undefined, t2)).statusCode === 403, 'admin logs as non-admin → 403');
+
+// ---- round16/7.7 stats dashboard ----
+const st = await J('GET', '/api/admin/stats', undefined, token);
+ok(st.statusCode === 200, 'admin stats → 200');
+const sj = st.json();
+ok(sj.accounts && typeof sj.accounts.total === 'number' && sj.accounts.total >= 2, 'stats: accounts.total counts users');
+ok(typeof sj.runs.total === 'number' && typeof sj.runs.guest === 'number', 'stats: run totals present');
+ok(typeof sj.moderation.activeBans === 'number' && typeof sj.moderation.pendingFeedback === 'number', 'stats: moderation counts present');
+ok(sj.live && typeof sj.live.playing === 'number', 'stats: live numbers present');
+ok(Array.isArray(sj.topPlayers), 'stats: topPlayers is an array');
+ok((await J('GET', '/api/admin/stats', undefined, t2)).statusCode === 403, 'admin stats as non-admin → 403');
+
+// ---- round16/7.8 player inspect drawer ----
+const pid = (await J('POST', '/api/login', { username: 'tester', password: 'hunter123' })).json().user.id;
+const pl = await J('GET', '/api/admin/player/' + pid, undefined, token);
+ok(pl.statusCode === 200 && pl.json().account.username === 'tester', 'player inspect returns the account');
+ok(typeof pl.json().stats.runCount === 'number' && Array.isArray(pl.json().recentRuns), 'player inspect returns lifetime stats + recent runs');
+ok(typeof pl.json().ban.user === 'boolean', 'player inspect returns ban state');
+ok((await J('GET', '/api/admin/player/99999', undefined, token)).statusCode === 404, 'unknown uid → 404');
+ok((await J('GET', '/api/admin/player/' + pid, undefined, t2)).statusCode === 403, 'player inspect as non-admin → 403');
 
 console.log(`\n${pass} passed, ${fail} failed`);
 await app.close();

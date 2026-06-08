@@ -32,6 +32,19 @@ export function wsBase() {
 
 let token = null, user = null, saveTimer = null;
 
+// Stable per-browser session id for the "playing now" heartbeat (round16/7.3).
+// Persisted so reloads don't spawn a new live-player row; survives logout (guest reuse).
+let _sid = null;
+export function clientSid() {
+  if (_sid) return _sid;
+  try { _sid = localStorage.getItem('soulshard.sid'); } catch (e) { /* */ }
+  if (!_sid) {
+    _sid = 's' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+    try { localStorage.setItem('soulshard.sid', _sid); } catch (e) { /* */ }
+  }
+  return _sid;
+}
+
 // Is the JWT present AND not expired? (decode the exp claim without a library)
 function tokenAlive(t) {
   if (!t) return false;
@@ -120,6 +133,17 @@ export const Net = {
   adminBroadcast(text) { return req('/admin/broadcast', { method: 'POST', authed: true, body: { text } }); },
   adminRuns(limit) { return req('/admin/runs' + (limit ? '?limit=' + limit : ''), { authed: true }); },
   adminDeleteRun(id) { return req('/admin/delete-run', { method: 'POST', authed: true, body: { id } }); },
+  // ---- round16/7.1 player feedback ----
+  submitFeedback(category, content, name) { return req('/feedback', { method: 'POST', authed: tokenAlive(token), body: { category, content, name } }); },
+  adminFeedback(params = {}) { const qs = new URLSearchParams(params).toString(); return req('/admin/feedback' + (qs ? '?' + qs : ''), { authed: true }); },
+  adminUpdateFeedback(id, patch) { return req('/admin/feedback/' + id, { method: 'PATCH', authed: true, body: patch }); },
+  // ---- round16/7.6-7.8 admin (audit log / stats / player inspect) ----
+  adminLogs(params = {}) { const qs = new URLSearchParams(params).toString(); return req('/admin/logs' + (qs ? '?' + qs : ''), { authed: true }); },
+  adminStats() { return req('/admin/stats', { authed: true }); },
+  adminPlayer(uid) { return req('/admin/player/' + uid, { authed: true }); },
+  // ---- round16/7.3 "playing now" heartbeat (offline-first: swallow errors) ----
+  pingPlaying(info = {}) { return req('/presence/play', { method: 'POST', authed: tokenAlive(token), body: { ...info, sid: clientSid() } }).catch(() => {}); },
+  stopPlayingBeat() { return req('/presence/stop', { method: 'POST', body: { sid: clientSid() } }).catch(() => {}); },
 };
 
 // Debounced best-effort cloud-save push (called from state.saveMeta()).
