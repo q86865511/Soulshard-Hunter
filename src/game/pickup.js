@@ -67,10 +67,14 @@ export class Pickup {
     const d = dist(this.x, this.y, player.x, player.y);
     const range = (player.stats.pickupRange ?? 22) + (this.magnet ? 99999 : 0);
     if (d < range && this.age > 0.25) {
-      const pull = this.magnet ? 320 : (220 - d * 2);
+      // 10.6: attraction speed must stay POSITIVE — the old `220 - d*2` went negative once the
+      // pickup range exceeded ~110 (a boosted pickupRange), so coins fled the player. Clamp the
+      // per-frame step to the remaining distance so it can't overshoot past the player and oscillate.
+      const speed = this.magnet ? 340 : Math.max(70, 240 - d * 1.6);
       const a = Math.atan2(player.y - this.y, player.x - this.x);
-      this.x += Math.cos(a) * pull * dt;
-      this.y += Math.sin(a) * pull * dt;
+      const step = Math.min(speed * dt, d);
+      this.x += Math.cos(a) * step;
+      this.y += Math.sin(a) * step;
     }
     if (d < player.radius + 5) this.collect(world, player);
   }

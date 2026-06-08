@@ -187,7 +187,7 @@ export class World {
     if (e.boss) {
       const d = this.rollEquipment(2 + dq); if (d) this.addPickup('equip', e.x, e.y, 1, { def: d });
       for (let i = 0; i < 5; i++) this.addPickup('shard', e.x, e.y, 3);
-    } else if (Math.random() < (0.02 + luck * 0.03 + dq * 0.012) * dropM) {
+    } else if (Math.random() < (0.02 + luck * 0.03 + dq * 0.012) * dropM * BALANCE.GEAR_DROP_MULT) {   // 10.5: lower mob gear drop (boss gear above is untouched)
       const d = this.rollEquipment(1 + dq); if (d) this.addPickup('equip', e.x, e.y, 1, { def: d });
     } else if (Math.random() < (0.05 + luck * 0.03) * dropM) {
       const d = this.rollItem(1 + dq); if (d) this.addPickup('item', e.x, e.y, 1, { def: d });
