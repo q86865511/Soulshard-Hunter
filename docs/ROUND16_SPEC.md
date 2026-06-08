@@ -56,6 +56,7 @@ Round 16 是一次以**玩家回饋為核心的 UX 大修**，不改動核心戰
 | 3.7 | 個人小屋標點與 ESC 說明排版 (原#27) | `hub.js` personal panel |
 | 3.8 | **造型商店 UI 大改版：兩層選擇 + 全角色池 + 隱藏造型高價（新）** | `content/skinshop.js`、`hub.js` wardrobe panel |
 | 3.9 | **城鎮消費重置功能完整化（新）** | `hub.js` 各 panel |
+| 3.10 | **造型來源角色顯示 + 造型類成就（新）** | `content/characters.js` SKINS、`content/achievements.js`、`hub.js` wardrobe |
 
 ### 四、跑局內 HUD 與互動
 | 編號 | 項目 | 主要異動檔案 |
@@ -136,6 +137,7 @@ Round 16 是一次以**玩家回饋為核心的 UX 大修**，不改動核心戰
 | 10.6 | **金幣／道具被磁鐵彈走（排斥 Bug）** | `src/game/pickup.js`（或 `player.js` 吸附邏輯） |
 | 10.7 | **Boss 被卡在地圖牆壁／走廊（BUG）** | `src/game/maps.js`、`src/game/enemy.js` Boss AI |
 | 10.8 | **怪物尋路算法改版（Flow Field）+ Boss/特殊怪穿牆（新）** | `src/game/world.js`、`src/game/enemy.js`、`src/game/maps.js` |
+| 10.9 | **死神出現時誤觸 Game Over（BUG）+ 死神高速追殺設計（新）** | `src/game/run.js`、`balance.js`、`content/enemies.js` |
 
 ---
 
@@ -2818,6 +2820,195 @@ Enemies.register({
 
 ---
 
+## 10.9 死神出現時誤觸 Game Over（BUG）+ 死神高速追殺設計（新增）
+
+### 問題 A — 誤觸 Game Over（BUG）
+
+**現象：** 20 分鐘最終 Boss 被擊殺後、死神（Reaper）降臨的過渡期間，偶發「結束遊戲」畫面出現，但玩家角色仍然存活。
+
+**根因分析（`run.js`）：**
+
+死神出現的流程是：
+```
+clearLevel()           ← 擊殺最終 Boss 時呼叫
+→ run.stage = 'cleared'
+→ 啟動 REAPER_DELAY 倒數（30s）
+→ spawnReaper()
+→ 玩家擊殺死神或按 E 離開 → finishRun()
+```
+
+錯誤最可能發生在以下任一點：
+
+| 可能位置 | 錯誤描述 |
+|---|---|
+| `clearLevel()` 回呼 | 呼叫了 `finishRun()` 或 `gameOver()` 而非只設 stage |
+| `run.update()` 的 stage 判斷 | `stage === 'cleared'` 分支未正確 guard，繼續執行 game-over 條件 |
+| `anyPlayerAlive()` 時序 | 在 Boss 死亡幀短暫誤判玩家已死（例如 Boss 死亡爆炸傷害到玩家） |
+| `world.enemies` 清空檢查 | 最終 Boss 死後地圖敵人清空，觸發了「無敵人 + 玩家存活 → 特定結束條件」 |
+
+**修正原則（`run.js`）：**
+
+```js
+// run.update() 中 game-over 判斷：
+// 只在 stage !== 'cleared' && stage !== 'reaper' 時才依 anyPlayerAlive 判 game over
+if (!world.anyPlayerAlive()) {
+  if (this.run.stage === 'cleared' || this.run.stage === 'reaper') {
+    // 死神階段死亡 → 正常 game over（但不重複觸發）
+    if (!this.run._gameOverFired) {
+      this.run._gameOverFired = true;
+      this.gameOver();
+    }
+  } else {
+    this.gameOver();
+  }
+}
+
+// clearLevel() 中：
+clearLevel() {
+  this.run.stage = 'cleared';
+  // 不呼叫 finishRun()、不呼叫 gameOver()
+  // 只設解鎖、啟動倒數
+  this._startReaperTimer();
+}
+```
+
+**額外保護：** 死神出現的前 `0.5` 秒設 `run._reaperGrace = 0.5`，在此期間玩家無敵（避免 Boss 死亡爆炸傷害在幀間誤殺玩家，觸發 game over）。
+
+---
+
+### 問題 B — 死神高速追殺設計
+
+**現況（10.8 + 10.3 已有）：** 死神有 `phaseWall: true`（穿牆），基礎速度已調高（`~140`），並有追及加速機制。
+
+**此節補充具體數值與行為設計（`balance.js` + `content/enemies.js`）：**
+
+**速度參數：**
+```js
+// balance.js
+REAPER_BASE_SPEED: 160,          // 基礎移速（玩家約 100–120）
+REAPER_ACCEL_PER_SEC: 8,         // 每秒加速（最多加速 40 = 200 上限）
+REAPER_MAX_SPEED: 200,           // 最大移速上限
+REAPER_ACCEL_START_DIST: 600,    // 距離玩家超過此距離時才加速（近身不加速）
+```
+
+**追殺行為邏輯（`enemy.js` reaper AI）：**
+
+```js
+// reaper 特殊 AI（每幀執行）
+if (this.id === 'reaper') {
+  const dist = Math.hypot(target.x - this.x, target.y - this.y);
+
+  // 遠離時加速追趕
+  if (dist > BALANCE.REAPER_ACCEL_START_DIST) {
+    this._reaperSpeed = Math.min(
+      (this._reaperSpeed || BALANCE.REAPER_BASE_SPEED) + BALANCE.REAPER_ACCEL_PER_SEC * dt,
+      BALANCE.REAPER_MAX_SPEED
+    );
+  } else {
+    // 近身時恢復基礎速度（保留走位空間，不瞬殺）
+    this._reaperSpeed = Math.max(
+      this._reaperSpeed - BALANCE.REAPER_ACCEL_PER_SEC * dt * 2,
+      BALANCE.REAPER_BASE_SPEED
+    );
+  }
+  this.speed = this._reaperSpeed;
+}
+```
+
+**設計意圖：**
+- 玩家跑圈保持距離 → 死神持續加速，差距越拉越近
+- 玩家反手打死神（近身）→ 死神速度降回，給玩家實際攻擊空間
+- 不可能靠跑圈永遠規避（加速機制確保這點），但也不是「一出現就立即接觸」
+
+**HUD 警告：** 死神降臨時播放紅色邊框閃爍全屏警告（持續 3 秒），中央顯示「☠ 死神降臨！擊殺或逃脫！」大字，之後消失（非遮擋式）。
+
+---
+
+**驗證：**
+- 擊殺最終 Boss 後，玩家存活期間**不出現**「結束遊戲」畫面
+- `run.stage` 在 Boss 死後應為 `'cleared'`，死神出現後應為 `'reaper'`；`__DBG.scene().run.stage` 確認
+- 死神降臨瞬間：全屏紅框警告 + 中央大字 3 秒
+- 死神移速從 160 開始；玩家拉開距離 > 600px 後持續加速至最多 200；靠近後速度降回
+- 玩家被死神擊殺 → 正常 Game Over；`_gameOverFired` 防止重複觸發
+
+---
+
+## 3.10 造型來源角色顯示 + 造型類成就（新增）
+
+### 3.10-A 造型標示來源角色
+
+**問題（截圖 3.8 兩層 UI 的延伸）：** 在衣帽間商店瀏覽造型時，沒有清楚標示「這個造型屬於哪個角色」，特別是在「全部造型」或商店頁中，玩家不知道買了哪個角色的哪個造型。
+
+**設計：** 在 `SKINS` 定義中確保每個造型都有 `charId` 欄位，並在所有顯示造型的位置加上角色名稱標籤：
+
+**`content/characters.js` SKINS 欄位要求：**
+```js
+{
+  id: 'skin_lena_flame',
+  charId: 'lena',          // ← 必填：對應哪個角色
+  name: '火焰之魂',
+  rarity: 'rare',          // 'common' | 'rare' | 'legendary' (隱藏)
+  price: 800,
+  hidden: false,
+  deco(p, oy) { /* ... */ },
+}
+```
+
+**衣帽間第二層（我的造型 / 商店）顯示位置：**
+- 造型卡片右上角小標籤：「`角色名`」深灰底白字（`font: 10px`，`border-radius: 3px`）
+- 商店頁造型卡片底部：「所屬：`角色全名`」灰色小字
+
+**造型商店搜尋 / 篩選（未來預留）：**
+- 第一層角色選擇後，只顯示該角色的造型（已有設計），`charId` 是篩選鍵
+- 若未來有「全部造型」頁籤，每個造型需顯示來源角色
+
+---
+
+### 3.10-B 造型類成就
+
+**新增成就組（`content/achievements.js`）：**
+
+| 成就 ID | 名稱 | 條件 | 解鎖獎勵 |
+|---|---|---|---|
+| `ach_first_skin` | 衣裝初探 | 首次購買任意造型 | 100 金 |
+| `ach_own_5skins` | 造型收藏家 | 持有 5 個不同造型 | 200 金 |
+| `ach_own_15skins` | 時尚達人 | 持有 15 個不同造型 | 500 金 |
+| `ach_own_all_char_skins` | `{角色名}` 的粉絲 | 集齊某角色的全部造型（至少 2 個）| 300 金（每角色各一成就）|
+| `ach_hidden_skin` | 隱藏面紗 | 購買任意隱藏（legendary）造型 | 解鎖「神秘符文」稱號 |
+| `ach_all_hidden` | 幻形師 | 收集全部隱藏造型 | 解鎖「幻形師」稱號 + 永久特效 |
+| `ach_equip_skin_run` | 風格獵人 | 裝備非預設造型完成一次通關 | 150 金 |
+| `ach_weekly_buy` | 週末購物 | 在商店週期重置後的 30 分鐘內購買造型 | 50 金 |
+
+**`{角色名}` 的粉絲成就** 由程式動態生成（遍歷所有有至少 2 個造型的角色）：
+```js
+// content/achievements.js 生成邏輯
+for (const charId of CHARS_WITH_MULTI_SKINS) {
+  Achievements.register({
+    id: `ach_fan_${charId}`,
+    name: `${Characters.get(charId).name} 的粉絲`,
+    desc: `集齊 ${charId} 的全部造型`,
+    check: (meta) => {
+      const skins = SKINS.filter(s => s.charId === charId);
+      return skins.every(s => meta.skinOwned?.[s.id]);
+    },
+    reward: { gold: 300 },
+  });
+}
+```
+
+**成就圖示（`content_icons.js`）：** 各成就對應 `icon_ach_skin_*`，造型相關成就以衣架 / 星形圖示為底。
+
+---
+
+**驗證：**
+- `SKINS` 中每個造型有 `charId`；衣帽間造型卡片右上角顯示角色名標籤
+- 商店頁造型卡底部顯示「所屬：○○○」
+- 成就殿堂出現「造型收藏家」等成就；購買第 5 個造型後觸發、顯示橫幅
+- `ach_fan_{charId}` 成就數量 = 持有 ≥ 2 個造型的角色數量；集齊某角色造型後正確解鎖
+- 隱藏造型成就在購買隱藏造型後觸發
+
+---
+
 # 驗證方式（依分類）
 
 **一、全域視覺**
@@ -2840,7 +3031,7 @@ Enemies.register({
 13. 鐵匠鋪底部可捲到底；營地設施為方格等級條。
 14. 天賦：進度條與金幣同高；分類有框；說明 hover tooltip；底部說明不被遮。
 15. 公會：分頁圖層正確；XP 空時顯示空條；「進行中」框不溢出。
-16. 衣帽間：第一層顯示角色卡（持有造型數 / 總數）；點角色進入第二層（我的造型 + 商店購買）；隱藏造型標 ★ + 金框 + 高價格（3,000–5,000 金）。
+16. 衣帽間：第一層顯示角色卡（持有造型數 / 總數）；點角色進入第二層（我的造型 + 商店購買）；隱藏造型標 ★ + 金框 + 高價格（3,000–5,000 金）；造型卡片右上角顯示「所屬角色名」標籤；成就「衣裝初探」/ 「造型收藏家」等在解鎖時正確觸發橫幅。
 17. 成就：黃字在列表下方不遮擋；有 全部／已達成／未達成 tab；可領時建築上方有黃圓框 `!`；「全部領取」按鈕在有可領成就時啟用，點後 toast「已領取 X 筆」。
 18. 出擊選角縮放後初始武器不與名稱重疊。
 19. 個人小屋無半形標點；ESC 說明獨立一行。
@@ -2874,6 +3065,7 @@ Enemies.register({
 38. 升級 / 鐵砧 / 裝備三選一面板開啟後按 Tab 切換至 build 頁（武器 / 被動 / 羈絆）；再按 Tab 返回選擇面板；`_buildPeek = true` 時無法觸發卡片選擇。
 39. 拾取範圍視覺化：按住 R → 玩家中心出現藍色（拾取）+ 橘色（瞄準）+ 白色（碰撞）虛線圓圈；升天賦後藍圈明顯變大；鬆開立即消失。
 40. Flow Field 尋路：50+ 怪物在房間式地圖正確繞牆追蹤（無卡角）；穿牆怪（`phaseWall:true`）直接穿牆；260 怪上限下流場重建 < 3ms。
+43. 死神 Game Over Bug：擊殺最終 Boss 後玩家存活時不出現結束畫面；`run.stage` 正確為 `'cleared'`→`'reaper'`；死神降臨全屏紅框警告 3 秒；死神速度 160→200（距離加速）；被殺才正常 Game Over。
 41. 守護怪視覺：頭頂金色 🔑 浮動圖示 + 金色雙層輪廓 + HP 條「🔑 守護者」標籤；初次靠近橘色提示條 3 秒；死亡後鑰匙彈出動畫 + 粒子 + 呼吸金圈；HUD 🔑×N 計數；小地圖金色菱形（守護怪）/ 金色點（鑰匙）/ 金色鎖頭（寶箱）。
 42. 持有鑰匙道具欄：HUD 右下角金色脈衝邊框道具欄（大圖示 32×32，無鑰匙時隱藏）；撿起時 Toast + 玩家頭頂小 🔑；大地圖（M 鍵）顯示守護怪金色菱形 ◆（旋轉）+ 地上鑰匙閃爍 🔑 + 鎖定寶箱 🔒／🔓（有鑰匙時綠色閃爍）；首次帶鑰匙開大地圖顯示引導提示一次。
 
@@ -2998,6 +3190,8 @@ Enemies.register({
 - 拾取範圍視覺化（R 鍵按住）：藍色拾取圓 + 橘色瞄準圓 + 白色碰撞圓；`showRange` action 納入按鍵設定系統；初次提示在 HUD 操作欄。
 - 守護怪 + 鑰匙掉落視覺強化：守護怪頭頂金色 🔑 浮動圖示 + 金色雙層邊框 + 「🔑 守護者」標籤；死亡後鑰匙彈出動畫 + 金色粒子 + 持續呼吸金圈；HUD 鑰匙計數；螢幕邊緣指引箭頭；小地圖金色菱形 / 鎖頭標示。
 - 持有鑰匙道具欄：HUD 右下角金色脈衝邊框道具欄（大圖示，無鑰匙時隱藏）+ 玩家頭頂小 🔑 + 撿起 Toast；大地圖（M 鍵）守護怪 ◆ 旋轉 + 地上鑰匙閃爍 + 鎖定寶箱 🔒（無鑰匙紅色）/ 🔓（有鑰匙綠色閃爍）；首次帶鑰匙開大地圖引導提示一次。
+- 修正死神出現時誤觸 Game Over：`clearLevel()` 不呼叫 `gameOver()`；`run.stage` 正確流轉 cleared→reaper；`_gameOverFired` 防重複；降臨前 0.5s 無敵緩衝；死神速度 160→200（距離加速）；降臨時全屏紅框警告 3 秒。
+- 造型來源角色顯示：`SKINS.charId` 必填；造型卡右上角角色名標籤；商店頁底部「所屬：○○○」；新增 8 類造型成就（首購 / 收藏 5–15 / 隱藏造型 / 角色全收集 / 通關 + 裝扮 / 週末購物）。
 - 修正裝備更換舊效果殘留：equipItem 確保先移除舊裝備 statDelta，weapon 欄確保舊簽名武器 removeWeapon。
 - 隱藏房間揭示改版：金框 Modal + 具體道具圖示 / 名稱 / 稀有度 / 說明；頂部橫幅加半透明底框。
 - 鍛造砧三選一新增「都不要（跳過）」按鈕（底部灰框，Esc 同效）；每張卡片加圖示；卡片高度封頂 220×S；選項池擴充至 5 種類型（乘數 / 固定加成 / 武器特效 / 被動補強 / 特殊效果）。
