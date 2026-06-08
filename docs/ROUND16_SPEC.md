@@ -79,6 +79,7 @@ Round 16 是一次以**玩家回饋為核心的 UX 大修**，不改動核心戰
 | 4.17 | **裝備更換後舊效果未清除（BUG）** | `src/game/player.js` `equipItem()` |
 | 4.18 | **鍛造砧三選一：跳過 + 圖示 + 縮小卡片 + 豐富選項種類（新）** | `run.js` `drawAnvilChoice()` |
 | 4.19 | **三選一面板中可按 TAB 查看個人 build（新）** | `run.js` `handleKeys()`、`drawBuildPage()` |
+| 4.20 | **按鍵顯示拾取範圍視覺化（新）** | `run.js` render、`hud.js`、`engine/input.js` |
 
 ### 五、任務與成就系統
 | 編號 | 項目 | 主要異動檔案 |
@@ -132,6 +133,7 @@ Round 16 是一次以**玩家回饋為核心的 UX 大修**，不改動核心戰
 | 10.5 | **裝備掉落機率降低** | `balance.js` |
 | 10.6 | **金幣／道具被磁鐵彈走（排斥 Bug）** | `src/game/pickup.js`（或 `player.js` 吸附邏輯） |
 | 10.7 | **Boss 被卡在地圖牆壁／走廊（BUG）** | `src/game/maps.js`、`src/game/enemy.js` Boss AI |
+| 10.8 | **怪物尋路算法改版（Flow Field）+ Boss/特殊怪穿牆（新）** | `src/game/world.js`、`src/game/enemy.js`、`src/game/maps.js` |
 
 ---
 
@@ -1183,6 +1185,90 @@ if (e.code === 'Tab' && (this.anvilChoice || this.choice || this.equipChoice)) {
 - 按 `Tab` 期間無法誤觸選擇（選擇卡片的 click/keyboard 在 `_buildPeek = true` 時被過濾）
 - 點擊任一選項後 `_buildPeek` 自動清除，下次開啟鐵砧面板從正常視圖開始
 - co-op host 端操作不影響 guest 渲染
+
+---
+
+## 4.20 按鍵顯示拾取範圍視覺化（新增）
+
+**問題：** 玩家升了「感知」天賦或裝備了拾取加成後，看不出來吸取半徑實際有多大，無法評估效益或走位策略。
+
+### 設計
+
+按住 `R`（預設鍵，可透過 Round-11 按鍵設定重設）在局內遊玩畫面上疊加三個輔助圓圈，鬆開後消失（按住式，不佔 toggle 狀態）：
+
+```
+         拾取範圍（藍色虛線）
+         自動瞄準範圍（橘色虛線）
+         角色碰撞半徑（白色細線）
+```
+
+| 圓圈 | 顏色 | 來源 stat | 說明 |
+|---|---|---|---|
+| 拾取（吸取）範圍 | 藍色半透明虛線 `rgba(80,160,255,0.6)` | `player.stats.pickupRadius` | 魂晶 / 金幣自動吸取的半徑 |
+| 自動瞄準範圍 | 橘色半透明虛線 `rgba(255,160,60,0.6)` | `player.stats.aimRange`（或 `BALANCE.AIM_RANGE`） | 武器自動鎖敵最大距離 |
+| 碰撞體積 | 白色細線 `rgba(255,255,255,0.3)` | `player.radius` | 敵人撞擊半徑（定位參考） |
+
+---
+
+### 實作（`run.js` `render()` 末段）
+
+```js
+// run.js render() — 疊加在最上層（UI 層之後）
+if (this._input.held('showRange') && this.world && this.player) {
+  const p = this.player;
+  const cam = this.renderer.camera;
+  const sx = (p.x - cam.x) * cam.scale + W/2;
+  const sy = (p.y - cam.y) * cam.scale + H/2;
+  const scale = cam.scale;
+
+  // 拾取範圍
+  drawRangeCircle(ctx, sx, sy, p.stats.pickupRadius * scale,
+    'rgba(80,160,255,0.6)', '拾取');
+  // 瞄準範圍
+  drawRangeCircle(ctx, sx, sy, p.stats.aimRange * scale,
+    'rgba(255,160,60,0.6)', '瞄準');
+  // 碰撞體積
+  drawRangeCircle(ctx, sx, sy, p.radius * scale,
+    'rgba(255,255,255,0.3)', null);
+}
+
+function drawRangeCircle(ctx, cx, cy, r, color, label) {
+  ctx.save();
+  ctx.setLineDash([6, 4]);
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.stroke();
+  if (label) {
+    ctx.setLineDash([]);
+    ctx.fillStyle = color;
+    ctx.font = '11px sans-serif';
+    ctx.fillText(label, cx + r + 4, cy);
+  }
+  ctx.restore();
+}
+```
+
+---
+
+### 按鍵綁定（`engine/input.js`）
+
+新增 action `'showRange'`，預設 `KeyR`，納入 Round-11 的 `applyKeybinds` 系統（可在按鍵設定頁重設）。顯示邏輯用 `input.held('showRange')`（按住），非 `pressed`（點按）。
+
+---
+
+### HUD 提示
+
+初次進入跑局時，在操作提示底列顯示一行灰字「[R] 顯示範圍」，與 [M] 地圖、[B] 商店同行；玩家按過一次後不再顯示。
+
+---
+
+**驗證：**
+- 按住 R：玩家中心出現藍色（拾取）+ 橘色（瞄準）+ 白色（碰撞）三個虛線圓圈
+- 升「感知」天賦後，拾取圓圈半徑明顯變大（可量測像素差異）
+- 鬆開 R 後圓圈立即消失，不殘留
+- 三選一面板開啟時按 R 仍有效（不衝突）；按鍵設定更改後反映新鍵
 
 ---
 
@@ -2396,6 +2482,187 @@ const pos = safeSpawnPos(world, bossRadius * 2 + 8);
 
 ---
 
+## 10.8 怪物尋路算法改版（Flow Field）+ Boss／特殊怪穿牆（新增）
+
+### 問題
+
+10.7 的「卡牆 0.5 秒後側移」是個臨時 patch，實際上整個尋路邏輯仍是「直線朝玩家衝」，在有牆壁的房間式地圖遇到任何凸角或走廊口就會陷入死鎖（多隻怪互相擠壓更嚴重）。需要從根本換算法。
+
+### 解法：Flow Field Pathfinding（流場尋路）
+
+Flow Field 是 Vampire Survivors / Halls of Torment 等高密度怪物遊戲的標準算法：
+- 以**玩家為終點**對地圖做一次 **BFS / Dijkstra**，為每個可行走格子計算「最短路方向向量」
+- 每隻怪物讀取自己當前格子的方向向量直接移動，**無需各自算路徑**
+- O(地圖格數) 更新一次，全部 260 隻怪 O(1) 查表 → 算法複雜度最優
+- 自然繞牆（BFS 路徑天然避開牆壁）、不卡角、不互相干涉
+
+---
+
+### 10.8-A Flow Field 建構（`world.js`）
+
+```js
+// world.js
+class FlowField {
+  constructor(map) {
+    this.cols = map.cols;    // tile 列數
+    this.rows = map.rows;    // tile 行數
+    this.field = new Float32Array(this.cols * this.rows * 2); // [dx, dy] per cell
+    this._dirty = true;
+  }
+
+  // 以玩家位置為目標重建流場（BFS from target）
+  rebuild(targetX, targetY, map) {
+    const tc = Math.floor(targetX / TILE_SIZE);
+    const tr = Math.floor(targetY / TILE_SIZE);
+    const dist = new Int32Array(this.cols * this.rows).fill(-1);
+    const queue = [tc + tr * this.cols];
+    dist[queue[0]] = 0;
+
+    const dirs = [[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]];
+
+    let head = 0;
+    while (head < queue.length) {
+      const idx = queue[head++];
+      const col = idx % this.cols, row = Math.floor(idx / this.cols);
+      for (const [dc, dr] of dirs) {
+        const nc = col+dc, nr = row+dr;
+        if (nc<0||nr<0||nc>=this.cols||nr>=this.rows) continue;
+        const ni = nc + nr * this.cols;
+        if (dist[ni] !== -1) continue;
+        if (map.solid(nc, nr)) continue;
+        dist[ni] = dist[idx] + 1;
+        queue.push(ni);
+      }
+    }
+
+    // 每格方向 = 指向距離最小的鄰居
+    for (let r = 0; r < this.rows; r++) {
+      for (let c = 0; c < this.cols; c++) {
+        const idx = c + r * this.cols;
+        if (dist[idx] < 0) { this.field[idx*2]=0; this.field[idx*2+1]=0; continue; }
+        let bestDist = Infinity, bdx = 0, bdy = 0;
+        for (const [dc, dr] of dirs) {
+          const nc=c+dc, nr=r+dr;
+          if (nc<0||nr<0||nc>=this.cols||nr>=this.rows) continue;
+          const ni = nc+nr*this.cols;
+          if (dist[ni] >= 0 && dist[ni] < bestDist) {
+            bestDist = dist[ni]; bdx = dc; bdy = dr;
+          }
+        }
+        const len = Math.hypot(bdx, bdy) || 1;
+        this.field[idx*2]   = bdx / len;
+        this.field[idx*2+1] = bdy / len;
+      }
+    }
+    this._dirty = false;
+  }
+
+  // 查詢某世界座標的流場方向
+  sample(worldX, worldY) {
+    const c = Math.floor(worldX / TILE_SIZE);
+    const r = Math.floor(worldY / TILE_SIZE);
+    if (c<0||r<0||c>=this.cols||r>=this.rows) return [0,0];
+    const idx = c + r * this.cols;
+    return [this.field[idx*2], this.field[idx*2+1]];
+  }
+}
+```
+
+**更新時機（`world.update(dt)`）：**
+```js
+// 玩家移動超過 1 tile 距離才重建（避免每幀重算）
+if (Math.hypot(player.x - this._ffLastX, player.y - this._ffLastY) > TILE_SIZE) {
+  this.flowField.rebuild(player.x, player.y, this.map);
+  this._ffLastX = player.x; this._ffLastY = player.y;
+}
+```
+
+多人局（co-op）：每個玩家各維護一份自己的流場；怪物目標是**最近玩家**，以最近玩家的流場導航（`world.nearestPlayer` 已有）。
+
+---
+
+### 10.8-B 敵人 AI 接入流場（`enemy.js`）
+
+```js
+// enemy.js update() — 替換原直線追蹤邏輯
+if (!this.def.phaseWall) {
+  // 普通敵人：讀流場方向
+  const [fx, fy] = world.flowField.sample(this.x, this.y);
+  if (fx !== 0 || fy !== 0) {
+    vx = fx * this.speed;
+    vy = fy * this.speed;
+  } else {
+    // 流場無法到達（孤島）→ fallback 直線（舊邏輯）
+    const dx = target.x - this.x, dy = target.y - this.y;
+    const d = Math.hypot(dx, dy) || 1;
+    vx = dx/d * this.speed; vy = dy/d * this.speed;
+  }
+} else {
+  // 穿牆怪：直線追蹤，不做 tile 碰撞
+  const dx = target.x - this.x, dy = target.y - this.y;
+  const d = Math.hypot(dx, dy) || 1;
+  vx = dx/d * this.speed; vy = dy/d * this.speed;
+}
+```
+
+**移除 10.7 的 stuckTimer bypass patch**（流場已解決問題，patch 不再必要）。
+
+---
+
+### 10.8-C Boss 與特殊怪穿牆（`enemy.js` + 內容定義）
+
+**機制：** 在 `Enemies.register({...})` 的 boss/特殊定義中加 `phaseWall: true`，使該敵人**完全跳過 tile 碰撞**，直線穿越任何牆壁追蹤玩家。
+
+```js
+// content/enemies/*.js — 穿牆敵人定義範例
+Enemies.register({
+  id: 'reaper',
+  // ...existing...
+  phaseWall: true,    // 死神穿牆，永遠追得到
+});
+
+Enemies.register({
+  id: 'final_boss_shadow',
+  boss: true,
+  phaseWall: true,    // 影形 Boss 穿牆，打破走廊限制
+});
+```
+
+**建議設為穿牆的敵人類型：**
+
+| 敵人 | 理由 |
+|---|---|
+| `reaper`（死神） | 死神本就是「絕對追上」的設計，穿牆強化恐懼感 |
+| 全部 `FINAL_BOSS`（20min Boss） | Boss 房已足夠大，穿牆讓 Boss 不被走廊 kite |
+| 帶 `ghost` / `wraith` 標籤的怪物 | 幽靈型怪物語意上就應穿牆 |
+| 帶 `def.stealth` 標籤的特殊精英 | 隱形刺客、影者等特殊精英 |
+
+**不設穿牆的：** 普通雜兵、坦克型怪（玩家可以用房間/走廊作為地形優勢，這是核心戰術空間）。
+
+---
+
+### 10.8-D 性能考量
+
+| 指標 | 舊（直線 + stuckPatch） | 新（Flow Field） |
+|---|---|---|
+| 每幀尋路成本 | O(1) per enemy，但卡牆 | O(1) per enemy 查表 |
+| 流場重建成本 | — | O(W×H) ≈ O(2000 格)，每 ~1 tile 移動一次 |
+| 260 怪同時移動 | 互相擠死 | 各讀自己格子，自然分散 |
+| 記憶體（每玩家） | 0 | `Float32Array(W*H*2)` ≈ `~32KB`（可接受） |
+
+重建閾值 `FLOW_REBUILD_DIST: 32`（約 2 tile，`balance.js`），在高速移動時最多每幀重建一次但有 debounce；`requestIdleCallback` fallback 防止重建阻塞主線程（每幀重建時間 < 2ms on 50×50 map）。
+
+---
+
+**驗證：**
+- 50 隻怪在有多個房間的地圖上，全部正確繞過牆壁追蹤玩家（無卡牆）
+- 玩家躲進走廊，怪物從入口繞進來而不是頂牆
+- 穿牆怪（`phaseWall: true`）直接穿過牆壁追玩家（如死神穿牆追）
+- 流場重建 throttle 正常：`world._ffLastX/Y` 每幀查看，確認非每幀重建
+- 260 怪上限下幀率不明顯下降（DevTools Performance 確認重建 < 3ms）
+
+---
+
 # 驗證方式（依分類）
 
 **一、全域視覺**
@@ -2445,11 +2712,13 @@ const pos = safeSpawnPos(world, bossRadius * 2 + 8);
 31. 祝福神選擇後中央上方橫幅顯示「{贊助者名} 的祝福已生效！+ 效果說明」停留 5 秒；HUD 右下角持久顯示已觸發贊助者小圖示，hover 有 tooltip。
 32. anvilChoice 三選一裝備卡片：「替換後」標頭在三張卡中**同一高度**（desc 區固定 3 行最大，超出截斷 tooltip）；有目前裝備的 slot 在「替換後」末尾顯示橙色「✕ {目前裝備效果}」；空欄位不顯示失去效果區。
 33. 金幣不再被排斥彈走；`pickupRange +60%` 大範圍情況下仍正常吸附，無振盪反彈。
-34. Boss 及大型精英不再卡牆：走廊寬度 ≥ 6 tile；Boss 頂牆 0.5 秒後自動繞路；Boss 出生點確認周圍有足夠空地。
+34. Boss 及大型精英不再卡牆：走廊寬度 ≥ 6 tile；Boss 頂牆 0.5 秒後自動繞路；Boss 出生點確認周圍有足夠空地。（已被 10.8 Flow Field 取代，10.7 stuckTimer patch 可移除）
 35. 隱藏房間揭示 Modal 有金框底色；顯示具體解鎖道具的圖示 + 名稱 + 稀有度 + 一行說明；頂部橫幅有半透明底框。
 36. 替換裝備後舊效果完全清除：換裝前後 `__DBG.scene().player.stats.maxHp` 等屬性數值正確反映新裝備（舊加成不殘留）。
 37. 鍛造砧三選一底部「都不要」按鈕存在；點擊 / 按 Escape 後面板關閉且無任何 stat 變動；每張卡片左上有對應圖示；卡片高度 ≤ 220×S；連開 5 次鐵砧出現至少 2 種非乘法類型選項。
 38. 升級 / 鐵砧 / 裝備三選一面板開啟後按 Tab 切換至 build 頁（武器 / 被動 / 羈絆）；再按 Tab 返回選擇面板；`_buildPeek = true` 時無法觸發卡片選擇。
+39. 拾取範圍視覺化：按住 R → 玩家中心出現藍色（拾取）+ 橘色（瞄準）+ 白色（碰撞）虛線圓圈；升天賦後藍圈明顯變大；鬆開立即消失。
+40. Flow Field 尋路：50+ 怪物在房間式地圖正確繞牆追蹤（無卡角）；穿牆怪（`phaseWall:true`）直接穿牆；260 怪上限下流場重建 < 3ms。
 
 **五、任務與成就**
 30. 存活 2:57 時任務追蹤**不**顯示滿格／完成樣式。
@@ -2568,6 +2837,8 @@ const pos = safeSpawnPos(world, bossRadius * 2 + 8);
 - anvilChoice 三選一卡片固定版面：「替換後」同高對齊（desc 固定 3 行）；末尾顯示橙色「✕ 失去效果」，揭示替換後消失的目前裝備文字效果。
 - 修正金幣排斥 Bug：吸附速度 clamp 到 min(ATTRACT_SPEED, dist)，避免過衝反向；進入吸附狀態後停用 entity-to-entity 推力。
 - 修正 Boss 卡牆：走廊寬 4→6 tile（地圖生成）；Boss AI 頂牆 0.5s 觸發繞路；Boss spawn 前驗證出生點空地。
+- 怪物尋路改為 Flow Field 算法（BFS 建流場，每 ~1 tile 移動重建）：雜兵讀流場方向自然繞牆，移除 stuckTimer patch；Boss / 特殊怪（`phaseWall:true`）直接穿牆追蹤（死神、FINAL_BOSS、幽靈型）。
+- 拾取範圍視覺化（R 鍵按住）：藍色拾取圓 + 橘色瞄準圓 + 白色碰撞圓；`showRange` action 納入按鍵設定系統；初次提示在 HUD 操作欄。
 - 修正裝備更換舊效果殘留：equipItem 確保先移除舊裝備 statDelta，weapon 欄確保舊簽名武器 removeWeapon。
 - 隱藏房間揭示改版：金框 Modal + 具體道具圖示 / 名稱 / 稀有度 / 說明；頂部橫幅加半透明底框。
 - 鍛造砧三選一新增「都不要（跳過）」按鈕（底部灰框，Esc 同效）；每張卡片加圖示；卡片高度封頂 220×S；選項池擴充至 5 種類型（乘數 / 固定加成 / 武器特效 / 被動補強 / 特殊效果）。
