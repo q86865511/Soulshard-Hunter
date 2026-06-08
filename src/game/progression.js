@@ -23,7 +23,7 @@ export function getRunChoices(run, player, n = 3) {
     if (!inst.def.evolved && !inst.def.equipped && inst.level < weaponMaxLevel(inst.def)) pool.push({ kind: 'weaponup', id: inst.def.id, def: inst.def, weight: 9, level: inst.level });
   }
   if (player.weapons.filter((w) => !w.def.equipped).length < MAX_WEAPONS) {   // signature (equip) weapons don't count toward the cap
-    for (const w of weaponPool()) if (!player.hasWeapon(w.id)) pool.push({ kind: 'weapon', id: w.id, def: w, weight: (w.weight ?? 5) * 0.8 });
+    for (const w of weaponPool()) if (!player.hasWeapon(w.id) && !(run.evolvedWeaponIds && run.evolvedWeaponIds.has(w.id))) pool.push({ kind: 'weapon', id: w.id, def: w, weight: (w.weight ?? 5) * 0.8 });   // 10.1: skip weapons already consumed by an evolution
   }
   const atPassiveCap = (run.abilities || []).length >= MAX_PASSIVES;
   for (const a of eligibleAbilities(run)) {

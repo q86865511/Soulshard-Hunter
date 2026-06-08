@@ -29,3 +29,18 @@
 ### 驗證
 - **伺服器單元/整合測試全綠**：`server/test/smoke.mjs` **86/86**（含新增 43 條：feedback CRUD＋權限、presence playing 顯示/防冒名/停止、稽核每動作留痕＋非 admin 403、stats 欄位、player inspect 含 404）、`server/test/social.smoke.mjs` **65/65**（adminOverview 變更未破壞 realtime）。`fakepool.mjs`（dev 後端）同步補齊全部 admin 查詢攔截。
 - **前端**：`node tools/serve.mjs` 載入無錯（`window.__GAME_ERROR__` 為 null，registry 計數不變）；走馬燈、回饋 Modal、`clientSid` 即時驗證通過；mock 後台回應驅動七個分頁＋玩家詳情抽屜，全部渲染無誤（截圖：統計儀表板＋中央走馬燈）。
+
+---
+
+## 批次 B11 — 核心模擬 Bug 群（第十章，independent track）
+
+**範圍：** 與 UI keystone 無依賴、可 sim 驗證的後期關卡 Bug。
+
+- **10.1 進化後基礎武器仍入升級池（BUG）**：`player.js` `checkEvolve()`／`fuseWeapons()` 在移除被消耗的基礎武器前，記錄 `run.evolvedWeaponIds.add(baseId)`（lazy-init Set）；`progression.js getRunChoices()` 的新武器池排除 `run.evolvedWeaponIds` 內的 id——進化／合成後不再把基礎武器當「新武器」重複提供。
+- **10.5 裝備掉落機率降低**：新增 `BALANCE.GEAR_DROP_MULT = 0.7`，**僅**乘在 `world.js dropLoot()` 的「一般敵人裝備掉落」那一行；Boss 的保證裝備掉落（上方無條件分支）不受影響——減少戰鬥中頻繁被裝備三選一打斷。
+- **10.6 金幣／道具被磁鐵彈走（排斥 BUG）**：`pickup.js` 吸附速度改為恆正（舊式 `220 - d*2` 在 pickupRange > ~110 時變負 → 道具反向逃離玩家）；並把每幀位移 clamp 到剩餘距離，避免越過玩家後反覆抖動。
+- **10.2 最終 Boss 死後仍生怪（BUG）**：對照原始碼確認 `spawnTick`／`miniBossTick`／`eventsTick` 皆已 gate 於 `this.cleared`，`clearLevel()` 設 `this.cleared`／`this.run.cleared`——**已實作，本批僅驗證**。
+
+### 驗證
+- 單元（`preview_eval` 直接驅動模組）：`getRunChoices` 在 `evolvedWeaponIds` 含 `w_soulbolt` 時不提供該武器；`Pickup.update` 下遠距金幣（pickupRange 200、d=150）向玩家移動（150→100）且無方向翻轉（排斥已消除）。
+- 整合：`__DBG.startRun()` 連跑 3600 幀（60s）零錯誤（`__GAME_ERROR__` null）、33 擊殺、地面掉落物正常流動、玩家存活——`dropLoot`（含新 gear mult）與磁鐵在真實跑局中運作正常。

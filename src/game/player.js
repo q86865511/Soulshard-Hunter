@@ -68,6 +68,7 @@ export class Player {
     const evoDef = Weapons.get(d.evolveInto);
     if (!evoDef) return;   // evolution target missing — keep the base weapon rather than deleting it (would lose a slot for the rest of the run)
     // replace with evolved weapon
+    if (this.run) (this.run.evolvedWeaponIds || (this.run.evolvedWeaponIds = new Set())).add(d.id);   // 10.1: don't re-offer the consumed base weapon as a "new weapon"
     this.weapons = this.weapons.filter((w) => w !== inst);
     this.weapons.push({ def: evoDef, level: 1, t: 0, st: {}, forge: inst.forge });   // inherit base weapon's forge mods
     if (world) { world.particles.ring(this.x, this.y, P.goldL, 24, 140); world.particles.text(this.x, this.y - 20, '武器進化！', { color: P.goldL, size: 16, life: 1.2 }); Sfx.play('levelup'); }
@@ -81,6 +82,7 @@ export class Player {
     target.level = weaponMaxLevel(target.def);
     const d = target.def;
     if (d.evolveInto) {
+      if (this.run) (this.run.evolvedWeaponIds || (this.run.evolvedWeaponIds = new Set())).add(d.id);   // 10.1: consumed base weapon stays out of the new-weapon pool
       this.weapons = this.weapons.filter((w) => w !== target);
       const evo = Weapons.get(d.evolveInto);
       this.weapons.push(evo ? { def: evo, level: 1, t: 0, st: {}, forge: target.forge } : target);   // inherit forge mods on fusion
