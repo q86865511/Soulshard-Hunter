@@ -32,6 +32,7 @@ Round 16 是一次以**玩家回饋為核心的 UX 大修**，不改動核心戰
 | 1.4 | 金幣文字統一為圖示 (原#35) | 全域 UI 字串 |
 | 1.5 | 選單／按鈕對比與外框 (原#24) | `hub.js` ESC menu + 各 panel |
 | 1.6 | **全局 UI 尺寸一致化（選單→子面板字型與元件比例統一）（新）** | `engine/renderer.js`、`hub.js`、`run.js`、`scenes/title.js`、`hud.js` |
+| 1.7 | **Hub ESC 選單垂直置中修正（新）** | `scenes/hub.js` |
 
 ### 二、城鎮：對話與場景
 | 編號 | 項目 | 主要異動檔案 |
@@ -110,6 +111,7 @@ Round 16 是一次以**玩家回饋為核心的 UX 大修**，不改動核心戰
 | 7.2 | 魂晶銀行借貸系統 (原#34) | 新 content + hub panel + server |
 | 7.3 | **後台「遊玩中」即時可見（新）** | `api.js`、`realtime.js`、`server.js`、`ui.js`、`run.js` |
 | 7.4 | Service Worker 離線快取 (原#17) | `sw.js`（新檔）、`index.html` |
+| 7.5 | **廣播公告改為中央走馬燈（新）** | `net/ui.js` |
 
 ### 八、戰鬥數值與 build 系統
 | 編號 | 項目 | 主要異動檔案 |
@@ -354,6 +356,55 @@ export const UI = {
 - 「選單選項 → 點擊進入 → 子面板內容」的字體差距 ≤ 一個代幣等級（TITLE→HEADING 或 HEADING→BODY），不出現跨越兩級以上的跳躍
 - 所有主要行動按鈕高度均為 `36×S`（±2px 容差）
 - 800×500 與 1920×1080 下視覺比例均正確（代幣 ×S 縮放生效）
+
+---
+
+## 1.7 Hub ESC 選單垂直置中修正（新增）
+
+**問題描述（截圖觀察）：**
+Hub 場景按 Esc 開啟的選單面板（紅框區域）中，按鈕群組（繼續遊戲／帳號／多人連線／排行榜／設定／返回主畫面）垂直起始位置偏高，面板下半部留有過多空白——選單整體在面板內未上下置中。
+
+**根因：**
+`scenes/hub.js` 的選單繪製邏輯以固定 `padding-top` 為按鈕起點，未計算整組內容（選單標題 + 按鈕群 + 間距）的總高，也未根據面板高度動態置中。
+
+**修正方式：**
+
+```js
+// scenes/hub.js — drawEscMenu()（或 drawMenu()）
+
+const BTN_H   = UI.BTN_H   * S;          // 36 × S
+const GAP     = UI.GAP_MD  * S;          // 12 × S
+const TITLE_H = UI.FONT_TITLE * S        // 標題文字高
+              + UI.GAP_LG * S;           // 標題與按鈕群之間的間距
+
+const groupH  = items.length * BTN_H + (items.length - 1) * GAP;  // 按鈕群總高
+const totalH  = TITLE_H + groupH;                                   // 全部內容總高
+
+// 垂直置中起點（panel 上下置中）
+const startY  = panelY + (panelH - totalH) / 2;
+
+// 1. 繪製標題
+drawText('暫停', panelCx, startY + UI.FONT_TITLE * S * 0.5, ...);
+
+// 2. 從 titleBottom 開始依序繪製按鈕
+const btnY0 = startY + TITLE_H;
+items.forEach((label, i) => {
+  drawBtn(label, panelX + btnPadX, btnY0 + i * (BTN_H + GAP), btnW, BTN_H);
+});
+```
+
+> 若 ESC 選單本身無獨立標題文字（即按鈕群直接填滿面板），則去掉 `TITLE_H`，直接以 `startY = panelY + (panelH - groupH) / 2` 為按鈕群起點。
+
+**遷移注意：**
+- 若 `panelY`/`panelH` 使用的是螢幕座標而非 canvas 座標，需先換算 (`S` 倍數）。
+- 此修正需同步套用至 1.6 的 `UI.BTN_H`、`UI.GAP_MD` 代幣，確保一致性。
+
+---
+
+**驗證：**
+- 開啟 Hub ESC 選單，面板內上方留白 ≈ 下方留白（目視偏差 ≤ 4px）。
+- 視窗 800×500 與 1920×1080 下均置中正確。
+- 6 個選項按鈕全部完整可見，無截斷。
 
 ---
 
@@ -1960,6 +2011,84 @@ self.addEventListener('fetch', e => {
 
 ---
 
+## 7.5 廣播公告改為中央走馬燈（新增）
+
+**現況：** Round 14 後台 `POST /api/admin/broadcast` 推送 `{t:'broadcast', msg}` 訊息至所有連線客戶端；`net/ui.js` 收到後以靜態橫幅 banner 疊加於畫面（固定貼頂或貼底），文字靜止不動。
+
+**需求：** 改為「中央走馬燈」——訊息文字從畫面右側滾入、橫跨畫面垂直正中央的水平線、滾出畫面左側，重複 3 圈後自動淡出消失；視覺上比靜態橫幅更搶眼、不阻擋操作。
+
+**實作方式（DOM 疊加層 + CSS 動畫）：**
+
+```js
+// net/ui.js — showBroadcast(msg)
+function showBroadcast(msg) {
+  // 移除重複公告（同時只顯示一條）
+  const existing = document.getElementById('broadcast-ticker');
+  if (existing) existing.remove();
+
+  // 文字重複 3 次填滿走馬燈（模擬多圈滾動效果）
+  const repeat = `📢  ${msg}  ·  📢  ${msg}  ·  📢  ${msg}`;
+
+  const el = document.createElement('div');
+  el.id = 'broadcast-ticker';
+  el.textContent = repeat;
+  document.body.appendChild(el);
+
+  // 點擊可提早關閉
+  el.addEventListener('click', () => el.remove());
+
+  // 動畫播完自動移除
+  el.addEventListener('animationend', () => el.remove());
+}
+```
+
+```css
+/* 注入至 index.html <head> 或 net/ui.js 內 injectStyle() */
+#broadcast-ticker {
+  position : fixed;
+  top       : 50%;
+  left      : 0;
+  transform : translateY(-50%);
+  width     : 100%;
+  font-size : 20px;
+  font-weight: bold;
+  color     : #fffbe0;
+  background: rgba(20, 6, 0, 0.80);
+  padding   : 10px 0;
+  white-space: nowrap;
+  text-indent: 100vw;           /* 起始位置在右側螢幕外 */
+  pointer-events: none;         /* 穿透，讓遊戲操作不受影響 */
+  z-index   : 9999;
+  animation : tickerScroll 14s linear 1 forwards;
+  cursor    : pointer;
+}
+/* 點擊關閉需啟用 pointer-events */
+#broadcast-ticker:hover {
+  pointer-events: auto;
+}
+@keyframes tickerScroll {
+  from { text-indent:  100vw; }
+  to   { text-indent: -300%; }
+}
+```
+
+**補充規則：**
+- 訊息超過 80 字時截斷並附「…」，避免走馬燈過長。
+- 同時最多顯示一條走馬燈；新廣播觸發時舊的立即替換。
+- **後端無需異動**：`/api/admin/broadcast` 路徑與 `{t:'broadcast', msg}` 訊息格式保持不變；僅改 `net/ui.js` 中收到此 type 時的前端渲染邏輯。
+- `injectStyle()` helper（已存在或新增至 `net/ui.js`）統一注入 CSS，避免 `<style>` 重複插入。
+
+---
+
+**驗證：**
+- 後台廣播一條訊息 → 客戶端畫面垂直中央出現捲動走馬燈（不偏上／不偏下）。
+- 文字滾完 ~3 圈後自動消失；DevTools → Elements 確認 `#broadcast-ticker` DOM 元素已移除。
+- 點擊走馬燈可提早關閉。
+- 廣播走馬燈動畫期間，角色移動／攻擊等遊戲操作不受影響（`pointer-events: none` 穿透正常）。
+- 連續廣播兩條：第二條出現時第一條立即替換，不堆疊。
+
+---
+
 # 八、戰鬥數值與 build 系統
 
 ## 8.1 拾取範圍與武器範圍分離且皆可升級（新）
@@ -3152,6 +3281,7 @@ for (const charId of CHARS_WITH_MULTI_SKINS) {
 4. 金幣圖示：全遊戲「金／金幣」皆為圖示，無混用。
 5. 按鈕對比：ESC 選單與各 panel 按鈕邊框清晰，hover 高亮。
 6. UI 尺寸一致化：標題畫面大按鈕字體 = Hub 面板主標題（同 `FONT_TITLE×S` = 22px）；ESC 選單選項 = Hub 面板分區標題（`FONT_HEADING×S` = 16px）；選單→子面板的字體差距不超過一個代幣等級；主要行動按鈕高度均為 `36×S`（±2px）。
+7. Hub ESC 選單垂直置中：面板內按鈕群組上下留白相近（目視偏差 ≤ 4px）；視窗 800×500 與 1920×1080 下均成立；6 個選項按鈕完整可見、無截斷。
 
 **二、城鎮對話與場景**
 6. 對話框右側出現英雄頭像 + 名字；換角色後正確；左下「◀ 上一頁」第 2 頁起出現、可往回。
@@ -3223,6 +3353,7 @@ for (const charId of CHARS_WITH_MULTI_SKINS) {
 39. 魂晶銀行：可借款；下一局結算正確扣還（含息）；有欠款不可再借；額度隨公會等級解鎖。
 40. **後台遊玩中**：開一局（登入或訪客）後，管理員後台「遊玩中」清單即時出現該玩家（暱稱／生態／難度／已遊玩秒數）；結束後約 60 秒內消失。
 41. Service Worker：DevTools → Application 顯示已啟動；斷網重整仍可進入；MP3 正常播放。
+42. 廣播走馬燈：後台廣播一條訊息 → 客戶端畫面垂直正中央出現捲動橫幅（不偏上／不偏下）；文字滾完約 3 圈後自動消失，DevTools Elements 確認 `#broadcast-ticker` 已移除；點擊可提早關閉；廣播期間角色操作正常（pointer-events 穿透）；連發兩條時第二條立即替換第一條。
 
 **八、戰鬥數值與 build 系統**
 42. 三種範圍分離：天賦／升級面板用「拾取範圍／武器射程／作用範圍」三個不同名稱，互不混用。
@@ -3263,6 +3394,7 @@ for (const charId of CHARS_WITH_MULTI_SKINS) {
 - 字型改標楷體（含 fallback 鏈）；半形標點全面改全形；金幣文字統一為圖示。
 - UI 縮放改連續值，修正小視窗跑版與大螢幕過大；選單／按鈕加外框與色差。
 - 全局 UI 尺寸一致化：建立 `UI` 代幣系統（`FONT_TITLE/HEADING/BODY/CAPTION`、`BTN_H`、`ICON_SM/MD/LG`、`GAP_SM/MD/LG`）；標題選單與子面板字體差距不超過一個代幣等級，消除「選單大→子面板小」的視覺割裂。
+- Hub ESC 選單垂直置中：修正按鈕群組固定 padding-top 導致面板下半部空白的問題；改為計算標題 + 按鈕群總高後動態置中，800×500 與 1920×1080 均正確。
 
 【城鎮對話與場景】
 - 對話框右側新增主角頭像與名稱、左下新增上一頁按鈕。
@@ -3355,4 +3487,5 @@ for (const charId of CHARS_WITH_MULTI_SKINS) {
 - 魂晶銀行借貸系統（隨公會等級解鎖額度，下一局自動還款含息）。
 - 後台「遊玩中」即時可見（REST 心跳，登入者與訪客通用，解決遊玩中玩家隱形問題）。
 - Service Worker 離線快取（靜態資源 + MP3）。
+- 廣播公告改為中央走馬燈：後台推播訊息改以 DOM 疊加層 + CSS 走馬燈動畫呈現（文字橫跨畫面中央水平線，重複 3 圈後自動移除）；點擊可提早關閉；後端 `/api/admin/broadcast` 介面不變。
 ```
