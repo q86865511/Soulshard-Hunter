@@ -3,6 +3,8 @@
 > 本文件供 AI／開發者實作參考。彙整玩家實際遊玩回饋，依**主題分類**整理；同一區域或性質的修改集中在同一章。
 > 編號採「章.項」格式，並附 `(原#N)` 對照早期討論順序。
 
+> **本版為「最終修改前」整併版（Round 16 spec consolidation pass）：** 章節錯位已修正（3.10 歸回第三章、5.4 排回 5.5 前）、4.9／4.9-B 成就快顯統一、第七章新增後台三模組（7.6 稽核日誌／7.7 數據統計儀表板／7.8 玩家詳情抽屜），並對照現行原始碼修正數處會誤導實作的描述（10.9 改用布林 `this.cleared`／`reaperSpawned` 而非字串 `run.stage`；9.4 標明需新建重算管線、與 4.17 同根；10.2 已大致實作僅需驗證；8.1 `AIM_RANGE` 涉及 gen 檔覆寫；5.4 真實欄位為 `goal`／`trigger`）。實作策略與分批 PR 規劃見計畫檔。
+
 ## Context
 
 Round 16 是一次以**玩家回饋為核心的 UX 大修**，不改動核心戰鬥數值平衡，聚焦於：
@@ -115,6 +117,9 @@ Round 16 是一次以**玩家回饋為核心的 UX 大修**，不改動核心戰
 | 7.3 | **後台「遊玩中」即時可見（新）** | `api.js`、`realtime.js`、`server.js`、`ui.js`、`run.js` |
 | 7.4 | Service Worker 離線快取 (原#17) | `sw.js`（新檔）、`index.html` |
 | 7.5 | **廣播公告改為中央走馬燈（新）** | `net/ui.js` |
+| 7.6 | **後台稽核日誌（新）** | `server/src/{db,server,realtime}.js`、`net/{api,ui}.js`、`server/test/*` |
+| 7.7 | **後台數據統計儀表板（新）** | `server/src/server.js`、`net/{api,ui}.js`、`server/test/*` |
+| 7.8 | **後台玩家詳情抽屜（新）** | `server/src/server.js`、`net/{api,ui}.js`、`server/test/*` |
 
 ### 八、戰鬥數值與 build 系統
 | 編號 | 項目 | 主要異動檔案 |
@@ -763,6 +768,82 @@ function claimAll(META) {
 
 ---
 
+## 3.10 造型來源角色顯示 + 造型類成就（新增）
+
+### 3.10-A 造型標示來源角色
+
+**問題（截圖 3.8 兩層 UI 的延伸）：** 在衣帽間商店瀏覽造型時，沒有清楚標示「這個造型屬於哪個角色」，特別是在「全部造型」或商店頁中，玩家不知道買了哪個角色的哪個造型。
+
+**設計：** 在 `SKINS` 定義中確保每個造型都有 `charId` 欄位，並在所有顯示造型的位置加上角色名稱標籤：
+
+**`content/characters.js` SKINS 欄位要求：**
+```js
+{
+  id: 'skin_lena_flame',
+  charId: 'lena',          // ← 必填：對應哪個角色
+  name: '火焰之魂',
+  rarity: 'rare',          // 'common' | 'rare' | 'legendary' (隱藏)
+  price: 800,
+  hidden: false,
+  deco(p, oy) { /* ... */ },
+}
+```
+
+**衣帽間第二層（我的造型 / 商店）顯示位置：**
+- 造型卡片右上角小標籤：「`角色名`」深灰底白字（`font: 10px`，`border-radius: 3px`）
+- 商店頁造型卡片底部：「所屬：`角色全名`」灰色小字
+
+**造型商店搜尋 / 篩選（未來預留）：**
+- 第一層角色選擇後，只顯示該角色的造型（已有設計），`charId` 是篩選鍵
+- 若未來有「全部造型」頁籤，每個造型需顯示來源角色
+
+---
+
+### 3.10-B 造型類成就
+
+**新增成就組（`content/achievements.js`）：**
+
+| 成就 ID | 名稱 | 條件 | 解鎖獎勵 |
+|---|---|---|---|
+| `ach_first_skin` | 衣裝初探 | 首次購買任意造型 | 100 金 |
+| `ach_own_5skins` | 造型收藏家 | 持有 5 個不同造型 | 200 金 |
+| `ach_own_15skins` | 時尚達人 | 持有 15 個不同造型 | 500 金 |
+| `ach_own_all_char_skins` | `{角色名}` 的粉絲 | 集齊某角色的全部造型（至少 2 個）| 300 金（每角色各一成就）|
+| `ach_hidden_skin` | 隱藏面紗 | 購買任意隱藏（legendary）造型 | 解鎖「神秘符文」稱號 |
+| `ach_all_hidden` | 幻形師 | 收集全部隱藏造型 | 解鎖「幻形師」稱號 + 永久特效 |
+| `ach_equip_skin_run` | 風格獵人 | 裝備非預設造型完成一次通關 | 150 金 |
+| `ach_weekly_buy` | 週末購物 | 在商店週期重置後的 30 分鐘內購買造型 | 50 金 |
+
+**`{角色名}` 的粉絲成就** 由程式動態生成（遍歷所有有至少 2 個造型的角色）：
+```js
+// content/achievements.js 生成邏輯
+for (const charId of CHARS_WITH_MULTI_SKINS) {
+  Achievements.register({
+    id: `ach_fan_${charId}`,
+    name: `${Characters.get(charId).name} 的粉絲`,
+    desc: `集齊 ${charId} 的全部造型`,
+    check: (meta) => {
+      const skins = SKINS.filter(s => s.charId === charId);
+      return skins.every(s => meta.skinOwned?.[s.id]);
+    },
+    reward: { gold: 300 },
+  });
+}
+```
+
+**成就圖示（`content_icons.js`）：** 各成就對應 `icon_ach_skin_*`，造型相關成就以衣架 / 星形圖示為底。
+
+---
+
+**驗證：**
+- `SKINS` 中每個造型有 `charId`；衣帽間造型卡片右上角顯示角色名標籤
+- 商店頁造型卡底部顯示「所屬：○○○」
+- 成就殿堂出現「造型收藏家」等成就；購買第 5 個造型後觸發、顯示橫幅
+- `ach_fan_{charId}` 成就數量 = 持有 ≥ 2 個造型的角色數量；集齊某角色造型後正確解鎖
+- 隱藏造型成就在購買隱藏造型後觸發
+
+---
+
 ## 3.11 個人小屋統計欄文字溢出修正 + 遊戲用語統一（新增）
 
 ### 3.11-A 統計欄文字溢出修正
@@ -984,6 +1065,8 @@ ctx.restore();
 - **Reaper 時段或已通關時不彈窗**（正常流程）。
 
 ## 4.9 跑局中成就解鎖通知橫幅 (原#13)
+
+> **整併註記：4.9 與 4.9-B 統一為單一全域 `AchievementToasts`（見 4.9-B）。** 下方 4.9 的 run-local `_achToasts` 為原始設計、保留作橫幅樣式參考；**實作以 4.9-B 的全域佇列為準**（hub 與 run 共用同一套），不要同時保留兩套。對應實作批次見計畫檔 B9。
 
 **觸發點：** `checkAchievements()` 解鎖時額外呼叫 `run.queueAchievementToast(ach)`。
 
@@ -1321,6 +1404,8 @@ function drawLostEffect(slot, cardX, cardY, S) {
 - 橫幅與 Modal 分離：橫幅先閃爍 2 秒，消失後若玩家進入隱藏房間觸發 Modal。
 
 ## 4.17 裝備更換後舊效果未清除（BUG）
+
+> **實作註記（對照原始碼）：本專案採「模式 1」——效果經 `def.apply(p)` 指令式累加，而 `equipItem()`（位於 `content/equipment.js`，非 `player.js`）換裝時未先反向移除舊效果，即為本 BUG 根因。** 實作走模式 1 的反向移除即可；因目前**無**集中重算函式，下方「模式 2（完整重算）」需先建立重算管線（見 9.4），故 4.17 與 9.4 一起落地（計畫檔 B11→B13）。
 
 **問題：** 玩家替換裝備（如把護甲 A 換成護甲 B）後，**護甲 A 給予的屬性加成仍然殘留在玩家身上**（例如舊護甲 +30 HP 換掉後，HP 沒有扣回 30）。
 
@@ -1787,37 +1872,9 @@ for (const c of world.chests) {
 - 每條追蹤在進度條旁顯示 `(當前/目標)`：時間 `(2:57 / 3:00)`、計數 `(148 / 300)`、百分比 `49%`。
 - 數值以淺色小字顯示於進度條右側／下方；hover 顯示完整任務說明 tooltip。
 
-## 5.5 任務循序解鎖（前置任務）（新增）
-
-**問題：** 目前所有任務同時可接，玩家可能跳過主線直接做後期任務，導致劇情／系統引導斷裂，也讓任務清單顯得龐雜。
-
-**目標：** 同一「任務系列」中，必須完成前一個任務才能解鎖下一個。
-
-**A. Quest def 新增 `requires` 欄位（`content/quests.js`）：**
-```js
-// 任務定義範例
-{ id: 'story_2', name: '第一次出擊', requires: 'story_1', ... }
-{ id: 'story_3', name: '斬殺首領',  requires: 'story_2', ... }
-{ id: 'legend_1', name: '傳奇初章', requires: null, ... }  // null = 無前置，直接可接
-```
-- 非系列任務（支線、每日）`requires: null`，行為不變。
-- 一個任務最多一個前置（線性鏈）；若需分支，由設計時排列 id 控制。
-
-**B. `hub.js` guild panel 顯示狀態：**
-
-| 狀態 | 判斷條件 | 顯示 |
-|------|---------|------|
-| 可接 | `requires` 已完成（或 null） | 正常顯示，可點「接受」 |
-| 鎖定 | `requires` 未完成 | 灰色半透明行，右側「🔒 需先完成：{前置名}」|
-| 進行中 | 已接受、未完成 | 正常追蹤 |
-| 已完成 | `progress >= target` | 「領取」按鈕啟用 |
-
-- 鎖定任務**仍顯示**（不隱藏），讓玩家知道前方有更多任務等待，形成引導感。
-- hover 鎖定行時 tooltip 顯示完整前置任務名與進度。
-
-**C. HUD 追蹤（`hud.js`）：** 鎖定任務不加入追蹤清單（`META.quest.tracked` 過濾掉 locked 的 id）。
-
 ## 5.4 隱藏任務／傳奇之證等特殊任務無法領取（BUG）
+
+> **欄位修正（對照原始碼）：任務真實欄位為 `goal` + `trigger(m)`（非 `target`／`revealed`）。** 下方路徑 B 的 `this.target ?? this.goal` fallback 已涵蓋；診斷與實作時以 `goal`／`trigger` 為準。
 
 **問題：** 公會委託面板中，「隱藏任務」（以 `hidden:true` 標記的 quest def）和「傳奇之證」等特定類型任務，明明已完成（`progress >= target`），但「領取」按鈕點下去無反應，或按鈕直接不出現。
 
@@ -1851,6 +1908,36 @@ isCompleted(META) {
 2. 找出 `content/quests.js` 每個特殊類型任務的 `isCompleted()` / `progress()` 實作，確認讀取的欄位名稱一致。
 3. 加 console 日誌或 `__DBG` 工具輸出所有未領取任務的 `{id, progress, target, hidden, revealed, canClaim}` 確認哪個欄位造成 false。
 4. 修正後確認「傳奇之證」「隱藏任務」「特殊系列任務」均可正常領取。
+
+## 5.5 任務循序解鎖（前置任務）（新增）
+
+**問題：** 目前所有任務同時可接，玩家可能跳過主線直接做後期任務，導致劇情／系統引導斷裂，也讓任務清單顯得龐雜。
+
+**目標：** 同一「任務系列」中，必須完成前一個任務才能解鎖下一個。
+
+**A. Quest def 新增 `requires` 欄位（`content/quests.js`）：**
+```js
+// 任務定義範例
+{ id: 'story_2', name: '第一次出擊', requires: 'story_1', ... }
+{ id: 'story_3', name: '斬殺首領',  requires: 'story_2', ... }
+{ id: 'legend_1', name: '傳奇初章', requires: null, ... }  // null = 無前置，直接可接
+```
+- 非系列任務（支線、每日）`requires: null`，行為不變。
+- 一個任務最多一個前置（線性鏈）；若需分支，由設計時排列 id 控制。
+
+**B. `hub.js` guild panel 顯示狀態：**
+
+| 狀態 | 判斷條件 | 顯示 |
+|------|---------|------|
+| 可接 | `requires` 已完成（或 null） | 正常顯示，可點「接受」 |
+| 鎖定 | `requires` 未完成 | 灰色半透明行，右側「🔒 需先完成：{前置名}」|
+| 進行中 | 已接受、未完成 | 正常追蹤 |
+| 已完成 | `progress >= target` | 「領取」按鈕啟用 |
+
+- 鎖定任務**仍顯示**（不隱藏），讓玩家知道前方有更多任務等待，形成引導感。
+- hover 鎖定行時 tooltip 顯示完整前置任務名與進度。
+
+**C. HUD 追蹤（`hud.js`）：** 鎖定任務不加入追蹤清單（`META.quest.tracked` 過濾掉 locked 的 id）。
 
 ---
 
@@ -2360,6 +2447,154 @@ function showBroadcast(msg) {
 - 廣播走馬燈動畫期間，角色移動／攻擊等遊戲操作不受影響（`pointer-events: none` 穿透正常）。
 - 連續廣播兩條：第二條出現時第一條立即替換，不堆疊。
 
+## 7.6 後台稽核日誌（Admin Audit Log）（新增）
+
+**動機：** 目前僅 `bans` 表持久化封鎖紀錄；kick／close-room／broadcast／delete-run／回饋改狀態等管理動作**完全無紀錄**，事後無從追溯「誰在何時做了什麼」。新增稽核日誌，所有管理變更皆留痕。
+
+**7.6-A 資料庫（`server/src/db.js`，`initSchema()` 接在 `feedback` 表之後）：**
+```sql
+CREATE TABLE IF NOT EXISTS admin_logs (
+  id             bigserial PRIMARY KEY,
+  admin_username text NOT NULL,
+  action         text NOT NULL,        -- 'kick' | 'ban' | 'unban' | 'close-room' | 'broadcast' | 'delete-run' | 'feedback'
+  target         text,                 -- 受影響對象（uid／username／ip／room code／run id）
+  detail         text,                 -- 補充（原因、訊息內容截斷、狀態變更等）
+  created_at     timestamptz DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS admin_logs_time_idx ON admin_logs (created_at DESC);
+```
+
+**7.6-B 集中記錄 helper（`server/src/server.js`）：**
+```js
+async function logAdmin(req, action, target, detail) {
+  try {
+    await pool.query(
+      `INSERT INTO admin_logs (admin_username, action, target, detail) VALUES ($1, $2, $3, $4)`,
+      [req.user?.username || '?', action,
+       target == null ? null : String(target).slice(0, 200),
+       detail == null ? null : String(detail).slice(0, 500)]);
+  } catch (e) { req.log?.warn?.({ e }, 'audit log failed'); }   // 記錄失敗不可阻斷管理操作
+}
+```
+- 在**每個** `requireAdmin` 變更型 handler 成功後呼叫：
+  - `/api/admin/kick` → `logAdmin(req,'kick', uid, 'closed '+closed)`
+  - `/api/admin/close-room` → `logAdmin(req,'close-room', code)`
+  - `/api/admin/ban` → `logAdmin(req,'ban', kind+':'+value, reason)`
+  - `/api/admin/unban` → `logAdmin(req,'unban', kind+':'+value)`
+  - `/api/admin/broadcast` → `logAdmin(req,'broadcast', 'all('+sent+')', text)`
+  - `/api/admin/delete-run` → `logAdmin(req,'delete-run', id)`
+  - `/api/admin/feedback/:id`（7.1）→ `logAdmin(req,'feedback', id, status||note)`
+
+**7.6-C 查詢端點（`server/src/server.js`）：**
+```js
+app.get('/api/admin/logs', { preHandler: requireAdmin }, async (req) => {
+  const { limit = 100, offset = 0 } = req.query || {};
+  const r = await pool.query(
+    `SELECT id, admin_username, action, target, detail, created_at
+     FROM admin_logs ORDER BY created_at DESC LIMIT $1 OFFSET $2`,
+    [clampInt(limit, 1, 500), clampInt(offset, 0, 1e6)]);
+  return { rows: r.rows };
+});
+```
+
+**7.6-D 前端（`src/net/api.js` + `ui.js`）：**
+- `api.js`：`adminLogs(params = {}) { const qs = new URLSearchParams(params).toString(); return req('/admin/logs' + (qs ? '?' + qs : ''), { authed: true }); }`
+- `ui.js openAdmin()`：`tabDefs` 加 `['logs','稽核']`；該 tab 以時間軸表呈現（時間／管理員／動作／對象／細節）；動作以色碼小標籤（ban 紅、kick 橘、broadcast 藍、delete-run 紫、feedback 綠）；將 `logs` 併入既有 5s 自動刷新的 tab 集合。
+
+**7.6-E 測試（`server/test/smoke.mjs` + `fakepool.mjs`）：**
+- `fakepool.mjs` 補 `admin_logs` 的 INSERT／SELECT 攔截。
+- `smoke.mjs`：以 admin JWT 執行一次 `kick` + 一次 `broadcast` 後，`GET /api/admin/logs` 應至少回 2 列且 `action` 對應；非 admin 取 logs 應 403。
+
+**驗證：**
+- 任一管理動作後，`GET /api/admin/logs` 出現對應列（含 `admin_username` = 操作者）。
+- 後台「稽核」分頁時間軸顯示最新動作；色碼正確。
+- 記錄寫入失敗（模擬 DB 斷線）不影響管理動作本身成功。
+
+---
+
+## 7.7 後台數據統計儀表板（Stats Dashboard）（新增）
+
+**動機：** `adminOverview()` 只給即時快照（線上／房間／訪客），缺乏「全站體質」彙總（總帳號、今日對局、待處理回饋等）。新增輕量統計端點，一眼掌握營運狀態。
+
+**7.7-A 後端（`server/src/server.js`）：**
+```js
+app.get('/api/admin/stats', { preHandler: requireAdmin }, async () => {
+  const q = (sql) => pool.query(sql).then(r => Number(r.rows[0]?.n || 0)).catch(() => 0); // 缺表回 0，不可整體 500
+  const [users, active24h, runs, runsToday, guestRuns, bans, feedbackPending] = await Promise.all([
+    q(`SELECT count(*) n FROM users`),
+    q(`SELECT count(*) n FROM users WHERE last_login > now() - interval '24 hours'`),
+    q(`SELECT count(*) n FROM runs`),
+    q(`SELECT count(*) n FROM runs WHERE created_at >= date_trunc('day', now())`),
+    q(`SELECT count(*) n FROM runs WHERE user_id IS NULL`),
+    q(`SELECT count(*) n FROM bans`),
+    q(`SELECT count(*) n FROM feedback WHERE status = 'pending'`),  // 7.1 表存在後才有值
+  ]);
+  const ov = realtime.adminOverview();
+  const top = (await pool.query(
+    `SELECT COALESCE(u.username, r.guest_name, '訪客') name, max(r.score) score
+     FROM runs r LEFT JOIN users u ON u.id = r.user_id
+     GROUP BY 1 ORDER BY score DESC LIMIT 5`).catch(() => ({ rows: [] }))).rows;
+  return {
+    accounts: { total: users, active24h },
+    runs: { total: runs, today: runsToday, guest: guestRuns },
+    moderation: { activeBans: bans, pendingFeedback: feedbackPending },
+    live: { online: ov.totals.users, playing: ov.totals.playing ?? 0, rooms: ov.totals.rooms },
+    topPlayers: top,
+  };
+});
+```
+> 註：`feedback`（7.1）／`admin_logs`（7.6）表若採漸進落地，缺表的 `count` 以 `.catch(()=>0)` 回 0，整個端點仍須 200。
+
+**7.7-B 前端（`src/net/api.js` + `ui.js`）：**
+- `api.js`：`adminStats() { return req('/admin/stats', { authed: true }); }`
+- `ui.js openAdmin()`：`tabDefs` 加 `['stats','統計']`；以數據卡片格（沿用置中動漫卡片風 `.net-card`）顯示：帳號（總數／24h 活躍）、對局（總／今日／訪客）、待處理回饋、生效封鎖、即時（線上／遊玩中／房間）、Top 5 分數玩家小表。併入 5s 自動刷新集合。
+
+**7.7-C 測試：** `smoke.mjs` `GET /api/admin/stats` 回傳含 `accounts/runs/moderation/live` 數值欄位且皆為數字；`fakepool` 支援上述 COUNT／GROUP BY 查詢（回固定假資料即可）。
+
+**驗證：**
+- 後台「統計」分頁顯示各彙總數字；新增一局後 `runs.today` +1；新增一筆待處理回饋後 `pendingFeedback` +1。
+- 缺 `feedback` 表時端點仍 200（該欄位回 0）。
+
+---
+
+## 7.8 後台玩家詳情抽屜（Player Inspect Drawer）（新增）
+
+**動機：** 後台只能對玩家列做「踢出／封鎖」，無法查看該玩家的帳號資訊與歷史，難以判斷是否該處置。新增單一玩家檔案查詢 + 點列展開抽屜。
+
+**7.8-A 後端（`server/src/server.js`）：**
+```js
+app.get('/api/admin/player/:uid', { preHandler: requireAdmin }, async (req, reply) => {
+  const uid = parseInt(req.params.uid);
+  if (!uid) return reply.code(400).send({ error: 'invalid uid' });
+  const u = (await pool.query(
+    `SELECT id, username, email, created_at, last_login FROM users WHERE id = $1`, [uid])).rows[0];
+  if (!u) return reply.code(404).send({ error: 'not found' });
+  const agg = (await pool.query(
+    `SELECT count(*) runs, COALESCE(max(score),0) best FROM runs WHERE user_id = $1`, [uid])).rows[0];
+  const recent = (await pool.query(
+    `SELECT id, score, stage, kills, character, biome, difficulty, time_s, cleared, created_at
+     FROM runs WHERE user_id = $1 ORDER BY created_at DESC LIMIT 10`, [uid])).rows;
+  const banned = realtime.isBannedUser(u.username);   // 帳號層級封鎖狀態
+  return {
+    account: { id: u.id, username: u.username, email: u.email, created_at: u.created_at, last_login: u.last_login },
+    stats: { runCount: Number(agg.runs), bestScore: Number(agg.best) },
+    recentRuns: recent,
+    ban: { user: banned },
+  };
+});
+```
+
+**7.8-B 前端（`src/net/api.js` + `ui.js`）：**
+- `api.js`：`adminPlayer(uid) { return req('/admin/player/' + uid, { authed: true }); }`
+- `ui.js`：在「總覽／玩家」線上玩家列，點列（或「詳情」鈕）→ 開抽屜子面板（沿用 modal／卡片風）顯示：帳號（建立時間／最後登入）、生涯（對局數／最高分）、近 10 局小表、封鎖狀態徽章，以及快捷動作鈕（踢出／封帳號，接既有 `adminKick`／`adminBan`）。抽屜以右側滑入或內嵌卡片實作皆可。
+
+**7.8-C 測試：** `smoke.mjs` 已知 uid → 回 `account/stats/recentRuns`；未知 uid → 404；非 admin → 403。`fakepool` 補 users／runs 單筆查詢。
+
+**驗證：**
+- 點線上玩家列開抽屜，正確顯示其帳號與近 10 局。
+- 未登入帳號（純訪客）無 uid，不提供抽屜（僅顯示 IP 層級資訊）。
+- 快捷踢出／封鎖後，列表與封鎖狀態即時更新。
+
 ---
 
 # 八、戰鬥數值與 build 系統
@@ -2398,6 +2633,8 @@ function showBroadcast(msg) {
 - Tab build 面板（與 8.2 同一面板）的數值區，分行列出「拾取範圍 / 武器射程 / 作用範圍」三個獨立數值，讓玩家確認當前各自大小。
 
 > 平衡備註：`aimRange` 升級會讓自動選敵更遠、體感更強，屬於正向 QoL；上限可加 clamp（如 `aimRange ≤ 600`）避免全屏鎖定。寫入 `BALANCE.AIM_RANGE_CAP`。
+
+> **gen 檔注意（對照原始碼）：`AIM_RANGE` 亦被 `src/game/content/gen/gen_weapons_c.js` 引用（以及 `world.js`、`weapons.js`）。** 改讀 `player.stats.aimRange ?? BALANCE.AIM_RANGE` 時，直接手改 gen 檔會被 `tools/integrate.mjs` 覆寫——對策：讓 gen 檔同樣讀 `stats.aimRange`（fallback 仍為 `BALANCE.AIM_RANGE`），或修改 workflow 來源後重跑整合（見計畫檔風險清單）。
 
 ## 8.2 羈絆系統可見化（新）
 
@@ -2891,7 +3128,9 @@ export const ADDITIVE_STATS = [
 
 ### 實作位置（`player.js`）
 
-`player.computeStats()` 或等效的 stat 重算函式中，加法堆疊計算方式：
+> **⚠ 實作修正（對照原始碼）：本專案目前「沒有」集中式 `player.computeStats()`／`recalcStats()`。** 數值是在 `state.js makeBaseStats()` 之後，由 `def.apply(p)`（裝備）、`applyMeta`→`t.apply(stats,lvl,run)`（天賦／設施）、角色被動等**指令式累加**而成。因此 9.4 不是「改寫既有重算」，而是**新建一條 `base + Σsources` 的重算管線**（本回最大隱藏工作量），且僅涵蓋上方具名 `ADDITIVE_STATS` 欄位；其餘 stat 維持現行指令式流程。此管線與 4.17（換裝反向移除）同根，**兩者一起落地**。
+
+`player.computeStats()`（**需新建**）或等效的 stat 重算函式中，加法堆疊計算方式：
 
 ```js
 // player.js computeStats() 或 applyStatSources()
@@ -2976,6 +3215,8 @@ const pool = allWeapons.filter(w =>
 ## 10.2 最終 Boss 死後仍繼續生怪（BUG）
 
 **檔案：** `src/game/scenes/run.js`
+
+> **實作修正（對照原始碼）：`spawnTick`／`eventsTick`／`miniBossTick` 在 `run.js` 已 gate 於 `this.cleared`——此項多半已實作，本回以「驗證即可」為主，勿重構。** 下方為原始設計說明，作為驗證的對照基準。
 
 **問題：** 擊殺最終 Boss 觸發 `clearLevel()` 後，敵人生成（`spawnTick`）與事件系統（`eventsTick`）仍繼續運作，玩家在勝利動畫期間持續被追殺。
 
@@ -3362,14 +3603,16 @@ Enemies.register({
 
 **現象：** 20 分鐘最終 Boss 被擊殺後、死神（Reaper）降臨的過渡期間，偶發「結束遊戲」畫面出現，但玩家角色仍然存活。
 
+> **⚠ 實作修正（對照原始碼）：現行 `run.js` 並沒有 `run.stage = 'cleared'` 字串狀態機。** `run.stage` 是**整數**（≈ threat，會餵分數／掉落縮放與伺服器反作弊 report-cap，run.js 約 line 929），**不可**被改寫成字串。通關以布林 `this.cleared` 表示、死神以 `this.reaperSpawned` 表示。下方流程與程式碼一律改用這兩個布林旗標，**勿動 `run.stage` 的整數語意**。
+
 **根因分析（`run.js`）：**
 
 死神出現的流程是：
 ```
 clearLevel()           ← 擊殺最終 Boss 時呼叫
-→ run.stage = 'cleared'
+→ this.cleared = true
 → 啟動 REAPER_DELAY 倒數（30s）
-→ spawnReaper()
+→ spawnReaper() → this.reaperSpawned = true
 → 玩家擊殺死神或按 E 離開 → finishRun()
 ```
 
@@ -3378,7 +3621,7 @@ clearLevel()           ← 擊殺最終 Boss 時呼叫
 | 可能位置 | 錯誤描述 |
 |---|---|
 | `clearLevel()` 回呼 | 呼叫了 `finishRun()` 或 `gameOver()` 而非只設 stage |
-| `run.update()` 的 stage 判斷 | `stage === 'cleared'` 分支未正確 guard，繼續執行 game-over 條件 |
+| `run.update()` 的通關判斷 | `this.cleared` 分支未正確 guard，繼續執行 game-over 條件 |
 | `anyPlayerAlive()` 時序 | 在 Boss 死亡幀短暫誤判玩家已死（例如 Boss 死亡爆炸傷害到玩家） |
 | `world.enemies` 清空檢查 | 最終 Boss 死後地圖敵人清空，觸發了「無敵人 + 玩家存活 → 特定結束條件」 |
 
@@ -3386,26 +3629,25 @@ clearLevel()           ← 擊殺最終 Boss 時呼叫
 
 ```js
 // run.update() 中 game-over 判斷：
-// 只在 stage !== 'cleared' && stage !== 'reaper' 時才依 anyPlayerAlive 判 game over
+// 通關後（this.cleared）玩家死亡仍算正常 game over，但用 _gameOverFired 防重入；
+// 重點是「Boss 死亡幀」不可因 anyPlayerAlive 短暫誤判而誤觸（見下方 _reaperGrace 無敵緩衝）。
 if (!world.anyPlayerAlive()) {
-  if (this.run.stage === 'cleared' || this.run.stage === 'reaper') {
-    // 死神階段死亡 → 正常 game over（但不重複觸發）
-    if (!this.run._gameOverFired) {
-      this.run._gameOverFired = true;
-      this.gameOver();
-    }
-  } else {
+  if (!this._gameOverFired) {
+    this._gameOverFired = true;
     this.gameOver();
   }
 }
 
-// clearLevel() 中：
+// clearLevel() 中（沿用 10.2 既有 this.cleared）：
 clearLevel() {
-  this.run.stage = 'cleared';
-  // 不呼叫 finishRun()、不呼叫 gameOver()
-  // 只設解鎖、啟動倒數
+  if (this.cleared) return;                          // 冪等
+  this.cleared = true;
+  // 不呼叫 finishRun()、不呼叫 gameOver()；只設解鎖、啟動 Reaper 倒數
+  this._reaperGrace = BALANCE.REAPER_GRACE ?? 0.5;   // 降臨緩衝（下方說明）
   this._startReaperTimer();
 }
+// spawnReaper() 時設 this.reaperSpawned = true；死神降臨前 _reaperGrace 秒玩家無敵，
+// 避免 Boss 死亡爆炸在幀間誤殺玩家。
 ```
 
 **額外保護：** 死神出現的前 `0.5` 秒設 `run._reaperGrace = 0.5`，在此期間玩家無敵（避免 Boss 死亡爆炸傷害在幀間誤殺玩家，觸發 game over）。
@@ -3462,86 +3704,10 @@ if (this.id === 'reaper') {
 
 **驗證：**
 - 擊殺最終 Boss 後，玩家存活期間**不出現**「結束遊戲」畫面
-- `run.stage` 在 Boss 死後應為 `'cleared'`，死神出現後應為 `'reaper'`；`__DBG.scene().run.stage` 確認
+- Boss 死後 `__DBG.scene().run.cleared === true`、死神出現後 `reaperSpawned === true`（`run.stage` 維持整數，不變字串）
 - 死神降臨瞬間：全屏紅框警告 + 中央大字 3 秒
 - 死神移速從 160 開始；玩家拉開距離 > 600px 後持續加速至最多 200；靠近後速度降回
 - 玩家被死神擊殺 → 正常 Game Over；`_gameOverFired` 防止重複觸發
-
----
-
-## 3.10 造型來源角色顯示 + 造型類成就（新增）
-
-### 3.10-A 造型標示來源角色
-
-**問題（截圖 3.8 兩層 UI 的延伸）：** 在衣帽間商店瀏覽造型時，沒有清楚標示「這個造型屬於哪個角色」，特別是在「全部造型」或商店頁中，玩家不知道買了哪個角色的哪個造型。
-
-**設計：** 在 `SKINS` 定義中確保每個造型都有 `charId` 欄位，並在所有顯示造型的位置加上角色名稱標籤：
-
-**`content/characters.js` SKINS 欄位要求：**
-```js
-{
-  id: 'skin_lena_flame',
-  charId: 'lena',          // ← 必填：對應哪個角色
-  name: '火焰之魂',
-  rarity: 'rare',          // 'common' | 'rare' | 'legendary' (隱藏)
-  price: 800,
-  hidden: false,
-  deco(p, oy) { /* ... */ },
-}
-```
-
-**衣帽間第二層（我的造型 / 商店）顯示位置：**
-- 造型卡片右上角小標籤：「`角色名`」深灰底白字（`font: 10px`，`border-radius: 3px`）
-- 商店頁造型卡片底部：「所屬：`角色全名`」灰色小字
-
-**造型商店搜尋 / 篩選（未來預留）：**
-- 第一層角色選擇後，只顯示該角色的造型（已有設計），`charId` 是篩選鍵
-- 若未來有「全部造型」頁籤，每個造型需顯示來源角色
-
----
-
-### 3.10-B 造型類成就
-
-**新增成就組（`content/achievements.js`）：**
-
-| 成就 ID | 名稱 | 條件 | 解鎖獎勵 |
-|---|---|---|---|
-| `ach_first_skin` | 衣裝初探 | 首次購買任意造型 | 100 金 |
-| `ach_own_5skins` | 造型收藏家 | 持有 5 個不同造型 | 200 金 |
-| `ach_own_15skins` | 時尚達人 | 持有 15 個不同造型 | 500 金 |
-| `ach_own_all_char_skins` | `{角色名}` 的粉絲 | 集齊某角色的全部造型（至少 2 個）| 300 金（每角色各一成就）|
-| `ach_hidden_skin` | 隱藏面紗 | 購買任意隱藏（legendary）造型 | 解鎖「神秘符文」稱號 |
-| `ach_all_hidden` | 幻形師 | 收集全部隱藏造型 | 解鎖「幻形師」稱號 + 永久特效 |
-| `ach_equip_skin_run` | 風格獵人 | 裝備非預設造型完成一次通關 | 150 金 |
-| `ach_weekly_buy` | 週末購物 | 在商店週期重置後的 30 分鐘內購買造型 | 50 金 |
-
-**`{角色名}` 的粉絲成就** 由程式動態生成（遍歷所有有至少 2 個造型的角色）：
-```js
-// content/achievements.js 生成邏輯
-for (const charId of CHARS_WITH_MULTI_SKINS) {
-  Achievements.register({
-    id: `ach_fan_${charId}`,
-    name: `${Characters.get(charId).name} 的粉絲`,
-    desc: `集齊 ${charId} 的全部造型`,
-    check: (meta) => {
-      const skins = SKINS.filter(s => s.charId === charId);
-      return skins.every(s => meta.skinOwned?.[s.id]);
-    },
-    reward: { gold: 300 },
-  });
-}
-```
-
-**成就圖示（`content_icons.js`）：** 各成就對應 `icon_ach_skin_*`，造型相關成就以衣架 / 星形圖示為底。
-
----
-
-**驗證：**
-- `SKINS` 中每個造型有 `charId`；衣帽間造型卡片右上角顯示角色名標籤
-- 商店頁造型卡底部顯示「所屬：○○○」
-- 成就殿堂出現「造型收藏家」等成就；購買第 5 個造型後觸發、顯示橫幅
-- `ach_fan_{charId}` 成就數量 = 持有 ≥ 2 個造型的角色數量；集齊某角色造型後正確解鎖
-- 隱藏造型成就在購買隱藏造型後觸發
 
 ---
 
@@ -3605,7 +3771,7 @@ for (const charId of CHARS_WITH_MULTI_SKINS) {
 38. 升級 / 鐵砧 / 裝備三選一面板開啟後按 Tab 切換至 build 頁（武器 / 被動 / 羈絆）；再按 Tab 返回選擇面板；`_buildPeek = true` 時無法觸發卡片選擇。
 39. 拾取範圍視覺化：按住 R → 玩家中心出現藍色（拾取）+ 橘色（瞄準）+ 白色（碰撞）虛線圓圈；升天賦後藍圈明顯變大；鬆開立即消失。
 40. Flow Field 尋路：50+ 怪物在房間式地圖正確繞牆追蹤（無卡角）；穿牆怪（`phaseWall:true`）直接穿牆；260 怪上限下流場重建 < 3ms。
-43. 死神 Game Over Bug：擊殺最終 Boss 後玩家存活時不出現結束畫面；`run.stage` 正確為 `'cleared'`→`'reaper'`；死神降臨全屏紅框警告 3 秒；死神速度 160→200（距離加速）；被殺才正常 Game Over。
+43. 死神 Game Over Bug：擊殺最終 Boss 後玩家存活時不出現結束畫面；`run.cleared`→`reaperSpawned` 正確流轉（`run.stage` 維持整數語意）；死神降臨全屏紅框警告 3 秒；死神速度 160→200（距離加速）；被殺才正常 Game Over。
 41. 守護怪視覺：頭頂金色 🔑 浮動圖示 + 金色雙層輪廓 + HP 條「🔑 守護者」標籤；初次靠近橘色提示條 3 秒；死亡後鑰匙彈出動畫 + 粒子 + 呼吸金圈；HUD 🔑×N 計數；小地圖金色菱形（守護怪）/ 金色點（鑰匙）/ 金色鎖頭（寶箱）。
 42. 持有鑰匙道具欄：HUD 右下角金色脈衝邊框道具欄（大圖示 32×32，無鑰匙時隱藏）；撿起時 Toast + 玩家頭頂小 🔑；大地圖（M 鍵）顯示守護怪金色菱形 ◆（旋轉）+ 地上鑰匙閃爍 🔑 + 鎖定寶箱 🔒／🔓（有鑰匙時綠色閃爍）；首次帶鑰匙開大地圖顯示引導提示一次。
 
@@ -3630,6 +3796,9 @@ for (const charId of CHARS_WITH_MULTI_SKINS) {
 40. **後台遊玩中**：開一局（登入或訪客）後，管理員後台「遊玩中」清單即時出現該玩家（暱稱／生態／難度／已遊玩秒數）；結束後約 60 秒內消失。
 41. Service Worker：DevTools → Application 顯示已啟動；斷網重整仍可進入；MP3 正常播放。
 42. 廣播走馬燈：後台廣播一條訊息 → 客戶端畫面垂直正中央出現捲動橫幅（不偏上／不偏下）；文字滾完約 3 圈後自動消失，DevTools Elements 確認 `#broadcast-ticker` 已移除；點擊可提早關閉；廣播期間角色操作正常（pointer-events 穿透）；連發兩條時第二條立即替換第一條。
+43. 後台稽核（7.6）：任一管理動作（kick／ban／unban／close-room／broadcast／delete-run／改回饋狀態）後，後台「稽核」分頁出現對應列（操作者、動作、對象、時間）；`GET /api/admin/logs` 回傳該列；非 admin 取 logs 回 403；DB 寫入失敗不阻斷管理動作。
+44. 後台統計（7.7）：「統計」分頁顯示帳號（總／24h 活躍）、對局（總／今日／訪客）、待處理回饋、生效封鎖、即時（線上／遊玩中／房間）、Top5；新增一局後「今日對局」+1；缺 `feedback` 表時端點仍 200（該欄位回 0）。
+45. 後台玩家詳情（7.8）：點線上玩家列開抽屜，顯示帳號（建立時間／最後登入）+ 生涯（對局數／最高分）+ 近 10 局 + 封鎖狀態；未知 uid 回 404；快捷踢出／封鎖後狀態即時更新。
 
 **八、戰鬥數值與 build 系統**
 42. 三種範圍分離：天賦／升級面板用「拾取範圍／武器射程／作用範圍」三個不同名稱，互不混用。
@@ -3736,7 +3905,7 @@ for (const charId of CHARS_WITH_MULTI_SKINS) {
 - 拾取範圍視覺化（R 鍵按住）：藍色拾取圓 + 橘色瞄準圓 + 白色碰撞圓；`showRange` action 納入按鍵設定系統；初次提示在 HUD 操作欄。
 - 守護怪 + 鑰匙掉落視覺強化：守護怪頭頂金色 🔑 浮動圖示 + 金色雙層邊框 + 「🔑 守護者」標籤；死亡後鑰匙彈出動畫 + 金色粒子 + 持續呼吸金圈；HUD 鑰匙計數；螢幕邊緣指引箭頭；小地圖金色菱形 / 鎖頭標示。
 - 持有鑰匙道具欄：HUD 右下角金色脈衝邊框道具欄（大圖示，無鑰匙時隱藏）+ 玩家頭頂小 🔑 + 撿起 Toast；大地圖（M 鍵）守護怪 ◆ 旋轉 + 地上鑰匙閃爍 + 鎖定寶箱 🔒（無鑰匙紅色）/ 🔓（有鑰匙綠色閃爍）；首次帶鑰匙開大地圖引導提示一次。
-- 修正死神出現時誤觸 Game Over：`clearLevel()` 不呼叫 `gameOver()`；`run.stage` 正確流轉 cleared→reaper；`_gameOverFired` 防重複；降臨前 0.5s 無敵緩衝；死神速度 160→200（距離加速）；降臨時全屏紅框警告 3 秒。
+- 修正死神出現時誤觸 Game Over：`clearLevel()` 不呼叫 `gameOver()`；以布林 `this.cleared`／`this.reaperSpawned` 表示階段（`run.stage` 維持整數語意）；`_gameOverFired` 防重複；降臨前 0.5s 無敵緩衝；死神速度 160→200（距離加速）；降臨時全屏紅框警告 3 秒。
 - 造型來源角色顯示：`SKINS.charId` 必填；造型卡右上角角色名標籤；商店頁底部「所屬：○○○」；新增 8 類造型成就（首購 / 收藏 5–15 / 隱藏造型 / 角色全收集 / 通關 + 裝扮 / 週末購物）。
 - 修正裝備更換舊效果殘留：equipItem 確保先移除舊裝備 statDelta，weapon 欄確保舊簽名武器 removeWeapon。
 - 隱藏房間揭示改版：金框 Modal + 具體道具圖示 / 名稱 / 稀有度 / 說明；頂部橫幅加半透明底框。
@@ -3767,4 +3936,7 @@ for (const charId of CHARS_WITH_MULTI_SKINS) {
 - 後台「遊玩中」即時可見（REST 心跳，登入者與訪客通用，解決遊玩中玩家隱形問題）。
 - Service Worker 離線快取（靜態資源 + MP3）。
 - 廣播公告改為中央走馬燈：後台推播訊息改以 DOM 疊加層 + CSS 走馬燈動畫呈現（文字橫跨畫面中央水平線，重複 3 圈後自動移除）；點擊可提早關閉；後端 `/api/admin/broadcast` 介面不變。
+- 後台稽核日誌（新）：新增 `admin_logs` 表 + 集中 `logAdmin()` helper，所有管理變更（kick／ban／unban／close-room／broadcast／delete-run／回饋改狀態）留痕；新增 `GET /api/admin/logs` + 後台「稽核」分頁（時間軸 + 動作色碼）。
+- 後台數據統計儀表板（新）：`GET /api/admin/stats` 彙整帳號／對局／今日／訪客／待處理回饋／生效封鎖／即時線上 + Top5；後台「統計」分頁卡片化呈現。
+- 後台玩家詳情抽屜（新）：`GET /api/admin/player/:uid` 回帳號 + 生涯 + 近 10 局 + 封鎖狀態；後台點玩家列開抽屜，含快捷踢出／封鎖。
 ```
