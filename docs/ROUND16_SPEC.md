@@ -75,6 +75,8 @@ Round 16 是一次以**玩家回饋為核心的 UX 大修**，不改動核心戰
 | 4.13 | **大地圖（M鍵）玩家標示醒目化（角色頭貼）（新）** | `run.js` minimap 渲染 |
 | 4.14 | **祝福神（贊助者）新效果觸發提示（新）** | `run.js` patron event UI |
 | 4.15 | **anvilChoice 三選一卡片對齊 + 替換失去效果顯示（新）** | `run.js` `drawAnvilChoice()` |
+| 4.16 | **隱藏房間揭示 Modal 改版：UI 框 + 具體道具名稱（新）** | `run.js` hidden room reveal |
+| 4.17 | **裝備更換後舊效果未清除（BUG）** | `src/game/player.js` `equipItem()` |
 
 ### 五、任務與成就系統
 | 編號 | 項目 | 主要異動檔案 |
@@ -124,6 +126,7 @@ Round 16 是一次以**玩家回饋為核心的 UX 大修**，不改動核心戰
 | 10.4 | **武器進化路徑顯示（build 面板）** | `run.js`、`hud.js` |
 | 10.5 | **裝備掉落機率降低** | `balance.js` |
 | 10.6 | **金幣／道具被磁鐵彈走（排斥 Bug）** | `src/game/pickup.js`（或 `player.js` 吸附邏輯） |
+| 10.7 | **Boss 被卡在地圖牆壁／走廊（BUG）** | `src/game/maps.js`、`src/game/enemy.js` Boss AI |
 
 ---
 
@@ -933,6 +936,80 @@ function drawLostEffect(slot, cardX, cardY, S) {
 }
 ```
 
+## 4.16 隱藏房間揭示 Modal 改版：UI 框 + 具體道具名稱（新增）
+
+**問題（截圖可見）：**
+1. 頂部橫幅「隱藏房間 · 永久解鎖了一件聖物！（+150 金幣）」是純文字覆蓋層，無邊框、無底色，在戰場背景下難辨。
+2. Modal 主體只說「一件遠古聖物在祭壇上靜靜發光」，沒有告訴玩家具體解鎖了**哪一件**聖物（名稱、圖示、說明）。
+
+**目標 UI 改版（`run.js` hidden room reveal）：**
+
+```
+╔═══════════════════════════════════════╗
+║       🗝 隱藏房間 · 聖物密室           ║  ← 金色標題列 + 圓角外框
+╠═══════════════════════════════════════╣
+║  一件遠古聖物在祭壇上靜靜發光。         ║
+║                                       ║
+║  [圖示 48×48]  魂晶砲艦（史詩·武器）  ║  ← 具體道具圖示 + 名稱 + 稀有度
+║               彈如星雨，穿透一切。     ║  ← desc 第一行
+║                                       ║
+║  ✨ 永久解鎖！下次出擊可選用此武器。   ║
+║                                       ║
+║         ＋ 150 金幣                   ║  ← 金幣獎勵（金色數字 + 圖示）
+║                                       ║
+║         [ 點擊 / 按 E 關閉 ]          ║
+╚═══════════════════════════════════════╝
+```
+
+**A. Modal 外框樣式（統一用已有 `drawPanel()` 或等效 canvas 函式）：**
+- 圓角矩形深藍底 `#0d1b2a`（透明度 0.95），金色 `#f5c518` 邊框（`2*S` 線寬）。
+- 標題列單獨區塊：`#1a2a3a` 底 + 底部細金色分隔線。
+- 寬 `min(W * 0.6, 500 * S)`，高自動依內容適配。
+
+**B. 具體道具顯示（修正「不知道解鎖了什麼」問題）：**
+- 取出解鎖道具的定義：`item.id` 已存於 `META.hidden.claimed[roomId]` 或作為 reveal 回傳值。
+- 顯示：`iconOr(item.icon || 'item_' + item.id, 'star')` 圖示 + `item.name` + 稀有度 badge + `item.desc`（最多 2 行）。
+- 若為被動能力（passive）顯示綠色稀有度；若為武器顯示青藍；若為聖物/特殊道具顯示金色。
+
+**C. 頂部橫幅改版：**
+- 舊：純文字疊加。
+- 新：半透明黑底白框的橫幅條（`height 28*S`，圓角），文字「🗝 隱藏房間已解鎖」，點擊後出現 B 的 Modal。
+- 橫幅與 Modal 分離：橫幅先閃爍 2 秒，消失後若玩家進入隱藏房間觸發 Modal。
+
+## 4.17 裝備更換後舊效果未清除（BUG）
+
+**問題：** 玩家替換裝備（如把護甲 A 換成護甲 B）後，**護甲 A 給予的屬性加成仍然殘留在玩家身上**（例如舊護甲 +30 HP 換掉後，HP 沒有扣回 30）。
+
+**根因（`src/game/player.js` `equipItem()`）：**
+
+裝備加成的應用方式有兩種常見模式：
+- **模式 1（增量）：** `equipItem` 讀 `def.statDelta` → `player.stats.hp += delta.hp`；卸下時需反向 `player.stats.hp -= delta.hp`。若卸下邏輯缺失，則舊效果永遠殘留。
+- **模式 2（重算）：** `player.stats` 每幀從 `makeBaseStats()` 重算，疊加所有當前裝備 delta。若換裝後舊裝備 id 仍在計算池中（例如 `run.equipment[slot]` 沒有正確清空），會重算時仍包含舊效果。
+
+**修正步驟：**
+1. 確認 `equipItem(slot, newId)` 中「解除舊裝備」邏輯的存在：
+```js
+function equipItem(slot, newDef, ...) {
+  // 先移除舊裝備效果
+  const oldId = run.equipment[slot];
+  if (oldId) {
+    const oldDef = Equipment.get(oldId);
+    if (oldDef?.statDelta) {
+      for (const [k, v] of Object.entries(oldDef.statDelta))
+        player.stats[k] = (player.stats[k] ?? 0) - v;   // ← 必須有此步驟
+    }
+    // 舊的 weapon-slot 簽名武器：player.removeWeapon(oldWeaponId)
+  }
+  // 再套用新裝備
+  run.equipment[slot] = newDef.id;
+  if (newDef?.statDelta) { ... apply ... }
+}
+```
+2. 若使用模式 2（完整重算），確認每次換裝後呼叫 `player.recalcStats()` 並且其中只迭代 `run.equipment` 的**當前**欄位，不包含已移除的裝備。
+3. **weapon 欄特例**：簽名武器用 `player.addWeapon`／`player.removeWeapon`（帶 forge mods），確認換武器時舊簽名武器被 `removeWeapon` 刪除，不留在 `player.weapons[]` 中。
+
+**驗證：** 裝備一件 +50 HP 護甲，記錄 HP；換裝後 HP 應明確下降（回到基礎值）；再換回，HP 回升。用 `__DBG.scene().player.stats.maxHp` 確認每次換裝後數值正確。
+
 ---
 
 # 五、任務與成就系統
@@ -1694,6 +1771,73 @@ vy = dy / dist * speed;
 
 **驗證：** 用 `遠視符文` 被動（`aimRange ×1.20`）或直接在 `balance.js` 調高 `pickupRange` 到 50+，在密集掉金幣的情況下跑 1–2 分鐘，確認無排斥飛走現象。
 
+## 10.7 Boss 被卡在地圖牆壁／走廊（BUG）
+
+**問題：** Boss（及大型精英）在房間式地圖中會卡在走廊角落或窄牆之間，無法追擊玩家，白白被 kite 到死。
+
+**根因分析（`src/game/maps.js` + `src/game/enemy.js`）：**
+
+**路徑 A — 走廊寬度不足（最可能）：**
+目前走廊寬 `4 tile`（Round 12 加入房間系統時設定）。Boss 的碰撞半徑（`enemy.radius`）可能達 `24–32px`，換算為 `1.5–2 tile`，直徑 `3–4 tile`——剛好卡在走廊最窄處。
+```js
+// maps.js 走廊寬度建議調整：
+CORRIDOR_WIDTH: 4 → 6   // 6 tile = 96px，足夠 Boss 直徑 64px + 緩衝
+```
+
+**路徑 B — Boss AI 直線追擊撞牆：**
+`enemy.js` Boss AI 可能直接 `vx = sign(dx)`、`vy = sign(dy)` 向玩家衝刺，遇到牆壁後持續頂牆（碰撞解析後速度歸零但每幀重新設定），形成「貼牆卡住」現象。
+→ 修正：Boss 頂牆超過 `0.5 秒` 時觸發**繞路行為**——往左或往右走 `0.3–0.5 秒` 後再重新鎖定玩家。
+
+**路徑 C — 地圖生成在 Boss 出生點附近有小隔間：**
+Boss 生成時若出生點鄰近窄柱或房間角落，初始碰撞就讓 Boss「嵌入」牆內，後續移動永遠卡住。
+→ 修正：Boss 出生點驗證函式，確保以 `boss.radius * 2 + 8px` 為半徑的圓形內無 WALL tile。
+
+**修正方案（三路並行）：**
+
+**A. `maps.js` 走廊加寬（最根本）：**
+```js
+// 房間式地圖生成時，連接走廊的清空範圍：
+// 舊：clearHallway(x, y, 4)
+// 新：clearHallway(x, y, 6)   ← 6 tile 寬
+```
+- 同步調整 `DOOR_WIDTH`（門洞寬）：由 `4 → 6 tile`。
+- **確認** `makeCamp()` 城鎮地圖的門洞也更新（Round 6 加的 `town_gatepost` 間距需配合）。
+
+**B. `enemy.js` Boss 繞路 AI：**
+```js
+// Boss 頂牆偵測（每幀）：
+if (isLargeEnemy && !moved && this._stuckTimer > 0.5) {
+  this._bypassDir = this._bypassDir || (Math.random() < 0.5 ? 1 : -1);
+  // 暫時往垂直於主追蹤方向的側邊移動
+  const perpX = -normalY * this._bypassDir;
+  const perpY =  normalX * this._bypassDir;
+  vx = perpX * this.speed; vy = perpY * this.speed;
+  if (this._stuckTimer > 1.0) this._stuckTimer = 0; // 重置，重試
+} else if (moved) {
+  this._stuckTimer = 0; this._bypassDir = null;
+} else {
+  this._stuckTimer += dt;
+}
+```
+
+**C. Boss 出生點驗證（`run.js` `spawnBoss()` / `spawnMiniBoss()`）：**
+```js
+function safeSpawnPos(world, minClear) {
+  for (let tries = 0; tries < 50; tries++) {
+    const x = randomInRange(), y = randomInRange();
+    if (world.circleFreeClear(x, y, minClear)) return { x, y };
+  }
+  return fallbackCenter(world);
+}
+// Boss spawn 呼叫：
+const pos = safeSpawnPos(world, bossRadius * 2 + 8);
+```
+
+**地圖間格整體原則（新增到 `maps.js` 注解）：**
+- 普通房間最小尺寸：`12 × 10 tile`（走動空間）。
+- Boss 房（最終 Boss 生成區）最小尺寸：`20 × 18 tile`（確保充分走位）。
+- 走廊最小寬：`6 tile`（涵蓋最大 Boss 直徑 `~48px` + `2 tile` 緩衝）。
+
 ---
 
 # 驗證方式（依分類）
@@ -1745,6 +1889,9 @@ vy = dy / dist * speed;
 31. 祝福神選擇後中央上方橫幅顯示「{贊助者名} 的祝福已生效！+ 效果說明」停留 5 秒；HUD 右下角持久顯示已觸發贊助者小圖示，hover 有 tooltip。
 32. anvilChoice 三選一裝備卡片：「替換後」標頭在三張卡中**同一高度**（desc 區固定 3 行最大，超出截斷 tooltip）；有目前裝備的 slot 在「替換後」末尾顯示橙色「✕ {目前裝備效果}」；空欄位不顯示失去效果區。
 33. 金幣不再被排斥彈走；`pickupRange +60%` 大範圍情況下仍正常吸附，無振盪反彈。
+34. Boss 及大型精英不再卡牆：走廊寬度 ≥ 6 tile；Boss 頂牆 0.5 秒後自動繞路；Boss 出生點確認周圍有足夠空地。
+35. 隱藏房間揭示 Modal 有金框底色；顯示具體解鎖道具的圖示 + 名稱 + 稀有度 + 一行說明；頂部橫幅有半透明底框。
+36. 替換裝備後舊效果完全清除：換裝前後 `__DBG.scene().player.stats.maxHp` 等屬性數值正確反映新裝備（舊加成不殘留）。
 
 **五、任務與成就**
 30. 存活 2:57 時任務追蹤**不**顯示滿格／完成樣式。
@@ -1855,6 +2002,9 @@ vy = dy / dist * speed;
 - 祝福神選擇後：中央橫幅 Toast（5 秒）＋ HUD 持久贊助者圖示列（hover tooltip）；events.js 補齊 effectDesc 欄位。
 - anvilChoice 三選一卡片固定版面：「替換後」同高對齊（desc 固定 3 行）；末尾顯示橙色「✕ 失去效果」，揭示替換後消失的目前裝備文字效果。
 - 修正金幣排斥 Bug：吸附速度 clamp 到 min(ATTRACT_SPEED, dist)，避免過衝反向；進入吸附狀態後停用 entity-to-entity 推力。
+- 修正 Boss 卡牆：走廊寬 4→6 tile（地圖生成）；Boss AI 頂牆 0.5s 觸發繞路；Boss spawn 前驗證出生點空地。
+- 修正裝備更換舊效果殘留：equipItem 確保先移除舊裝備 statDelta，weapon 欄確保舊簽名武器 removeWeapon。
+- 隱藏房間揭示改版：金框 Modal + 具體道具圖示 / 名稱 / 稀有度 / 說明；頂部橫幅加半透明底框。
 
 【任務系統補充】
 - 任務 def 新增 `requires` 欄位，系列任務循序解鎖；鎖定任務顯示 🔒 灰色行 + 前置名稱。
