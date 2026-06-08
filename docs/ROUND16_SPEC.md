@@ -72,6 +72,8 @@ Round 16 是一次以**玩家回饋為核心的 UX 大修**，不改動核心戰
 | 4.10 | 探索結算頁面全面優化（含傷害來源說明、羈絆圖示、標題黃色）(原#29) | `run.js` results |
 | 4.11 | **局內顯示已遊玩時間（新）** | `run.js` `drawStageHud()` |
 | 4.12 | **撿取裝備時對比顯示目前裝備效果（新）** | `run.js` `openEquipChoice`／`drawEquipDiff` |
+| 4.13 | **大地圖（M鍵）玩家標示醒目化（角色頭貼）（新）** | `run.js` minimap 渲染 |
+| 4.14 | **祝福神（贊助者）新效果觸發提示（新）** | `run.js` patron event UI |
 
 ### 五、任務與成就系統
 | 編號 | 項目 | 主要異動檔案 |
@@ -80,6 +82,7 @@ Round 16 是一次以**玩家回饋為核心的 UX 大修**，不改動核心戰
 | 5.2 | 多任務同時追蹤 (原#31) | `hub.js`、`hud.js` |
 | 5.3 | 追蹤任務進度數值顯示 (原#32) | `hud.js` quest tracker |
 | 5.4 | **隱藏任務／傳奇之證等特殊任務無法領取（BUG）（新）** | `content/quests.js`、`hub.js` guild panel |
+| 5.5 | **任務循序解鎖（前置任務）（新）** | `content/quests.js`、`hub.js` guild panel |
 
 ### 六、新手引導與難度
 | 編號 | 項目 | 主要異動檔案 |
@@ -109,6 +112,7 @@ Round 16 是一次以**玩家回饋為核心的 UX 大修**，不改動核心戰
 |------|------|-------------|
 | 9.1 | **金幣獲取 nerf（太好賺）（新）** | `balance.js`、`talents.js`、`abilities.js`、`facilities.js`、`events.js`、gen 檔 |
 | 9.2 | **城鎮消費全面調漲（天賦、設施、鍛造太便宜）（新）** | `balance.js`、`talents.js`、`facilities.js`、`content/forge.js` |
+| 9.3 | **城鎮升級動態定價（VS 式：每次升級後其餘漲價）（新）** | `balance.js`、`hub.js` 各 panel、`state.js` |
 
 ### 十、Bug 修正與後期關卡調整
 | 編號 | 項目 | 主要異動檔案 |
@@ -551,6 +555,39 @@ function claimAll(META) {
 3. **間距**：圖示↔名稱 `6*S`，名稱↔說明 `4*S`，卡片上下 padding `10*S`。
 4. **類型顏色**（左邊緣 `3*S` 寬色條，不影響文字區）：武器 `P.shard`（青藍）／被動 `P.greenL`（綠）／裝備 `P.gold`（金）。**與 4.4、6.3B 的顏色約定一致。**
 
+**4.5-B 稀有度顏色區分（新增）：**
+
+**問題（截圖可見）：** 升級選項卡片右上角的 `普通`／`稀有`／`史詩` 等稀有度標籤全為同色（灰底白字），視覺上難以區分高低稀有度，不知道哪個選項比較「珍貴」。
+
+**目標：** 稀有度標籤與卡片外框均採對應顏色，第一眼即區分高低。
+
+**稀有度色碼定義（`balance.js` 或 `run.js` 頂部常數，供 `4.5` 主框和本 4.5-B 共同引用）：**
+
+| 稀有度 | 顯示名 | tag 底色 | 卡片外框色 | 說明 |
+|------|-------|---------|---------|------|
+| `common` | 普通 | `#4a5568`（深灰） | `#718096`（中灰） | 一般補強 |
+| `rare` | 稀有 | `#1a365d`（深藍） | `#4299e1`（水藍） | 比普通更稀少 |
+| `epic` | 史詩 | `#44337a`（深紫） | `#9f7aea`（亮紫） | 高影響力 |
+| `legendary` | 傳說 | `#744210`（深金棕） | `#f6ad55`（橙金） | 進化武器 / 特殊選項 |
+
+**現況探索（需確認）：**
+- 武器 def 已有 `tier` 欄位（`Weapons.register` 中的 `tier`，整數 1–5）。
+- 若 `tier` 映射到上表稀有度，無需新欄位；若無，在 `rollLevelUpChoices()` 傳回結果中加 `rarity` 字串標籤即可。
+- 映射建議：`tier 1 = common`、`tier 2–3 = rare`、`tier 4 = epic`、`tier 5 = legendary`。被動／裝備依 weight 反向估算（weight 低 = 稀有）。
+
+**渲染修改（`run.js` 升級卡片）：**
+```js
+const RARITY_COLORS = {
+  common:    { tag: '#4a5568', border: '#718096' },
+  rare:      { tag: '#1a365d', border: '#4299e1' },
+  epic:      { tag: '#44337a', border: '#9f7aea' },
+  legendary: { tag: '#744210', border: '#f6ad55' },
+};
+const rc = RARITY_COLORS[choice.rarity] ?? RARITY_COLORS.common;
+// 卡片外框 stroke → rc.border（取代原先固定顏色）
+// 右上角稀有度 tag 底色 → rc.tag
+```
+
 ## 4.6 武器進化隱性視覺提示 (原#15)
 
 **設計原則：** 不明說，讓玩家自行發現。
@@ -743,6 +780,75 @@ uiText(`⏱ ${emm}:${ess.toString().padStart(2, '0')}`, x, y, { size: 13 * S, co
 - 下方保留現有 `drawEquipDiff()`「替換後變化」淨差值，不移除（兩者互補：左右=各自效果，下方=合計差值）。
 - 與 4.3 一併確保面板高度足夠、說明文字在 panel 內部底部、不與 HUD 重疊。
 
+## 4.13 大地圖（M鍵）玩家標示醒目化（新增）
+
+**問題：** M 鍵開啟大地圖時，玩家角色只是一個小圓點，在大量敵人紅點的包圍下難以辨認自己位置。
+
+**目標：** 以角色頭貼（或大型醒目標示）取代小圓點，讓玩家一眼定位。
+
+**修正方向（`run.js` `drawBigMap()`）：**
+
+1. **取得角色 sprite：** `getSprite('char_' + (run.char || 'hunter'))`，取第一幀裁切。
+2. **繪製方式（二選一）：**
+   - **A — 角色圖示（推薦）：** 在地圖上玩家座標位置，繪製 `24×24 px`（乘 S）的角色頭像框（圓形遮罩），外圈白色描邊 `2px`，下方加 `▼` 指向箭頭。
+   - **B — 大型亮點 + 描邊：** 半徑 `6*S` 的亮白圓點，外圈 `3px` 金色描邊，讓玩家點永遠蓋在敵人點上方（zOrder 最高）。
+3. **共同要求：**
+   - 玩家標示永遠 **zOrder 最高**（最後繪製，蓋過敵人點）。
+   - 多人模式（`world.players`）：其他玩家也各自顯示對應角色頭像框，加上該玩家暱稱標籤。
+   - 敵人點維持小圓點（紅色，半徑 `2*S`），視覺層級明確低於玩家。
+
+```js
+// drawBigMap() 最後繪製玩家（確保 zOrder 最高）
+world.players.forEach((pl, i) => {
+  const mx = mapX + (pl.x / world.tw / TS) * mapW;
+  const my = mapY + (pl.y / world.th / TS) * mapH;
+  // 選項 A：繪製角色小頭像
+  const charSp = getSprite('char_' + (pl.charId || 'hunter'));
+  if (charSp) {
+    ctx.save();
+    ctx.beginPath(); ctx.arc(mx, my, 12 * S, 0, Math.PI * 2); ctx.clip();
+    drawSprite(charSp, mx - 12 * S, my - 12 * S, 24 * S, 24 * S, 0);
+    ctx.restore();
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 2 * S;
+    ctx.beginPath(); ctx.arc(mx, my, 12 * S, 0, Math.PI * 2); ctx.stroke();
+  }
+});
+```
+
+## 4.14 祝福神（贊助者）新效果觸發提示（新增）
+
+**問題：** 小王事件（patron event）選擇贊助者後，玩家取得持久 hook 效果（如麥達斯 +25% 金幣、各贊助者的 buff）。但選擇後沒有任何提示說明「效果已生效」及「效果是什麼」，玩家容易忘記或不知道自己有哪些 buff。
+
+**修正方向（`run.js` patron 選擇邏輯 + `hud.js`）：**
+
+**A. 選擇後即時通知 Toast：**
+```js
+// run.js：選擇贊助者後（現有 applyPatronChoice 或等效位置）
+queuePatronToast(patron) {
+  // 沿用 AchievementToasts 機制，或獨立橫幅
+  this._patronToast = { name: patron.name, desc: patron.effectDesc, endT: this.elapsed + 6 };
+}
+```
+- 畫面中央上方橫幅（比成就通知更顯眼，因為這是主動選擇的重要 buff）：
+  - 贊助者頭像（`patron_*` 圖示）＋「{贊助者名} 的祝福已生效！」
+  - 第二行：效果說明文字（`patron.effectDesc`，如「金幣獲取 +25%，直到本局結束」）
+  - 停留 **5 秒**，淡出 1 秒。
+- `patron.effectDesc` 欄位：在 `content/events.js` 每個 patron 定義中補齊此欄位（目前可能只有 `name` 和 hook function）。
+
+**B. HUD 持久贊助者圖示列（新增）：**
+```
+┌── HUD 右下角（或左下角） ──────────────────────┐
+│  [麥達斯圖示]  [鐵面圖示]  …                  │
+│  (hover 顯示效果說明)                         │
+└──────────────────────────────────────────────┘
+```
+- 每個已觸發贊助者的小圖示橫排，最多 4 個（多餘以 `+N` 顯示）。
+- Hover 浮出 tooltip：贊助者名 + 效果描述（`effectDesc`）。
+- 來源：`run.activePatrons = []`（陣列，push 每次選擇的贊助者 id），HUD 讀此陣列渲染。
+
+**C. `content/events.js` patron 定義補齊 `effectDesc`：**
+每個 patron 加 `effectDesc: '...'` 欄位，中文描述實際效果（如「每局金幣獲取 +15%」「受到暴擊傷害時額外觸發衝刺」），供 A/B 兩處顯示。
+
 ---
 
 # 五、任務與成就系統
@@ -769,6 +875,36 @@ uiText(`⏱ ${emm}:${ess.toString().padStart(2, '0')}`, x, y, { size: 13 * S, co
 
 - 每條追蹤在進度條旁顯示 `(當前/目標)`：時間 `(2:57 / 3:00)`、計數 `(148 / 300)`、百分比 `49%`。
 - 數值以淺色小字顯示於進度條右側／下方；hover 顯示完整任務說明 tooltip。
+
+## 5.5 任務循序解鎖（前置任務）（新增）
+
+**問題：** 目前所有任務同時可接，玩家可能跳過主線直接做後期任務，導致劇情／系統引導斷裂，也讓任務清單顯得龐雜。
+
+**目標：** 同一「任務系列」中，必須完成前一個任務才能解鎖下一個。
+
+**A. Quest def 新增 `requires` 欄位（`content/quests.js`）：**
+```js
+// 任務定義範例
+{ id: 'story_2', name: '第一次出擊', requires: 'story_1', ... }
+{ id: 'story_3', name: '斬殺首領',  requires: 'story_2', ... }
+{ id: 'legend_1', name: '傳奇初章', requires: null, ... }  // null = 無前置，直接可接
+```
+- 非系列任務（支線、每日）`requires: null`，行為不變。
+- 一個任務最多一個前置（線性鏈）；若需分支，由設計時排列 id 控制。
+
+**B. `hub.js` guild panel 顯示狀態：**
+
+| 狀態 | 判斷條件 | 顯示 |
+|------|---------|------|
+| 可接 | `requires` 已完成（或 null） | 正常顯示，可點「接受」 |
+| 鎖定 | `requires` 未完成 | 灰色半透明行，右側「🔒 需先完成：{前置名}」|
+| 進行中 | 已接受、未完成 | 正常追蹤 |
+| 已完成 | `progress >= target` | 「領取」按鈕啟用 |
+
+- 鎖定任務**仍顯示**（不隱藏），讓玩家知道前方有更多任務等待，形成引導感。
+- hover 鎖定行時 tooltip 顯示完整前置任務名與進度。
+
+**C. HUD 追蹤（`hud.js`）：** 鎖定任務不加入追蹤清單（`META.quest.tracked` 過濾掉 locked 的 id）。
 
 ## 5.4 隱藏任務／傳奇之證等特殊任務無法領取（BUG）
 
@@ -1261,6 +1397,47 @@ FORGE_EFFECT_MUL:   2.0,   // 鍛造特效費用倍數
 
 **驗證：** 完整通關一次（D1 / 約 2,000–3,000 金幣），天賦最多升到 40–50% 滿；需 3–4 局才能全滿某一欄位。與 9.1 金幣 nerf 搭配後玩家面臨**明確取捨**（升天賦 vs 升設施 vs 鍛造）。
 
+## 9.3 城鎮升級動態定價（VS 式：每次升級後其餘漲價）（新增）
+
+**設計靈感（Vampire Survivors）：** 在 VS 中，每次購買任何升級後，下次購買的成本都會等比提高，形成「早買便宜、越買越貴」的取捨感，而不是固定價格。
+
+**目標：** 同一面板（如設施鋪、教堂天賦）內，升級 A 後，同面板內其他項目的當前顯示價格也會**微幅上漲**，讓每次選擇都有意義。
+
+**A. 機制設計：**
+- 每個消費面板（`talents`／`facilities`／`forge`）各維護一個 `purchaseCount` 計數器（存入 `META`）。
+- 當前面板的所有項目顯示費用 = `baseCost × HUB_COST_GROWTH ^ purchaseCount`。
+- `purchaseCount` 在**同面板內**共享（不跨面板）：升了天賦 A 後，天賦 B/C/D 的顯示費用都漲；但設施費用不受影響。
+
+**B. `balance.js` 新增常數：**
+```js
+HUB_COST_GROWTH: 1.08,  // 每次購買同面板其他項目漲 8%
+```
+
+**C. `state.js` `META` 新增：**
+```js
+META.hub = META.hub || {};
+META.hub.talentPurchases   = 0;   // 教堂天賦總購買次數
+META.hub.facilityPurchases = 0;   // 設施升級總購買次數
+META.hub.forgePurchases    = 0;   // 鍛造總購買次數
+```
+
+**D. 費用計算（`hub.js` 各 panel cost render）：**
+```js
+function scaledCost(baseCost, purchases) {
+  return Math.round(baseCost * Math.pow(BALANCE.HUB_COST_GROWTH, purchases));
+}
+// 顯示費用時：
+const displayCost = scaledCost(item.baseCost, META.hub.talentPurchases);
+```
+- 每次成功購買：`META.hub.talentPurchases++`（對應面板計數器）。
+- 重置（`resetTalents`）時：退還金幣、`META.hub.talentPurchases = 0`（計數器歸零，費用也恢復）。
+
+**E. 顯示提示：**
+- 面板頂部加灰色小字：「已升級 {N} 次 · 後續費用已提升 {%}」，讓玩家知道為何越來越貴。
+- `N` = `META.hub.talentPurchases`，`%` = `Math.round((BALANCE.HUB_COST_GROWTH^N - 1) * 100)`。
+
+**平衡建議：** `HUB_COST_GROWTH = 1.08`（每次 +8%）搭配 9.2 的基礎費用 ×2.0，玩家前 5 次升級成本可接受，後期需明顯取捨。可用 `__DBG.meta().hub` 查看目前計數器值驗證。
+
 ---
 
 # 不修改的項目
@@ -1435,6 +1612,7 @@ if (isReaper && world.player.speed >= this.speed) {
 22. 撿取裝備彈窗下方說明不壓其他 UI。
 23. 掉落物彩色外框（裝備金／道具藍／能力綠）；寶箱無鑰匙顯示紅「🔑 需要鑰匙」、有鑰匙顯示綠「按 E 開啟」。
 24. 升級選項：hover 無破圖、不遮頂部提示；三類型有顏色條；間距寬鬆；卡片有外框。
+24b. 升級選項稀有度標籤顏色正確：普通=深灰框、稀有=水藍框、史詩=亮紫框、傳說=橙金框，同稀有度視覺統一。
 25. 滿足進化條件的武器圖示邊框緩慢脈動白金光暈，無文字。
 26. 未按空白不自動開始跑局。
 27. Esc「返回大廳」彈確認；通關／Reaper 段不彈。
@@ -1445,12 +1623,15 @@ if (isReaper && world.player.speed >= this.speed) {
 29d. 結算頁「本局配置」「傷害排行」「本局解鎖」「觸發的羈絆」等大標題為金黃色 `#f5c518`。
 29e. 局內 HUD 頂部顯示已遊玩時間 `⏱ mm:ss`，隨遊戲累加。
 29f. 撿取裝備面板左右並排「目前裝備效果 ↔ 新裝備效果」，下方保留替換後差值；空欄位顯示「（此欄位目前無裝備）」。
+30. 大地圖（M）玩家位置顯示角色頭像框（圓形遮罩 + 白邊），zOrder 最高蓋過敵人點；多人局各玩家各自頭像。
+31. 祝福神選擇後中央上方橫幅顯示「{贊助者名} 的祝福已生效！+ 效果說明」停留 5 秒；HUD 右下角持久顯示已觸發贊助者小圖示，hover 有 tooltip。
 
 **五、任務與成就**
 30. 存活 2:57 時任務追蹤**不**顯示滿格／完成樣式。
 31. 左上 HUD 可同時顯示最多 3 條追蹤；公會「追蹤」切換邏輯正確。
 32. 追蹤列顯示 `(當前/目標)`；hover 顯示完整說明。
 33. 隱藏任務和「傳奇之證」完成後「領取」按鈕可用、點擊有效（不再無反應）。
+34. 任務系列有前置任務（requires）的，未完成前置時顯示灰色鎖定行 + 「🔒 需先完成：{前置名}」；完成前置後自動解鎖。
 
 **六、新手引導與難度**
 33. 重置 `META.tutorialDone` → 進城鎮 1 秒後蕾恩自動對話；舊存檔（`totalRuns>0` 無 `tutorialDone`）同樣觸發。
@@ -1475,6 +1656,7 @@ if (isReaper && world.player.speed >= this.speed) {
 46. 金幣 nerf：`GOLD_DROP_MULT 0.35`、`goldMult` 受 `GOLD_MULT_CAP 3.0` 封頂；各加成（財運／拾荒者／貪婪之觸／金庫／貪婪之戒／麥達斯）依表調降。
 47. sim 驗證：D3 完整 20 分鐘局，nerf 後單局入庫金幣明顯降低、中後期不再溢出；開局 5 分鐘節奏仍可接受。gen 檔改動已同步 workflow 來源或記錄重套。
 48. 天賦費用調漲 ×2.0、設施費用調漲 ×2.0、鍛造費用調漲（等級 ×2.0 / 特效依 slot 遞增）；一次完整 D1 通關後天賦最多升至 40–50% 滿；`TALENT_COST_MUL` 等常數在 `balance.js` 集中管理。
+49. 動態定價（VS 式）：同面板內升級 N 次後，顯示費用為 `baseCost × 1.08^N`；panel 頂部小字提示已升次數與費用漲幅；重置清零計數器。
 
 **十、Bug 修正與後期關卡調整**
 48. 武器進化後（如魂晶彈→魂晶風暴），升級選項**不再**出現已演化的基礎武器（魂晶彈不在池中）。
@@ -1547,8 +1729,17 @@ if (isReaper && world.player.speed >= this.speed) {
 - 成就通知橫幅全域化：城鎮中解鎖成就也顯示金色橫幅（AchievementToasts 全域佇列）。
 - 天賦／設施／鍛造重置按鈕確保在所有解析度可見、點擊彈確認框；衣帽間加「購買不可退款」說明。
 
+【跑局 HUD 補充】
+- 升級卡片稀有度顏色：普通深灰框、稀有水藍框、史詩亮紫框、傳說橙金框，與 tag 底色統一。
+- 大地圖（M）玩家以角色頭像圓框顯示（zOrder 最高），多人各自頭像。
+- 祝福神選擇後：中央橫幅 Toast（5 秒）＋ HUD 持久贊助者圖示列（hover tooltip）；events.js 補齊 effectDesc 欄位。
+
+【任務系統補充】
+- 任務 def 新增 `requires` 欄位，系列任務循序解鎖；鎖定任務顯示 🔒 灰色行 + 前置名稱。
+
 【經濟平衡補充】
 - 天賦費用 ×2.0、設施費用 ×2.0、鍛造費用 ×2.0（等級）至 ×3.0（第 3 特效）；搭配金幣 nerf，城鎮升級需跨多局取捨；費用倍數集中至 balance.js 管理。
+- 動態定價（VS 式）：同面板每次升級後其餘項目費用 ×1.08；META.hub.{panel}Purchases 記錄次數；重置清零；面板頂部顯示已升次數與漲幅說明。
 
 【新手引導與難度】
 - 城鎮引導劇情（全玩家適用）+ 首局戰鬥提示 + 首局 HUD 暫停說明。
