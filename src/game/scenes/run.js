@@ -1619,6 +1619,11 @@ export const runScene = {
     const st = this.player.stats;
     const stats = [['生命', Math.round(this.player.hp) + ' / ' + this.player.maxHp], ['傷害', '×' + st.damageMult.toFixed(2)], ['射速', '×' + st.fireRateMult.toFixed(2)], ['暴擊', Math.round(st.critChance * 100) + '%'], ['暴傷', '×' + (st.critMult || 2).toFixed(1)], ['移速', Math.round(st.speed)], ['減傷', String(st.defense || 0)], ['閃避', Math.round((st.dodge || 0) * 100) + '%'], ['吸血', Math.round((st.lifesteal || 0) * 100) + '%'], ['幸運', (st.luck || 0).toFixed(2)]];
     for (const [k, v] of stats) { if (yR > y + h - 16 * S) break; uiText(k, colR, yR, { size: 11.5 * S, color: P.gray3, weight: '500' }); uiText(v, x + w - 24 * S, yR, { size: 11.5 * S, align: 'right', color: '#fff', weight: '700' }); yR += 15 * S; }
+    // 8.2: bond visibility — surface achieved 羈絆 + total in the build panel (bottom-left, single clipped line)
+    const gotBonds = activeBonds(this.run);
+    head('羈絆', colL, y + h - 38 * S, P.goldL, gotBonds.length + ' / ' + BONDS.length, P.gray3);
+    const bondStr = gotBonds.length ? gotBonds.map((b) => b.name + '（' + (b.bonusDesc || '') + '）').join('、') : '尚未觸發 — 湊齊特定武器／被動組合即可啟動';
+    this.clipShop(bondStr, colL, y + h - 22 * S, w * 0.5 - 36 * S, 10 * S, gotBonds.length ? P.gray4 : P.gray2, '600');
   },
 
   drawBanner() {
