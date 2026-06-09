@@ -323,7 +323,7 @@ export const hubScene = {
     }
     if (this.panel === 'talents') this.updateTalents(mx, my);
     else if (this.panel === 'sortie') this.updateSortie(mx, my);
-    else if (this.panel === 'achievements') { /* view only */ }
+    else if (this.panel === 'achievements') this.updateAchievements(mx, my);   // 3.5-B filter tabs
     else if (this.panel === 'wardrobe') this.updateWardrobe(mx, my);
     else if (this.panel === 'smith') { this.tab === 0 ? this.updateForge(mx, my) : this.updateFacilities(mx, my); }
     else if (this.panel === 'guild') { this.tab === 0 ? this.updateQuests(mx, my) : this.updateGuildRank(mx, my); }
@@ -936,21 +936,40 @@ export const hubScene = {
   },
 
   // ---- achievement hall ----------------------------------------------------
+  // 3.5-B: filter chips (全部 / 已達成 / 未達成) so the 200+ list is browsable.
+  achFilterRects(f) {
+    const S = f.S, y = f.y + 60 * S, w = 78 * S, h = 22 * S, gap = 8 * S, x0 = f.x + 24 * S;
+    return [0, 1, 2].map((i) => ({ x: x0 + i * (w + gap), y, w, h, i }));
+  },
+  updateAchievements(mx, my) {
+    if (!mouse.justDown) return;
+    for (const r of this.achFilterRects(this.panelFrame())) if (inside(mx, my, r)) { if ((this.achFilter || 0) !== r.i) { this.achFilter = r.i; this.panelScroll = 0; } Sfx.play('uiClick'); return; }
+  },
   drawAchievements() {
     const f = this.drawPanelFrame('成 就 殿 堂', '達成成就 · 解鎖更多內容');
-    const S = f.S;
+    const S = f.S; const mx = mouse.x * view.dpr, my = mouse.y * view.dpr;
+    const got = META.achievements || [];
+    // 3.5-B filter tabs
+    const FILTERS = ['全部', '已達成', '未達成']; const fl = this.achFilter || 0;
+    this.achFilterRects(f).forEach((r) => {
+      const on = fl === r.i, hov = inside(mx, my, r);
+      uiRect(r.x, r.y, r.w, r.h, withAlpha(on ? '#243a5a' : (hov ? '#1f2740' : '#1b2138'), 0.96), { radius: 6 * S, stroke: on ? P.shardL : P.ink2, lw: on ? 2 : 1 });
+      uiText(FILTERS[r.i], r.x + r.w / 2, r.y + r.h / 2 + 1 * S, { size: 11 * S, align: 'center', baseline: 'middle', color: on ? P.shardL : P.gray3, weight: '800' });
+    });
+    const list = ACHIEVEMENTS.filter((a) => fl === 0 ? true : fl === 1 ? got.includes(a.id) : !got.includes(a.id));
     const cols = 2;
     const cardW = (f.w - 40 * S - (cols - 1) * 14 * S) / cols, cardH = 62 * S;
-    const got = META.achievements || [];
-    const rows = Math.ceil(ACHIEVEMENTS.length / cols);
-    const bottom = f.y + 72 * S + rows * (cardH + 9 * S);
+    const gridTop = f.y + 92 * S, clipTop = f.y + 86 * S;
+    const rows = Math.ceil(list.length / cols);
+    const bottom = gridTop + rows * (cardH + 9 * S);
     this.panelMaxScroll = Math.max(0, bottom - (f.y + f.h - 24 * S));
     if (mouse.wheel) this.panelScroll = clamp((this.panelScroll || 0) + mouse.wheel * 0.5, 0, this.panelMaxScroll);
-    const ctx = ctxRaw(); ctx.save(); ctx.beginPath(); ctx.rect(f.x, f.y + 58 * S, f.w, f.h - 74 * S); ctx.clip();
-    ACHIEVEMENTS.forEach((a, i) => {
+    const ctx = ctxRaw(); ctx.save(); ctx.beginPath(); ctx.rect(f.x, clipTop, f.w, f.y + f.h - 24 * S - clipTop); ctx.clip();
+    if (!list.length) uiText('（此分類沒有成就）', f.x + f.w / 2, gridTop + 20 * S, { size: 12 * S, align: 'center', color: P.gray3 });
+    list.forEach((a, i) => {
       const c = i % cols, r = Math.floor(i / cols);
-      const x = f.x + 20 * S + c * (cardW + 14 * S), y = f.y + 72 * S + r * (cardH + 9 * S) - (this.panelScroll || 0);
-      if (y > f.y + f.h || y + cardH < f.y + 58 * S) return;   // cull off-screen rows
+      const x = f.x + 20 * S + c * (cardW + 14 * S), y = gridTop + r * (cardH + 9 * S) - (this.panelScroll || 0);
+      if (y > f.y + f.h || y + cardH < clipTop) return;   // cull off-screen rows
       const done = got.includes(a.id);
       const name = (a.hidden && !done) ? '？？？' : (a.realName || a.name);
       let desc = (a.hidden && !done) ? '隱藏成就 — 達成後揭曉' : a.desc;
@@ -1141,11 +1160,13 @@ export const hubScene = {
     let infoC = Characters.get(META.selectedCharacter);
     for (const card of L.cards) if (inside(mx, my, card)) { infoC = card.c; break; }
     if (infoC) {
-      const iy = L.pgY - 52 * S, wpn = Weapons.get(infoC.startWeapon);
+      const iy = L.pgY - 56 * S, wpn = Weapons.get(infoC.startWeapon);
       const ulocked = META.unlocked.characters.includes(infoC.id);
       uiText('▸ ' + infoC.name + (ulocked ? '' : '（未解鎖）'), f.x + 24 * S, iy, { size: 13 * S, color: P.shardL, weight: '800' });
-      uiText('起始武器：' + (wpn ? wpn.name : infoC.startWeapon), f.x + f.w - 24 * S, iy, { size: 11 * S, align: 'right', color: P.goldL, weight: '700' });
-      let line = '', yy = iy + 16 * S, lines = 0; const maxw = f.w - 48 * S, size = 11 * S;
+      // 3.6: starting weapon on its OWN line below the name (was right-aligned on the same
+      // baseline → long hero names + long weapon names overlapped).
+      uiText('起始武器：' + (wpn ? wpn.name : infoC.startWeapon), f.x + 24 * S, iy + 15 * S, { size: 11 * S, color: P.goldL, weight: '700' });
+      let line = '', yy = iy + 31 * S, lines = 0; const maxw = f.w - 48 * S, size = 11 * S;
       for (const ch of (infoC.desc || '')) { if (textWidth(line + ch, size, '500') > maxw && line) { uiText(line, f.x + 24 * S, yy, { size, color: P.gray4, weight: '500' }); line = ch; yy += 14 * S; if (++lines >= 2) { line = ''; break; } } else line += ch; }
       if (line) uiText(line, f.x + 24 * S, yy, { size, color: P.gray4, weight: '500' });
     }
