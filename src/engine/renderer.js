@@ -206,10 +206,9 @@ function roundRectPath(x, y, w, h, r) {
 }
 export { roundRectPath };
 
-// round16/1.1 — 全域改用標楷體 (KaiTi) for a calligraphic look; the existing sans chain
-// stays as a fallback so text still renders on systems without a KaiTi font installed.
-// textWidth() uses the SAME FONT, so clip/wrap math stays consistent with what's rendered.
-const FONT = '"標楷體", "DFKai-SB", "BiauKai", "Kaiti TC", "KaiTi", "Microsoft JhengHei", "PingFang TC", "Noto Sans CJK TC", system-ui, sans-serif';
+// round16/1.1 — reverted to the original sans-serif UI font per player feedback (the KaiTi
+// calligraphic look read as "ugly"). Kept the rest of the round-16 work; font stays as-is.
+const FONT = '"Microsoft JhengHei", "PingFang TC", "Noto Sans CJK TC", system-ui, sans-serif';
 // round16/1.6 — UI sizing tokens (foundation): shared font sizes + component metrics so
 // menus and sub-panels stay proportional. Consumed incrementally by UI code (sizes are the
 // design base; callers still multiply by uiScale()).
