@@ -1248,7 +1248,9 @@ export const runScene = {
     list.sort((a, x2) => x2.pg.level - a.pg.level);   // achieved first, higher tier first
     const achievedN = list.filter((o) => !o.near).length;
     const x = 12 * S, w = 170 * S;
-    const tq = trackedQuestStates(META).length;   // 5.2: sit below however many quest rows are tracked (h=46, gap=6)
+    const tq = trackedQuestStates(META).length;   // 5.2: sit below however many quest rows are tracked (each row h=46, inter-row gap=6)
+    // last row bottom = 196 + (tq-1)*52 + 46; bond box sits +4 below it (the SAME 4px margin the
+    // original single-quest layout used: tq=1 → 246, matching pre-5.2). NOT 196+tq*52 (that'd be a 6px gap).
     const y = (tq ? 196 + tq * 46 + (tq - 1) * 6 + 4 : 196) * S;
     const rows = list.slice(0, 7), extra = list.length - rows.length;
     const headH = 22 * S, rowH = 22 * S;

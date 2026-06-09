@@ -284,6 +284,7 @@ const PNG1x1 = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HA
 ok((await J('POST', '/api/feedback', { category: 'bug', content: '附上截圖的回報測試', image: PNG1x1 })).json().ok === true, 'feedback submit with image → ok');
 ok((await J('POST', '/api/feedback', { category: 'bug', content: '惡意非圖片附件', image: 'data:text/html,<script>x</script>' })).statusCode === 400, 'feedback with non-image data URL → 400');
 ok((await J('POST', '/api/feedback', { category: 'bug', content: '超大附件', image: 'data:image/png;base64,' + 'A'.repeat(2_700_000) })).statusCode === 400, 'feedback with oversized image → 400');
+ok((await J('POST', '/api/feedback', { category: 'bug', content: '夾帶非 base64 字元的偽圖', image: 'data:image/png;base64,abc<script>alert(1)</script>' })).statusCode === 400, 'feedback image with non-base64 trailing payload → 400 (anchored regex)');
 fb = await J('GET', '/api/admin/feedback', undefined, token);
 ok(fb.json().rows.some((f) => f.image === PNG1x1), 'admin feedback list returns the attached image');
 
@@ -299,6 +300,11 @@ ok(ov.json().totals.playing >= 2, 'overview totals.playing reflects active playe
 await J('POST', '/api/presence/stop', { sid: 'sid-guest-1' });
 ov = await J('GET', '/api/admin/overview', undefined, token);
 ok(!ov.json().playing.some((p) => p.name === 'GuestRunner'), 'stopped player drops off the playing list');
+// QA: a banned account must not be able to appear in the live-playing list
+const rivalTok = (await J('POST', '/api/login', { username: 'rival', password: 'hunter123' })).json().token;
+await J('POST', '/api/admin/ban', { kind: 'user', value: 'rival' }, token);
+ok((await J('POST', '/api/presence/play', { sid: 'sid-rival', name: 'x' }, rivalTok)).statusCode === 403, 'presence play as banned account → 403');
+await J('POST', '/api/admin/unban', { kind: 'user', value: 'rival' }, token);
 
 // ---- round16/7.6 admin audit log (kick/ban/unban/broadcast/delete-run/feedback ran above) ----
 const logs = await J('GET', '/api/admin/logs', undefined, token);

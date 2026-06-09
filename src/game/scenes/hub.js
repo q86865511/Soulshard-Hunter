@@ -73,7 +73,7 @@ export const hubScene = {
     this.dialogue = null;
     this.panelScroll = 0; this.panelMaxScroll = 0;
     this.flash = ''; this.flashT = 0;
-    this.sortPage = 0; this.selBiome = null; this.selDiff = 1;
+    this.sortPage = 0; this.selBiome = null; this.selDiff = 1; this.selMode = 'normal';   // QA: init sortie mode (was undefined until first draw/click)
     this.forgeSel = null;
     this.heroSprite = skinnedSprite(META, META.selectedCharacter || 'hunter');
     ensureSkinOffers(META);

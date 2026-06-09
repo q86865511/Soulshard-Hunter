@@ -125,7 +125,7 @@ const feedbackSchema = z.object({
   name:     z.string().trim().max(24).optional().nullable(),
   // round16 #4: optional attached screenshot — a base64 image data: URL, capped ~2.6MB of
   // text (~1.9MB binary). The regex rejects any non-image / non-data payload.
-  image:    z.string().max(2_600_000).regex(/^data:image\/(png|jpeg|jpg|webp);base64,/).optional().nullable(),
+  image:    z.string().max(2_600_000).regex(/^data:image\/(png|jpeg|jpg|webp);base64,[A-Za-z0-9+/]+={0,2}$/).optional().nullable(),   // QA: anchor + base64-charset (defense-in-depth)
 });
 
 const strictLimit = { config: { rateLimit: { max: 15, timeWindow: '1 minute' } } };          // auth
@@ -277,13 +277,16 @@ export async function buildApp(pool, { logger = false, rateMax = 120 } = {}) {
   app.post('/api/presence/play', { config: { rateLimit: { max: 40, timeWindow: '1 minute' } } }, async (req, reply) => {
     const { sid, name, biome, difficulty } = req.body || {};
     if (!sid) return reply.code(400).send({ error: 'sid required' });
+    if (realtime.isBannedIp(req.ip)) return reply.code(403).send({ error: '此 IP 已被封鎖' });   // QA: keep banned IPs out of the live-players list
     let nm = String(name || '訪客').slice(0, 24), isGuest = true;
     const m = (req.headers.authorization || '').match(/^Bearer (.+)$/);
     if (m) { try { const u = jwt.verify(m[1], JWT_SECRET, { algorithms: ['HS256'] }); if (u.username) { nm = u.username; isGuest = false; } } catch (e) { /* treat as guest */ } }
+    if (!isGuest && realtime.isBannedUser(nm)) return reply.code(403).send({ error: '此帳號已被封鎖' });   // QA: banned account can't appear as "playing now"
     realtime.touchPlaying({ sid: String(sid).slice(0, 64), name: nm, guest: isGuest, biome, difficulty });
     return { ok: true };
   });
-  app.post('/api/presence/stop', { config: { rateLimit: { max: 40, timeWindow: '1 minute' } } }, async (req) => {
+  app.post('/api/presence/stop', { config: { rateLimit: { max: 40, timeWindow: '1 minute' } } }, async (req, reply) => {
+    if (realtime.isBannedIp(req.ip)) return reply.code(403).send({ error: '此 IP 已被封鎖' });
     const sid = req.body && req.body.sid; if (sid) realtime.stopPlaying(String(sid).slice(0, 64));
     return { ok: true };
   });
