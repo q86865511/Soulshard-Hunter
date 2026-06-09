@@ -1135,8 +1135,11 @@ export const runScene = {
   // shared marker set so the small map and the big (M) map always match (#4)
   plotMinimap(dot, sc) {
     const en = this.world.enemies;
-    for (let i = 0; i < en.length && i < 220; i++) dot(en[i].x, en[i].y, withAlpha(en[i].boss ? P.redL : (en[i].surround ? P.purpleL : P.red), 0.85), (en[i].boss ? 5 : en[i].surround ? 3 : 2.5) * sc);
-    for (const pk of this.world.pickups) if (pk.type === 'chest' && (!pk.hidden || pk.revealed)) dot(pk.x, pk.y, P.goldL, 3 * sc);
+    for (let i = 0; i < en.length && i < 220; i++) {   // 4.22: 守護怪 distinct (gold) so the key source is findable
+      const e = en[i], col = e.guardian ? P.goldL : (e.boss ? P.redL : (e.surround ? P.purpleL : P.red));
+      dot(e.x, e.y, withAlpha(col, e.guardian ? 1 : 0.85), (e.guardian ? 4 : e.boss ? 5 : e.surround ? 3 : 2.5) * sc);
+    }
+    for (const pk of this.world.pickups) if (pk.type === 'chest' && (!pk.hidden || pk.revealed)) dot(pk.x, pk.y, pk.locked ? P.redL : P.goldL, 3 * sc);   // 4.22: locked vault = red
     if (this.shrinePos) dot(this.shrinePos.x, this.shrinePos.y, P.shardL, 3.5 * sc);
     for (const n of (this.npcs || [])) if (!n.used) dot(n.x, n.y, n.kind === 'well' ? P.shardL : P.manaL, 3.5 * sc);
     if (this.bossRef && !this.bossRef.dead) dot(this.bossRef.x, this.bossRef.y, P.redL, 5 * sc);
@@ -1169,6 +1172,22 @@ export const runScene = {
 
   // 8.2: live 羈絆 panel on the left, BELOW the quest tracker — shows the bonds
   // currently active this run (icon badge + name + reached tier).
+  // 4.20: hold V to see the current pickup radius (world-space ring + label).
+  drawPickupRange() {
+    if (!pressed('range') || this.dead || this.choice || this.equipChoice || this.eventChoice || this.paused || this.shopOpen || this.bigMap || this.showBuild) return;
+    const r = this.player.stats.pickupRange || 26, pz = Math.sin(this.t * 5) * 0.5 + 0.5;
+    fillCircleWorld(this.player.x, this.player.y, r, withAlpha(P.shardL, 0.06));
+    strokeCircleWorld(this.player.x, this.player.y, r, withAlpha(P.shardL, 0.5 + 0.3 * pz), 2);
+    const ns = worldToScreen(this.player.x, this.player.y - r - 8);
+    uiText('拾取範圍 ' + Math.round(r), ns.x, ns.y, { size: 11 * uiScale(), align: 'center', color: P.shardL, weight: '800', shadowColor: withAlpha('#000', 0.8) });
+  },
+  // 4.22: held vault keys (dropped by 守護怪, spent on locked vault chests).
+  drawKeyHud() {
+    const keys = (this.world && this.world.keys) | 0;
+    if (keys <= 0 || this.dead) return;
+    const S = uiScale();
+    uiText('🔑 × ' + keys, view.W - 12 * S, 96 * S, { size: 13 * S, align: 'right', color: P.goldL, weight: '800', shadowColor: withAlpha('#000', 0.8) });
+  },
   // TFT 式羈絆側欄：六角徽章（依階級銅/銀/金配色）＋名稱＋階數；已達成＋快達成。
   drawBondTracker() {
     if (this.dead || this.choice || this.equipChoice || this.eventChoice || this.shopOpen || this.paused || this.bigMap) return;
@@ -1377,10 +1396,12 @@ export const runScene = {
     this.drawNpcs();
     this.drawHiddenRooms();
     this.drawEvents();
+    this.drawPickupRange();   // 4.20: V shows the pickup-range ring (world space)
     vignette(0.42);
     drawLowHpWarning(this.player, this.t);
     this.world.particles.drawText();
     drawHud(this.run, this.player);
+    this.drawKeyHud();        // 4.22: held vault keys
     this.drawStageHud();
     this.drawMinimap();
     this.drawQuestTracker();

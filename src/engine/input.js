@@ -23,7 +23,7 @@ const DEFAULT_KEYMAP = {
   ArrowRight: 'right', KeyD: 'right',
   Space: 'space', Enter: 'enter', Escape: 'escape',
   ShiftLeft: 'dash', ShiftRight: 'dash',
-  KeyE: 'interact', KeyQ: 'swap', KeyR: 'reload', KeyF: 'ability', KeyP: 'pause', Tab: 'build', KeyM: 'minimap', KeyB: 'shop',
+  KeyE: 'interact', KeyQ: 'swap', KeyR: 'reload', KeyF: 'ability', KeyP: 'pause', Tab: 'build', KeyM: 'minimap', KeyB: 'shop', KeyV: 'range',
   Digit1: 'slot1', Digit2: 'slot2', Digit3: 'slot3', Digit4: 'slot4',
 };
 let KEYMAP = { ...DEFAULT_KEYMAP };
@@ -35,6 +35,7 @@ export const REBINDABLE = [
   { action: 'ability', label: '主動技能' }, { action: 'pause', label: '暫停選單' },
   { action: 'build', label: '查看 Build' }, { action: 'minimap', label: '小地圖' },
   { action: 'shop', label: '商店' }, { action: 'swap', label: '切換武器' },
+  { action: 'range', label: '顯示拾取範圍' },
 ];
 // rebuild KEYMAP = defaults + per-action overrides (an override replaces ALL default codes for that action)
 export function applyKeybinds(overrides) {
