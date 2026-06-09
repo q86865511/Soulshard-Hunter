@@ -9,7 +9,7 @@ import { newRun, META, saveMeta, WEAPONS } from '../state.js';
 import { Talents, Facilities, Characters, Weapons } from '../content/registry.js';
 import { TALENT_BRANCHES } from '../content/talents.js';
 import { ACHIEVEMENTS, achievementProgress } from '../content/achievements.js';
-import { STORY_QUESTS, chapterState, claimChapter, guildQuests, trackQuest, claimQuest, trackedQuestState, fmtQuestVal } from '../content/quests.js';
+import { STORY_QUESTS, chapterState, claimChapter, guildQuests, trackQuest, claimQuest, trackedQuestState, fmtQuestVal, questUnlocked, questLockedBy } from '../content/quests.js';
 import { SKINS, skinnedSprite, skinSpriteName } from '../content/characters.js';
 import { GUILD_RANKS, guildProgress, claimableRanks, claimGuildRank } from '../content/guild.js';
 import { FORGE_EFFECTS, forgeEffect, FORGE_MAX_LEVEL, FORGE_MAX_EFFECTS, forgeLevelCost, forgeEffectCost, forgeOf, forgeableWeapons, buyForgeLevel, buyForgeEffect, forgeSummary } from '../content/forge.js';
@@ -523,7 +523,9 @@ export const hubScene = {
     if (cur && cur.done && inside(mx, my, L.mainClaim)) { const q = claimChapter(META); if (q) { saveMeta(); this.feedback('完成 ' + q.title); } return; }
     if (inside(mx, my, L.mainTrack)) { trackQuest(META, 'story'); saveMeta(); Sfx.play('uiClick'); return; }
     for (const r of L.rows) {
-      if (inside(mx, my, r.track)) { trackQuest(META, r.q.id); saveMeta(); this.feedback('追蹤：' + r.q.title); return; }
+      const lockedBy = questLockedBy(META, r.q);   // 5.5: locked rows hide their buttons; clicking the row hints the prerequisite
+      if (lockedBy) { if (inside(mx, my, { x: L.f.x, y: r.y, w: L.f.w, h: r.h })) { this.feedback('🔒 需先完成：' + lockedBy); return; } continue; }
+      if (inside(mx, my, r.track)) { if (trackQuest(META, r.q.id)) { saveMeta(); this.feedback('追蹤：' + r.q.title); } return; }
       if (inside(mx, my, r.claim)) { if (claimQuest(META, r.q.id)) { saveMeta(); this.feedback('領取：' + r.q.title); } else this.feedback('尚未達成'); return; }
     }
   },
@@ -839,15 +841,20 @@ export const hubScene = {
     for (const r of L.rows) {
       const q = r.q, p = Math.min(q.goal, q.prog(META.stats || {})), done = p >= q.goal;
       const trk = META.trackedQuest === q.id, hidden = q.id[0] === 'h';
-      uiRect(f.x + 24 * S, r.y, f.w - 48 * S, r.h, withAlpha(trk ? '#243a5a' : '#1b2138', 0.95), { radius: 6 * S, stroke: trk ? P.shardL : (hidden ? P.purpleL : P.ink2), lw: trk ? 2 : 1 });
-      uiText(q.title, f.x + 34 * S, r.y + 15 * S, { size: 12 * S, color: hidden ? P.purpleL : '#fff', weight: '800' });
-      uiText(q.desc + '（' + fmtQuestVal(p, q.fmt) + '/' + fmtQuestVal(q.goal, q.fmt) + '）', f.x + 34 * S, r.y + 30 * S, { size: 10 * S, color: done ? P.greenL : P.gray4 });
-      const tH = inside(mx, my, r.track);
-      uiRect(r.track.x, r.track.y, r.track.w, r.track.h, withAlpha(trk || tH ? '#243a5a' : '#1b2138', 0.96), { radius: 5 * S, stroke: trk ? P.shardL : P.ink2, lw: 1 });
-      uiText(trk ? '● 追蹤' : '追蹤', r.track.x + r.track.w / 2, r.track.y + r.track.h / 2 + 1 * S, { size: 10 * S, align: 'center', baseline: 'middle', color: trk ? P.shardL : '#fff', weight: '700' });
-      const cH = inside(mx, my, r.claim);
-      uiRect(r.claim.x, r.claim.y, r.claim.w, r.claim.h, withAlpha(done ? (cH ? '#2a6a3a' : '#1f5030') : '#2a2030', 0.96), { radius: 5 * S, stroke: done ? P.greenL : P.gray1, lw: 1 });
-      uiText(done ? ('領 +' + q.reward) : '進行中', r.claim.x + r.claim.w / 2, r.claim.y + r.claim.h / 2 + 1 * S, { size: 10 * S, align: 'center', baseline: 'middle', color: done ? '#fff' : P.gray3, weight: '700' });
+      const lockedBy = questLockedBy(META, q);   // 5.5: prerequisite not yet claimed
+      uiRect(f.x + 24 * S, r.y, f.w - 48 * S, r.h, withAlpha(lockedBy ? '#15161f' : (trk ? '#243a5a' : '#1b2138'), lockedBy ? 0.8 : 0.95), { radius: 6 * S, stroke: lockedBy ? P.gray1 : (trk ? P.shardL : (hidden ? P.purpleL : P.ink2)), lw: trk ? 2 : 1 });
+      uiText(q.title, f.x + 34 * S, r.y + 15 * S, { size: 12 * S, color: lockedBy ? P.gray2 : (hidden ? P.purpleL : '#fff'), weight: '800' });
+      if (lockedBy) {
+        uiText('🔒 需先完成：' + lockedBy, f.x + 34 * S, r.y + 30 * S, { size: 10 * S, color: P.gray3 });
+      } else {
+        uiText(q.desc + '（' + fmtQuestVal(p, q.fmt) + '/' + fmtQuestVal(q.goal, q.fmt) + '）', f.x + 34 * S, r.y + 30 * S, { size: 10 * S, color: done ? P.greenL : P.gray4 });
+        const tH = inside(mx, my, r.track);
+        uiRect(r.track.x, r.track.y, r.track.w, r.track.h, withAlpha(trk || tH ? '#243a5a' : '#1b2138', 0.96), { radius: 5 * S, stroke: trk ? P.shardL : P.ink2, lw: 1 });
+        uiText(trk ? '● 追蹤' : '追蹤', r.track.x + r.track.w / 2, r.track.y + r.track.h / 2 + 1 * S, { size: 10 * S, align: 'center', baseline: 'middle', color: trk ? P.shardL : '#fff', weight: '700' });
+        const cH = inside(mx, my, r.claim);
+        uiRect(r.claim.x, r.claim.y, r.claim.w, r.claim.h, withAlpha(done ? (cH ? '#2a6a3a' : '#1f5030') : '#2a2030', 0.96), { radius: 5 * S, stroke: done ? P.greenL : P.gray1, lw: 1 });
+        uiText(done ? ('領 +' + q.reward) : '進行中', r.claim.x + r.claim.w / 2, r.claim.y + r.claim.h / 2 + 1 * S, { size: 10 * S, align: 'center', baseline: 'middle', color: done ? '#fff' : P.gray3, weight: '700' });
+      }
     }
   },
   drawGuildRank(f) {

@@ -52,3 +52,13 @@
 - **10.3 死神移速大幅加強**：`content/enemies.js` reaper `speed 56 → 104`（接近玩家移速，charger 衝刺再加成）——靜止或慢速無法擺脫。
 - **10.9 死神出現誤觸 Game Over（BUG）**：`clearLevel()` 給玩家 `invuln = BALANCE.REAPER_GRACE (0.6)` 緩衝，避免 Boss 死亡爆炸／殘留 AoE 在「通關→死神」過渡幀誤殺玩家而跳結束畫面；通關以布林 `this.cleared`/`this.run.cleared`、死神以 `this.reaperSpawned` 表示（不動整數 `run.stage`）。（完整流場尋路 10.7/10.8 屬另一批 B10b。）
 - 驗證：`spawnReaper()` 產生的死神 `speed === 104`；`clearLevel()` 後 `player.invuln === 0.6`、`cleared`/`run.cleared` 為 true、`reaperSpawned` 為 true；零錯誤。
+
+---
+
+## 批次 B6 — 任務系統（第五章）
+
+- **5.5 任務循序解鎖（前置任務）**：`content/quests.js` 委託新增 `requires` 欄位（鏈：清剿→獵首→屠戮小王、堅守→深入）；新增 `questUnlocked()`／`questLockedBy()`；`claimQuest()`／`trackQuest()` 對未解鎖的委託回 false；`hub.js` 公會面板鎖定列改灰底並顯示「🔒 需先完成：{前置名}」，點擊提示前置、不顯示追蹤／領取鈕。
+- **5.1／5.3 對照確認已實作**：左側任務追蹤（`run.js drawQuestTracker`／`hub.js`）已顯示 `(當前/目標)` 數值（`fmtQuestVal`），且進度條只在 `done`（prog≥goal）時轉綠——非未達成即滿。
+- **5.4 對照確認非 Bug**：`claimQuest()` 僅以 `bountyState.done`（prog≥goal）判定，無 `revealed` 額外閘；隱藏／傳奇委託達標即可領取。
+- （5.2 多任務同時追蹤＝單追蹤改陣列＋HUD 多列，屬較大 UI 重構，列入後續批次。）
+- 驗證：`questUnlocked(b_boss)` 在 `b_hunt` 未領取時為 false、領取後為 true；鎖定時 `claimQuest('b_boss')` 即使達標仍回 false，解鎖後可領；公會面板實機 render 零錯誤。
