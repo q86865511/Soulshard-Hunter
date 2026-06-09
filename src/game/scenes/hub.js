@@ -502,9 +502,9 @@ export const hubScene = {
     if (inside(mx, my, L.next)) { this.sortPage = Math.min(L.pages - 1, this.sortPage + 1); Sfx.play('uiClick'); return; }
     for (const lb of L.lvlButtons) if (inside(mx, my, lb)) { this.selBiome = lb.b.id; this.selDiff = 1; Sfx.play('uiClick'); return; }
     const maxD = this.maxDiff(this.curBiome(L));
-    if (inside(mx, my, L.dPrev)) { this.selDiff = Math.max(1, this.selDiff - 1); Sfx.play('uiClick'); return; }
+    if (inside(mx, my, L.dPrev)) { this.selDiff = Math.max(0, this.selDiff - 1); Sfx.play('uiClick'); return; }   // 6.5: 0 = 劇情難度
     if (inside(mx, my, L.dNext)) { this.selDiff = Math.min(maxD, this.selDiff + 1); Sfx.play('uiClick'); return; }
-    if (inside(mx, my, L.start)) { const b = this.curBiome(L); const d = Math.min(this.maxDiff(b), Math.max(1, this.selDiff)); Sfx.play('portal'); saveMeta(); setScene(refs.run, { run: newRun({ biomeId: b, difficulty: d }) }); }
+    if (inside(mx, my, L.start)) { const b = this.curBiome(L); const d = Math.min(this.maxDiff(b), Math.max(0, this.selDiff)); Sfx.play('portal'); saveMeta(); setScene(refs.run, { run: newRun({ biomeId: b, difficulty: d }) }); }
   },
 
   // ---- quests (guild tab 0) ------------------------------------------------
@@ -1073,13 +1073,15 @@ export const hubScene = {
     }
     // difficulty row
     const maxD = this.maxDiff(sel);
-    this.selDiff = Math.min(maxD, Math.max(1, this.selDiff || 1));
+    this.selDiff = Math.min(maxD, Math.max(0, this.selDiff == null ? 1 : this.selDiff));   // 6.5: allow 0 (劇情)
+    const isStory = this.selDiff <= 0;
     uiText('難度', f.x + 24 * S, L.dY + 17 * S, { size: 11 * S, color: P.gray3, weight: '700' });
-    arrow(L.dPrev, '−', this.selDiff > 1);
+    arrow(L.dPrev, '−', this.selDiff > 0);
     arrow(L.dNext, '+', this.selDiff < maxD);
-    uiText('難度 ' + this.selDiff + (this.selDiff >= maxD ? ' · 最高可玩' : ''), f.x + f.w / 2, L.dY + 17 * S, { size: 13 * S, align: 'center', baseline: 'middle', color: P.emberL, weight: '800' });
-    // 6.4: one-line difficulty explanation (new-player guidance)
+    uiText(isStory ? '劇情' : ('難度 ' + this.selDiff + (this.selDiff >= maxD ? ' · 最高可玩' : '')), f.x + f.w / 2, L.dY + 17 * S, { size: 13 * S, align: 'center', baseline: 'middle', color: isStory ? P.shardL : P.emberL, weight: '800' });
+    // 6.4 / 6.5: one-line difficulty explanation (new-player guidance)
     const DIFF_DESC = {
+      0: '劇情 · 敵人極弱、掉落豐厚，幾乎必過（不列入排行榜）',
       1: '入門 · 敵人較少、節奏輕鬆，適合熟悉操作',
       2: '普通 · 敵潮變密，開始出現包圍與狀態威脅',
       3: '困難 · 高壓追殺，中後期考驗 build 與走位',
