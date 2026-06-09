@@ -56,6 +56,7 @@ const DEFAULT_META = () => ({
   skinShop: { roll: 0, offers: [], nextRoll: 0 },   // 5-6 clothing store: rotating offers + 30-min refresh timer (task-10)
   npc: { met: {} },                      // 5-1 npc id -> true once talked to (for "new" markers / story gating)
   hidden: { claimed: {} },               // #6 hidden-room rewards claimed (save-permanent, once each)
+  bondsSeen: [],                         // round16/8.2: ids of 羈絆 ever triggered (for the 羈絆圖鑑 highlight)
   flags: {},
 });
 
@@ -108,6 +109,7 @@ export function loadMeta(slot) {
       if (!META.npc.met || typeof META.npc.met !== 'object') META.npc.met = {};
       if (!META.hidden || typeof META.hidden !== 'object') META.hidden = { claimed: {} };
       if (!META.hidden.claimed || typeof META.hidden.claimed !== 'object') META.hidden.claimed = {};
+      if (!Array.isArray(META.bondsSeen)) META.bondsSeen = [];   // round16/8.2: 羈絆圖鑑 ever-seen set
       for (const k of ['charClears']) if (!META.stats[k] || typeof META.stats[k] !== 'object') META.stats[k] = {};
       for (const k of ['noDmgClears', 'bestCharLevel', 'bondsTriggered', 'forgeUpgrades', 'npcTalks']) if (typeof META.stats[k] !== 'number') META.stats[k] = 0;
       if (typeof META.saveSeq !== 'number') META.saveSeq = 0;
@@ -298,6 +300,7 @@ export function bankRun(run) {
   // round-5 extra stats (task 2) + guild XP (task 5-3)
   META.stats.bestCharLevel = Math.max(META.stats.bestCharLevel || 0, run.level || 1);
   META.stats.bondsTriggered = (META.stats.bondsTriggered || 0) + ((run.bonds && run.bonds.length) || 0);
+  if (run.bonds && run.bonds.length) { META.bondsSeen = Array.isArray(META.bondsSeen) ? META.bondsSeen : []; for (const id of run.bonds) if (!META.bondsSeen.includes(id)) META.bondsSeen.push(id); }   // round16/8.2: remember triggered 羈絆 for the codex
   if (run.cleared) {
     const cc = META.stats.charClears = META.stats.charClears || {};
     cc[run.characterId] = (cc[run.characterId] || 0) + 1;

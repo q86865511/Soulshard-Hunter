@@ -39,53 +39,50 @@ export function drawHud(run, player) {
   const W = view.W;
   const pad = 12 * S;
   const clamp01 = (v) => Math.max(0, Math.min(1, v));
-  const barW = Math.min(236 * S, W * 0.36);
-  const barH = 18 * S;
-  const hpX = pad + 22 * S, hpW = barW - 22 * S;        // room for a heart icon at the left
   const pulse = Math.sin((player.t || 0) * 6) * 0.5 + 0.5;
 
-  // 原#10: a subtle backing panel ties the vitals cluster together
-  uiRect(pad - 5 * S, pad - 5 * S, barW + 62 * S, barH + 32 * S, withAlpha('#0b0d1a', 0.42), { radius: 8 * S, stroke: withAlpha('#000', 0.3), lw: 1 });
+  // ---- vitals panel (top-left): 生命 / 經驗 / 衝刺 in ONE frame, consistent icon
+  // sizes + bar lengths (round16/4.1). The three left icons share `iconSz`; the
+  // three bars share `vbarW`; everything sits inside one rounded panel.
+  const iconSz = 15 * S;
+  const ix = pad + 6 * S;                            // icon column (all three same size + x)
+  const bx = ix + iconSz + 7 * S;                    // bar column (all three start here)
+  const vbarW = Math.min(206 * S, W * 0.32);         // all three bars share this max length
+  const hpBarH = 16 * S, subH = 9 * S, rgap = 6 * S;
+  const r1y = pad + 6 * S, r2y = r1y + hpBarH + rgap, r3y = r2y + subH + rgap;
+  const panelX = pad - 5 * S, panelY = pad - 5 * S;
+  const panelW = (bx + vbarW + 9 * S) - panelX, panelH = (r3y + subH + 7 * S) - panelY;
+  uiRect(panelX, panelY, panelW, panelH, withAlpha('#0b0d1a', 0.55), { radius: 9 * S, stroke: withAlpha(P.shardL, 0.32), lw: 1.5 });
+  const vIcon = (name, cy) => { const sp = getSprite(name); const sc = iconSz / sp.w; drawSpriteUI(sp.frames[0], ix, cy - (sp.h * sc) / 2, sc); };
 
-  // heart icon
-  const hsp = getSprite('heart');
-  drawSpriteUI(hsp.frames[0], pad, pad + 2 * S, (16 * S) / hsp.w);
-
-  // HP bar (rounded, glossy, segmented every 50 HP)
+  // 生命 (HP)
   const hpFrac = clamp01(player.hp / player.maxHp);
   const hpCol = hpFrac > 0.5 ? P.red : hpFrac > 0.25 ? P.ember : P.redL;
-  uiBar(hpX, pad, hpW, barH, hpFrac, { fg: hpCol, bg: '#2a0e14', border: P.ink, glow: true });
-  if (hpFrac > 0.02) uiRect(hpX + 2 * S, pad + 2 * S, (hpW - 4 * S) * hpFrac, 3 * S, withAlpha('#ffffff', 0.26), { radius: 2 * S });
+  vIcon('heart', r1y + hpBarH / 2);
+  uiBar(bx, r1y, vbarW, hpBarH, hpFrac, { fg: hpCol, bg: '#2a0e14', border: P.ink, glow: true });
+  if (hpFrac > 0.02) uiRect(bx + 2 * S, r1y + 2 * S, (vbarW - 4 * S) * hpFrac, 3 * S, withAlpha('#ffffff', 0.26), { radius: 2 * S });
   const segs = Math.min(14, Math.floor((player.maxHp || 100) / 50));
-  for (let i = 1; i <= segs; i++) { const sx = hpX + hpW * (i * 50 / player.maxHp); if (sx < hpX + hpW - 2 * S) uiRect(sx, pad + 3 * S, Math.max(1, S), barH - 6 * S, withAlpha('#000', 0.32)); }
-  uiText(`${Math.ceil(player.hp)} / ${player.maxHp}`, hpX + hpW / 2, pad + barH / 2 + 1 * S,
+  for (let i = 1; i <= segs; i++) { const sx = bx + vbarW * (i * 50 / player.maxHp); if (sx < bx + vbarW - 2 * S) uiRect(sx, r1y + 3 * S, Math.max(1, S), hpBarH - 6 * S, withAlpha('#000', 0.32)); }
+  uiText(`${Math.ceil(player.hp)} / ${player.maxHp}`, bx + vbarW / 2, r1y + hpBarH / 2 + 1 * S,
     { size: 11 * S, align: 'center', baseline: 'middle', weight: '800', color: '#fff', shadowColor: withAlpha('#000', 0.75) });
 
-  // level badge (character level is uncapped per design — shown plainly)
-  const lvX = pad + barW + 8 * S;
-  uiRect(lvX, pad, 50 * S, barH, withAlpha('#1a2348', 0.95), { radius: 6 * S, stroke: P.manaL, lw: 1.5 });
-  uiRect(lvX, pad, 50 * S, 3 * S, withAlpha(P.manaL, 0.4), { radius: 2 * S });
-  uiText('Lv ' + run.level, lvX + 25 * S, pad + barH / 2 + 1 * S, { size: 12 * S, align: 'center', baseline: 'middle', color: P.manaL, weight: '900' });
+  // 經驗 (XP) + 等級（整合進經驗條右端）
+  vIcon('xp', r2y + subH / 2);
+  uiBar(bx, r2y, vbarW, subH, clamp01(run.xp / run.xpNext), { fg: P.manaL, bg: '#16183a', border: P.ink, glow: true });
+  uiText('Lv ' + run.level, bx + vbarW - 5 * S, r2y + subH / 2 + 0.5 * S, { size: 8.5 * S, align: 'right', baseline: 'middle', color: '#fff', weight: '900', shadowColor: withAlpha('#000', 0.8) });
 
-  // XP bar (with a gem + soft glow)
-  const xpY = pad + barH + 4 * S;
-  const xsp = getSprite('xp');
-  drawSpriteUI(xsp.frames[0], pad + 4 * S, xpY - 2 * S, (11 * S) / xsp.w);
-  uiBar(hpX, xpY, hpW, 7 * S, clamp01(run.xp / run.xpNext), { fg: P.manaL, bg: '#16183a', border: P.ink, glow: true });
-
-  // dash cooldown — fills as it recharges; the bar pulses when ready
+  // 衝刺 (dash) — 改用圖示（取代「衝刺」文字），圖示大小與量條長度與上方一致
   const dashReady = (player.dashCd ?? 0) <= 0;
-  const dyy = pad + barH + 15 * S;
-  uiText('衝刺', pad, dyy + 7 * S, { size: 10 * S, color: dashReady ? P.shardL : '#8a91b4', weight: '700' });
   const dFrac = dashReady ? 1 : 1 - player.dashCd / (player.stats.dashCd || 0.85);
-  uiBar(pad + 30 * S, dyy, 48 * S, 7 * S, dFrac, { fg: dashReady ? P.shardL : P.gray2, bg: '#16183a', border: P.ink });
-  if (dashReady) uiRect(pad + 30 * S, dyy, 48 * S, 7 * S, withAlpha(P.shardL, 0.12 + 0.12 * pulse), { radius: 3 * S });
+  vIcon(iconOr('ability_dash', 'ability_power'), r3y + subH / 2);
+  uiBar(bx, r3y, vbarW, subH, dFrac, { fg: dashReady ? P.shardL : P.gray2, bg: '#16183a', border: P.ink });
+  if (dashReady) { uiRect(bx, r3y, vbarW, subH, withAlpha(P.shardL, 0.1 + 0.12 * pulse), { radius: 3 * S }); uiText('衝刺就緒', bx + vbarW - 5 * S, r3y + subH / 2 + 0.5 * S, { size: 8 * S, align: 'right', baseline: 'middle', color: P.shardL, weight: '800' }); }
 
-  // player status chips (D6 feedback)
+  // player status chips (D6) — moved BELOW the vitals panel so it never overlaps the bars
   if (player.status) {
     const order = ['stun', 'knockup', 'slow', 'burn', 'poison', 'bleed'];
     const SC = { stun: ['暈', '#ffe066'], knockup: ['飛', '#ffe066'], slow: ['緩', P.ice], burn: ['燃', P.emberL], poison: ['毒', P.toxic], bleed: ['血', P.redL] };
-    let sx = pad + 88 * S; const sy = pad + barH + 14 * S;
+    let sx = panelX + 2 * S; const sy = panelY + panelH + 4 * S;
     for (const k of order) {
       if (!player.status[k]) continue;
       const [lab, col] = SC[k];

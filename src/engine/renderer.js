@@ -238,6 +238,9 @@ export function textWidth(str, size = 16, weight = '600', font = FONT) {
   ctx.restore();
   return w;
 }
+// round16/1.4: unify every gold amount behind one coin-icon prefix (replaces the
+// inconsistent mix of 「金」/「金幣」/no-icon). Use anywhere a gold AMOUNT is shown.
+export function goldStr(n) { return '🪙' + (typeof n === 'number' ? Math.round(n) : n); }
 
 // progress / health bar
 export function uiBar(x, y, w, h, frac, { fg = P.red, bg = '#000', border = '#000', radius = 2, glow = false } = {}) {

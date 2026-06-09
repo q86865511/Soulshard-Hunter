@@ -12,7 +12,7 @@ import { RT } from '../../net/rt.js';   // Phase 2 co-op: leave-room on host aba
 import { Net } from '../../net/api.js';   // round16/7.3: "playing now" heartbeat (offline-first; no-op without a server)
 import { Enemies, Equipment, Abilities, Weapons, Characters } from '../content/registry.js';
 import { equipItem } from '../content/equipment.js';
-import { BONDS, activeBonds, checkBonds } from '../content/bonds.js';
+import { BONDS, activeBonds, checkBonds, bondProgress, bondAdvancedBy } from '../content/bonds.js';
 import { exclusiveFor } from '../content/exclusives.js';
 import { BALANCE, weaponMaxLevel } from '../balance.js';
 import { isUnlocked, cheatUnlockAll } from '../content/unlocks.js';
@@ -24,7 +24,7 @@ import { Cheats } from '../cheats.js';
 import {
   camera, clear, vignette, uiText, uiRect, uiScale, view, addShake, drawSpriteUI, textWidth,
   drawSprite, drawShadow, glowWorld, worldToScreen, fillRectWorld, uiBar, setShakeScale,
-  fillCircleWorld, strokeCircleWorld,
+  fillCircleWorld, strokeCircleWorld, goldStr, ctxRaw,
 } from '../../engine/renderer.js';
 import { drawHud, drawLowHpWarning, hudIcons, drawAchievementToasts } from '../hud.js';
 import { pressed, mouse } from '../../engine/input.js';
@@ -757,7 +757,7 @@ export const runScene = {
       this.world.particles.text(this.player.x, this.player.y - 16, '已達上限 · 回復生命', { color: P.redL, size: 12 });
       return;
     }
-    this.choice = { options, hover: -1 };
+    this.choice = { options, hover: -1, bondHints: options.map((c) => this.bondHintsFor(c)) };   // 8.2: cache hints once (world is paused while choosing → build is frozen)
   },
   cardRects() {
     const S = uiScale(); const n = this.choice ? this.choice.options.length : 3;
@@ -1020,7 +1020,13 @@ export const runScene = {
     if (this.bondT <= 0) {
       this.bondT = 0.5;
       const nb = checkBonds(this.run, this.player);
-      if (nb.length) { const b = nb[0]; this.banner = '★ 羈絆達成 · ' + b.name + '（' + b.bonusDesc + '）'; this.bannerT = 2.8; Sfx.play('levelup'); this.world.particles.ring(this.player.x, this.player.y, P.goldL, 26, 150); }
+      if (nb.length) {
+        const n = nb[0];
+        this.banner = (n.toTier > 1 ? ('★ 羈絆升階 · ' + n.bond.name + ' 第' + n.toTier + ' 階（' + n.tier.bonusDesc + '）')
+          : ('★ 羈絆達成 · ' + n.bond.name + '（' + n.tier.bonusDesc + '）'));
+        this.bannerT = 2.8; Sfx.play('levelup'); this.world.particles.ring(this.player.x, this.player.y, P.goldL, 26, 150);
+        try { for (const x of nb) if (x.fromTier === 0 && !META.bondsSeen.includes(x.bond.id)) META.bondsSeen.push(x.bond.id); } catch (e) { /* */ }   // 8.2: live-record for the 圖鑑
+      }
     }
     if (this.levelQueue > 0) { if (this.coop) this.coopLevelUp(); else if (!this.choice) this.openChoice(); }
     if (this.coop) this.coop.tick(dt, this);   // broadcast a world snapshot to guests (~18Hz)
@@ -1154,6 +1160,54 @@ export const runScene = {
     if (q.sub) uiText(q.sub, x + 8 * S, y + 28 * S, { size: 9 * S, color: P.gray3 });
     uiBar(x + 8 * S, y + 34 * S, w - 16 * S, 5 * S, q.frac || 0, { fg: q.done ? P.greenL : P.shardL, bg: '#16183a', border: P.ink });
     if (q.goal) uiText(fmtQuestVal(q.prog, q.fmt) + '/' + fmtQuestVal(q.goal, q.fmt), x + w - 8 * S, y + 31 * S, { size: 9 * S, align: 'right', color: P.gray3 });
+  },
+
+  // 8.2: live 羈絆 panel on the left, BELOW the quest tracker — shows the bonds
+  // currently active this run (icon badge + name + reached tier).
+  // TFT 式羈絆側欄：六角徽章（依階級銅/銀/金配色）＋名稱＋階數；已達成＋快達成。
+  drawBondTracker() {
+    if (this.dead || this.choice || this.equipChoice || this.eventChoice || this.shopOpen || this.paused || this.bigMap) return;
+    const S = uiScale();
+    const list = [];
+    for (const b of BONDS) {
+      const pg = bondProgress(b, this.run, this.player);
+      if (pg.level >= 1) list.push({ b, pg, near: false });
+      else if (pg.count >= 1 && pg.nextTier && pg.nextTier.at - pg.count <= 1) list.push({ b, pg, near: true });
+    }
+    if (!list.length) return;
+    list.sort((a, x2) => x2.pg.level - a.pg.level);   // achieved first, higher tier first
+    const achievedN = list.filter((o) => !o.near).length;
+    const x = 12 * S, w = 170 * S;
+    const y = (trackedQuestState(META) ? 246 : 196) * S;   // tucked under the quest box (h=46) or where it would sit
+    const rows = list.slice(0, 7), extra = list.length - rows.length;
+    const headH = 22 * S, rowH = 22 * S;
+    const h = headH + rows.length * rowH + (extra > 0 ? 12 * S : 0) + 6 * S;
+    uiRect(x, y, w, h, withAlpha('#0b0d1a', 0.62), { radius: 6 * S, stroke: withAlpha(P.goldL, 0.45), lw: 1.5 });
+    uiText('羈絆 · ' + achievedN, x + 10 * S, y + 15 * S, { size: 10 * S, color: P.goldL, weight: '800' });
+    // tier → TFT 銅/銀/金 配色
+    const tierStyle = (lvl) => lvl <= 0 ? { fill: '#262c40', stroke: '#566089', txt: '#aeb6d8' }
+      : lvl === 1 ? { fill: '#6e4322', stroke: '#c8843e', txt: '#ffe6c8' }
+        : lvl === 2 ? { fill: '#515b6b', stroke: '#cdd8e6', txt: '#ffffff' }
+          : { fill: '#7a5c16', stroke: '#f2c14e', txt: '#fff3c8' };
+    const ctx = ctxRaw(), hr = 9 * S;
+    rows.forEach((o, i) => {
+      const cy = y + headH + i * rowH + rowH / 2 - 2 * S, hx = x + 11 * S + hr;
+      const st = tierStyle(o.near ? 0 : o.pg.level);
+      ctx.save();
+      ctx.beginPath();
+      for (let k = 0; k < 6; k++) { const a = Math.PI / 180 * (60 * k - 90), px = hx + hr * Math.cos(a), py = cy + hr * Math.sin(a); k ? ctx.lineTo(px, py) : ctx.moveTo(px, py); }
+      ctx.closePath();
+      ctx.fillStyle = st.fill; ctx.fill();
+      ctx.lineWidth = 1.6 * S; ctx.strokeStyle = st.stroke; ctx.stroke();
+      ctx.restore();
+      uiText(o.b.tag, hx, cy + 0.5 * S, { size: 9 * S, align: 'center', baseline: 'middle', color: st.txt, weight: '900', shadow: false });
+      const nameX = hx + hr + 7 * S;
+      let nm = o.b.name;
+      while (nm.length > 1 && textWidth(nm, 10 * S, '800') > w - (nameX - x) - 42 * S) nm = nm.slice(0, -1);
+      uiText(nm, nameX, cy + 0.5 * S, { size: 10 * S, baseline: 'middle', color: o.near ? '#aeb6d8' : '#f0e4c0', weight: '800' });
+      uiText(o.near ? '快達成' : (o.pg.level + '/' + o.pg.max), x + w - 10 * S, cy + 0.5 * S, { size: 9.5 * S, align: 'right', baseline: 'middle', color: o.near ? P.shardL : st.stroke, weight: '900' });
+    });
+    if (extra > 0) uiText('＋' + extra + ' 個…', x + w - 10 * S, y + h - 6 * S, { size: 8 * S, align: 'right', color: P.gray3, weight: '600' });
   },
 
   // M: a big semi-transparent minimap floating in the centre of the screen
@@ -1319,6 +1373,7 @@ export const runScene = {
     this.drawStageHud();
     this.drawMinimap();
     this.drawQuestTracker();
+    this.drawBondTracker();
     this.drawBanner();
     this.drawInfo();
     this.drawBigMinimap();
@@ -1539,7 +1594,36 @@ export const runScene = {
     uiText(info.name, x + 8 * S, y + 17 * S, { size: 12 * S, color: '#fff', weight: '800' });
     lines.forEach((l, i) => uiText(l, x + 8 * S, y + 31 * S + i * 13 * S, { size: 10.5 * S, color: P.gray4, weight: '500' }));
   },
+  // 8.2: a coloured tag badge that doubles as the 羈絆 icon (gold=achieved / blue=接近 / gray=未達成).
+  drawBondBadge(x, y, sz, b, pg, S) {
+    const achieved = pg.level >= 1, near = !achieved && pg.count >= 1;
+    const bg = achieved ? withAlpha(P.gold, 0.92) : near ? withAlpha('#28304e', 0.95) : withAlpha('#191c2c', 0.9);
+    uiRect(x, y, sz, sz, bg, { radius: 4 * S, stroke: achieved ? P.goldL : near ? P.shardL : P.ink2, lw: 1.5 });
+    uiText(b.tag, x + sz / 2, y + sz / 2 + 0.5 * S, { size: sz * 0.5, align: 'center', baseline: 'middle', color: achieved ? '#1a1404' : near ? '#dfe6ff' : P.gray3, weight: '900' });
+    if (achieved) uiText(String(pg.level), x + sz - 1.5 * S, y + sz - 0.5 * S, { size: sz * 0.34, align: 'right', color: '#2a1d00', weight: '900', shadow: false });
+  },
+  // 8.2: rich 羈絆 hover tooltip — name, 需求, and every tier's effect (reached = bright).
+  drawBondTooltip(ic, mx, my, S) {
+    const b = ic.bond, pg = ic.prog || bondProgress(b, this.run, this.player);
+    const achieved = pg.level >= 1;
+    const W = 236 * S, H = (50 + b.tiers.length * 14) * S;
+    let x = mx + 14 * S, y = my + 6 * S;
+    if (x + W > view.W) x = view.W - W - 6 * S;
+    if (y + H > view.H) y = view.H - H - 6 * S;
+    uiRect(x, y, W, H, withAlpha('#10121f', 0.97), { radius: 6 * S, stroke: achieved ? P.goldL : P.shardL, lw: 2 });
+    uiRect(x + 8 * S, y + 8 * S, 18 * S, 18 * S, withAlpha(achieved ? P.gold : '#2a2f4a', 0.95), { radius: 4 * S });
+    uiText(b.tag, x + 17 * S, y + 17 * S, { size: 11 * S, align: 'center', baseline: 'middle', color: achieved ? '#1a1404' : P.gray3, weight: '900' });
+    uiText(b.name, x + 32 * S, y + 18 * S, { size: 13 * S, color: '#fff', weight: '800' });
+    uiText('第 ' + pg.level + ' / ' + pg.max + ' 階', x + W - 8 * S, y + 18 * S, { size: 10 * S, align: 'right', color: achieved ? P.goldL : P.gray3, weight: '700' });
+    uiText('需求：' + b.goal, x + 8 * S, y + 36 * S, { size: 10 * S, color: P.gray3, weight: '600' });
+    b.tiers.forEach((t, k) => {
+      const reached = pg.level >= k + 1, ty = y + 50 * S + k * 14 * S;
+      uiText((reached ? '✓ ' : '· ') + '第 ' + (k + 1) + ' 階（達成 ' + t.at + '）', x + 8 * S, ty, { size: 9.5 * S, color: reached ? '#dfe6ff' : P.gray3, weight: '700' });
+      uiText(t.bonusDesc, x + W - 8 * S, ty, { size: 9.5 * S, align: 'right', color: reached ? P.emberL : P.gray2, weight: '700' });
+    });
+  },
   drawTooltip(ic, mx, my, S) {
+    if (ic.kind === 'bond') return this.drawBondTooltip(ic, mx, my, S);
     const def = ic.def; if (!def) return;
     const accent = ic.kind === 'weapon' ? P.shardL : ic.kind === 'ability' ? (def.cursed ? P.redL : P.manaL) : ic.kind === 'equip' ? P.goldL : P.emberL;
     const sub = ic.kind === 'weapon' ? (def.evolved ? '★ 進化武器' : '武器 Lv.' + ic.level)
@@ -1576,6 +1660,7 @@ export const runScene = {
   drawBuildPanel(S) {
     const w = Math.min(view.W * 0.9, 640 * S), h = Math.min(view.H * 0.86, 500 * S);
     const x = (view.W - w) / 2, y = (view.H - h) / 2;
+    const bandTop = y + h - 108 * S;   // 8.2: reserved area for the 羈絆 three-state band
     uiRect(0, 0, view.W, view.H, withAlpha('#0b0d1a', 0.66));
     uiRect(x, y, w, h, withAlpha('#161a30', 0.98), { radius: 10 * S, stroke: P.ink2, lw: 2 });
     uiText('當前 BUILD', x + w / 2, y + 26 * S, { size: 18 * S, align: 'center', color: '#fff', weight: '900' });
@@ -1618,12 +1703,25 @@ export const runScene = {
     head('數值', colR, yR, P.emberL); yR += 16 * S;
     const st = this.player.stats;
     const stats = [['生命', Math.round(this.player.hp) + ' / ' + this.player.maxHp], ['傷害', '×' + st.damageMult.toFixed(2)], ['射速', '×' + st.fireRateMult.toFixed(2)], ['暴擊', Math.round(st.critChance * 100) + '%'], ['暴傷', '×' + (st.critMult || 2).toFixed(1)], ['移速', Math.round(st.speed)], ['減傷', String(st.defense || 0)], ['閃避', Math.round((st.dodge || 0) * 100) + '%'], ['吸血', Math.round((st.lifesteal || 0) * 100) + '%'], ['幸運', (st.luck || 0).toFixed(2)]];
-    for (const [k, v] of stats) { if (yR > y + h - 16 * S) break; uiText(k, colR, yR, { size: 11.5 * S, color: P.gray3, weight: '500' }); uiText(v, x + w - 24 * S, yR, { size: 11.5 * S, align: 'right', color: '#fff', weight: '700' }); yR += 15 * S; }
-    // 8.2: bond visibility — surface achieved 羈絆 + total in the build panel (bottom-left, single clipped line)
-    const gotBonds = activeBonds(this.run);
-    head('羈絆', colL, y + h - 38 * S, P.goldL, gotBonds.length + ' / ' + BONDS.length, P.gray3);
-    const bondStr = gotBonds.length ? gotBonds.map((b) => b.name + '（' + (b.bonusDesc || '') + '）').join('、') : '尚未觸發 — 湊齊特定武器／被動組合即可啟動';
-    this.clipShop(bondStr, colL, y + h - 22 * S, w * 0.5 - 36 * S, 10 * S, gotBonds.length ? P.gray4 : P.gray2, '600');
+    for (const [k, v] of stats) { if (yR > bandTop - 8 * S) break; uiText(k, colR, yR, { size: 11.5 * S, color: P.gray3, weight: '500' }); uiText(v, x + w - 24 * S, yR, { size: 11.5 * S, align: 'right', color: '#fff', weight: '700' }); yR += 15 * S; }
+    // 8.2 羈絆可見化：底部全寬三態總覽（金=已達成含階級 / 白=接近 / 灰=未達成）
+    uiRect(x + 18 * S, bandTop, w - 36 * S, Math.max(1, S), withAlpha(P.ink2, 0.9));
+    const pgList = BONDS.map((b) => bondProgress(b, this.run, this.player));   // live → header count + grid glyphs always agree (checkBonds is throttled)
+    const achieved = BONDS.map((b, i) => ({ b, pg: pgList[i] })).filter((o) => o.pg.level >= 1);   // Tab 只列「已達成」
+    head('羈絆', colL, bandTop + 16 * S, P.goldL, achieved.length + ' / ' + BONDS.length, P.gray3);
+    if (!achieved.length) { uiText('尚未觸發任何羈絆 — 湊齊特定武器／被動組合即可啟動', colL, bandTop + 38 * S, { size: 10 * S, color: P.gray2, weight: '600' }); }
+    else {
+      const cols = 3, cellW = (w - 48 * S) / cols, gy = bandTop + 36 * S, rowH = 18 * S, bsz = 15 * S;
+      achieved.forEach((o, i) => {
+        const b = o.b, pg = o.pg;
+        const cx2 = colL + (i % cols) * cellW, ry = gy + Math.floor(i / cols) * rowH, by = ry - bsz + 2 * S;
+        this.drawBondBadge(cx2, by, bsz, b, pg, S);
+        let nm = b.name + ' ' + pg.level + '/' + pg.max + '階';
+        while (nm.length > 1 && textWidth(nm, 10 * S, '700') > cellW - bsz - 10 * S) nm = nm.slice(0, -1);
+        uiText(nm, cx2 + bsz + 5 * S, ry, { size: 10 * S, color: P.goldL, weight: '700' });
+        this.buildIcons.push({ x: cx2, y: by, w: cellW - 4 * S, h: rowH, kind: 'bond', bond: b, prog: pg });
+      });
+    }
   },
 
   drawBanner() {
@@ -1708,7 +1806,7 @@ export const runScene = {
     const lines = [
       `${this.map.biome.name} · 難度 ${this.run.difficulty || 1} 通關　·　擊殺 ${this.run.kills}　·　分數 ${this.run.score}`,
       this.reaperSlain ? '☠ 斬殺死神！傳說獎勵已入袋' : '死神未斬 — 下次留下迎戰可得傳說獎勵',
-      (nextName ? `★ 解鎖新關卡：${nextName}　` : '★ 已是最深關卡　') + `· 解鎖難度 ${(this.run.difficulty || 1) + 1}　· 帶回金幣 ${this.run.gold}`,
+      (nextName ? `★ 解鎖新關卡：${nextName}　` : '★ 已是最深關卡　') + `· 解鎖難度 ${(this.run.difficulty || 1) + 1}　· 帶回 ${goldStr(this.run.gold)}`,
     ];
     lines.forEach((l, i) => uiText(l, cx, view.H * 0.11 + (40 + i * 20) * S, { size: 13 * S, align: 'center', color: i === 1 ? (this.reaperSlain ? P.goldL : P.gray3) : '#d8e8d0', weight: i === 2 ? '800' : '600' }));
     this.drawResultSummary(view.H * 0.28);
@@ -1725,7 +1823,7 @@ export const runScene = {
     const mins = Math.floor(this.run.time / 60), secs = Math.floor(this.run.time % 60);
     const lines = [
       `抵達威脅 ${this.run.stage}　·　存活 ${mins}:${secs.toString().padStart(2, '0')}　·　擊殺 ${this.run.kills}`,
-      `本局分數 ${this.run.score}` + (this.run.score >= (META.stats.bestScore || 0) ? '　★ 新紀錄！' : `（最佳 ${META.stats.bestScore || 0}）`) + `　·　帶回金幣 ${this.run.gold}`,
+      `本局分數 ${this.run.score}` + (this.run.score >= (META.stats.bestScore || 0) ? '　★ 新紀錄！' : `（最佳 ${META.stats.bestScore || 0}）`) + `　·　帶回 ${goldStr(this.run.gold)}`,
     ];
     lines.forEach((l, i) => uiText(l, cx, view.H * 0.11 + (40 + i * 20) * S, { size: 13 * S, align: 'center', color: i === 1 ? P.goldL : '#d8def0', weight: i === 1 ? '800' : '600' }));
     this.drawResultSummary(view.H * 0.26);
@@ -1757,9 +1855,21 @@ export const runScene = {
     uiText('裝備', colL, yL, { size: 10 * S, color: P.goldL });
     [['weapon'], ['armor'], ['trinket']].forEach(([slot], i) => { const bx = colL + 44 * S + i * (sz + gap); const d = eq[slot] && Equipment.get(eq[slot]); if (d) { cell(bx, yL - 12 * S, getSprite(iconOr(d.icon, 'equip_leather_armor')), P.goldL, '', ''); this.resultIcons.push({ x: bx, y: yL - 12 * S, w: sz, h: sz, kind: 'equip', def: d }); } else { uiRect(bx, yL - 12 * S, sz, sz, withAlpha('#10121f', 0.82), { radius: 4 * S, stroke: P.ink2, lw: 1 }); uiText('—', bx + sz / 2, yL - 12 * S + sz / 2 + 4 * S, { size: 11 * S, align: 'center', color: P.gray2 }); } });
     yL += sz + 2 * S;
-    // bonds (原#13)
+    // bonds (原#13 + 8.2: 圖示徽章 + hover 看各階效果)
     const bonds = activeBonds(this.run);
-    if (bonds.length) { this.clipShop('羈絆 · ' + bonds.map((b) => b.name).join('、'), colL, yL, w * 0.44, 10 * S, P.goldL, '700'); yL += 14 * S; }
+    if (bonds.length) {
+      uiText('羈絆', colL, yL, { size: 10 * S, color: P.goldL, weight: '800' });
+      const bsz = 18 * S, bgap = 4 * S, bx0 = colL + textWidth('羈絆', 10 * S, '800') + 8 * S, maxX = colL + w * 0.46;
+      let bx = bx0, by = yL - bsz + 4 * S;
+      for (const gb of bonds) {
+        if (bx + bsz > maxX) { bx = bx0; by += bsz + bgap; }
+        const pg = bondProgress(gb.bond, this.run, this.player);
+        this.drawBondBadge(bx, by, bsz, gb.bond, pg, S);
+        this.resultIcons.push({ x: bx, y: by, w: bsz, h: bsz, kind: 'bond', bond: gb.bond, prog: pg });
+        bx += bsz + bgap;
+      }
+      yL = by + bsz + 6 * S;
+    }
     // RIGHT — damage ranking (原#16)
     const colR = x + w * 0.47; let yR = y + 24 * S; const rw = w * 0.5 - 18 * S;
     uiText('傷害排行', colR, yR, { size: 13 * S, color: P.emberL, weight: '800' });
@@ -1802,20 +1912,76 @@ export const runScene = {
     return lines.length;
   },
 
+  // 8.2 羈絆可見化：找出「選這張卡會推進哪些羈絆」(TFT 式)，依接近完成度排序。
+  bondHintsFor(choice) {
+    const out = [];
+    for (const b of BONDS) {
+      const h = bondAdvancedBy(b, choice, this.run, this.player);
+      if (h) out.push({ b, h, prog: bondProgress(b, this.run, this.player) });
+    }
+    out.sort((a, x) => (x.h.toLevel - a.h.toLevel) || (x.prog.count - a.prog.count));
+    return out;
+  },
+  // Draw the 羈絆 detail block pinned to the bottom of a choice card.
+  drawCardBonds(r, oy, S, hints) {
+    if (!hints.length) return;
+    const top = hints[0], b = top.b, h = top.h, pg = top.prog;
+    const innerW = r.w - 24 * S;
+    if (r.h < 190 * S) {   // tiny card: one-line compact hint, avoids overlapping the name
+      const by = r.y + oy + r.h - 18 * S;
+      uiRect(r.x + 6 * S, by, r.w - 12 * S, 16 * S, withAlpha('#0c0e1a', 0.94), { radius: 5 * S, stroke: withAlpha(P.goldL, 0.7), lw: 1 });
+      let s = '★ ' + b.name + ' 第' + h.toLevel + '/' + h.max + '階 · ' + (h.crosses ? '解鎖 ' : '推進 ') + (h.toward ? h.toward.bonusDesc : '');
+      while (s.length > 2 && textWidth(s, 9 * S, '700') > r.w - 18 * S) s = s.slice(0, -1);
+      uiText(s, r.x + r.w / 2, by + 8 * S, { size: 9 * S, align: 'center', baseline: 'middle', color: P.goldL, weight: '700' });
+      return;
+    }
+    const lines = 3 + (hints.length > 1 ? 1 : 0);   // name+tier / parts-or-count / toward-effect / (+others)
+    const blockH = 9 * S + lines * 13 * S;
+    const by = r.y + oy + r.h - blockH - 7 * S;
+    uiRect(r.x + 6 * S, by, r.w - 12 * S, blockH, withAlpha('#0c0e1a', 0.94), { radius: 6 * S, stroke: withAlpha(P.goldL, 0.7), lw: 1.5 });
+    let y = by + 12 * S;
+    uiText('★ ' + b.name, r.x + 12 * S, y, { size: 11 * S, color: P.goldL, weight: '900' });
+    uiText('第 ' + h.toLevel + ' / ' + h.max + ' 階', r.x + r.w - 12 * S, y, { size: 9.5 * S, align: 'right', color: P.gold, weight: '800' });
+    y += 14 * S;
+    if (pg.parts && pg.parts.length) {                 // 組合型：逐件 ✓ / ▶(此選項填上) / ·
+      let px = r.x + 12 * S;
+      for (const p of pg.parts) {
+        const fill = p.label === h.fillsPart;
+        const txt = (fill ? '▶' : (p.ok ? '✓' : '·')) + p.label;
+        const tw = textWidth(txt, 9.5 * S, '700');
+        if (px + tw > r.x + r.w - 12 * S) { uiText('…', px, y, { size: 9.5 * S, color: P.gray3, weight: '700' }); break; }
+        uiText(txt, px, y, { size: 9.5 * S, color: fill ? P.goldL : (p.ok ? P.greenL : P.gray2), weight: '700' });
+        px += tw + 7 * S;
+      }
+    } else {                                            // 數量型：進度 X → X+1（下一階需 Y）
+      const next = pg.nextTier ? '（下一階需 ' + pg.nextTier.at + '）' : '（已滿階）';
+      uiText('進度 ' + pg.count + ' → ' + (pg.count + 1) + ' ' + next, r.x + 12 * S, y, { size: 9.5 * S, color: P.gray4, weight: '700' });
+    }
+    y += 13 * S;
+    let eff = (h.crosses ? '解鎖 ' : '推進 ') + (h.toward ? h.toward.bonusDesc : '');
+    while (eff.length > 2 && textWidth(eff, 10 * S, '800') > innerW) eff = eff.slice(0, -1);
+    uiText(eff, r.x + 12 * S, y, { size: 10 * S, color: h.crosses ? P.emberL : P.shardL, weight: '800' });
+    y += 13 * S;
+    if (hints.length > 1) uiText('＋ 另推進 ' + (hints.length - 1) + ' 個羈絆', r.x + r.w / 2, y, { size: 9 * S, align: 'center', color: P.gray3, weight: '700' });
+  },
+
   drawChoice() {
     const S = uiScale();
     uiRect(0, 0, view.W, view.H, withAlpha('#0b0d1a', 0.8));
     const rects = this.cardRects();
-    uiText('選 擇 強 化', view.W / 2, rects[0].y - 26 * S, { size: 26 * S, align: 'center', color: P.manaL, weight: '900' });
-    uiText('（點擊卡片或按 1 / 2 / 3）', view.W / 2, rects[0].y - 6 * S, { size: 12 * S, align: 'center', color: P.gray3 });
+    uiText('選 擇 強 化', view.W / 2, rects[0].y - 28 * S, { size: 26 * S, align: 'center', color: P.manaL, weight: '900' });
+    uiText('點擊卡片或按 1 / 2 / 3　·　★ 金框＝可推進羈絆', view.W / 2, rects[0].y - 8 * S, { size: 12 * S, align: 'center', color: P.gray3 });
     rects.forEach((r, i) => {
       const c = this.choice.options[i]; const st = choiceStyle(c); const hover = this.choice.hover === i;
+      const hints = (this.choice.bondHints && this.choice.bondHints[i]) || this.bondHintsFor(c);
       const oy = hover ? -8 * S : 0;
-      uiRect(r.x, r.y + oy, r.w, r.h, withAlpha(st.bg, 0.97), { radius: 9 * S, stroke: hover ? st.accent : P.ink2, lw: hover ? 3 : 2 });
+      const stroke = hover ? st.accent : (hints.length ? withAlpha(P.goldL, 0.85) : P.ink2);
+      uiRect(r.x, r.y + oy, r.w, r.h, withAlpha(st.bg, 0.97), { radius: 9 * S, stroke, lw: hover ? 3 : (hints.length ? 2.5 : 2) });
       uiRect(r.x, r.y + oy, r.w, 5 * S, st.accent, { radius: 2 * S });   // rarity bar (always)
       const pw = textWidth(st.tag, 10 * S, '800') + 14 * S;              // rarity pill
       uiRect(r.x + r.w - pw - 8 * S, r.y + oy + 10 * S, pw, 16 * S, withAlpha(st.accent, 0.2), { radius: 8 * S, stroke: st.accent, lw: 1 });
       uiText(st.tag, r.x + r.w - pw / 2 - 8 * S, r.y + oy + 18 * S, { size: 10 * S, align: 'center', baseline: 'middle', color: st.accent, weight: '800' });
+      if (hints.length) uiText('★', r.x + r.w / 2, r.y + oy + 14 * S, { size: 11 * S, align: 'center', baseline: 'middle', color: P.goldL, weight: '900' });
       const sp = getSprite(iconOr(st.icon, c.kind === 'ability' ? 'ability_power' : 'weapon_w_soulbolt')); const isc = (r.w * 0.42) / sp.w;
       drawSpriteUI(sp.frames[0], r.x + r.w / 2 - sp.w * isc / 2, r.y + oy + 20 * S, isc);
       const midY = r.y + oy + 20 * S + sp.h * isc;
@@ -1825,6 +1991,7 @@ export const runScene = {
       if (st.effect) { const n = this.wrapText(st.effect, r.x + r.w / 2, dy, r.w - 22 * S, 12 * S, P.emberL); dy += n * (12 * S + 3) + 5 * S; }
       this.wrapText(st.desc || '', r.x + r.w / 2, dy, r.w - 22 * S, 11.5 * S, P.gray4);
       uiText(String(i + 1), r.x + 11 * S, r.y + oy + 22 * S, { size: 14 * S, color: withAlpha('#fff', 0.45), weight: '900' });
+      this.drawCardBonds(r, oy, S, hints);   // 8.2: bond breakdown at the card bottom
     });
   },
 };

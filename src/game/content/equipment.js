@@ -100,8 +100,19 @@ export function equipItem(player, run, def, recordRun = true) {
       player.weapons.push({ def: makeEquipWeaponDef(def), level: 1, t: 0, st: {} });
     }
   } else {
+    const slot = def.slot;
+    // 4.17 BUG fix: swapping armor/trinket previously LEFT the old item's stat bonus
+    // permanently applied (only the new item's apply() ran), so each swap stacked stale
+    // effects. Revert the slot's recorded contribution BEFORE applying the new item.
+    // (Local/authoritative player only — co-op remotes pass recordRun=false and the slot
+    // delta in run.equipDelta belongs to the host's shared run, so we must not touch it.)
+    if (run && recordRun && run.equipDelta && run.equipDelta[slot]) {
+      const old = run.equipDelta[slot];
+      for (const k in old) player.stats[k] = (player.stats[k] || 0) - old[k];
+    }
     const before = statSnapshot(player.stats);                              // 原#1: record this slot's contribution
     try { def.apply?.(player); } catch (e) { console.warn('equip apply failed', def.id, e); }
-    if (run && recordRun) { run.equipment[def.slot] = def.id; run.equipDelta = run.equipDelta || {}; run.equipDelta[def.slot] = statDelta(before, statSnapshot(player.stats)); }
+    if (player.hp > player.stats.maxHp) player.hp = player.stats.maxHp;      // clamp after a maxHp-reducing swap
+    if (run && recordRun) { run.equipment[slot] = def.id; run.equipDelta = run.equipDelta || {}; run.equipDelta[slot] = statDelta(before, statSnapshot(player.stats)); }
   }
 }

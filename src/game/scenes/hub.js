@@ -16,10 +16,11 @@ import { GUILD_RANKS, guildProgress, claimableRanks, claimGuildRank } from '../c
 import { FORGE_EFFECTS, forgeEffect, FORGE_MAX_LEVEL, FORGE_MAX_EFFECTS, forgeLevelCost, forgeEffectCost, forgeOf, forgeableWeapons, buyForgeLevel, buyForgeEffect, forgeSummary } from '../content/forge.js';
 import { ensureSkinOffers, rerollSkinShop, SKINSHOP_REROLL_COST, isOffered, skinShopCountdown } from '../content/skinshop.js';
 import { NPCS, npcScript, markMet } from '../content/npcs.js';
+import { BONDS } from '../content/bonds.js';
 import { BIOMES } from '../../art/biomes.js';
 import {
   camera, uiText, uiRect, uiScale, view, drawSprite, drawShadow, drawSpriteUI,
-  worldToScreen, vignette, textWidth, glowWorld, uiBar, ctxRaw,
+  worldToScreen, vignette, textWidth, glowWorld, uiBar, ctxRaw, goldStr,
 } from '../../engine/renderer.js';
 import { getSprite, frameAt, iconOr } from '../../engine/sprites.js';
 import { moveAxis, pressed, mouse } from '../../engine/input.js';
@@ -144,7 +145,11 @@ export const hubScene = {
   escMenuLayout() {
     const S = uiScale(); const items = this.escMenuItems();
     const w = 300 * S, h = 46 * S, gap = 10 * S, x = view.W / 2 - w / 2;
-    const total = items.length * h + (items.length - 1) * gap, y0 = view.H / 2 - total / 2;
+    // 1.7: center the WHOLE group (title + buttons) — the「選 單」title floats ~44px above
+    // the first button, so offset the buttons down by half the title block to centre the set.
+    const titleH = 44 * S;
+    const total = items.length * h + (items.length - 1) * gap;
+    const y0 = view.H / 2 - (titleH + total) / 2 + titleH;
     items.forEach((it, i) => { it.r = { x, y: y0 + i * (h + gap), w, h }; });
     return items;
   },
@@ -178,7 +183,7 @@ export const hubScene = {
     }
   },
 
-  openPanel(id) { this.panel = id; this.tab = 0; this.panelScroll = 0; this.panelMaxScroll = 0; if (id === 'wardrobe') ensureSkinOffers(META); if (id === 'smith' && !this.forgeSel) this.forgeSel = (forgeableWeapons(META)[0] || {}).id || null; Sfx.play('uiClick'); },
+  openPanel(id) { this.panel = id; this.tab = 0; this.personalTab = 0; this.panelScroll = 0; this.panelMaxScroll = 0; if (id === 'wardrobe') ensureSkinOffers(META); if (id === 'smith' && !this.forgeSel) this.forgeSel = (forgeableWeapons(META)[0] || {}).id || null; Sfx.play('uiClick'); },
   feedback(msg) { this.flash = msg; this.flashT = 1.4; Sfx.play('buy'); },
 
   // ---- buy confirmation + per-category reset (task 8) ----------------------
@@ -203,7 +208,7 @@ export const hubScene = {
     uiText('確 認', c.x + c.w / 2, c.y + 30 * S, { size: 18 * S, align: 'center', color: '#fff', weight: '900' });
     uiText(cf.text, c.x + c.w / 2, c.y + 64 * S, { size: 14 * S, align: 'center', color: '#fff', weight: '700' });
     if (cf.detail) uiText(cf.detail, c.x + c.w / 2, c.y + 90 * S, { size: 13 * S, align: 'center', color: P.goldL, weight: '800' });
-    uiText('目前金幣 ' + META.gold, c.x + c.w / 2, c.y + 112 * S, { size: 11 * S, align: 'center', color: P.gray3 });
+    uiText('持有 ' + goldStr(META.gold), c.x + c.w / 2, c.y + 112 * S, { size: 11 * S, align: 'center', color: P.gray3 });
     const hy = inside(mx, my, c.yes); uiRect(c.yes.x, c.yes.y, c.yes.w, c.yes.h, withAlpha(hy ? '#2a6a3a' : '#1f5030', 0.98), { radius: 7 * S, stroke: P.greenL, lw: 2 }); uiText('確 定', c.yes.x + c.yes.w / 2, c.yes.y + c.yes.h / 2 + 1 * S, { size: 14 * S, align: 'center', baseline: 'middle', color: '#fff', weight: '800' });
     const hn = inside(mx, my, c.no); uiRect(c.no.x, c.no.y, c.no.w, c.no.h, withAlpha(hn ? '#3a2030' : '#2a2030', 0.98), { radius: 7 * S, stroke: P.redD, lw: 2 }); uiText('取 消', c.no.x + c.no.w / 2, c.no.y + c.no.h / 2 + 1 * S, { size: 14 * S, align: 'center', baseline: 'middle', color: P.redL, weight: '800' });
   },
@@ -217,15 +222,15 @@ export const hubScene = {
   resetBtnRect(f) { const S = f.S; return { x: f.x + f.w - 258 * S, y: f.y + 13 * S, w: 96 * S, h: 24 * S }; },
   resetTalents() {
     let refund = 0; for (const id in (META.talents || {})) { const def = Talents.get(id); const lvl = META.talents[id] || 0; if (def) for (let i = 0; i < lvl; i++) refund += def.cost(i); }
-    META.talents = {}; META.gold += Math.floor(refund); saveMeta(); this.feedback('天賦已重置，返還 ' + Math.floor(refund) + ' 金');
+    META.talents = {}; META.gold += Math.floor(refund); saveMeta(); this.feedback('天賦已重置，返還 ' + goldStr(Math.floor(refund)));
   },
   resetFacilities() {
     let refund = 0; for (const def of Facilities.all()) { const lvl = META.facilities[def.id] || 0; for (let i = 0; i < lvl; i++) refund += def.cost(i); }
-    META.facilities = {}; META.gold += Math.floor(refund); saveMeta(); this.feedback('設施已重置，返還 ' + Math.floor(refund) + ' 金');
+    META.facilities = {}; META.gold += Math.floor(refund); saveMeta(); this.feedback('設施已重置，返還 ' + goldStr(Math.floor(refund)));
   },
   resetForge() {
     let refund = 0; for (const id in (META.forge || {})) { const f = META.forge[id] || {}; for (let i = 0; i < (f.level || 0); i++) refund += forgeLevelCost(i); const eff = (f.effects || []).length; for (let i = 0; i < eff; i++) refund += forgeEffectCost(i); }
-    META.forge = {}; META.gold += Math.floor(refund); saveMeta(); this.feedback('鍛造已重置，返還 ' + Math.floor(refund) + ' 金');
+    META.forge = {}; META.gold += Math.floor(refund); saveMeta(); this.feedback('鍛造已重置，返還 ' + goldStr(Math.floor(refund)));
   },
 
   // ---- NPC dialogue (5-1) --------------------------------------------------
@@ -294,7 +299,14 @@ export const hubScene = {
     else if (this.panel === 'wardrobe') this.updateWardrobe(mx, my);
     else if (this.panel === 'smith') { this.tab === 0 ? this.updateForge(mx, my) : this.updateFacilities(mx, my); }
     else if (this.panel === 'guild') { this.tab === 0 ? this.updateQuests(mx, my) : this.updateGuildRank(mx, my); }
-    else if (this.panel === 'personal') { /* view only */ }
+    else if (this.panel === 'personal') {
+      if (mouse.justDown) for (const tb of this.personalTabRects(this.panelFrame())) if (inside(mx, my, tb)) { if (this.personalTab !== tb.i) this.panelScroll = 0; this.personalTab = tb.i; Sfx.play('uiClick'); return; }
+    }
+  },
+  personalTabRects(f) {
+    const S = f.S, w = 96 * S, h = 24 * S, gap = 8 * S, tw = w * 2 + gap;
+    const x0 = f.x + f.w / 2 - tw / 2, y = f.y + 13 * S;
+    return ['生涯戰績', '羈絆圖鑑'].map((name, i) => ({ name, i, x: x0 + i * (w + gap), y, w, h }));
   },
   tabRects(f) {
     const S = f.S; const tabs = this.panel === 'smith' ? ['鍛造', '營地設施'] : this.panel === 'wardrobe' ? ['我的造型', '造型商店'] : ['任務委託', '公會等級'];
@@ -398,7 +410,7 @@ export const hubScene = {
   updateTalents(mx, my) {
     if (!mouse.justDown) return;
     const { nodes } = this.talentNodes();
-    for (const n of nodes) if (inside(mx, my, n)) { const def = n.def, cur = META.talents[def.id] || 0; if (this.talentState(def) === 'ok') this.ask('升級「' + def.name + '」 Lv.' + (cur + 1) + '？', def.cost(cur) + ' 金', () => this.buyTalent(def)); else { const st = this.talentState(def); this.feedback(st === 'locked' ? '需先解鎖前置天賦' : st === 'max' ? '已達滿級' : '金幣不足'); } return; }
+    for (const n of nodes) if (inside(mx, my, n)) { const def = n.def, cur = META.talents[def.id] || 0; if (this.talentState(def) === 'ok') this.ask('升級「' + def.name + '」 Lv.' + (cur + 1) + '？', goldStr(def.cost(cur)), () => this.buyTalent(def)); else { const st = this.talentState(def); this.feedback(st === 'locked' ? '需先解鎖前置天賦' : st === 'max' ? '已達滿級' : '金幣不足'); } return; }
   },
 
   facilityCards() {
@@ -415,7 +427,7 @@ export const hubScene = {
   updateFacilities(mx, my) {
     if (!mouse.justDown) return;
     const { cards } = this.facilityCards();
-    for (const c of cards) if (inside(mx, my, c)) { const def = c.def, cur = META.facilities[def.id] || 0; if (this.facilityState(def) === 'ok') this.ask('升級「' + def.name + '」 Lv.' + (cur + 1) + '？', def.cost(cur) + ' 金', () => this.buyFacility(def)); else { const st = this.facilityState(def); this.feedback(st === 'max' ? '已達滿級' : '金幣不足'); } return; }
+    for (const c of cards) if (inside(mx, my, c)) { const def = c.def, cur = META.facilities[def.id] || 0; if (this.facilityState(def) === 'ok') this.ask('升級「' + def.name + '」 Lv.' + (cur + 1) + '？', goldStr(def.cost(cur)), () => this.buyFacility(def)); else { const st = this.facilityState(def); this.feedback(st === 'max' ? '已達滿級' : '金幣不足'); } return; }
   },
 
   // ---- forge (5-5) ---------------------------------------------------------
@@ -435,8 +447,8 @@ export const hubScene = {
     // level button + effect buttons in the detail pane
     const b = this.forgeButtons(L.detail);
     const wname = (Weapons.get(sel) || {}).name || sel;
-    if (b.level && inside(mx, my, b.level)) { const cost = forgeLevelCost(forgeOf(META, sel).level); if (META.gold >= cost) this.ask('強化「' + wname + '」鍛造等級？', cost + ' 金', () => { if (buyForgeLevel(META, sel)) { saveMeta(); this.feedback('鍛造強化 +1'); } }); else this.feedback('金幣不足或已滿級'); return; }
-    for (const eb of b.effects) if (inside(mx, my, eb)) { if (eb.owned || eb.full) { this.feedback(eb.owned ? '已鑲嵌' : '特效欄已滿'); return; } const cost = forgeEffectCost(forgeOf(META, sel).effects.length); if (META.gold >= cost) this.ask('在「' + wname + '」鑲嵌特效：' + eb.name + '？', cost + ' 金', () => { if (buyForgeEffect(META, sel, eb.id)) { saveMeta(); this.feedback('鑲嵌特效：' + eb.name); } }); else this.feedback('金幣不足'); return; }
+    if (b.level && inside(mx, my, b.level)) { const cost = forgeLevelCost(forgeOf(META, sel).level); if (META.gold >= cost) this.ask('強化「' + wname + '」鍛造等級？', goldStr(cost), () => { if (buyForgeLevel(META, sel)) { saveMeta(); this.feedback('鍛造強化 +1'); } }); else this.feedback('金幣不足或已滿級'); return; }
+    for (const eb of b.effects) if (inside(mx, my, eb)) { if (eb.owned || eb.full) { this.feedback(eb.owned ? '已鑲嵌' : '特效欄已滿'); return; } const cost = forgeEffectCost(forgeOf(META, sel).effects.length); if (META.gold >= cost) this.ask('在「' + wname + '」鑲嵌特效：' + eb.name + '？', goldStr(cost), () => { if (buyForgeEffect(META, sel, eb.id)) { saveMeta(); this.feedback('鑲嵌特效：' + eb.name); } }); else this.feedback('金幣不足'); return; }
   },
   forgeButtons(d) {
     const S = uiScale(); const sel = this.forgeSel; const f = sel ? forgeOf(META, sel) : { level: 0, effects: [] };
@@ -576,7 +588,7 @@ export const hubScene = {
     if (!mouse.justDown) return;
     const cid = META.selectedCharacter || 'hunter';
     const L = this.wardrobeShopLayout();
-    if (inside(mx, my, L.reroll)) { if (META.gold >= SKINSHOP_REROLL_COST) this.ask('花費 ' + SKINSHOP_REROLL_COST + ' 金重新進貨？', '立即刷新 4 個造型', () => { if (rerollSkinShop(META)) { saveMeta(); this.feedback('衣帽店已換新貨'); } }); else this.feedback('金幣不足'); return; }
+    if (inside(mx, my, L.reroll)) { if (META.gold >= SKINSHOP_REROLL_COST) this.ask('花費 ' + goldStr(SKINSHOP_REROLL_COST) + ' 重新進貨？', '立即刷新 4 個造型', () => { if (rerollSkinShop(META)) { saveMeta(); this.feedback('衣帽店已換新貨'); } }); else this.feedback('金幣不足'); return; }
     for (const c of L.cards) if (inside(mx, my, c)) { this.pickSkin(cid, c.o); return; }
   },
   pickSkin(cid, o) {
@@ -584,7 +596,7 @@ export const hubScene = {
     const owned = !o.id || (META.ownedSkins || []).includes(key);
     if (owned) { if (o.id) META.skins[cid] = o.id; else delete META.skins[cid]; this.heroSprite = skinnedSprite(META, cid); saveMeta(); Sfx.play('uiClick'); this.feedback('套用造型：' + o.name); return; }
     if (!isOffered(META, o.id)) { this.feedback('本期未上架（可重新進貨）'); return; }
-    if (META.gold >= o.price) this.ask('購買造型「' + o.name + '」？', o.price + ' 金' + (o.hidden ? '　·　隱藏造型！' : ''), () => { if (META.gold >= o.price) { META.gold -= o.price; (META.ownedSkins = META.ownedSkins || []).push(key); META.skins[cid] = o.id; this.heroSprite = skinnedSprite(META, cid); saveMeta(); this.feedback('購買造型：' + o.name); } });
+    if (META.gold >= o.price) this.ask('購買造型「' + o.name + '」？', goldStr(o.price) + (o.hidden ? '　·　隱藏造型！' : ''), () => { if (META.gold >= o.price) { META.gold -= o.price; (META.ownedSkins = META.ownedSkins || []).push(key); META.skins[cid] = o.id; this.heroSprite = skinnedSprite(META, cid); saveMeta(); this.feedback('購買造型：' + o.name); } });
     else this.feedback('金幣不足');
   },
 
@@ -738,7 +750,7 @@ export const hubScene = {
       uiText(def.name, n.x + 38 * S, n.y + 17 * S, { size: 12.5 * S, color: '#fff', weight: '800' });
       this.clip1(def.desc, n.x + 38 * S, n.y + 31 * S, n.w - 44 * S, 10 * S, P.gray4);
       for (let i = 0; i < def.maxLevel; i++) uiRect(n.x + 40 * S + i * 9 * S, n.y + 42 * S, 7 * S, 5 * S, i < cur ? n.color : '#333a55', { radius: 1 });
-      const label = st === 'max' ? '已滿級' : st === 'locked' ? '需先解鎖前置' : (def.cost(cur) + ' 金幣');
+      const label = st === 'max' ? '已滿級' : st === 'locked' ? '需先解鎖前置' : goldStr(def.cost(cur));
       const col = st === 'max' ? P.greenL : st === 'locked' ? P.gray3 : st === 'poor' ? P.redL : P.goldL;
       uiText(label, n.x + n.w - 8 * S, n.y + n.h - 9 * S, { size: 11 * S, align: 'right', color: col, weight: '800' });
     }
@@ -782,7 +794,7 @@ export const hubScene = {
     uiText('鍛造等級 ' + fdata.level + '/' + FORGE_MAX_LEVEL + '（每級傷害 +8%）', d.x + 56 * S, d.y + 42 * S, { size: 11 * S, color: P.emberL, weight: '700' });
     for (let i = 0; i < FORGE_MAX_LEVEL; i++) uiRect(d.x + 56 * S + i * 12 * S, d.y + 50 * S, 9 * S, 6 * S, i < fdata.level ? P.ember : '#333a55', { radius: 1 });
     const b = this.forgeButtons(d);
-    if (b.level) { const can = META.gold >= forgeLevelCost(fdata.level), hov = inside(mx, my, b.level); uiRect(b.level.x, b.level.y, b.level.w, b.level.h, withAlpha(can ? (hov ? '#3a5a2a' : '#26401c') : '#2a2030', 0.96), { radius: 6 * S, stroke: can ? P.greenL : P.gray1, lw: 2 }); uiText('強化等級　' + forgeLevelCost(fdata.level) + ' 金', b.level.x + b.level.w / 2, b.level.y + b.level.h / 2 + 1 * S, { size: 12 * S, align: 'center', baseline: 'middle', color: can ? '#fff' : P.gray3, weight: '800' }); }
+    if (b.level) { const can = META.gold >= forgeLevelCost(fdata.level), hov = inside(mx, my, b.level); uiRect(b.level.x, b.level.y, b.level.w, b.level.h, withAlpha(can ? (hov ? '#3a5a2a' : '#26401c') : '#2a2030', 0.96), { radius: 6 * S, stroke: can ? P.greenL : P.gray1, lw: 2 }); uiText('強化等級　' + goldStr(forgeLevelCost(fdata.level)), b.level.x + b.level.w / 2, b.level.y + b.level.h / 2 + 1 * S, { size: 12 * S, align: 'center', baseline: 'middle', color: can ? '#fff' : P.gray3, weight: '800' }); }
     else uiText('★ 鍛造等級已滿', d.x + 14 * S, d.y + 110 * S, { size: 12 * S, color: P.greenL, weight: '800' });
     uiText('特效（最多 ' + FORGE_MAX_EFFECTS + ' 種，已鑲 ' + fdata.effects.length + '）', d.x + 14 * S, d.y + 144 * S, { size: 11 * S, color: P.shardL, weight: '800' });
     for (const eb of b.effects) {
@@ -792,7 +804,7 @@ export const hubScene = {
       uiRect(eb.x, eb.y, eb.w, eb.h, withAlpha(bg, 0.96), { radius: 6 * S, stroke: state === 'owned' ? P.greenL : (hov && state === 'ok' ? eb.color : P.ink2), lw: 2 });
       uiText(eb.name, eb.x + 10 * S, eb.y + 13 * S, { size: 12 * S, color: eb.color, weight: '800' });
       this.clip1(eb.desc, eb.x + 52 * S, eb.y + 13 * S, eb.w - 130 * S, 9.5 * S, P.gray4);
-      const lab = state === 'owned' ? '已鑲嵌' : state === 'full' ? '欄位已滿' : forgeEffectCost(fdata.effects.length) + ' 金';
+      const lab = state === 'owned' ? '已鑲嵌' : state === 'full' ? '欄位已滿' : goldStr(forgeEffectCost(fdata.effects.length));
       uiText(lab, eb.x + eb.w - 10 * S, eb.y + eb.h - 10 * S, { size: 11 * S, align: 'right', color: state === 'owned' ? P.greenL : afford ? P.goldL : P.gray3, weight: '800' });
     }
   },
@@ -812,7 +824,7 @@ export const hubScene = {
       this.clip1(def.name, c.x + 46 * S, c.y + 20 * S, c.w - 92 * S, 13 * S, '#fff', '800');
       uiText('Lv.' + cur + '/' + def.maxLevel, c.x + c.w - 9 * S, c.y + 20 * S, { size: 11 * S, align: 'right', color: P.emberL, weight: '800' });
       this.wrap(def.desc, c.x + 10 * S, c.y + 42 * S, c.w - 20 * S, 10.5 * S);
-      const label = st === 'max' ? '已滿級' : (def.cost(cur) + ' 金幣');
+      const label = st === 'max' ? '已滿級' : goldStr(def.cost(cur));
       const col = st === 'max' ? P.greenL : st === 'poor' ? P.redL : P.goldL;
       uiText(label, c.x + c.w - 10 * S, c.y + c.h - 10 * S, { size: 12 * S, align: 'right', color: col, weight: '800' });
     }
@@ -836,7 +848,7 @@ export const hubScene = {
       uiBar(f.x + 200 * S, t0 + 38 * S, f.w - 224 * S, 6 * S, cur.goal ? cur.prog / cur.goal : 1, { fg: cur.done ? P.greenL : P.shardL, bg: '#16183a', border: P.ink });
       const can = cur.done, hov = inside(mx, my, L.mainClaim);
       uiRect(L.mainClaim.x, L.mainClaim.y, L.mainClaim.w, L.mainClaim.h, withAlpha(can ? (hov ? '#2a6a3a' : '#1f5030') : '#2a2030', 0.96), { radius: 7 * S, stroke: can ? P.greenL : P.gray1, lw: 2 });
-      uiText(can ? ('領取　+' + cur.q.reward + ' 金') : '尚未達成', L.mainClaim.x + L.mainClaim.w / 2, L.mainClaim.y + L.mainClaim.h / 2 + 1 * S, { size: 12 * S, align: 'center', baseline: 'middle', color: can ? '#fff' : P.gray3, weight: '800' });
+      uiText(can ? ('領取　' + goldStr(cur.q.reward)) : '尚未達成', L.mainClaim.x + L.mainClaim.w / 2, L.mainClaim.y + L.mainClaim.h / 2 + 1 * S, { size: 12 * S, align: 'center', baseline: 'middle', color: can ? '#fff' : P.gray3, weight: '800' });
       const trk = (META.trackedQuest || 'story') === 'story', th = inside(mx, my, L.mainTrack);
       uiRect(L.mainTrack.x, L.mainTrack.y, L.mainTrack.w, L.mainTrack.h, withAlpha(trk || th ? '#243a5a' : '#1b2138', 0.96), { radius: 7 * S, stroke: trk ? P.shardL : P.ink2, lw: trk ? 3 : 2 });
       uiText(trk ? '● 追蹤中' : '追蹤主線', L.mainTrack.x + L.mainTrack.w / 2, L.mainTrack.y + L.mainTrack.h / 2 + 1 * S, { size: 11 * S, align: 'center', baseline: 'middle', color: trk ? P.shardL : '#fff', weight: '800' });
@@ -858,7 +870,7 @@ export const hubScene = {
         uiText(trk ? '● 追蹤' : '追蹤', r.track.x + r.track.w / 2, r.track.y + r.track.h / 2 + 1 * S, { size: 10 * S, align: 'center', baseline: 'middle', color: trk ? P.shardL : '#fff', weight: '700' });
         const cH = inside(mx, my, r.claim);
         uiRect(r.claim.x, r.claim.y, r.claim.w, r.claim.h, withAlpha(done ? (cH ? '#2a6a3a' : '#1f5030') : '#2a2030', 0.96), { radius: 5 * S, stroke: done ? P.greenL : P.gray1, lw: 1 });
-        uiText(done ? ('領 +' + q.reward) : '進行中', r.claim.x + r.claim.w / 2, r.claim.y + r.claim.h / 2 + 1 * S, { size: 10 * S, align: 'center', baseline: 'middle', color: done ? '#fff' : P.gray3, weight: '700' });
+        uiText(done ? ('領 ' + goldStr(q.reward)) : '進行中', r.claim.x + r.claim.w / 2, r.claim.y + r.claim.h / 2 + 1 * S, { size: 10 * S, align: 'center', baseline: 'middle', color: done ? '#fff' : P.gray3, weight: '700' });
       }
     }
   },
@@ -961,7 +973,7 @@ export const hubScene = {
     uiText('套用於：' + (chDef ? chDef.name : cid), f.x + 24 * S, this.bodyTop(f) + 20 * S, { size: 12 * S, color: P.gray3, weight: '700' });
     const can = META.gold >= SKINSHOP_REROLL_COST, hov = inside(mx, my, L.reroll);
     uiRect(L.reroll.x, L.reroll.y, L.reroll.w, L.reroll.h, withAlpha(can ? (hov ? '#3a5a2a' : '#26401c') : '#2a2030', 0.96), { radius: 6 * S, stroke: can ? P.greenL : P.gray1, lw: 2 });
-    uiText('↻ 重新進貨　' + SKINSHOP_REROLL_COST + ' 金', L.reroll.x + L.reroll.w / 2, L.reroll.y + L.reroll.h / 2 + 1 * S, { size: 11 * S, align: 'center', baseline: 'middle', color: can ? '#fff' : P.gray3, weight: '800' });
+    uiText('↻ 重新進貨　' + goldStr(SKINSHOP_REROLL_COST), L.reroll.x + L.reroll.w / 2, L.reroll.y + L.reroll.h / 2 + 1 * S, { size: 11 * S, align: 'center', baseline: 'middle', color: can ? '#fff' : P.gray3, weight: '800' });
     const ms = skinShopCountdown(META), mm = Math.floor(ms / 60000), ssec = Math.floor((ms % 60000) / 1000);
     uiText('下次免費換新 ' + mm + ':' + String(ssec).padStart(2, '0'), L.reroll.x + L.reroll.w / 2, L.reroll.y + L.reroll.h + 12 * S, { size: 9.5 * S, align: 'center', color: P.gray3 });
     for (const c of L.cards) {
@@ -974,7 +986,7 @@ export const hubScene = {
       const sp = getSprite(skinSpriteName(cid, o.id)), sc = 2.8 * S;
       drawSpriteUI(sp.frames[0], c.x + c.w / 2 - sp.w * sc / 2, c.y + 8 * S, sc, { alpha: owned ? 1 : 0.5 });
       uiText(o.name, c.x + c.w / 2, c.y + c.h - 24 * S, { size: 12 * S, align: 'center', color: owned ? '#fff' : P.gray3, weight: '800' });
-      const lab = equipped ? '● 使用中' : owned ? '套用' : ('🛒 ' + o.price + ' 金');
+      const lab = equipped ? '● 使用中' : owned ? '套用' : ('🛒 ' + goldStr(o.price));
       const col = equipped ? P.shardL : owned ? P.gray3 : (META.gold >= o.price ? P.goldL : P.gray3);
       uiText(lab, c.x + c.w / 2, c.y + c.h - 8 * S, { size: 9.5 * S, align: 'center', color: col, weight: '700' });
       if (o.hidden && !owned) uiText('★隱藏', c.x + c.w - 6 * S, c.y + 12 * S, { size: 8 * S, align: 'right', color: P.purpleL, weight: '900' });
@@ -984,6 +996,15 @@ export const hubScene = {
   // ---- personal room (5-7) -------------------------------------------------
   drawPersonal() {
     const f = this.drawPanelFrame('個 人 小 屋', '你的戰績與收藏'); const S = f.S;
+    // 8.2-D: header tab toggle — 生涯戰績 / 羈絆圖鑑
+    const mx = mouse.x * view.dpr, my = mouse.y * view.dpr;
+    for (const tb of this.personalTabRects(f)) {
+      const on = (this.personalTab || 0) === tb.i; const hov = inside(mx, my, tb);
+      uiRect(tb.x, tb.y, tb.w, tb.h, withAlpha(on ? '#243a5a' : (hov ? '#1f2542' : '#12152a'), 0.96), { radius: 6 * S, stroke: on ? P.shardL : P.ink2, lw: on ? 2 : 1 });
+      uiText(tb.name, tb.x + tb.w / 2, tb.y + tb.h / 2 + 1 * S, { size: 12 * S, align: 'center', baseline: 'middle', color: on ? '#fff' : P.gray3, weight: '800' });
+    }
+    if ((this.personalTab || 0) === 1) { this.drawBondCodex(f); return; }
+    this.panelMaxScroll = 0;
     const s = META.stats || {}; const cid = META.selectedCharacter || 'hunter'; const ch = Characters.get(cid);
     // displayed hero
     const psp = getSprite(skinnedSprite(META, cid)), sc = 4 * S;
@@ -1027,6 +1048,40 @@ export const hubScene = {
     uiText('在此休憩,凝視你一路走來的足跡。　·　Esc 關閉', f.x + f.w / 2, f.y + f.h - 14 * S, { size: 11 * S, align: 'center', color: P.gray3 });
   },
 
+  // 8.2-D 羈絆圖鑑：列出全部羈絆＋每階需求與效果；曾達成過的(META.bondsSeen)標亮供事前規劃。
+  drawBondCodex(f) {
+    const S = f.S; const seen = new Set(META.bondsSeen || []);
+    const left = f.x + 22 * S, right = f.x + f.w - 22 * S, colW = right - left;
+    const topY = f.y + 60 * S;
+    uiText('共 ' + BONDS.length + ' 種羈絆　·　湊齊特定武器／被動組合即可逐階啟動,效果持續整場探索', left, topY, { size: 11 * S, color: P.gray3, weight: '600' });
+    const seenCount = BONDS.filter((b) => seen.has(b.id)).length;
+    uiText('已解鎖 ' + seenCount + ' / ' + BONDS.length, right, topY, { size: 11 * S, align: 'right', color: P.goldL, weight: '800' });
+    const viewTop = topY + 16 * S, viewBot = f.y + f.h - 16 * S, viewH = viewBot - viewTop;
+    const rowH = (b) => 47 * S + b.tiers.length * 15 * S + 9 * S;
+    let total = 0; for (const b of BONDS) total += rowH(b);
+    this.panelMaxScroll = Math.max(0, total - viewH);
+    const ctx = ctxRaw(); ctx.save(); ctx.beginPath(); ctx.rect(f.x + 14 * S, viewTop - 2 * S, f.w - 28 * S, viewH + 4 * S); ctx.clip();
+    let y = viewTop - (this.panelScroll || 0);
+    for (const b of BONDS) {
+      const isSeen = seen.has(b.id); const h = rowH(b);
+      if (y + h >= viewTop - 4 * S && y <= viewBot + 4 * S) {
+        uiRect(left - 6 * S, y, colW + 12 * S, h - 7 * S, withAlpha(isSeen ? '#1c2238' : '#141726', 0.92), { radius: 6 * S, stroke: isSeen ? withAlpha(P.goldL, 0.6) : P.ink2, lw: 1.5 });
+        uiRect(left + 2 * S, y + 6 * S, 18 * S, 18 * S, withAlpha(isSeen ? P.gold : '#2a2f4a', 0.95), { radius: 5 * S });
+        uiText(b.tag, left + 11 * S, y + 15 * S, { size: 11 * S, align: 'center', baseline: 'middle', color: isSeen ? '#1a1404' : P.gray3, weight: '900' });
+        uiText(b.name, left + 26 * S, y + 17 * S, { size: 13 * S, color: isSeen ? P.goldL : '#c8cfe8', weight: '900' });
+        uiText(isSeen ? '✓ 已解鎖' : '未解鎖', right - 4 * S, y + 17 * S, { size: 10 * S, align: 'right', color: isSeen ? P.greenL : P.gray2, weight: '700' });
+        uiText('需求：' + b.goal, left + 26 * S, y + 32 * S, { size: 10 * S, color: P.gray3, weight: '600' });
+        b.tiers.forEach((t, k) => {
+          const ty = y + 47 * S + k * 15 * S;
+          uiText('第 ' + (k + 1) + ' 階（達成 ' + t.at + '）', left + 26 * S, ty, { size: 10 * S, color: isSeen ? '#dfe6ff' : P.gray3, weight: '700' });
+          uiText(t.bonusDesc, left + 156 * S, ty, { size: 10 * S, color: isSeen ? P.emberL : P.gray2, weight: '700' });
+        });
+      }
+      y += h;
+    }
+    ctx.restore();
+  },
+
   // ---- sortie (出擊): pick hero / biome / difficulty, then launch ----------
   drawSortie() {
     const f = this.drawPanelFrame('出 擊 · 選 角 / 關 卡 / 難 度');
@@ -1044,7 +1099,7 @@ export const hubScene = {
       drawSpriteUI(sp.frames[0], card.x + card.w / 2 - sp.w * sc / 2, card.y + 6 * S, sc, { alpha: unlocked ? 1 : 0.3 });
       uiText(c.name, card.x + card.w / 2, card.y + card.h - 22 * S, { size: 12 * S, align: 'center', color: unlocked ? '#fff' : P.gray3, weight: '800' });
       if (!unlocked) {
-        const label = c.unlock.type === 'gold' ? (c.unlock.cost + ' 金') : '成就解鎖';
+        const label = c.unlock.type === 'gold' ? goldStr(c.unlock.cost) : '成就解鎖';
         const afford = c.unlock.type === 'gold' && META.gold >= c.unlock.cost;
         uiText('🔒 ' + label, card.x + card.w / 2, card.y + card.h - 7 * S, { size: 9 * S, align: 'center', color: afford ? P.goldL : P.gray3, weight: '700' });
       } else if (selected) uiText('● 已選', card.x + card.w / 2, card.y + card.h - 7 * S, { size: 9 * S, align: 'center', color: P.shardL, weight: '800' });

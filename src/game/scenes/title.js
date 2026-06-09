@@ -6,7 +6,7 @@ import { Net } from '../../net/api.js';
 import { openAuth, openLeaderboard, isModalOpen, netToast } from '../../net/ui.js';
 import { openSocial } from '../../net/social.js';
 import { Characters } from '../content/registry.js';
-import { uiText, uiRect, uiScale, view, drawSpriteUI, vignette, ctxRaw } from '../../engine/renderer.js';
+import { uiText, uiRect, uiScale, view, drawSpriteUI, vignette, ctxRaw, goldStr } from '../../engine/renderer.js';
 import { getSprite, frameAt } from '../../engine/sprites.js';
 import { pressed, mouse } from '../../engine/input.js';
 import { P, withAlpha } from '../../engine/palette.js';
@@ -146,7 +146,7 @@ export const titleScene = {
       uiRect(b.r.x, b.r.y, b.r.w, b.r.h, withAlpha(hov ? '#27306a' : baseBg, 0.96), { radius: 10 * S, stroke: hov ? accent : withAlpha(accent, b.big ? 0.55 : 0.35), lw: hov ? 3 : 2 });
       uiText(b.label, b.r.x + b.r.w / 2, b.r.y + b.r.h / 2 + (b.big ? 7 : 5) * S, { size: (b.big ? 21 : 14) * S, align: 'center', color: hov ? '#fff' : (b.big ? '#eaf2ff' : '#cfe0ff'), weight: b.big ? '900' : '800' });
     }
-    uiText('金庫 ' + META.gold + '　·　最深 第 ' + (META.stats.bestStage || 0) + ' 區　·　最高分 ' + (META.stats.bestScore || 0), view.W / 2, view.H * 0.93, { size: 12 * S, align: 'center', color: P.gray2 });
+    uiText('金庫 ' + goldStr(META.gold) + '　·　最深 第 ' + (META.stats.bestStage || 0) + ' 區　·　最高分 ' + (META.stats.bestScore || 0), view.W / 2, view.H * 0.93, { size: 12 * S, align: 'center', color: P.gray2 });
     uiText('空白鍵 快速進入上次存檔　·　Esc 設定', view.W / 2, view.H * 0.97, { size: 11 * S, align: 'center', color: withAlpha(P.gray2, 0.7) });
   },
 
@@ -164,7 +164,7 @@ export const titleScene = {
       } else {
         const char = Characters.get(s.char); const cn = char ? char.name : s.char;
         uiText('存檔格 ' + (c.i + 1) + '　' + cn + (s.active ? '　★使用中' : ''), px, r.y + 26 * S, { size: 15 * S, color: '#fff', weight: '800' });
-        uiText('遊戲時數 ' + fmtTime(s.playTime) + '　·　成就 ' + s.achievements + '　·　金庫 ' + s.gold, px, r.y + 48 * S, { size: 12 * S, color: P.shardL, weight: '700' });
+        uiText('遊戲時數 ' + fmtTime(s.playTime) + '　·　成就 ' + s.achievements + '　·　金庫 ' + goldStr(s.gold), px, r.y + 48 * S, { size: 12 * S, color: P.shardL, weight: '700' });
         uiText('最深 第 ' + s.bestStage + ' 區　·　最高分 ' + s.bestScore + '　·　通關 ' + s.clears + '　·　生態 ' + s.biomesUnlocked + '/10', px, r.y + 68 * S, { size: 11.5 * S, color: P.gray3 });
         // delete button (two-click confirm)
         const d = c.delR; const confirming = this.confirm === c.i;
