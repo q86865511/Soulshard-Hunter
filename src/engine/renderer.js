@@ -243,6 +243,10 @@ export function textWidth(str, size = 16, weight = '600', font = FONT) {
 // round16/1.4: unify every gold amount behind one coin-icon prefix (replaces the
 // inconsistent mix of 「金」/「金幣」/no-icon). Use anywhere a gold AMOUNT is shown.
 export function goldStr(n) { return '🪙' + (typeof n === 'number' ? Math.round(n) : n); }
+// round16/1.8: pixel bitmap font for ASCII-only numeric values (HP/Lv/gold/timer…).
+// Press Start 2P only covers ASCII, so use ONLY for digit/latin strings, never CJK.
+// It renders ~20% wider, so callers shrink the size (×0.82).
+export const PIXEL_FONT = "'Press Start 2P', monospace";
 
 // progress / health bar
 export function uiBar(x, y, w, h, frac, { fg = P.red, bg = '#000', border = '#000', radius = 2, glow = false } = {}) {

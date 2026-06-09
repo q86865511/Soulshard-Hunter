@@ -1,5 +1,5 @@
 // In-run heads-up display (screen space).
-import { uiText, uiBar, uiRect, uiScale, view, drawSpriteUI, textWidth } from '../engine/renderer.js';
+import { uiText, uiBar, uiRect, uiScale, view, drawSpriteUI, textWidth, PIXEL_FONT } from '../engine/renderer.js';
 import { getSprite, iconOr } from '../engine/sprites.js';
 import { P, withAlpha } from '../engine/palette.js';
 import { Abilities } from './content/registry.js';
@@ -31,7 +31,7 @@ function iconCounter(sprite, value, x, y, S, color) {
   const sp = getSprite(sprite);
   const sc = 1.6 * S;
   drawSpriteUI(sp.frames[0], x, y - sp.h * sc + 2 * S, sc);
-  uiText(String(value), x + sp.w * sc + 4 * S, y - 3 * S, { size: 15 * S, color, weight: '800', baseline: 'alphabetic' });
+  uiText(String(value), x + sp.w * sc + 4 * S, y - 3 * S, { size: 12 * S, color, weight: '800', baseline: 'alphabetic', font: PIXEL_FONT });   // 1.8 pixel digits
 }
 
 export function drawHud(run, player) {
@@ -65,12 +65,12 @@ export function drawHud(run, player) {
   const segs = Math.min(14, Math.floor((player.maxHp || 100) / 50));
   for (let i = 1; i <= segs; i++) { const sx = bx + vbarW * (i * 50 / player.maxHp); if (sx < bx + vbarW - 2 * S) uiRect(sx, r1y + 3 * S, Math.max(1, S), hpBarH - 6 * S, withAlpha('#000', 0.32)); }
   uiText(`${Math.ceil(player.hp)} / ${player.maxHp}`, bx + vbarW / 2, r1y + hpBarH / 2 + 1 * S,
-    { size: 11 * S, align: 'center', baseline: 'middle', weight: '800', color: '#fff', shadowColor: withAlpha('#000', 0.75) });
+    { size: 9 * S, align: 'center', baseline: 'middle', weight: '800', color: '#fff', shadowColor: withAlpha('#000', 0.75), font: PIXEL_FONT });   // 1.8
 
   // 經驗 (XP) + 等級（整合進經驗條右端）
   vIcon('xp', r2y + subH / 2);
   uiBar(bx, r2y, vbarW, subH, clamp01(run.xp / run.xpNext), { fg: P.manaL, bg: '#16183a', border: P.ink, glow: true });
-  uiText('Lv ' + run.level, bx + vbarW - 5 * S, r2y + subH / 2 + 0.5 * S, { size: 8.5 * S, align: 'right', baseline: 'middle', color: '#fff', weight: '900', shadowColor: withAlpha('#000', 0.8) });
+  uiText('Lv ' + run.level, bx + vbarW - 5 * S, r2y + subH / 2 + 0.5 * S, { size: 7 * S, align: 'right', baseline: 'middle', color: '#fff', weight: '900', shadowColor: withAlpha('#000', 0.8), font: PIXEL_FONT });   // 1.8
 
   // 衝刺 (dash) — 改用圖示（取代「衝刺」文字），圖示大小與量條長度與上方一致
   const dashReady = (player.dashCd ?? 0) <= 0;

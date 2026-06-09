@@ -1298,7 +1298,9 @@ export const runScene = {
   updateShopPanel() {
     const mx = mouse.x * view.dpr, my = mouse.y * view.dpr;
     const L = this.shopLayout();
-    if (this.shopChoice) {                        // choosing: only the 3 cards are live (game stays paused)
+    if (this.shopChoice) {                        // choosing: only the 3 cards (+ skip) are live (game stays paused)
+      const sk = this.shopSkipRect(L);            // 4.18: allow skipping the anvil roll
+      if (pressed('escape') || (mouse.justDown && sk && inside(mx, my, sk))) { this.shopChoice = null; Sfx.play('uiClick'); return; }
       if (mouse.justDown && L.choiceCards) for (const c of L.choiceCards) if (inside(mx, my, c)) { this.pickShop(c.opt); return; }
       return;
     }
@@ -1325,6 +1327,11 @@ export const runScene = {
     if (!pick.length) { this.flashShop('已無裝備可鍛'); return; }
     this.run.shards -= price; this.gearBuys = (this.gearBuys || 0) + 1;
     this.shopChoice = { kind: 'gear', opts: pick }; Sfx.play('buy');
+  },
+  shopSkipRect(L) {   // 4.18: the「跳過」button below the anvil 3-choice
+    if (!L || !L.choiceCards || !L.choiceCards.length) return null;
+    const S = uiScale(), c0 = L.choiceCards[0];
+    return { x: view.W / 2 - 80 * S, y: c0.y + c0.h + 12 * S, w: 160 * S, h: 30 * S };
   },
   pickShop(opt) {
     if (this.shopChoice.kind === 'stat') { try { opt.apply(this.player.stats, this.player); } catch (e) { /* */ } this.run.anvilCount = (this.run.anvilCount || 0) + 1; this.shopChoice = null; this.maybeBoon(); }
@@ -1540,10 +1547,15 @@ export const runScene = {
           // 原#1/#4: before/after diff vs the current item in this slot
           this.drawEquipDiff(c.x + 10 * S, c.y + 80 * S + nLines * 13 * S, c.w - 20 * S, o, S, { title: '替換後', lw: c.w - 78 * S, max: 5 });
         } else {
-          uiText(o.name, c.x + c.w / 2, c.y + 30 * S, { size: 13 * S, align: 'center', color: '#fff', weight: '800' });
-          this.wrapText(o.desc, c.x + c.w / 2, c.y + 52 * S, c.w - 16 * S, 11 * S, P.emberL);
+          uiText('⚒', c.x + c.w / 2, c.y + 24 * S, { size: 22 * S, align: 'center', color: P.shardL, weight: '900' });   // 4.18: stat-anvil emblem
+          uiText(o.name, c.x + c.w / 2, c.y + 48 * S, { size: 13 * S, align: 'center', color: '#fff', weight: '800' });
+          this.wrapText(o.desc, c.x + c.w / 2, c.y + 68 * S, c.w - 16 * S, 11 * S, P.emberL);
         }
       }
+      // 4.18: skip the roll (Esc also works) — you keep nothing but aren't forced into a bad pick
+      const sk = this.shopSkipRect(L), skh = inside(mx, my, sk);
+      uiRect(sk.x, sk.y, sk.w, sk.h, withAlpha(skh ? '#3a2030' : '#241620', 0.96), { radius: 7 * S, stroke: skh ? P.redL : withAlpha(P.redL, 0.5), lw: 1.5 });
+      uiText('跳過（放棄此次鍛造）', sk.x + sk.w / 2, sk.y + sk.h / 2 + 1 * S, { size: 11 * S, align: 'center', baseline: 'middle', color: skh ? '#fff' : P.gray3, weight: '700' });
     }
   },
   drawShopCard(c, kind, mx, my, S) {
