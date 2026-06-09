@@ -3,6 +3,7 @@ import { uiText, uiBar, uiRect, uiScale, view, drawSpriteUI, textWidth } from '.
 import { getSprite, iconOr } from '../engine/sprites.js';
 import { P, withAlpha } from '../engine/palette.js';
 import { Abilities } from './content/registry.js';
+import { weaponMaxLevel } from './balance.js';
 import { AchievementToasts } from './toasts.js';
 
 // round16/4.9-B — global achievement-unlock banners (top-right, gold), drawn by both
@@ -104,9 +105,12 @@ export function drawHud(run, player) {
     const wsz = 32 * S, ax = pad, ay = view.H - pad - wsz;
     player.weapons.forEach((inst, i) => {
       const bx = ax + i * (wsz + 4 * S);
-      uiRect(bx, ay, wsz, wsz, withAlpha('#10121f', 0.74), { radius: 4 * S, stroke: inst.def.evolved ? P.goldL : P.ink2, lw: 2 });
+      // 4.6: subtle "ready to evolve" hint — maxed base weapon whose evolveReq passive is owned
+      const ready = !inst.def.evolved && inst.def.evolveInto && inst.level >= weaponMaxLevel(inst.def) && (!inst.def.evolveReq || (run.abilityLevels && run.abilityLevels[inst.def.evolveReq] > 0));
+      uiRect(bx, ay, wsz, wsz, withAlpha('#10121f', 0.74), { radius: 4 * S, stroke: inst.def.evolved || ready ? P.goldL : P.ink2, lw: 2 });
       const sp = getSprite(iconOr(inst.def.icon, 'weapon_w_soulbolt'));
       drawSpriteUI(sp.frames[0], bx + 3 * S, ay + 3 * S, (wsz - 6 * S) / sp.w);
+      if (ready) { const pz = Math.sin((player.t || 0) * 6) * 0.5 + 0.5; uiRect(bx, ay, wsz, wsz, withAlpha(P.goldL, 0.1 + 0.16 * pz), { radius: 4 * S }); uiText('↑', bx + wsz / 2, ay + 9 * S, { size: 12 * S, align: 'center', baseline: 'middle', color: P.goldL, weight: '900', shadow: false }); }
       uiText(inst.def.evolved ? '★' : 'L' + inst.level, bx + wsz - 3 * S, ay + wsz - 3 * S, { size: 10 * S, align: 'right', color: inst.def.evolved ? P.goldL : P.shardL, weight: '800' });
       hudIcons.push({ x: bx, y: ay, w: wsz, h: wsz, kind: 'weapon', def: inst.def, level: inst.level });
     });

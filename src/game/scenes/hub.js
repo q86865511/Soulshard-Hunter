@@ -240,12 +240,19 @@ export const hubScene = {
     this.dialogue = { npc: def, sprite: def.sprite, lines: npcScript(def, META), page: 0 };
     Sfx.play('uiClick');
   },
+  dialoguePrevRect() {
+    const S = uiScale(); const w = Math.min(view.W * 0.8, 760 * S), h = 132 * S, x = (view.W - w) / 2, y = view.H - h - 22 * S;
+    return { x: x + 14 * S, y: y + h - 28 * S, w: 78 * S, h: 20 * S };
+  },
   updateDialogue() {
     const d = this.dialogue;
     if (pressed('escape') || pressed('build')) { this.dialogue = null; return; }
+    const mx = mouse.x * view.dpr, my = mouse.y * view.dpr;
+    // 2.2: go back a page (◀ button or ← key), only when not on the first page — tested
+    // BEFORE the advance handler so clicking ◀ doesn't also advance.
+    if (d.page > 0 && (pressed('left') || (mouse.justDown && inside(mx, my, this.dialoguePrevRect())))) { d.page--; Sfx.play('uiClick'); return; }
     const advance = pressed('interact') || pressed('enter') || pressed('space') || mouse.justDown;
     if (!advance) return;
-    // click on the close affordance / outside closes immediately
     if (d.page < d.lines.length - 1) { d.page++; Sfx.play('uiClick'); return; }
     // on the last line: keeper NPCs open their panel, others just close
     this.dialogue = null;
@@ -269,7 +276,12 @@ export const hubScene = {
     const last = d.page >= d.lines.length - 1;
     const hint = last ? (d.npc.station ? '▸ 進入「' + this.panelTitle(d.npc.station) + '」 (E)　·　Esc 離開' : '▸ 結束 (E)') : '▸ 繼續 (E / 空白 / 點擊)　·　Esc 離開';
     uiText(hint, x + w - 16 * S, y + h - 12 * S, { size: 11 * S, align: 'right', color: withAlpha('#fff', 0.6 + 0.3 * Math.sin(this.t * 5)), weight: '700' });
-    uiText(`${d.page + 1}/${d.lines.length}`, x + 16 * S, y + h - 12 * S, { size: 10 * S, color: P.gray3 });
+    uiText(`${d.page + 1}/${d.lines.length}`, x + w / 2, y + h - 12 * S, { size: 10 * S, align: 'center', color: P.gray3 });
+    if (d.page > 0) {   // 2.2: 上一頁 button (only when not on the first page)
+      const pr = this.dialoguePrevRect(), hov = inside(mouse.x * view.dpr, mouse.y * view.dpr, pr);
+      uiRect(pr.x, pr.y, pr.w, pr.h, withAlpha(hov ? '#27306a' : '#161b34', 0.9), { radius: 6 * S, stroke: withAlpha(P.shardL, hov ? 0.9 : 0.5), lw: 1.5 });
+      uiText('◀ 上一頁', pr.x + pr.w / 2, pr.y + pr.h / 2 + 1 * S, { size: 10 * S, align: 'center', baseline: 'middle', color: '#cfe0ff', weight: '700' });
+    }
   },
   panelTitle(id) { return { talents: '教堂 · 天賦', smith: '鐵匠鋪', guild: '獵人公會', wardrobe: '衣帽店', achievements: '成就殿堂', personal: '個人小屋', sortie: '出擊' }[id] || id; },
   // 2.3 / 3.5-C: reusable「新」/「可領」badge — a yellow circle with a white「!」.
