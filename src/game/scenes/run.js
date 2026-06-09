@@ -200,14 +200,20 @@ export const runScene = {
     this.nextEventAt = BALANCE.SURROUND_PERIOD[0];   // first event time from config (was hardcoded 40)
 
     // difficulty scaling + finale (final boss -> killable Reaper, E2)
-    this.diffMul = 1 + (Math.max(1, this.run.difficulty || 1) - 1) * 0.35;
+    const D = this.run.difficulty == null ? 1 : this.run.difficulty;
+    this.storyMode = D <= 0;   // 6.5 劇情難度
+    this.diffMul = this.storyMode ? BALANCE.STORY_DIFF_MUL : (1 + (D - 1) * 0.35);
+    if (this.storyMode) {   // weak enemies + generous loot, almost unloseable
+      this.run.dropQuality = (this.run.dropQuality || 0) + BALANCE.STORY_DROP_QUALITY;
+      if (this.player) this.player.stats.luck = (this.player.stats.luck || 0) + BALANCE.STORY_LUCK_BONUS;
+    }
     this.finalZone = null; this.finalBoss = false; this.finalBossRef = null;
     this.cleared = false; this.won = false; this.bigMap = false; this.buildIcons = [];
     this.reaperAt = 0; this.reaperSpawned = false; this.reaperRef = null; this.reaperSlain = false; this.banked = false;
 
     Music.setBiome(map.biome.id); Music.setHero(this.run.characterId);
     Music.setMode('run');
-    this.banner = map.biome.name + ' · 難度 ' + (this.run.difficulty || 1);
+    this.banner = map.biome.name + ' · ' + (this.storyMode ? '劇情' : '難度 ' + this.run.difficulty);
     this.bannerT = 2.6;
     // G3: a brief cinematic recounting the current story chapter
     const q = STORY_QUESTS[META.questIndex || 0];

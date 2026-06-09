@@ -52,6 +52,10 @@ export const BALANCE = {
   GOLD_DROP_MULT: 0.5,                        // gold per kill (was 0.62)
   DROP_CHANCE_MULT: 0.6,                      // equip/item/heart drop chance off mobs
   GEAR_DROP_MULT: 0.7,                        // round16/10.5: extra cut on MOB equipment drops only (boss gear unchanged) — fewer mid-combat equip-choice interrupts
+  // round16/6.5 劇情難度 (difficulty 0): enemies very weak, loot generous, almost unloseable; excluded from the leaderboard.
+  STORY_DIFF_MUL: 0.5,                        // enemy hp/dmg scalar (vs 1.0 at D1)
+  STORY_LUCK_BONUS: 0.5,                      // +luck for richer drops
+  STORY_DROP_QUALITY: 2,                      // +dropQuality (better equip/item rolls)
   SHARD_DROP_MULT: 1.2,                       // 原#4: soulshard drop rate up (was 0.95)
   MOB_SHARD_BASE: 0.06,                       // 原#4: any mob has this base chance to drop a shard
   MOB_SHARD_BOSS: 0.0,                        // bosses use their own e.shard; no base bonus

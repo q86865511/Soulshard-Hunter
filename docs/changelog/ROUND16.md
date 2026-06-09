@@ -78,3 +78,12 @@
 - `hud.js` 新增 `drawAchievementToasts()`（右上金色橫幅、淡入 0.3s→停留→淡出 0.5s、最多 3 條堆疊）。
 - `state.js bankRun()` 解鎖成就時 push 名稱；`hub.js draw()` 與 `run.js render()` 末端皆呼叫 `drawAchievementToasts()`——城鎮與跑局都會顯示，不再只在成就殿堂可見。
 - 驗證：push 後 `list()` 回傳數正確、兩場景 render 零錯誤；`/__shot` 精確截圖確認右上三條金色橫幅堆疊（throttled rAF 的 preview 截圖為舊幀，故改用 `/__shot`）。
+
+---
+
+## 批次 B7b — 劇情難度（第六章 6.5）
+
+- 新增**難度 0「劇情」**：`balance.js` `STORY_DIFF_MUL 0.5` / `STORY_LUCK_BONUS 0.5` / `STORY_DROP_QUALITY 2`；`run.js` 偵測 `difficulty<=0`→`storyMode`，套低 `diffMul` + 加 `dropQuality`/`luck`（敵弱、掉落豐、近乎必過），開場橫幅顯示「劇情」。
+- `state.js newRun()` 改 `opts.difficulty == null ? 1 : opts.difficulty`（修 `0 || 1` 被強制成 1）；`bankRun()` 對 `difficulty < 1` 的局**不上傳排行榜**（劇情不列榜）。
+- `hub.js` 出擊面板難度可調到 0，顯示「劇情」+ 說明「敵人極弱、掉落豐厚，幾乎必過（不列入排行榜）」，`−` 在 0 停用、`+` 仍可上調。
+- 驗證：`newRun({difficulty:0}).difficulty===0`、難度 3 仍為 3；劇情局 `storyMode===true`、`diffMul===0.5`；出擊面板 `/__shot` 截圖確認「劇情」標籤與說明；零錯誤。
