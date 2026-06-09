@@ -13,7 +13,8 @@ import { STORY_QUESTS, chapterState, claimChapter, guildQuests, trackQuest, clai
 import { drawAchievementToasts } from '../hud.js';
 import { SKINS, skinnedSprite, skinSpriteName } from '../content/characters.js';
 import { GUILD_RANKS, guildProgress, claimableRanks, claimGuildRank } from '../content/guild.js';
-import { FORGE_EFFECTS, forgeEffect, FORGE_MAX_LEVEL, FORGE_MAX_EFFECTS, forgeLevelCost, forgeEffectCost, forgeOf, forgeableWeapons, buyForgeLevel, buyForgeEffect, forgeSummary } from '../content/forge.js';
+import { FORGE_EFFECTS, forgeEffect, FORGE_MAX_LEVEL, FORGE_MAX_EFFECTS, forgeLevelCost, forgeEffectCost, forgeLevelCostBase, forgeEffectCostBase, forgeOf, forgeableWeapons, buyForgeLevel, buyForgeEffect, forgeSummary } from '../content/forge.js';
+import { BALANCE } from '../balance.js';   // round16/9.3 dynamic-pricing growth
 import { ensureSkinOffers, rerollSkinShop, SKINSHOP_REROLL_COST, isOffered, skinShopCountdown } from '../content/skinshop.js';
 import { NPCS, npcScript, markMet } from '../content/npcs.js';
 import { BONDS } from '../content/bonds.js';
@@ -221,16 +222,16 @@ export const hubScene = {
   },
   resetBtnRect(f) { const S = f.S; return { x: f.x + f.w - 258 * S, y: f.y + 13 * S, w: 96 * S, h: 24 * S }; },
   resetTalents() {
-    let refund = 0; for (const id in (META.talents || {})) { const def = Talents.get(id); const lvl = META.talents[id] || 0; if (def) for (let i = 0; i < lvl; i++) refund += def.cost(i); }
-    META.talents = {}; META.gold += Math.floor(refund); saveMeta(); this.feedback('天賦已重置，返還 ' + goldStr(Math.floor(refund)));
+    let refund = 0; for (const id in (META.talents || {})) { const def = Talents.get(id); const lvl = META.talents[id] || 0; if (def) for (let i = 0; i < lvl; i++) refund += def.cost(i); }   // refund at base (no 9.3 surcharge)
+    META.talents = {}; if (META.hub) META.hub.talentPurchases = 0; META.gold += Math.floor(refund); saveMeta(); this.feedback('天賦已重置，返還 ' + goldStr(Math.floor(refund)));
   },
   resetFacilities() {
     let refund = 0; for (const def of Facilities.all()) { const lvl = META.facilities[def.id] || 0; for (let i = 0; i < lvl; i++) refund += def.cost(i); }
-    META.facilities = {}; META.gold += Math.floor(refund); saveMeta(); this.feedback('設施已重置，返還 ' + goldStr(Math.floor(refund)));
+    META.facilities = {}; if (META.hub) META.hub.facilityPurchases = 0; META.gold += Math.floor(refund); saveMeta(); this.feedback('設施已重置，返還 ' + goldStr(Math.floor(refund)));
   },
   resetForge() {
-    let refund = 0; for (const id in (META.forge || {})) { const f = META.forge[id] || {}; for (let i = 0; i < (f.level || 0); i++) refund += forgeLevelCost(i); const eff = (f.effects || []).length; for (let i = 0; i < eff; i++) refund += forgeEffectCost(i); }
-    META.forge = {}; META.gold += Math.floor(refund); saveMeta(); this.feedback('鍛造已重置，返還 ' + goldStr(Math.floor(refund)));
+    let refund = 0; for (const id in (META.forge || {})) { const f = META.forge[id] || {}; for (let i = 0; i < (f.level || 0); i++) refund += forgeLevelCostBase(i); const eff = (f.effects || []).length; for (let i = 0; i < eff; i++) refund += forgeEffectCostBase(i); }   // base refund
+    META.forge = {}; if (META.hub) META.hub.forgePurchases = 0; META.gold += Math.floor(refund); saveMeta(); this.feedback('鍛造已重置，返還 ' + goldStr(Math.floor(refund)));
   },
 
   // ---- NPC dialogue (5-1) --------------------------------------------------
@@ -383,27 +384,32 @@ export const hubScene = {
   },
 
   // ---- talents (church) ----------------------------------------------------
+  // round16/9.3: VS-style dynamic price = base × HUB_COST_GROWTH^(this panel's purchase count).
+  hubCost(base, key) { return Math.round(base * Math.pow(BALANCE.HUB_COST_GROWTH, (META.hub && META.hub[key]) || 0)); },
+  hubPriceHint(key) { const n = (META.hub && META.hub[key]) || 0; return n ? '已升級 ' + n + ' 次 · 後續費用 +' + Math.round((Math.pow(BALANCE.HUB_COST_GROWTH, n) - 1) * 100) + '%' : '每次升級後本欄費用 +' + Math.round((BALANCE.HUB_COST_GROWTH - 1) * 100) + '%'; },
   talentState(def) {
     const cur = META.talents[def.id] || 0;
     if (cur >= def.maxLevel) return 'max';
     if (def.requires) for (const r of def.requires) if (!(META.talents[r] > 0)) return 'locked';
-    return META.gold >= def.cost(cur) ? 'ok' : 'poor';
+    return META.gold >= this.hubCost(def.cost(cur), 'talentPurchases') ? 'ok' : 'poor';
   },
   buyTalent(def) {
     if (this.talentState(def) !== 'ok') return;
     const cur = META.talents[def.id] || 0;
-    META.gold -= def.cost(cur); META.talents[def.id] = cur + 1; saveMeta();
+    META.gold -= this.hubCost(def.cost(cur), 'talentPurchases'); META.talents[def.id] = cur + 1;
+    META.hub.talentPurchases = (META.hub.talentPurchases || 0) + 1; saveMeta();
     this.feedback(def.name + ' Lv.' + (cur + 1));
   },
   facilityState(def) {
     const cur = META.facilities[def.id] || 0;
     if (cur >= def.maxLevel) return 'max';
-    return META.gold >= def.cost(cur) ? 'ok' : 'poor';
+    return META.gold >= this.hubCost(def.cost(cur), 'facilityPurchases') ? 'ok' : 'poor';
   },
   buyFacility(def) {
     if (this.facilityState(def) !== 'ok') return;
     const cur = META.facilities[def.id] || 0;
-    META.gold -= def.cost(cur); META.facilities[def.id] = cur + 1;
+    META.gold -= this.hubCost(def.cost(cur), 'facilityPurchases'); META.facilities[def.id] = cur + 1;
+    META.hub.facilityPurchases = (META.hub.facilityPurchases || 0) + 1;
     if (def.onPurchase) try { def.onPurchase(META, cur + 1); } catch (e) { /* */ }
     saveMeta(); this.feedback(def.name + ' Lv.' + (cur + 1));
   },
@@ -438,7 +444,7 @@ export const hubScene = {
   updateTalents(mx, my) {
     if (!mouse.justDown) return;
     const { nodes } = this.talentNodes();
-    for (const n of nodes) if (inside(mx, my, n)) { const def = n.def, cur = META.talents[def.id] || 0; if (this.talentState(def) === 'ok') this.ask('升級「' + def.name + '」 Lv.' + (cur + 1) + '？', goldStr(def.cost(cur)), () => this.buyTalent(def)); else { const st = this.talentState(def); this.feedback(st === 'locked' ? '需先解鎖前置天賦' : st === 'max' ? '已達滿級' : '金幣不足'); } return; }
+    for (const n of nodes) if (inside(mx, my, n)) { const def = n.def, cur = META.talents[def.id] || 0; if (this.talentState(def) === 'ok') this.ask('升級「' + def.name + '」 Lv.' + (cur + 1) + '？', goldStr(this.hubCost(def.cost(cur), 'talentPurchases')), () => this.buyTalent(def)); else { const st = this.talentState(def); this.feedback(st === 'locked' ? '需先解鎖前置天賦' : st === 'max' ? '已達滿級' : '金幣不足'); } return; }
   },
 
   facilityCards() {
@@ -455,7 +461,7 @@ export const hubScene = {
   updateFacilities(mx, my) {
     if (!mouse.justDown) return;
     const { cards } = this.facilityCards();
-    for (const c of cards) if (inside(mx, my, c)) { const def = c.def, cur = META.facilities[def.id] || 0; if (this.facilityState(def) === 'ok') this.ask('升級「' + def.name + '」 Lv.' + (cur + 1) + '？', goldStr(def.cost(cur)), () => this.buyFacility(def)); else { const st = this.facilityState(def); this.feedback(st === 'max' ? '已達滿級' : '金幣不足'); } return; }
+    for (const c of cards) if (inside(mx, my, c)) { const def = c.def, cur = META.facilities[def.id] || 0; if (this.facilityState(def) === 'ok') this.ask('升級「' + def.name + '」 Lv.' + (cur + 1) + '？', goldStr(this.hubCost(def.cost(cur), 'facilityPurchases')), () => this.buyFacility(def)); else { const st = this.facilityState(def); this.feedback(st === 'max' ? '已達滿級' : '金幣不足'); } return; }
   },
 
   // ---- forge (5-5) ---------------------------------------------------------
@@ -779,13 +785,13 @@ export const hubScene = {
       uiText(def.name, n.x + 38 * S, n.y + 17 * S, { size: 12.5 * S, color: '#fff', weight: '800' });
       this.clip1(def.desc, n.x + 38 * S, n.y + 31 * S, n.w - 44 * S, 10 * S, P.gray4);
       for (let i = 0; i < def.maxLevel; i++) uiRect(n.x + 40 * S + i * 9 * S, n.y + 42 * S, 7 * S, 5 * S, i < cur ? n.color : '#333a55', { radius: 1 });
-      const label = st === 'max' ? '已滿級' : st === 'locked' ? '需先解鎖前置' : goldStr(def.cost(cur));
+      const label = st === 'max' ? '已滿級' : st === 'locked' ? '需先解鎖前置' : goldStr(this.hubCost(def.cost(cur), 'talentPurchases'));
       const col = st === 'max' ? P.greenL : st === 'locked' ? P.gray3 : st === 'poor' ? P.redL : P.goldL;
       uiText(label, n.x + n.w - 8 * S, n.y + n.h - 9 * S, { size: 11 * S, align: 'right', color: col, weight: '800' });
     }
     ctx.restore();
     this.drawScrollbar(f);
-    uiText('點擊節點花費金幣升級　·　Esc 關閉', f.x + f.w / 2, f.y + f.h - 14 * S, { size: 11 * S, align: 'center', color: P.gray3 });
+    uiText('點擊節點升級　·　' + this.hubPriceHint('talentPurchases') + '　·　Esc 關閉', f.x + f.w / 2, f.y + f.h - 14 * S, { size: 11 * S, align: 'center', color: P.gray3 });
   },
 
   // ---- blacksmith: forge + facilities tabs ---------------------------------
@@ -793,6 +799,7 @@ export const hubScene = {
     const f = this.drawPanelFrame('鐵 匠 鋪', '鍛造武器 · 升級營地設施');
     this.drawTabs(f);
     if (this.tab === 0) this.drawForge(f); else this.drawFacilities(f);
+    uiText(this.hubPriceHint(this.tab === 0 ? 'forgePurchases' : 'facilityPurchases'), f.x + f.w / 2, f.y + f.h - 14 * f.S, { size: 10 * f.S, align: 'center', color: P.gray3, weight: '600' });   // 9.3
   },
   drawForge(f) {
     const S = f.S; const mx = mouse.x * view.dpr, my = mouse.y * view.dpr;
@@ -853,7 +860,7 @@ export const hubScene = {
       this.clip1(def.name, c.x + 46 * S, c.y + 20 * S, c.w - 92 * S, 13 * S, '#fff', '800');
       uiText('Lv.' + cur + '/' + def.maxLevel, c.x + c.w - 9 * S, c.y + 20 * S, { size: 11 * S, align: 'right', color: P.emberL, weight: '800' });
       this.wrap(def.desc, c.x + 10 * S, c.y + 42 * S, c.w - 20 * S, 10.5 * S);
-      const label = st === 'max' ? '已滿級' : goldStr(def.cost(cur));
+      const label = st === 'max' ? '已滿級' : goldStr(this.hubCost(def.cost(cur), 'facilityPurchases'));
       const col = st === 'max' ? P.greenL : st === 'poor' ? P.redL : P.goldL;
       uiText(label, c.x + c.w - 10 * S, c.y + c.h - 10 * S, { size: 12 * S, align: 'right', color: col, weight: '800' });
     }

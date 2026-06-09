@@ -8,6 +8,7 @@ import { META } from '../state.js';
 import { Weapons } from './registry.js';
 import { isUnlocked } from './unlocks.js';
 import { P } from '../../engine/palette.js';
+import { BALANCE } from '../balance.js';
 
 export const FORGE_MAX_LEVEL = 5;
 export const FORGE_MAX_EFFECTS = 3;
@@ -23,8 +24,14 @@ export const FORGE_EFFECTS = [
 export const forgeEffect = (id) => FORGE_EFFECTS.find((e) => e.id === id);
 
 const cost = (base, growth, n) => Math.round(base * Math.pow(growth, n));
-export const forgeLevelCost = (level) => cost(180, 1.6, level);     // gold for the NEXT level (level = current)
-export const forgeEffectCost = (count) => cost(260, 1.8, count);    // gold for the NEXT effect slot
+// round16/9.2: base cost ×MUL. *Base variants exclude the 9.3 dynamic surcharge (used for reset refunds).
+export const forgeLevelCostBase = (level) => cost(180 * BALANCE.FORGE_LEVEL_MUL, 1.6, level);
+export const forgeEffectCostBase = (count) => cost(260 * BALANCE.FORGE_EFFECT_MUL, 1.8, count);
+// round16/9.3: VS-style dynamic surcharge from the shared forge purchase counter. Display (hub.js) and
+// charge (buyForge*) both call these so they always agree.
+const forgeHubMul = (meta) => Math.pow(BALANCE.HUB_COST_GROWTH, (meta.hub && meta.hub.forgePurchases) || 0);
+export const forgeLevelCost = (level, meta = META) => Math.round(forgeLevelCostBase(level) * forgeHubMul(meta));   // gold for the NEXT level (level = current)
+export const forgeEffectCost = (count, meta = META) => Math.round(forgeEffectCostBase(count) * forgeHubMul(meta));  // gold for the NEXT effect slot
 
 export function forgeOf(meta, id) {
   meta.forge = meta.forge || {};
@@ -45,6 +52,7 @@ export function buyForgeLevel(meta, id) {
   if ((meta.gold || 0) < c) return false;
   meta.gold -= c;
   f.level += 1; meta.forge[id] = f;
+  meta.hub = meta.hub || {}; meta.hub.forgePurchases = (meta.hub.forgePurchases || 0) + 1;   // 9.3: raise this panel's prices
   meta.stats.forgeUpgrades = (meta.stats.forgeUpgrades || 0) + 1;
   return true;
 }
@@ -55,6 +63,7 @@ export function buyForgeEffect(meta, id, effectId) {
   if ((meta.gold || 0) < c) return false;
   meta.gold -= c;
   f.effects.push(effectId); meta.forge[id] = f;
+  meta.hub = meta.hub || {}; meta.hub.forgePurchases = (meta.hub.forgePurchases || 0) + 1;   // 9.3
   meta.stats.forgeUpgrades = (meta.stats.forgeUpgrades || 0) + 1;
   return true;
 }

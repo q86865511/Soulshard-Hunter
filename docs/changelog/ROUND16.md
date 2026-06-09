@@ -5,6 +5,19 @@
 
 ---
 
+## 批次 B13a — 城鎮經濟：消費調漲 + VS 式動態定價（9.2 / 9.3）
+
+**範圍：** 讓城鎮升級更有長期取捨（搭配 9.1 金幣調降）。additive、純前端、舊存檔自動遷移。9.4（裝備百分比改加法堆疊）為較深的數值管線重構，留待後續單獨處理。
+
+- **9.2 消費調漲**（`balance.js` + `talents.js`/`facilities.js`/`forge.js`）：新增 `TALENT_COST_MUL`/`FACILITY_COST_MUL`/`FORGE_LEVEL_MUL`/`FORGE_EFFECT_MUL`（皆 2.0）。各內容檔的 `cost` 基準 ×MUL（成長率不變）：天賦 t_damage 45→90、鍛造等級 180→360……約需 3–4 局才能升滿一欄。
+- **9.3 動態定價（VS 式）**（`balance.js` `HUB_COST_GROWTH=1.08` + `state.js` + `hub.js` + `forge.js`）：同面板每買一次，**該面板**所有項目顯示／結算價 ×1.08^購買次數。`META.hub.{talentPurchases,facilityPurchases,forgePurchases}` 計數器（含預設＋遷移）。`hub.js` 新增 `hubCost(base,key)`／`hubPriceHint(key)`；天賦／設施在 state/buy/ask/label 全部走 `hubCost`，購買後對應計數器 +1；鍛造的 9.3 內建於 `forge.js`（`forgeLevelCost`/`forgeEffectCost` 讀計數器、buy 後 +1），並新增 `forgeLevelCostBase`/`forgeEffectCostBase` 供重置以**基礎價**退款（不含動態加價＝合理的洗點稅）。重置（天賦／設施／鍛造）會把對應計數器歸零。面板底部顯示「已升級 N 次 · 後續費用 +X%」。
+
+### 驗證
+- 邏輯（`preview_eval`）：天賦基礎 45→**90**（×2）；買 1 次後 `talentPurchases→1`、扣 90、**另一個**天賦（t_hp）顯示價 90→**97**（同面板共享 +8%）；重置後計數器歸零、天賦清空、金幣全額退回；鍛造等級 180→**360**、0 次購買時動態＝基礎。
+- 渲染（`/__shot`）：天賦面板底部顯示「已升級 4 次 · 後續費用 +36%」（1.08^4）；面板載入零錯誤、balance.js 匯入無循環相依。
+
+---
+
 ## 批次 B-QA1 — 全 ROUND16 綜合 QA 與修正
 
 **範圍：** 對整個 ROUND16 改動（vs 前一里程碑 `61f4172`，29 個程式檔 ~6.3k 行）做一次綜合品保：自動化檢查 ＋ 變更宣告對照 ＋ 5 維度對抗式程式審查 ＋ 局內實機測試。以兩個 multi-agent workflow 執行（共 25 個 agent），所有發現再經獨立 agent 對抗式覆核。

@@ -54,6 +54,8 @@ const DEFAULT_META = () => ({
   // round-5 hub systems (task 5)
   guild: { xp: 0, claimed: {} },         // 5-3 guild rank: accumulated XP + claimed rank rewards
   forge: {},                             // 5-5 weaponId -> { level, effects:[id,...] } out-of-run weapon upgrades
+  hub: { talentPurchases: 0, facilityPurchases: 0, forgePurchases: 0 },   // round16/9.3 VS-式動態定價：各面板購買次數
+
   skinShop: { roll: 0, offers: [], nextRoll: 0 },   // 5-6 clothing store: rotating offers + 30-min refresh timer (task-10)
   npc: { met: {} },                      // 5-1 npc id -> true once talked to (for "new" markers / story gating)
   hidden: { claimed: {} },               // #6 hidden-room rewards claimed (save-permanent, once each)
@@ -107,6 +109,9 @@ export function loadMeta(slot) {
       if (typeof META.guild.xp !== 'number') META.guild.xp = 0;
       if (!META.guild.claimed || typeof META.guild.claimed !== 'object') META.guild.claimed = {};
       if (!META.forge || typeof META.forge !== 'object') META.forge = {};
+      // round16/9.3: hub dynamic-pricing purchase counters
+      if (!META.hub || typeof META.hub !== 'object') META.hub = {};
+      for (const k of ['talentPurchases', 'facilityPurchases', 'forgePurchases']) if (typeof META.hub[k] !== 'number') META.hub[k] = 0;
       if (!META.skinShop || typeof META.skinShop !== 'object') META.skinShop = { roll: 0, offers: [] };
       if (typeof META.skinShop.roll !== 'number') META.skinShop.roll = 0;
       if (typeof META.skinShop.nextRoll !== 'number') META.skinShop.nextRoll = 0;   // task-10: 30-min refresh timer

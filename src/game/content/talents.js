@@ -8,10 +8,12 @@
 //     apply(stats, level, run) -> mutate base stats,
 //     requires?: [talentId] }
 import { Talents } from './registry.js';
+import { BALANCE } from '../balance.js';
 
 const T = (o) => Talents.register(o);
 // Steeper growth + smaller per-level gains: meta is a gentle edge, not a power crutch.
-const cost = (base, growth = 1.7) => (lvl) => Math.round(base * Math.pow(growth, lvl));
+// round16/9.2: base cost ×TALENT_COST_MUL (town spends were too cheap); growth rate unchanged.
+const cost = (base, growth = 1.7) => (lvl) => Math.round(base * BALANCE.TALENT_COST_MUL * Math.pow(growth, lvl));
 
 // offense ------------------------------------------------------------------
 T({ id: 't_damage', name: '鋒銳', desc: '基礎傷害 +2.5%/級', branch: 'offense', row: 0, maxLevel: 8, icon: 'talent_t_damage', cost: cost(45), apply: (s, l) => s.damageMult *= 1 + 0.025 * l });

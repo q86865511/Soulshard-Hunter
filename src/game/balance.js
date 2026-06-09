@@ -54,6 +54,12 @@ export const BALANCE = {
   GOLD_MULT_CAP: 3.0,                          // round16/9.1: hard ceiling on the goldMult stat so stacked gold builds can't run away
   DROP_CHANCE_MULT: 0.6,                      // equip/item/heart drop chance off mobs
   GEAR_DROP_MULT: 0.7,                        // round16/10.5: extra cut on MOB equipment drops only (boss gear unchanged) — fewer mid-combat equip-choice interrupts
+  // round16/9.2: town-spend base-cost multipliers (talents/facilities/forge were too cheap → fully maxed in 4-5 runs)
+  TALENT_COST_MUL: 2.0,
+  FACILITY_COST_MUL: 2.0,
+  FORGE_LEVEL_MUL: 2.0,
+  FORGE_EFFECT_MUL: 2.0,
+  HUB_COST_GROWTH: 1.08,                       // round16/9.3: VS-style dynamic pricing — each purchase in a panel raises that panel's prices +8%
   // round16/6.5 劇情難度 (difficulty 0): enemies very weak, loot generous, almost unloseable; excluded from the leaderboard.
   STORY_DIFF_MUL: 0.5,                        // enemy hp/dmg scalar (vs 1.0 at D1)
   STORY_LUCK_BONUS: 0.5,                      // +luck for richer drops
