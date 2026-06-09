@@ -758,6 +758,7 @@ export const runScene = {
       return;
     }
     this.choice = { options, hover: -1, bondHints: options.map((c) => this.bondHintsFor(c)) };   // 8.2: cache hints once (world is paused while choosing → build is frozen)
+    this.peekBuild = false;   // 4.19: start showing the cards, not the build peek
   },
   cardRects() {
     const S = uiScale(); const n = this.choice ? this.choice.options.length : 3;
@@ -766,6 +767,8 @@ export const runScene = {
     return Array.from({ length: n }, (_, i) => ({ x: x0 + i * (cw + gap), y, w: cw, h: ch }));
   },
   updateChoice() {
+    if (pressed('build')) { this.peekBuild = !this.peekBuild; Sfx.play('uiClick'); return; }   // 4.19: TAB peeks the build
+    if (this.peekBuild) return;   // viewing the build panel — ignore card input until TAB back
     const rects = this.cardRects(); const mx = mouse.x * view.dpr, my = mouse.y * view.dpr;
     this.choice.hover = -1;
     rects.forEach((r, i) => { if (mx >= r.x && mx <= r.x + r.w && my >= r.y && my <= r.y + r.h) this.choice.hover = i; });
@@ -777,7 +780,7 @@ export const runScene = {
       applyChoice(this.run, this.player, this.world, c);
       this.world.particles.ring(this.player.x, this.player.y, P.manaL, 18, 100);
       this.banner = c.def.name; this.bannerT = 1.4; Sfx.play('levelup');
-      this.choice = null;
+      this.choice = null; this.peekBuild = false;
     }
   },
 
@@ -1384,7 +1387,7 @@ export const runScene = {
     if (this.shopOpen) this.drawShopPanel();
     // level-up has input priority (update() resolves this.choice first), so it must also draw ON TOP —
     // show only the active one so the equip window never hides the level-up cards behind it
-    if (this.choice) this.drawChoice();
+    if (this.choice) { if (this.peekBuild) this.drawChoicePeekBuild(); else this.drawChoice(); }   // 4.19: TAB peek
     else if (this.equipChoice) this.drawEquipChoice();
     if (this.eventChoice) this.drawEventChoice();
     if (this.coop) this.drawCoopTags();
@@ -1968,12 +1971,21 @@ export const runScene = {
     if (hints.length > 1) uiText('＋ 另推進 ' + (hints.length - 1) + ' 個羈絆', r.x + r.w / 2, y, { size: 9 * S, align: 'center', color: P.gray3, weight: '700' });
   },
 
+  // 4.19: while choosing, TAB shows the current build (read-only) over the choice.
+  drawChoicePeekBuild() {
+    const S = uiScale(); const mx = mouse.x * view.dpr, my = mouse.y * view.dpr;
+    this.drawBuildPanel(S);
+    let hb = null;
+    for (const ic of (this.buildIcons || [])) if (mx >= ic.x && mx <= ic.x + ic.w && my >= ic.y && my <= ic.y + ic.h) hb = ic;
+    if (hb) this.drawTooltip(hb, mx, my, S);
+    uiText('TAB 返回選擇強化', view.W / 2, 16 * S, { size: 13 * S, align: 'center', color: P.goldL, weight: '800' });
+  },
   drawChoice() {
     const S = uiScale();
     uiRect(0, 0, view.W, view.H, withAlpha('#0b0d1a', 0.8));
     const rects = this.cardRects();
     uiText('選 擇 強 化', view.W / 2, rects[0].y - 28 * S, { size: 26 * S, align: 'center', color: P.manaL, weight: '900' });
-    uiText('點擊卡片或按 1 / 2 / 3　·　★ 金框＝可推進羈絆', view.W / 2, rects[0].y - 8 * S, { size: 12 * S, align: 'center', color: P.gray3 });
+    uiText('點擊卡片或按 1 / 2 / 3　·　★ 金框＝可推進羈絆　·　TAB 查看 build', view.W / 2, rects[0].y - 8 * S, { size: 12 * S, align: 'center', color: P.gray3 });
     rects.forEach((r, i) => {
       const c = this.choice.options[i]; const st = choiceStyle(c); const hover = this.choice.hover === i;
       const hints = (this.choice.bondHints && this.choice.bondHints[i]) || this.bondHintsFor(c);

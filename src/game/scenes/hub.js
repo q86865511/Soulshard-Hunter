@@ -267,8 +267,16 @@ export const hubScene = {
     const sp = getSprite(d.sprite); const sc = (58 * S) / sp.h;
     drawSpriteUI(sp.frames[Math.floor(this.t * 3) % sp.frames.length], x + 12 * S + (64 * S - sp.w * sc) / 2, y + 14 * S, sc);
     uiText(d.npc.name + ' · ' + d.npc.title, x + 88 * S, y + 26 * S, { size: 15 * S, color: d.npc.color || P.shardL, weight: '900' });
-    // text (wrap)
-    const tx = x + 88 * S, maxw = w - 104 * S; let yy = y + 48 * S, cur = '', size = 13.5 * S;
+    // 2.1: 主角頭像（右側鏡像）+ 英雄名
+    const cid = META.selectedCharacter || 'hunter';
+    const heroSp = getSprite(this.heroSprite || skinnedSprite(META, cid) || 'player');
+    const hpx = x + w - 12 * S - 64 * S;
+    uiRect(hpx, y + 12 * S, 64 * S, 64 * S, withAlpha('#1b2138', 0.96), { radius: 8 * S, stroke: P.ink2, lw: 2 });
+    const hsc = (58 * S) / heroSp.h;
+    drawSpriteUI(heroSp.frames[Math.floor(this.t * 3) % heroSp.frames.length], hpx + (64 * S - heroSp.w * hsc) / 2, y + 14 * S, hsc);
+    uiText((Characters.get(cid) || {}).name || cid, hpx + 32 * S, y + 88 * S, { size: 10 * S, align: 'center', color: '#e8e0c0', weight: '800' });
+    // text (wrap) — reserve the right portrait column so lines never run under it
+    const tx = x + 88 * S, maxw = w - 104 * S - 84 * S; let yy = y + 48 * S, cur = '', size = 13.5 * S;
     const isAsk = line.ask;
     for (const ch of (line.text || '')) { if (textWidth(cur + ch, size, '600') > maxw && cur) { uiText((isAsk ? '「' : '') + cur, tx, yy, { size, color: isAsk ? P.gray3 : '#f0f2ff', weight: isAsk ? '600' : '700' }); cur = ch; yy += 18 * S; } else cur += ch; }
     if (cur) uiText((isAsk ? '「' : '') + cur + (isAsk ? '」' : ''), tx, yy, { size, color: isAsk ? P.gray3 : '#f0f2ff', weight: isAsk ? '600' : '700' });

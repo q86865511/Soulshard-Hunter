@@ -229,3 +229,11 @@
 - **4.6 武器進化隱性視覺提示**：`hud.js` 底部武器圖示——當基礎武器已滿級且擁有 `evolveReq` 被動（即將可進化）時，外框轉金色＋脈動光暈＋小「↑」提示。
 - **2.2 對話框上一頁按鈕**：`hub.js` 對話框非首頁時左下顯示「◀ 上一頁」（`dialoguePrevRect`），可點擊或按 ← 返回上一頁；命中測試置於 advance 之前，點按鈕不會同時翻頁；頁碼移至底部置中。
 - 驗證：reload 後 boot/console 零錯誤；run HUD（含武器）與 hub 對話框（page 2 顯示上一頁鈕）渲染零錯誤。
+
+---
+
+## 批次 B-misc3 — 對話主角頭像（2.1）＋ 三選一 TAB 看 build（4.19）
+
+- **2.1 對話框主角頭像（右側）**：`hub.js drawDialogue` 右側鏡像新增主角頭像框（隨動畫換幀）＋英雄名；對話文字寬度縮減一個頭像欄寬，避免文字跑到頭像下。
+- **4.19 三選一面板可按 TAB 查看 build**：`run.js` 選強化時按 TAB 切換 `peekBuild`，疊出唯讀 build 面板（含 hover tooltip）＋「TAB 返回選擇強化」提示；peek 時忽略卡片輸入；選完／開新選擇時重置。選擇副標加「· TAB 查看 build」。
+- 驗證：reload 後 boot/console 零錯誤；choice peek build 與含主角頭像的對話框（page 1 顯示上一頁鈕）渲染零錯誤。
