@@ -27,13 +27,15 @@ export const STORY_QUESTS = [
 ];
 
 // 一般任務 (regular bounties) — accepted/tracked from the guild, claimed once done.
+// `requires` (round16/5.5): a prerequisite quest id that must be CLAIMED before this one
+// unlocks. Forms light bounty chains; quests without `requires` are always available.
 export const SIDE_QUESTS = [
   { id: 'b_hunt', title: '懸賞 · 清剿', desc: '累計擊殺 300 名敵人', prog: (s) => s.kills || 0, goal: 300, reward: 120 },
   { id: 'b_survive', title: '懸賞 · 堅守', desc: '單局存活 6 分鐘', fmt: 'time', prog: (s) => s.bestTime || 0, goal: 360, reward: 150 },
-  { id: 'b_boss', title: '懸賞 · 獵首', desc: '累計擊敗 6 名首領', prog: (s) => s.bossKills || 0, goal: 6, reward: 200 },
-  { id: 'b_mini', title: '懸賞 · 屠戮小王', desc: '累計擊殺 15 隻小王', prog: (s) => s.miniBossKills || 0, goal: 15, reward: 220 },
+  { id: 'b_boss', title: '懸賞 · 獵首', desc: '累計擊敗 6 名首領', prog: (s) => s.bossKills || 0, goal: 6, reward: 200, requires: 'b_hunt' },
+  { id: 'b_mini', title: '懸賞 · 屠戮小王', desc: '累計擊殺 15 隻小王', prog: (s) => s.miniBossKills || 0, goal: 15, reward: 220, requires: 'b_boss' },
   { id: 'b_gold', title: '懸賞 · 致富', desc: '金庫累計 8000 金幣', prog: (s) => s.totalGold || 0, goal: 8000, reward: 260 },
-  { id: 'b_threat', title: '懸賞 · 深入', desc: '達到威脅 7 級', prog: (s) => s.bestStage || 0, goal: 7, reward: 240 },
+  { id: 'b_threat', title: '懸賞 · 深入', desc: '達到威脅 7 級', prog: (s) => s.bestStage || 0, goal: 7, reward: 240, requires: 'b_survive' },
 ];
 // 隱藏任務 — only appear in the guild once their trigger condition is met.
 export const HIDDEN_QUESTS = [
@@ -61,9 +63,20 @@ function bountyState(meta, q) {
   const p = Math.min(q.goal, q.prog(meta.stats || {}));
   return { q, prog: p, goal: q.goal, done: p >= q.goal, fmt: q.fmt };
 }
-export function trackQuest(meta, id) { meta.trackedQuest = id; }
+// round16/5.5: a bounty is locked until its prerequisite (`requires`) has been CLAIMED.
+export function questUnlocked(meta, q) { return !q || !q.requires || !!(meta.questClaims && meta.questClaims[q.requires]); }
+export function questLockedBy(meta, q) {
+  if (questUnlocked(meta, q)) return null;
+  const pre = allBounties().find((x) => x.id === q.requires);
+  return pre ? pre.title : q.requires;
+}
+export function trackQuest(meta, id) {
+  if (id !== 'story') { const q = allBounties().find((x) => x.id === id); if (q && !questUnlocked(meta, q)) return false; }   // 5.5: don't track a locked quest
+  meta.trackedQuest = id; return true;
+}
 export function claimQuest(meta, id) {
   const q = allBounties().find((x) => x.id === id); if (!q) return false;
+  if (!questUnlocked(meta, q)) return false;   // 5.5: prerequisite not yet claimed
   const st = bountyState(meta, q);
   if (!st.done || (meta.questClaims && meta.questClaims[id])) return false;
   meta.questClaims = meta.questClaims || {};
