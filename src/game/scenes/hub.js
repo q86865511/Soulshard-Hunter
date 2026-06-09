@@ -668,7 +668,7 @@ export const hubScene = {
       const sp = getSprite(n.def.sprite); const ss = worldToScreen(n.x, n.y - sp.h - 4);
       const isNew = !(META.npc && META.npc.met && META.npc.met[n.def.id]);
       uiText(n.def.name, ss.x, ss.y, { size: 11 * S, align: 'center', color: n.def.color, weight: '800' });
-      if (isNew) this.drawNewBadge(ss.x, ss.y - 14 * S, S);   // 2.3: 「新」徽章 — 黃圈白驚嘆號於名字正上方
+      if (isNew) this.drawNewBadge(ss.x, ss.y - 24 * S, S);   // 2.3: 「新」徽章 — 黃圈白驚嘆號於名字正上方（上移避免壓到名字）
       if (this.near === n) { const sp2 = worldToScreen(n.x, n.y + 8); uiText('【E】交談', sp2.x, sp2.y, { size: 11 * S, align: 'center', color: withAlpha('#fff', 0.6 + Math.sin(this.t * 6) * 0.3), weight: '800' }); }
     }
     this.world.particles.drawText();

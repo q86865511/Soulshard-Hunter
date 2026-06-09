@@ -45,16 +45,18 @@ export function drawHud(run, player) {
   // ---- vitals panel (top-left): 生命 / 經驗 / 衝刺 in ONE frame, consistent icon
   // sizes + bar lengths (round16/4.1). The three left icons share `iconSz`; the
   // three bars share `vbarW`; everything sits inside one rounded panel.
-  const iconSz = 15 * S;
-  const ix = pad + 6 * S;                            // icon column (all three same size + x)
+  const iconSz = 14 * S;
+  const ix = pad + 5 * S;                            // icon column (all three same size + x)
   const bx = ix + iconSz + 7 * S;                    // bar column (all three start here)
-  const vbarW = Math.min(206 * S, W * 0.32);         // all three bars share this max length
-  const hpBarH = 16 * S, subH = 9 * S, rgap = 6 * S;
-  const r1y = pad + 6 * S, r2y = r1y + hpBarH + rgap, r3y = r2y + subH + rgap;
+  const vbarW = Math.min(200 * S, W * 0.30);         // all three bars share this max length
+  const hpBarH = 15 * S, subH = 8 * S, rgap = 5 * S;
+  const r1y = pad + 5 * S, r2y = r1y + hpBarH + rgap, r3y = r2y + subH + rgap;
   const panelX = pad - 5 * S, panelY = pad - 5 * S;
-  const panelW = (bx + vbarW + 9 * S) - panelX, panelH = (r3y + subH + 7 * S) - panelY;
+  const panelW = (bx + vbarW + 9 * S) - panelX, panelH = (r3y + subH + 6 * S) - panelY;
   uiRect(panelX, panelY, panelW, panelH, withAlpha('#0b0d1a', 0.55), { radius: 9 * S, stroke: withAlpha(P.shardL, 0.32), lw: 1.5 });
-  const vIcon = (name, cy) => { const sp = getSprite(name); const sc = iconSz / sp.w; drawSpriteUI(sp.frames[0], ix, cy - (sp.h * sc) / 2, sc); };
+  // fit each icon in an iconSz×iconSz cell and CENTER it (h+v) so the boxed dash icon
+  // lines up with the bare heart/xp sprites (was left-aligned → looked misaligned).
+  const vIcon = (name, cy) => { const sp = getSprite(name); const sc = iconSz / Math.max(sp.w, sp.h); drawSpriteUI(sp.frames[0], ix + (iconSz - sp.w * sc) / 2, cy - (sp.h * sc) / 2, sc); };
 
   // 生命 (HP)
   const hpFrac = clamp01(player.hp / player.maxHp);
@@ -79,11 +81,11 @@ export function drawHud(run, player) {
   uiBar(bx, r3y, vbarW, subH, dFrac, { fg: dashReady ? P.shardL : P.gray2, bg: '#16183a', border: P.ink });
   if (dashReady) { uiRect(bx, r3y, vbarW, subH, withAlpha(P.shardL, 0.1 + 0.12 * pulse), { radius: 3 * S }); uiText('衝刺就緒', bx + vbarW - 5 * S, r3y + subH / 2 + 0.5 * S, { size: 8 * S, align: 'right', baseline: 'middle', color: P.shardL, weight: '800' }); }
 
-  // player status chips (D6) — moved BELOW the vitals panel so it never overlaps the bars
+  // player status chips (D6) — to the RIGHT of the vitals panel (below it would clash with the minimap)
   if (player.status) {
     const order = ['stun', 'knockup', 'slow', 'burn', 'poison', 'bleed'];
     const SC = { stun: ['暈', '#ffe066'], knockup: ['飛', '#ffe066'], slow: ['緩', P.ice], burn: ['燃', P.emberL], poison: ['毒', P.toxic], bleed: ['血', P.redL] };
-    let sx = panelX + 2 * S; const sy = panelY + panelH + 4 * S;
+    let sx = panelX + panelW + 6 * S; const sy = panelY + 6 * S;
     for (const k of order) {
       if (!player.status[k]) continue;
       const [lab, col] = SC[k];

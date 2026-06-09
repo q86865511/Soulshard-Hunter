@@ -1150,7 +1150,7 @@ export const runScene = {
     if (!this.minimap) return;
     const S = uiScale(); const m = this.map;
     const mw = 144 * S, mh = mw * m.th / m.tw;
-    const mx = 12 * S, my = 66 * S;
+    const mx = 12 * S, my = 72 * S;   // below the (taller) vitals panel — was 66, which overlapped it
     uiRect(mx - 4, my - 4, mw + 8, mh + 8, withAlpha('#0b0d1a', 0.72), { radius: 6 * S, stroke: P.shardL, lw: 2 });
     uiRect(mx - 4, my - 4, mw + 8, 3 * S, withAlpha(P.shardL, 0.5), { radius: 2 * S });
     drawSpriteUI(this.minimap, mx, my, mw / m.tw);
@@ -1241,7 +1241,9 @@ export const runScene = {
       let nm = o.b.name;
       while (nm.length > 1 && textWidth(nm, 10 * S, '800') > w - (nameX - x) - 42 * S) nm = nm.slice(0, -1);
       uiText(nm, nameX, cy + 0.5 * S, { size: 10 * S, baseline: 'middle', color: o.near ? '#aeb6d8' : '#f0e4c0', weight: '800' });
-      uiText(o.near ? '快達成' : (o.pg.level + '/' + o.pg.max), x + w - 10 * S, cy + 0.5 * S, { size: 9.5 * S, align: 'right', baseline: 'middle', color: o.near ? P.shardL : st.stroke, weight: '900' });
+      // near = how many requirement pieces collected (e.g. 1/2); achieved = current tier / max tier
+      uiText(o.near ? (o.pg.count + '/' + o.pg.tiers[0].at) : (o.pg.level + '/' + o.pg.max), x + w - 10 * S, cy + 0.5 * S, { size: 9.5 * S, align: 'right', baseline: 'middle', color: o.near ? P.shardL : st.stroke, weight: '900' });
+      hudIcons.push({ x, y: cy - rowH / 2 + 2 * S, w, h: rowH, kind: 'bond', bond: o.b, prog: o.pg });   // hover → effect tooltip (drawBondTooltip)
     });
     if (extra > 0) uiText('＋' + extra + ' 個…', x + w - 10 * S, y + h - 6 * S, { size: 8 * S, align: 'right', color: P.gray3, weight: '600' });
   },
