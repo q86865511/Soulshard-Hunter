@@ -15,6 +15,7 @@ import { SKINS, skinnedSprite, skinSpriteName } from '../content/characters.js';
 import { GUILD_RANKS, guildProgress, claimableRanks, claimGuildRank } from '../content/guild.js';
 import { FORGE_EFFECTS, forgeEffect, FORGE_MAX_LEVEL, FORGE_MAX_EFFECTS, forgeLevelCost, forgeEffectCost, forgeLevelCostBase, forgeEffectCostBase, forgeOf, forgeableWeapons, buyForgeLevel, buyForgeEffect, forgeSummary } from '../content/forge.js';
 import { BALANCE } from '../balance.js';   // round16/9.3 dynamic-pricing growth
+import { bankLimit, bankState, bankBorrow, BANK_INTEREST } from '../content/bank.js';   // round16/7.2 魂晶銀行
 import { ensureSkinOffers, skinPrice, skinTier, ensureSale } from '../content/skinshop.js';   // R16/3.8 two-layer wardrobe + tier pricing
 import { NPCS, npcScript, markMet } from '../content/npcs.js';
 import { BONDS } from '../content/bonds.js';
@@ -309,7 +310,7 @@ export const hubScene = {
       uiText('◀ 上一頁', pr.x + pr.w / 2, pr.y + pr.h / 2 + 1 * S, { size: 10 * S, align: 'center', baseline: 'middle', color: '#cfe0ff', weight: '700' });
     }
   },
-  panelTitle(id) { return { talents: '教堂 · 天賦', smith: '鐵匠鋪', guild: '獵人公會', wardrobe: '衣帽店', achievements: '成就殿堂', personal: '個人小屋', sortie: '出擊' }[id] || id; },
+  panelTitle(id) { return { talents: '教堂 · 天賦', smith: '鐵匠鋪', guild: '獵人公會', wardrobe: '衣帽店', achievements: '成就殿堂', personal: '個人小屋', sortie: '出擊', bank: '魂晶銀行' }[id] || id; },
   // 2.3 / 3.5-C: reusable「新」/「可領」badge — a yellow circle with a white「!」.
   drawNewBadge(bx, by, S) {
     const ctx = ctxRaw(), r = 7 * S;
@@ -348,6 +349,38 @@ export const hubScene = {
     else if (this.panel === 'personal') {
       if (mouse.justDown) for (const tb of this.personalTabRects(this.panelFrame())) if (inside(mx, my, tb)) { if (this.personalTab !== tb.i) this.panelScroll = 0; this.personalTab = tb.i; Sfx.play('uiClick'); return; }
     }
+    else if (this.panel === 'bank') this.updateBank(mx, my);   // 7.2 魂晶銀行
+  },
+  // ---- 魂晶銀行 (7.2): borrow gold now, auto-repaid (×interest) from next run's gold ----
+  bankBtnRect(f) { const S = f.S; return { x: f.x + 24 * S, y: this.bodyTop(f) + 116 * S, w: 240 * S, h: 42 * S }; },
+  updateBank(mx, my) {
+    if (!mouse.justDown) return;
+    if (bankState(META).debt > 0) return;
+    if (inside(mx, my, this.bankBtnRect(this.panelFrame()))) {
+      const limit = bankLimit(META);
+      this.ask('向銀行借款 ' + goldStr(limit) + '？', '下一局結算須還 ' + goldStr(Math.round(limit * BANK_INTEREST)) + '（含 ' + Math.round((BANK_INTEREST - 1) * 100) + '% 利息）', () => { if (bankBorrow(META)) { saveMeta(); this.feedback('已借款 ' + goldStr(limit)); } });
+    }
+  },
+  drawBank() {
+    const f = this.drawPanelFrame('魂 晶 銀 行', '借金幣提前強化 · 下一局結算自動還款（含息）'); const S = f.S;
+    const mx = mouse.x * view.dpr, my = mouse.y * view.dpr; const t0 = this.bodyTop(f);
+    const b = bankState(META), limit = bankLimit(META);
+    uiText('利率：借出本金 × ' + BANK_INTEREST + '（即 +' + Math.round((BANK_INTEREST - 1) * 100) + '% 利息）· 同時僅能有一筆借款', f.x + 24 * S, t0 + 18 * S, { size: 12 * S, color: P.gray3, weight: '600' });
+    const r = this.bankBtnRect(f);
+    if (b.debt > 0) {
+      uiText('目前欠款', f.x + 24 * S, t0 + 56 * S, { size: 13 * S, color: P.redL, weight: '800' });
+      uiText('借出本金 ' + goldStr(b.borrowed) + '　·　應還 ' + goldStr(b.debt), f.x + 24 * S, t0 + 80 * S, { size: 15 * S, color: '#fff', weight: '800' });
+      uiText('下一局結算時自動以該局金幣償還（不足則順延至往後局）。', f.x + 24 * S, t0 + 102 * S, { size: 11 * S, color: P.gray3 });
+      uiRect(r.x, r.y, r.w, r.h, withAlpha('#2a2030', 0.96), { radius: 8 * S, stroke: P.gray1, lw: 2 });
+      uiText('已有借款（剩餘 ' + goldStr(b.debt) + ' 待還）', r.x + r.w / 2, r.y + r.h / 2 + 1 * S, { size: 13 * S, align: 'center', baseline: 'middle', color: P.gray3, weight: '800' });
+    } else {
+      uiText('可借額度（隨公會等級提升）', f.x + 24 * S, t0 + 56 * S, { size: 13 * S, color: P.shardL, weight: '800' });
+      uiText(goldStr(limit) + '　·　到期應還 ' + goldStr(Math.round(limit * BANK_INTEREST)), f.x + 24 * S, t0 + 80 * S, { size: 15 * S, color: P.goldL, weight: '800' });
+      const hov = inside(mx, my, r);
+      uiRect(r.x, r.y, r.w, r.h, withAlpha(hov ? '#2a6a3a' : '#1f5030', 0.96), { radius: 8 * S, stroke: P.greenL, lw: 2 });
+      uiText('借款 ' + goldStr(limit), r.x + r.w / 2, r.y + r.h / 2 + 1 * S, { size: 14 * S, align: 'center', baseline: 'middle', color: '#fff', weight: '800' });
+    }
+    uiText('Esc 關閉', f.x + f.w / 2, f.y + f.h - 14 * S, { size: 11 * S, align: 'center', color: P.gray3 });
   },
   personalTabRects(f) {
     const S = f.S, w = 96 * S, h = 24 * S, gap = 8 * S, tw = w * 2 + gap;
@@ -702,6 +735,7 @@ export const hubScene = {
     else if (this.panel === 'smith') this.drawSmith();
     else if (this.panel === 'guild') this.drawGuild();
     else if (this.panel === 'personal') this.drawPersonal();
+    else if (this.panel === 'bank') this.drawBank();
 
     if (this.dialogue) this.drawDialogue();
     if (this.confirm) this.drawConfirm();   // task 8: buy/reset confirmation on top

@@ -1976,6 +1976,7 @@ export const runScene = {
       (nextName ? `★ 解鎖新關卡：${nextName}　` : '★ 已是最深關卡　') + `· 解鎖難度 ${(this.run.difficulty || 1) + 1}　· 帶回 ${goldStr(this.run.gold)}`,
     ];
     lines.forEach((l, i) => uiText(l, cx, view.H * 0.11 + (40 + i * 20) * S, { size: 13 * S, align: 'center', color: i === 1 ? (this.reaperSlain ? P.goldL : P.gray3) : '#d8e8d0', weight: i === 2 ? '800' : '600' }));
+    if (this.run.bankRepaid > 0) uiText('🏦 銀行還款 -' + goldStr(this.run.bankRepaid) + (META.bank && META.bank.debt > 0 ? '（尚欠 ' + goldStr(META.bank.debt) + '）' : ''), cx, view.H * 0.11 + (40 + lines.length * 20) * S, { size: 12 * S, align: 'center', color: P.emberL, weight: '700' });   // 7.2
     this.drawResultSummary(view.H * 0.28);
     const blink = Math.sin(this.t * 4) * 0.5 + 0.5;
     uiText('點擊 / 空白鍵 返回城鎮', cx, view.H * 0.95, { size: 15 * S, align: 'center', color: withAlpha('#ffd479', 0.5 + blink * 0.5), weight: '700' });
@@ -1993,6 +1994,7 @@ export const runScene = {
       `本局分數 ${this.run.score}` + (this.run.score >= (META.stats.bestScore || 0) ? '　★ 新紀錄！' : `（最佳 ${META.stats.bestScore || 0}）`) + `　·　帶回 ${goldStr(this.run.gold)}`,
     ];
     lines.forEach((l, i) => uiText(l, cx, view.H * 0.11 + (40 + i * 20) * S, { size: 13 * S, align: 'center', color: i === 1 ? P.goldL : '#d8def0', weight: i === 1 ? '800' : '600' }));
+    if (this.run.bankRepaid > 0) uiText('🏦 銀行還款 -' + goldStr(this.run.bankRepaid) + (META.bank && META.bank.debt > 0 ? '（尚欠 ' + goldStr(META.bank.debt) + '）' : ''), cx, view.H * 0.11 + (40 + lines.length * 20) * S, { size: 12 * S, align: 'center', color: P.emberL, weight: '700' });   // 7.2
     this.drawResultSummary(view.H * 0.26);
     const blink = Math.sin(this.t * 4) * 0.5 + 0.5;
     uiText('點擊 / 空白鍵 返回城鎮', cx, view.H * 0.95, { size: 15 * S, align: 'center', color: withAlpha('#ffd479', 0.5 + blink * 0.5), weight: '700' });

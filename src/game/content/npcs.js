@@ -71,8 +71,8 @@ export const NPCS = [
     ],
   },
   {
-    id: 'merchant', name: '老潘', title: '雜貨商', room: 'market', station: null, sprite: 'npc_merchant', color: P.bronze,
-    greet: ['嘿，獵手！要不要看看我的好貨？…啊，戰場上的商店才賣那些。', '我這兒只負責閒聊和八卦，哈哈。'],
+    id: 'merchant', name: '老潘', title: '雜貨商 · 魂晶銀行', room: 'market', station: 'bank', sprite: 'npc_merchant', color: P.bronze,
+    greet: ['嘿，獵手！手頭緊嗎？老潘我也兼放款——先借你金幣提前強化，下一趟回來連本帶利還我就行。', '記住，借了就得還，利息可不等人哪，哈哈。'],
     topics: [
       { q: '魂晶有什麼用？', a: ['魂晶是戰場上的硬通貨——按 B 隨時打開商店，用它買裝備或鍛打屬性。'] },
       { q: '聽說了什麼八卦？', a: [(m) => clears(m) > 0 ? '聽說有人通關後，把降臨的死神也斬了。是你吧？' : '聽說擊敗關底魔王後，會有個披黑袍的傢伙找上門…小心點。'] },

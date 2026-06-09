@@ -5,6 +5,7 @@ import { checkCharacterUnlocks, skinnedSprite } from './content/characters.js';
 import { checkAchievements, reconcileUnlocks } from './content/achievements.js';
 import { restockSkinShop } from './content/skinshop.js';
 import { MAX_TRACKED, isValidTrackId } from './content/quests.js';   // 5.2: single source of truth for the track cap + id validation
+import { bankRepay } from './content/bank.js';   // 7.2 魂晶銀行: auto-repay a loan at run settlement
 import { AchievementToasts } from './toasts.js';
 import { Audio } from '../engine/audio.js';
 import { setShakeEnabled, setUiScaleMul } from '../engine/renderer.js';
@@ -55,6 +56,7 @@ const DEFAULT_META = () => ({
   guild: { xp: 0, claimed: {} },         // 5-3 guild rank: accumulated XP + claimed rank rewards
   forge: {},                             // 5-5 weaponId -> { level, effects:[id,...] } out-of-run weapon upgrades
   hub: { talentPurchases: 0, facilityPurchases: 0, forgePurchases: 0 },   // round16/9.3 VS-式動態定價：各面板購買次數
+  bank: { debt: 0, borrowed: 0 },        // round16/7.2 魂晶銀行：含息應還 / 本金
 
   skinShop: { roll: 0, offers: [], nextRoll: 0 },   // 5-6 clothing store: rotating offers + 30-min refresh timer (task-10)
   npc: { met: {} },                      // 5-1 npc id -> true once talked to (for "new" markers / story gating)
@@ -112,6 +114,9 @@ export function loadMeta(slot) {
       // round16/9.3: hub dynamic-pricing purchase counters
       if (!META.hub || typeof META.hub !== 'object') META.hub = {};
       for (const k of ['talentPurchases', 'facilityPurchases', 'forgePurchases']) if (typeof META.hub[k] !== 'number') META.hub[k] = 0;
+      // round16/7.2: bank loan state
+      if (!META.bank || typeof META.bank !== 'object') META.bank = { debt: 0, borrowed: 0 };
+      for (const k of ['debt', 'borrowed']) if (typeof META.bank[k] !== 'number') META.bank[k] = 0;
       if (!META.skinShop || typeof META.skinShop !== 'object') META.skinShop = { roll: 0, offers: [] };
       if (typeof META.skinShop.roll !== 'number') META.skinShop.roll = 0;
       if (typeof META.skinShop.nextRoll !== 'number') META.skinShop.nextRoll = 0;   // task-10: 30-min refresh timer
@@ -295,6 +300,7 @@ export function applyMeta(run) {
 
 export function bankRun(run) {
   META.gold += run.gold;
+  run.bankRepaid = bankRepay(META);   // 7.2: auto-repay any outstanding loan from this run's gold (carries remainder)
   META.stats.runs += 1;
   META.stats.kills += run.kills;
   META.stats.totalGold += run.gold;

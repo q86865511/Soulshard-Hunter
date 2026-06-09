@@ -5,6 +5,21 @@
 
 ---
 
+## 批次 B12 — 魂晶銀行借貸系統（第七章 7.2）
+
+**範圍：** 城鎮可向銀行借金幣提前強化，下一局結算自動還款（含息）。additive、純前端＋存檔（透過既有雲端同步）；不動既有平衡。
+
+- **`content/bank.js`（新）**：`BANK_INTEREST = 1.2`；可借額度 `bankLimit(meta)` 依公會等級（`guildRank`）解鎖 50→1000；`bankBorrow(meta)`（同時僅一筆，借出即 `gold += 額度`、`debt = 額度×1.2`）；`bankRepay(meta)`（結算時以該局金幣償還，不足順延，回傳本次還款額）。
+- **`state.js`**：`META.bank = { debt, borrowed }`（預設＋遷移）；`bankRun()` 在計入該局金幣後呼叫 `bankRepay`，把還款額記於 `run.bankRepaid`。
+- **`hub.js`**：新 `bank` 面板（`drawBank`/`updateBank`/`bankBtnRect`）——顯示利率、可借額度／到期應還、借款鈕（帶確認）；有欠款時改顯示「已有借款（剩餘 XX 待還）」不可再借。`panelTitle` 加「魂晶銀行」。雜貨商 **老潘**（`npcs.js`）`station` 改為 `bank`、對白改為放款台詞——市場走向他即可開銀行。
+- **`run.js`**：通關／死亡結算畫面在「帶回 X」下方顯示「🏦 銀行還款 -X（尚欠 …）」。
+
+### 驗證
+- 邏輯（`preview_eval`）：rank0 額度 50；借 50→金幣 +50、debt 60、borrowed 50；有欠款再借被擋；結算 `bankRepay` 還 min(gold,debt)=60、debt 歸零。
+- 渲染（`/__shot`）：銀行面板顯示「利率 ×1.2」「可借額度 🪙200 · 到期應還 🪙240」（公會 rank 3）＋借款鈕。載入零錯誤、import chain（state→bank→guild）無循環。
+
+---
+
 ## 批次 B3.8 — 造型商店兩層式大改版（第三章 3.8）
 
 **範圍：** 解決「只有 4 個隨機造型可買、多數造型永遠買不到」「難以瀏覽」「隱藏造型定價過低」。additive、純前端。
