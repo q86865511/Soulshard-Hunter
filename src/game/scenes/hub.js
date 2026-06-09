@@ -79,6 +79,7 @@ export const hubScene = {
     this.heroSprite = skinnedSprite(META, META.selectedCharacter || 'hunter');
     ensureSkinOffers(META);
     Music.start('hub');
+    if (!META.tutorialDone) setTimeout(() => this.triggerTutorial(), 1000);   // 6.1 first-visit town guide
   },
 
   // ---- update --------------------------------------------------------------
@@ -245,9 +246,10 @@ export const hubScene = {
     const S = uiScale(); const w = Math.min(view.W * 0.8, 760 * S), h = 132 * S, x = (view.W - w) / 2, y = view.H - h - 22 * S;
     return { x: x + 14 * S, y: y + h - 28 * S, w: 78 * S, h: 20 * S };
   },
+  closeDialogue() { const d = this.dialogue; this.dialogue = null; if (d && d.onClose) try { d.onClose(); } catch (e) { /* */ } },
   updateDialogue() {
     const d = this.dialogue;
-    if (pressed('escape') || pressed('build')) { this.dialogue = null; return; }
+    if (pressed('escape') || pressed('build')) { this.closeDialogue(); return; }
     const mx = mouse.x * view.dpr, my = mouse.y * view.dpr;
     // 2.2: go back a page (◀ button or ← key), only when not on the first page — tested
     // BEFORE the advance handler so clicking ◀ doesn't also advance.
@@ -256,8 +258,23 @@ export const hubScene = {
     if (!advance) return;
     if (d.page < d.lines.length - 1) { d.page++; Sfx.play('uiClick'); return; }
     // on the last line: keeper NPCs open their panel, others just close
-    this.dialogue = null;
-    if (d.npc.station) this.openPanel(d.npc.station);
+    const st = d.npc.station;
+    this.closeDialogue();
+    if (st) this.openPanel(st);
+  },
+  // 6.1 新手教學：城鎮引導（蕾恩，5 頁，看過一次後不再；舊存檔升級也會觸發）
+  triggerTutorial() {
+    if (META.tutorialDone || this.dialogue || this.panel) return;
+    const guide = NPCS.find((n) => n.id === 'guide') || { name: '蕾恩', title: '城鎮嚮導', color: P.greenL, sprite: 'npc_guide' };
+    const lines = [
+      { text: '你醒了……終於。我是蕾恩，城鎮的嚮導。' },
+      { text: '這裡是魂晶之鎮，獵手們在戰場闖蕩後回來的避風港。' },
+      { text: '傳送門就在廣場中央——走進去，選好英雄和生態，出發狩獵！' },
+      { text: '回來後，把賺來的金幣花在各個房間，讓自己越來越強。' },
+      { text: '其他居民也可以交談，他們各有各的故事……準備好了嗎？' },
+    ];
+    this.dialogue = { npc: { ...guide, station: null }, sprite: guide.sprite, lines, page: 0, onClose: () => { META.tutorialDone = true; saveMeta(); } };
+    Sfx.play('uiClick');
   },
   drawDialogue() {
     const S = uiScale(); const d = this.dialogue; const line = d.lines[d.page] || { who: '', text: '' };

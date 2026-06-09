@@ -73,6 +73,14 @@ const ANVIL_POOL = [
 // FINAL BOSS at 20:00, then 30s after it dies a killable Reaper appears (hidden).
 // Clearing the final boss unlocks the next level + difficulty.
 const LEVEL_TIME = BALANCE.LEVEL_TIME;
+// 6.2 首局戰鬥提示：在第一場戰鬥的指定秒數淡入淡出的底部橫幅（看過一次後不再）。
+const BATTLE_HINTS = [
+  { t: 3, text: '武器自動瞄準並射擊，無需手動操作。' },
+  { t: 12, text: '按【空白】或【右鍵】可緊急閃避（短暫無敵）。' },
+  { t: 22, text: '按【B】隨時開啟商店，花費魂晶強化裝備。' },
+  { t: 33, text: '按【M】查看放大地圖，按【Tab】查看目前配裝。' },
+  { t: 45, text: '升級時時間暫停，從三個選項中挑選強化。' },
+];
 const FINAL_BOSS = { crypt: 'g_plagueheart', cavern: 'g_stormtyrant', frost: 'b2_glacierseer', inferno: 'b2_emberlord', void: 'b2_voidweaver' };
 const REAPER_ID = 'reaper';
 // task-4: cardinal probes (px) used to detect the player backing into a wall during 魂牢
@@ -127,6 +135,7 @@ export const runScene = {
     this.equipChoice = null; this.equipQueue = [];
     this.eventChoice = null; this.challenge = null;   // 原#3 mini-boss event + timed challenge
     this.newlyUnlocked = [];   // 原#1 results screen: achievements unlocked this run
+    this.hudTut = false; this._hudTutShown = false; this._bhIdx = 0; this._bhActive = null;   // 6.2/6.3 first-run tutorials (single-player only)
     this.buildWorld();
     this._startPresence();   // round16/7.3: announce "playing now" (REST heartbeat; offline-first)
   },
@@ -953,6 +962,7 @@ export const runScene = {
       return;
     }
     if (this.paused) { this.updatePause(); return; }
+    if (this.hudTut) { this.updateHudTut(); return; }   // 6.3A first-run HUD walkthrough pauses the field
     if (this.hiddenPanel) { this.updateHidden(dt); return; }   // a hidden room pauses the run for its choice
     if (this.choice) { this.updateChoice(); return; }
     if (this.equipChoice) { this.updateEquipChoice(); return; }   // B1 equip menu pauses the field
@@ -979,6 +989,9 @@ export const runScene = {
 
     if (Cheats.enabled && Cheats.fast) dt *= 3;   // F2 time-warp
     this.run.time += dt;
+    // 6.3A: 2s into the FIRST battle (after any intro), pause once for a HUD walkthrough.
+    if (!META.tutorialHUDDone && !this._hudTutShown && !this.coop && !this.story && this.run.time >= 2) { this.hudTut = true; this._hudTutShown = true; return; }
+    this.tickBattleHints(dt);   // 6.2 first-battle combat hints
     this.threat = 1 + Math.floor(this.run.time / BALANCE.THREAT_PERIOD);   // ~1 -> 13 over the 20-min level
     // report-cap stage at the threat ceiling (threat keeps climbing past 20:00 during the Reaper window;
     // an uncapped stage would trip the server's anti-cheat plausibility gate on legit clear+reaper runs)
@@ -1171,6 +1184,51 @@ export const runScene = {
       if (q.goal) uiText(fmtQuestVal(q.prog, q.fmt) + '/' + fmtQuestVal(q.goal, q.fmt), x + w - 8 * S, y + 31 * S, { size: 9 * S, align: 'right', color: P.gray3 });
       y += h + gap;
     }
+  },
+
+  // 6.2: tick + show the first-battle combat hints (fade in 0.5s · hold 3s · fade out 0.5s).
+  tickBattleHints(dt) {
+    if (META.tutorialBattleDone || this.coop) return;
+    if (this._bhIdx < BATTLE_HINTS.length && this.run.time >= BATTLE_HINTS[this._bhIdx].t) { this._bhActive = { text: BATTLE_HINTS[this._bhIdx].text, t: 0 }; this._bhIdx++; }
+    if (this._bhActive) { this._bhActive.t += dt; if (this._bhActive.t > 4) { this._bhActive = null; if (this._bhIdx >= BATTLE_HINTS.length) { META.tutorialBattleDone = true; saveMeta(); } } }
+  },
+  drawBattleHint() {
+    const e = this._bhActive;
+    if (!e || this.dead || this.choice || this.equipChoice || this.eventChoice || this.paused || this.hudTut || this.shopOpen) return;
+    const S = uiScale();
+    const a = e.t < 0.5 ? e.t / 0.5 : (e.t > 3.5 ? Math.max(0, (4 - e.t) / 0.5) : 1);
+    const w = Math.min(view.W * 0.7, 520 * S), h = 38 * S, x = (view.W - w) / 2, y = view.H - 124 * S;
+    uiRect(x, y, w, h, withAlpha('#0d1430', 0.86 * a), { radius: 8 * S, stroke: withAlpha(P.shardL, 0.7 * a), lw: 1.5 });
+    uiText('💡 ' + e.text, x + w / 2, y + h / 2 + 1 * S, { size: 13 * S, align: 'center', baseline: 'middle', color: withAlpha('#fff', a), weight: '700' });
+  },
+  // 6.3A: first-run HUD walkthrough — paused overlay with callouts pointing at the live HUD regions.
+  updateHudTut() {
+    if (pressed('interact') || pressed('enter') || pressed('space') || pressed('escape') || pressed('pause') || mouse.justDown) {
+      this.hudTut = false; META.tutorialHUDDone = true; saveMeta(); Sfx.play('uiClick');
+    }
+  },
+  drawHudTut() {
+    const S = uiScale(); const W = view.W, H = view.H, pad = 12 * S;
+    uiRect(0, 0, W, H, withAlpha('#070912', 0.78));
+    uiText('新 手 指 南 · 介 面 一 覽', W / 2, 56 * S, { size: 24 * S, align: 'center', color: P.shardL, weight: '900' });
+    uiText('熟悉一下畫面上的資訊（每個帳號只出現一次）', W / 2, 80 * S, { size: 13 * S, align: 'center', color: P.gray3, weight: '600' });
+    const ctx = ctxRaw();
+    const callout = (tx, ty, bx, by, label) => {
+      const tw = textWidth(label, 12 * S, '700') + 18 * S, bh = 26 * S;
+      const rx = bx - tw / 2, ry = by - bh / 2;
+      ctx.save(); ctx.strokeStyle = withAlpha('#fff', 0.7); ctx.lineWidth = 1.5 * S;
+      ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(tx, ty); ctx.stroke();
+      ctx.fillStyle = withAlpha(P.shardL, 0.9); ctx.beginPath(); ctx.arc(tx, ty, 3.5 * S, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+      uiRect(rx, ry, tw, bh, withAlpha('#10142c', 0.97), { radius: 6 * S, stroke: P.shardL, lw: 1.5 });
+      uiText(label, bx, by + 1 * S, { size: 12 * S, align: 'center', baseline: 'middle', color: '#fff', weight: '700' });
+    };
+    // anchors mirror hud.js layout (vitals top-left, counters top-right, weapons bottom-left, quest tracker left)
+    callout(pad + 90 * S, pad + 18 * S, pad + 250 * S, pad + 24 * S, '生命 · 經驗 · 衝刺');
+    callout(W - pad - 56 * S, pad + 30 * S, W - pad - 150 * S, pad + 96 * S, '金幣 · 魂晶 · 擊殺');
+    callout(pad + 40 * S, H - pad - 16 * S, pad + 150 * S, H - pad - 70 * S, '武器（自動開火 / 升級進化）');
+    callout(pad + 70 * S, 210 * S, pad + 230 * S, 210 * S, '任務追蹤 · 羈絆');
+    uiText('按任意鍵（或點擊）開始狩獵', W / 2, H - 40 * S, { size: 15 * S, align: 'center', color: withAlpha(P.goldL, 0.7 + 0.3 * Math.sin(this.t * 5)), weight: '800' });
   },
 
   // 8.2: live 羈絆 panel on the left, BELOW the quest tracker — shows the bonds
@@ -1474,6 +1532,7 @@ export const runScene = {
     this.drawQuestTracker();
     this.drawBondTracker();
     this.drawBanner();
+    this.drawBattleHint();   // 6.2 first-battle combat hints
     this.drawInfo();
     this.drawBigMinimap();
     if (this.story && this.story.t > 0) this.drawStory();
@@ -1488,6 +1547,7 @@ export const runScene = {
     if (this.coop && this.coopPick && !this.coopMenu) this.drawCoopPick();
     if (this.dead) { if (this.won) this.drawWon(); else this.drawDeath(); }
     if (this.paused) this.drawPause();
+    if (this.hudTut) this.drawHudTut();   // 6.3A first-run HUD walkthrough (on top)
     if (this.hiddenPanel) this.drawHidden();
     if (this.coop && this.coopMenu) this.drawCoopMenu();
     drawAchievementToasts();   // round16/4.9-B: global unlock banners (above HUD/panels)
