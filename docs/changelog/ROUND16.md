@@ -290,3 +290,11 @@
 - **自動縮放下調**：`renderer.js uiScale()` 設計基準 960×680 → **1100×680**（較不激進），1080P 由 ~1.8 降為 ~1.59；clamp 放寬為 0.6–2.6。
 - **新增「UI 大小」設定**：`renderer.js` 新增 `setUiScaleMul()`（0.6–1.5× 乘數）；`state.js` `META.settings.uiScale`（預設 1）＋ `applySettings()` 套用；`ui/settings.js` 設定面板新增金色「UI 大小」滑桿（60%–150%，即時生效）。玩家可自行把 1080P/高解析 UI 調小。
 - 驗證：reload 後 `uiScale` 由 0.8× 設定正確縮放（1.235→0.988）；設定面板「UI 大小 100%」滑桿渲染正確；boot/console 零錯誤。
+
+---
+
+## 批次 B-misc4b — 主畫面版本更新日誌
+
+- 新增 `content/patchnotes.js`（`GAME_VERSION` ＋ `PATCH_NOTES` 玩家向版本摘要，最新在前）。
+- `scenes/title.js`：主選單新增「📜 更新日誌 · Round 16」按鈕 → 開啟可捲動的更新日誌 overlay（標題列＋✕、各版本標題/日期/條列重點、滾輪捲動、Esc/點外部關閉）。
+- 驗證：reload 後標題「更新日誌」按鈕與 overlay（Round 16 / 9–15 / 1–8 三段）渲染正確、零錯誤。

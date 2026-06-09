@@ -6,7 +6,8 @@ import { Net } from '../../net/api.js';
 import { openAuth, openLeaderboard, isModalOpen, netToast } from '../../net/ui.js';
 import { openSocial } from '../../net/social.js';
 import { Characters } from '../content/registry.js';
-import { uiText, uiRect, uiScale, view, drawSpriteUI, vignette, ctxRaw, goldStr } from '../../engine/renderer.js';
+import { PATCH_NOTES, GAME_VERSION } from '../content/patchnotes.js';
+import { uiText, uiRect, uiScale, view, drawSpriteUI, vignette, ctxRaw, goldStr, textWidth } from '../../engine/renderer.js';
 import { getSprite, frameAt } from '../../engine/sprites.js';
 import { pressed, mouse } from '../../engine/input.js';
 import { P, withAlpha } from '../../engine/palette.js';
@@ -64,6 +65,16 @@ export const titleScene = {
     if (settingsUI.open) { settingsUI.update(); return; }
     const mx = mouse.x * view.dpr, my = mouse.y * view.dpr;
 
+    if (this.mode === 'notes') {   // 更新日誌 overlay
+      if (pressed('escape')) { this.mode = 'menu'; return; }
+      if (mouse.wheel) this.notesScroll = Math.max(0, Math.min(this.notesMax || 0, (this.notesScroll || 0) + mouse.wheel * 0.5));
+      if (mouse.justDown) {
+        if (this._notesClose && inside(mx, my, this._notesClose)) { this.mode = 'menu'; return; }
+        if (this._notesPanel && !inside(mx, my, this._notesPanel)) { this.mode = 'menu'; return; }
+      }
+      return;
+    }
+
     if (this.mode === 'slots') {
       if (pressed('escape')) { this.mode = 'menu'; this.confirm = -1; return; }
       const L = this.layoutSlots();
@@ -86,6 +97,7 @@ export const titleScene = {
     if (isModalOpen()) return;   // a DOM overlay (login / 多人 / 排行榜) is up — don't let canvas keys/clicks drive the title behind it
     if (pressed('escape')) { settingsUI.show(); return; }
     if (mouse.justDown) {
+      if (inside(mx, my, this.notesBtn())) { this.mode = 'notes'; this.notesScroll = 0; return; }
       for (const b of this.layoutMenu()) if (inside(mx, my, b.r)) { this.onMenu(b.id); return; }
     }
     if (pressed('space') || pressed('enter')) this.enterSlot(activeSlot());   // quick-start straight into the last-used slot
@@ -124,10 +136,45 @@ export const titleScene = {
     uiText('S O U L S H A R D   H U N T E R', view.W / 2, view.H * 0.16 + 34 * S, { size: 13 * S, align: 'center', color: P.gray3, weight: '700' });
 
     if (this.mode === 'slots') this.drawSlots(S);
+    else if (this.mode === 'notes') this.drawNotes(S);
     else this.drawMenu(S);
 
     vignette(0.5);
     settingsUI.draw();
+  },
+  notesBtn() { const S = uiScale(); const w = 210 * S, h = 30 * S; return { x: view.W / 2 - w / 2, y: view.H * 0.845, w, h }; },
+  // very small CJK-aware wrap that draws + returns line count
+  wrapNote(str, x, y, maxw, size) {
+    const lines = []; let line = '';
+    for (const ch of str) { if (textWidth(line + ch, size, '500') > maxw && line) { lines.push(line); line = ch; } else line += ch; }
+    if (line) lines.push(line);
+    lines.forEach((l, i) => uiText(l, x, y + i * (size + 4), { size, color: P.gray4, weight: '500' }));
+    return lines.length;
+  },
+  drawNotes(S) {
+    const mx = mouse.x * view.dpr, my = mouse.y * view.dpr;
+    const w = Math.min(view.W * 0.82, 660 * S), h = Math.min(view.H * 0.72, 540 * S);
+    const x = (view.W - w) / 2, y = (view.H - h) / 2;
+    uiRect(0, 0, view.W, view.H, withAlpha('#0b0d1a', 0.6));
+    uiRect(x, y, w, h, withAlpha('#161a30', 0.99), { radius: 12 * S, stroke: P.ink2, lw: 2 });
+    uiRect(x, y, w, 46 * S, withAlpha('#1f2542', 0.98), { radius: 12 * S });
+    uiText('📜 更新日誌', x + w / 2, y + 29 * S, { size: 19 * S, align: 'center', color: '#fff', weight: '900' });
+    const closeR = { x: x + w - 38 * S, y: y + 9 * S, w: 28 * S, h: 28 * S };
+    uiRect(closeR.x, closeR.y, closeR.w, closeR.h, withAlpha('#3a2030', 0.9), { radius: 6 * S, stroke: P.redD, lw: 2 });
+    uiText('✕', closeR.x + closeR.w / 2, closeR.y + closeR.h / 2 + 1 * S, { size: 15 * S, align: 'center', baseline: 'middle', color: P.redL, weight: '900' });
+    const ctx = ctxRaw(); ctx.save(); ctx.beginPath(); ctx.rect(x, y + 50 * S, w, h - 70 * S); ctx.clip();
+    let yy = y + 64 * S - (this.notesScroll || 0); const left = x + 22 * S, lineW = w - 44 * S;
+    for (const note of PATCH_NOTES) {
+      uiText(note.v + (note.title ? '　·　' + note.title : ''), left, yy, { size: 15 * S, color: P.goldL, weight: '900' });
+      if (note.date) uiText(note.date, x + w - 22 * S, yy, { size: 10 * S, align: 'right', color: P.gray3 });
+      yy += 22 * S;
+      for (const it of note.items) { const n = this.wrapNote('· ' + it, left + 4 * S, yy, lineW - 8 * S, 12 * S); yy += n * 16 * S + 2 * S; }
+      yy += 12 * S;
+    }
+    this.notesMax = Math.max(0, (yy + (this.notesScroll || 0)) - (y + 64 * S) - (h - 80 * S));
+    ctx.restore();
+    uiText('滑鼠滾輪捲動　·　Esc / 點外部關閉', x + w / 2, y + h - 14 * S, { size: 10 * S, align: 'center', color: P.gray3 });
+    this._notesClose = closeR; this._notesPanel = { x, y, w, h };
   },
 
   drawMenu(S) {
@@ -146,6 +193,10 @@ export const titleScene = {
       uiRect(b.r.x, b.r.y, b.r.w, b.r.h, withAlpha(hov ? '#27306a' : baseBg, 0.96), { radius: 10 * S, stroke: hov ? accent : withAlpha(accent, b.big ? 0.55 : 0.35), lw: hov ? 3 : 2 });
       uiText(b.label, b.r.x + b.r.w / 2, b.r.y + b.r.h / 2 + (b.big ? 7 : 5) * S, { size: (b.big ? 21 : 14) * S, align: 'center', color: hov ? '#fff' : (b.big ? '#eaf2ff' : '#cfe0ff'), weight: b.big ? '900' : '800' });
     }
+    // 📜 更新日誌 button
+    const nb = this.notesBtn(), nhov = inside(mx, my, nb);
+    uiRect(nb.x, nb.y, nb.w, nb.h, withAlpha(nhov ? '#27306a' : '#141832', 0.92), { radius: 7 * S, stroke: nhov ? P.goldL : withAlpha(P.goldL, 0.45), lw: nhov ? 2.5 : 1.5 });
+    uiText('📜 更新日誌 · ' + GAME_VERSION, nb.x + nb.w / 2, nb.y + nb.h / 2 + 1 * S, { size: 12 * S, align: 'center', baseline: 'middle', color: nhov ? '#fff' : P.goldL, weight: '700' });
     uiText('金庫 ' + goldStr(META.gold) + '　·　最深 第 ' + (META.stats.bestStage || 0) + ' 區　·　最高分 ' + (META.stats.bestScore || 0), view.W / 2, view.H * 0.93, { size: 12 * S, align: 'center', color: P.gray2 });
     uiText('空白鍵 快速進入上次存檔　·　Esc 設定', view.W / 2, view.H * 0.97, { size: 11 * S, align: 'center', color: withAlpha(P.gray2, 0.7) });
   },
