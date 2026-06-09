@@ -206,7 +206,18 @@ function roundRectPath(x, y, w, h, r) {
 }
 export { roundRectPath };
 
-const FONT = '"Microsoft JhengHei", "PingFang TC", "Noto Sans CJK TC", system-ui, sans-serif';
+// round16/1.1 — 全域改用標楷體 (KaiTi) for a calligraphic look; the existing sans chain
+// stays as a fallback so text still renders on systems without a KaiTi font installed.
+// textWidth() uses the SAME FONT, so clip/wrap math stays consistent with what's rendered.
+const FONT = '"標楷體", "DFKai-SB", "BiauKai", "Kaiti TC", "KaiTi", "Microsoft JhengHei", "PingFang TC", "Noto Sans CJK TC", system-ui, sans-serif';
+// round16/1.6 — UI sizing tokens (foundation): shared font sizes + component metrics so
+// menus and sub-panels stay proportional. Consumed incrementally by UI code (sizes are the
+// design base; callers still multiply by uiScale()).
+export const UI = {
+  FONT_TITLE: 22, FONT_HEADING: 16, FONT_BODY: 13, FONT_CAPTION: 10,
+  BTN_H: 36, ICON_SM: 16, ICON_MD: 24, ICON_LG: 32,
+  GAP_SM: 6, GAP_MD: 10, GAP_LG: 16,
+};
 export function uiText(str, x, y, {
   size = 16, color = '#fff', align = 'left', baseline = 'alphabetic',
   weight = '600', shadow = true, shadowColor = 'rgba(0,0,0,0.6)', font = FONT, alpha = 1, letterSpacing = 0,
