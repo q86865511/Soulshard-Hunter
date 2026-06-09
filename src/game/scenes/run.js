@@ -113,7 +113,7 @@ export const runScene = {
     this.t = 0; this.dead = false; this.deathT = 0;
     this.levelQueue = this.run.startBonusLevels || 0;
     this.choice = null; this.banner = ''; this.bannerT = 0;
-    this.paused = false;
+    this.paused = false; this.confirmQuit = false;   // 4.8
     // co-op: the run ends only when EVERY avatar is down (one player dying isn't game-over)
     this.world.onPlayerDeath = () => { if (this.coop) { if (!this.world.anyPlayerAlive()) this.onDeath(); } else this.onDeath(); };
     this.world.onLevelUp = () => this.onLevelUp();
@@ -897,13 +897,17 @@ export const runScene = {
     return { S, resume: { x, y: y0, w, h }, settings: { x, y: y0 + (h + gap), w, h }, quit: { x, y: y0 + (h + gap) * 2, w, h } };
   },
   updatePause() {
-    if (pressed('pause') || pressed('escape')) { this.paused = false; return; }
     const L = this.pauseLayout(); const mx = mouse.x * view.dpr, my = mouse.y * view.dpr;
-    if (mouse.justDown) {
-      if (inside(mx, my, L.resume)) { this.paused = false; Sfx.play('uiClick'); }
-      else if (inside(mx, my, L.settings)) settingsUI.show(null, { returnHub: () => this.abandon() });   // settings menu also offers 返回大廳 in-run
-      else if (inside(mx, my, L.quit)) this.abandon();
+    if (pressed('pause') || pressed('escape')) { if (this.confirmQuit) { this.confirmQuit = false; return; } this.paused = false; return; }
+    if (!mouse.justDown) return;
+    if (this.confirmQuit) {   // 4.8: confirm before abandoning the run
+      if (inside(mx, my, L.resume)) { this.abandon(); }                                   // 確定放棄
+      else if (inside(mx, my, L.quit)) { this.confirmQuit = false; Sfx.play('uiClick'); }  // 取消
+      return;
     }
+    if (inside(mx, my, L.resume)) { this.paused = false; Sfx.play('uiClick'); }
+    else if (inside(mx, my, L.settings)) settingsUI.show(null, { returnHub: () => this.abandon() });   // settings menu also offers 返回大廳 in-run
+    else if (inside(mx, my, L.quit)) { this.confirmQuit = true; Sfx.play('uiClick'); }   // 4.8: ask first
   },
   abandon() {
     this.run.score = Math.floor(this.run.kills * 12 + this.run.stage * 400 + this.run.time);
@@ -916,12 +920,19 @@ export const runScene = {
     const S = uiScale(); const L = this.pauseLayout();
     const mx = mouse.x * view.dpr, my = mouse.y * view.dpr;
     uiRect(0, 0, view.W, view.H, withAlpha('#0b0d1a', 0.7));
-    uiText('暫 停', view.W / 2, L.resume.y - 36 * S, { size: 30 * S, align: 'center', color: '#fff', weight: '900' });
     const btn = (r, label, col) => {
       const hov = inside(mx, my, r);
       uiRect(r.x, r.y, r.w, r.h, withAlpha(hov ? '#243a5a' : '#1b2138', 0.97), { radius: 8 * S, stroke: hov ? (col || P.shardL) : P.ink2, lw: hov ? 3 : 2 });
       uiText(label, r.x + r.w / 2, r.y + r.h / 2 + 1 * S, { size: 16 * S, align: 'center', baseline: 'middle', color: '#fff', weight: '800' });
     };
+    if (this.confirmQuit) {   // 4.8: abandon confirmation
+      uiText('確定放棄本局？', view.W / 2, L.resume.y - 40 * S, { size: 24 * S, align: 'center', color: '#fff', weight: '900' });
+      uiText('本局進度將結算後返回城鎮', view.W / 2, L.resume.y - 14 * S, { size: 12 * S, align: 'center', color: P.gray3 });
+      btn(L.resume, '確定放棄', P.redL);
+      btn(L.quit, '取消');
+      return;
+    }
+    uiText('暫 停', view.W / 2, L.resume.y - 36 * S, { size: 30 * S, align: 'center', color: '#fff', weight: '900' });
     btn(L.resume, '繼 續');
     btn(L.settings, '設 定');
     btn(L.quit, '放棄並返回城鎮', P.redL);
@@ -952,7 +963,7 @@ export const runScene = {
       if (pressed('build')) { this.showBuild = !this.showBuild; Sfx.play('uiClick'); }
       if (pressed('minimap')) { this.bigMap = !this.bigMap; Sfx.play('uiClick'); }
     } else {
-      if (pressed('pause') || (pressed('escape') && !this.shopOpen)) { this.paused = true; Sfx.play('uiClick'); return; }   // when the shop is open, Esc backs out of it (handled below) rather than opening pause over it
+      if (pressed('pause') || (pressed('escape') && !this.shopOpen)) { this.paused = true; this.confirmQuit = false; Sfx.play('uiClick'); return; }   // when the shop is open, Esc backs out of it (handled below) rather than opening pause over it
       if (pressed('build')) { this.showBuild = !this.showBuild; Sfx.play('uiClick'); }
       if (pressed('minimap')) { this.bigMap = !this.bigMap; Sfx.play('uiClick'); }
       if (pressed('shop') && !this.shopChoice) {                          // 原#4: B opens the soulshard / anvil shop anywhere
