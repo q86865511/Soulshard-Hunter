@@ -47,3 +47,30 @@ export function skinShopCountdown(meta) { return (meta.skinShop && meta.skinShop
 export function restockSkinShop(meta) { if (meta.skinShop && meta.skinShop.nextRoll && nowMs() >= meta.skinShop.nextRoll) meta.skinShop.offers = []; }
 
 export function isOffered(meta, skinId) { return !!(meta.skinShop && Array.isArray(meta.skinShop.offers) && meta.skinShop.offers.includes(skinId)); }
+
+// ---- R16/3.8 tier pricing + weekly sale ----------------------------------
+// Skins now cost by tier (replacing the old per-skin hardcoded price), and EVERY skin is
+// buyable any time (no more 4-slot rotation gate). A weekly sale discounts a few.
+export const SKIN_TIER_PRICE = { normal: 450, premium: 900, hidden: 3000 };
+export const SKIN_SALE_MS = 7 * 24 * 60 * 60 * 1000;
+export function skinTier(sk) { return sk.tier || (sk.hidden ? 'hidden' : ((sk.price || 0) >= 320 ? 'premium' : 'normal')); }
+export function skinBasePrice(sk) { return SKIN_TIER_PRICE[skinTier(sk)] || sk.price || 500; }
+function rollSale(meta) {
+  meta.skinShop = meta.skinShop || { roll: 0, offers: [], nextRoll: 0 };
+  const normals = shuffle(SKINS.filter((s) => !s.hidden).map((s) => s.id)).slice(0, 2);
+  const hiddens = shuffle(SKINS.filter((s) => s.hidden).map((s) => s.id)).slice(0, 1);
+  const map = {}; normals.forEach((id) => { map[id] = 0.8; }); hiddens.forEach((id) => { map[id] = 0.9; });
+  meta.skinShop.sale = { map, until: nowMs() + SKIN_SALE_MS };
+}
+export function ensureSale(meta) {
+  if (!meta.skinShop || typeof meta.skinShop !== 'object') meta.skinShop = { roll: 0, offers: [], nextRoll: 0 };
+  const s = meta.skinShop.sale;
+  if (!s || !s.map || !s.until || nowMs() >= s.until) rollSale(meta);
+  return meta.skinShop.sale;
+}
+// { price, base, onSale, saleUntil } for a skin, after any active sale discount.
+export function skinPrice(meta, sk) {
+  const base = skinBasePrice(sk); const sale = ensureSale(meta);
+  const f = (sale.map && sale.map[sk.id]) || 1;
+  return { price: Math.round(base * f), base, onSale: f < 1, saleUntil: sale.until };
+}

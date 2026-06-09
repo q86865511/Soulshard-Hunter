@@ -5,6 +5,23 @@
 
 ---
 
+## 批次 B3.8 — 造型商店兩層式大改版（第三章 3.8）
+
+**範圍：** 解決「只有 4 個隨機造型可買、多數造型永遠買不到」「難以瀏覽」「隱藏造型定價過低」。additive、純前端。
+
+- **兩層 UI**（`hub.js` 衣帽店整個重寫）：
+  - **第一層 — 角色網格**（`this.wardrobeChar == null`）：列出所有已解鎖英雄，每格顯示頭像（含目前造型）＋名稱＋「已持有 X / 15」。
+  - **第二層 — 該英雄造型清單**（點角色進入）：右上「◀ 返回」回第一層；兩分頁 **我的造型**（已擁有→點擊裝備）／**造型商店**（**全部**造型逐列：已擁有→裝備、未擁有→分層價格＋購買、隱藏★＋金框、特賣顯示原價刪除線與折後價）。`wardrobeCharCards`/`updateWardrobeChars`/`wardrobeSkinLayout`/`updateWardrobe`/`pickSkin`/`drawWardrobeChars`/`drawWardrobeSkins`。
+- **全造型皆可購**（`skinshop.js`）：廢除 4 槽位輪替的購買限制——每個造型隨時可買，不需等進貨；舊 `ensureSkinOffers`/`isOffered` 保留但商店不再以其 gate。
+- **分層定價**（`skinshop.js`）：`SKIN_TIER_PRICE = { normal:450, premium:900, hidden:3000 }`；`skinTier(sk)`（hidden→隱藏、price≥320→豪華、否則普通）、`skinBasePrice`、`skinPrice(meta,sk)→{price,base,onSale,saleUntil}`。隱藏造型（完整異體型）由 ~600 漲到 **3000**，成為長期金幣去處。
+- **每週特賣**（`skinshop.js` `ensureSale`）：每 7 天隨機 2 個普通/豪華打 8 折、1 個隱藏打 9 折；清單顯示折後價＋「特賣！」＋輪替剩餘天數。
+
+### 驗證
+- `/__shot`：第一層角色網格（魂晶獵手 已持有 0/15）；第二層商店列出全部造型，普通 🪙450／豪華 🪙900／皇金特賣 🪙720（原 900）；返回鍵回第一層。
+- 邏輯（`preview_eval`）：golem(hidden) tier=隱藏、價 2700（3000×0.9 特賣）；flame tier=普通、`pickSkin` 已擁有→裝備（`META.skins.hunter='flame'`）；返回鍵 `wardrobeChar=null`。載入零錯誤。
+
+---
+
 ## 批次 B2 — 新手教學（第六章 6.1 / 6.2 / 6.3）
 
 **範圍：** 三段首次遊玩引導。皆 additive、單人路徑；以 `META` root 旗標記錄「看過一次」（舊存檔升級也會觸發）。

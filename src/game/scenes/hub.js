@@ -15,7 +15,7 @@ import { SKINS, skinnedSprite, skinSpriteName } from '../content/characters.js';
 import { GUILD_RANKS, guildProgress, claimableRanks, claimGuildRank } from '../content/guild.js';
 import { FORGE_EFFECTS, forgeEffect, FORGE_MAX_LEVEL, FORGE_MAX_EFFECTS, forgeLevelCost, forgeEffectCost, forgeLevelCostBase, forgeEffectCostBase, forgeOf, forgeableWeapons, buyForgeLevel, buyForgeEffect, forgeSummary } from '../content/forge.js';
 import { BALANCE } from '../balance.js';   // round16/9.3 dynamic-pricing growth
-import { ensureSkinOffers, rerollSkinShop, SKINSHOP_REROLL_COST, isOffered, skinShopCountdown } from '../content/skinshop.js';
+import { ensureSkinOffers, skinPrice, skinTier, ensureSale } from '../content/skinshop.js';   // R16/3.8 two-layer wardrobe + tier pricing
 import { NPCS, npcScript, markMet } from '../content/npcs.js';
 import { BONDS } from '../content/bonds.js';
 import { BIOMES } from '../../art/biomes.js';
@@ -185,7 +185,7 @@ export const hubScene = {
     }
   },
 
-  openPanel(id) { this.panel = id; this.tab = 0; this.personalTab = 0; this.panelScroll = 0; this.panelMaxScroll = 0; if (id === 'wardrobe') ensureSkinOffers(META); if (id === 'smith' && !this.forgeSel) this.forgeSel = (forgeableWeapons(META)[0] || {}).id || null; Sfx.play('uiClick'); },
+  openPanel(id) { this.panel = id; this.tab = 0; this.personalTab = 0; this.panelScroll = 0; this.panelMaxScroll = 0; if (id === 'wardrobe') { this.wardrobeChar = null; ensureSale(META); } if (id === 'smith' && !this.forgeSel) this.forgeSel = (forgeableWeapons(META)[0] || {}).id || null; Sfx.play('uiClick'); },
   feedback(msg) { this.flash = msg; this.flashT = 1.4; Sfx.play('buy'); },
 
   // ---- buy confirmation + per-category reset (task 8) ----------------------
@@ -597,58 +597,47 @@ export const hubScene = {
     }
   },
 
-  // ---- wardrobe / clothing store (5-6) -------------------------------------
-  // tab 0 — 我的造型: every unlocked hero, its owned skins as clickable chips (task-10)
-  wardrobeOwnedLayout() {
+  // ---- wardrobe / clothing store (5-6 + R16/3.8 two-layer) -----------------
+  // Layer 1: a grid of unlocked heroes (this.wardrobeChar == null). Layer 2: that hero's
+  // skins, with two tabs — 我的造型 (owned → equip) / 造型商店 (ALL skins → buy, tier-priced).
+  wardrobeCharCards() {
     const f = this.panelFrame(); const S = f.S;
     const chars = Characters.all().filter((c) => (META.unlocked.characters || []).includes(c.id));
-    const top = this.bodyTop(f) + 6 * S, rowH = 52 * S, chip = 38 * S, cgap = 6 * S, chipX0 = f.x + 150 * S;
-    const rows = chars.map((c, i) => {
-      const y = top + i * (rowH + 6 * S) - (this.panelScroll || 0);
-      const ownedIds = SKINS.filter((sk) => (META.ownedSkins || []).includes(c.id + ':' + sk.id)).map((sk) => sk.id);
-      const chips = [null, ...ownedIds].map((sid, j) => ({ sid, x: chipX0 + j * (chip + cgap), y: y + (rowH - chip) / 2, w: chip, h: chip }));
-      return { c, y, h: rowH, chips };
+    const cols = 4, gap = 14 * S, cw = (f.w - 48 * S - (cols - 1) * gap) / cols, ch = 104 * S;
+    const top = f.y + 64 * S;
+    const cards = chars.map((c, i) => ({ c, x: f.x + 24 * S + (i % cols) * (cw + gap), y: top + Math.floor(i / cols) * (ch + gap) - (this.panelScroll || 0), w: cw, h: ch }));
+    return { f, cards, top };
+  },
+  updateWardrobeChars(mx, my) {
+    if (!mouse.justDown) return;
+    for (const c of this.wardrobeCharCards().cards) if (inside(mx, my, c)) { this.wardrobeChar = c.c.id; this.tab = 0; this.panelScroll = 0; Sfx.play('uiClick'); return; }
+  },
+  wardrobeSkinLayout() {
+    const f = this.panelFrame(); const S = f.S; const cid = this.wardrobeChar;
+    const owned = (sk) => (META.ownedSkins || []).includes(cid + ':' + sk.id);
+    const list = this.tab === 0 ? [{ id: null, base: true }, ...SKINS.filter(owned)] : [{ id: null, base: true }, ...SKINS];
+    const rowH = 44 * S, top = this.bodyTop(f) + 6 * S;
+    const rows = list.map((sk, i) => { const y = top + i * (rowH + 6 * S) - (this.panelScroll || 0); return { sk, y, h: rowH, btn: { x: f.x + f.w - 134 * S, y: y + 8 * S, w: 110 * S, h: 28 * S } }; });
+    const back = { x: f.x + 290 * S, y: f.y + 46 * S, w: 78 * S, h: 26 * S };   // to the right of the two tabs
+    return { f, cid, rows, top, back };
+  },
+  updateWardrobe(mx, my) {
+    if (this.wardrobeChar == null) { this.updateWardrobeChars(mx, my); return; }
+    const L = this.wardrobeSkinLayout();
+    if (mouse.justDown && inside(mx, my, L.back)) { this.wardrobeChar = null; this.panelScroll = 0; Sfx.play('uiClick'); return; }
+    if (!mouse.justDown) return;
+    for (const r of L.rows) if (inside(mx, my, r.btn) || inside(mx, my, { x: L.f.x + 16 * S, y: r.y, w: L.f.w - 32 * S, h: r.h })) { this.pickSkin(L.cid, r.sk); return; }
+  },
+  pickSkin(cid, sk) {
+    const id = sk.id || null, key = id ? cid + ':' + id : null;
+    const equip = () => { if (id) META.skins[cid] = id; else delete META.skins[cid]; if (cid === (META.selectedCharacter || 'hunter')) this.heroSprite = skinnedSprite(META, cid); saveMeta(); };
+    if (!id || (META.ownedSkins || []).includes(key)) { equip(); Sfx.play('uiClick'); this.feedback('套用造型：' + (id ? sk.name : '原色')); return; }
+    const pr = skinPrice(META, sk);
+    if ((META.gold || 0) < pr.price) { this.feedback('金幣不足'); return; }
+    this.ask('購買造型「' + sk.name + '」？', goldStr(pr.price) + (pr.onSale ? '　·　特賣！' : '') + (sk.hidden ? '　·　★隱藏造型' : ''), () => {
+      if ((META.gold || 0) < pr.price) { this.feedback('金幣不足'); return; }
+      META.gold -= pr.price; (META.ownedSkins = META.ownedSkins || []).push(key); equip(); this.feedback('購買造型：' + sk.name);
     });
-    return { f, rows, rowH };
-  },
-  updateWardrobeOwned(mx, my) {
-    if (!mouse.justDown) return;
-    const L = this.wardrobeOwnedLayout();
-    for (const r of L.rows) for (const ch of r.chips) if (inside(mx, my, ch)) {
-      if (ch.sid) META.skins[r.c.id] = ch.sid; else delete META.skins[r.c.id];
-      if (r.c.id === (META.selectedCharacter || 'hunter')) this.heroSprite = skinnedSprite(META, r.c.id);
-      saveMeta(); Sfx.play('uiClick'); this.feedback('套用造型：' + (ch.sid ? (SKINS.find((s) => s.id === ch.sid) || {}).name : '原色'));
-      return;
-    }
-  },
-  // tab 1 — 造型商店: the rotating shop (4 offers + 原色, 30-min refresh + paid reroll)
-  wardrobeShopLayout() {
-    const f = this.panelFrame(); const S = f.S;
-    const offers = ensureSkinOffers(META);
-    const seen = new Set();
-    const entries = [{ id: null, name: '原色', price: 0, kind: 'base' }];
-    for (const id of offers) { if (seen.has(id)) continue; seen.add(id); const sk = SKINS.find((s) => s.id === id); if (sk) entries.push({ id: sk.id, name: sk.name, price: sk.price, kind: 'offer', hidden: !!sk.hidden }); }
-    const cols = 4, cw = Math.min(132 * S, (f.w - 48 * S) / cols - 10 * S), ch = 110 * S, gap = 14 * S;
-    const top = this.bodyTop(f) + 48 * S;
-    const cards = entries.map((o, i) => ({ o, x: f.x + 24 * S + (i % cols) * (cw + gap), y: top + Math.floor(i / cols) * (ch + gap), w: cw, h: ch }));
-    const reroll = { x: f.x + f.w - 172 * S, y: this.bodyTop(f) + 6 * S, w: 154 * S, h: 28 * S };
-    return { f, cards, reroll };
-  },
-  updateWardrobe(mx, my) { if (this.tab === 0) this.updateWardrobeOwned(mx, my); else this.updateWardrobeShop(mx, my); },
-  updateWardrobeShop(mx, my) {
-    if (!mouse.justDown) return;
-    const cid = META.selectedCharacter || 'hunter';
-    const L = this.wardrobeShopLayout();
-    if (inside(mx, my, L.reroll)) { if (META.gold >= SKINSHOP_REROLL_COST) this.ask('花費 ' + goldStr(SKINSHOP_REROLL_COST) + ' 重新進貨？', '立即刷新 4 個造型', () => { if (rerollSkinShop(META)) { saveMeta(); this.feedback('衣帽店已換新貨'); } }); else this.feedback('金幣不足'); return; }
-    for (const c of L.cards) if (inside(mx, my, c)) { this.pickSkin(cid, c.o); return; }
-  },
-  pickSkin(cid, o) {
-    const key = o.id ? cid + ':' + o.id : null;
-    const owned = !o.id || (META.ownedSkins || []).includes(key);
-    if (owned) { if (o.id) META.skins[cid] = o.id; else delete META.skins[cid]; this.heroSprite = skinnedSprite(META, cid); saveMeta(); Sfx.play('uiClick'); this.feedback('套用造型：' + o.name); return; }
-    if (!isOffered(META, o.id)) { this.feedback('本期未上架（可重新進貨）'); return; }
-    if (META.gold >= o.price) this.ask('購買造型「' + o.name + '」？', goldStr(o.price) + (o.hidden ? '　·　隱藏造型！' : ''), () => { if (META.gold >= o.price) { META.gold -= o.price; (META.ownedSkins = META.ownedSkins || []).push(key); META.skins[cid] = o.id; this.heroSprite = skinnedSprite(META, cid); saveMeta(); this.feedback('購買造型：' + o.name); } });
-    else this.feedback('金幣不足');
   },
 
   // ---- render --------------------------------------------------------------
@@ -1012,61 +1001,63 @@ export const hubScene = {
 
   // ---- clothing store ------------------------------------------------------
   drawWardrobe() {
-    const f = this.drawPanelFrame('衣 帽 店', this.tab === 0 ? '我的造型 · 各英雄已擁有' : '造型商店 · 每 30 分鐘換新貨 · 購買後不可退款');   // 3.9
+    if (this.wardrobeChar == null) { const f = this.drawPanelFrame('衣 帽 店', '選擇角色 · 點擊查看與購買造型'); this.drawWardrobeChars(f); return; }
+    const ch = Characters.get(this.wardrobeChar);
+    const f = this.drawPanelFrame('衣 帽 店 · ' + (ch ? ch.name : this.wardrobeChar), this.tab === 0 ? '我的造型 · 點擊裝備' : '造型商店 · 全造型皆可購 · 購買後不可退款');
     this.drawTabs(f);
-    if (this.tab === 0) this.drawWardrobeOwned(f); else this.drawWardrobeShop(f);
+    this.drawWardrobeSkins(f);
   },
-  drawWardrobeOwned(f) {
+  drawWardrobeChars(f) {
     const S = f.S; const mx = mouse.x * view.dpr, my = mouse.y * view.dpr;
-    const L = this.wardrobeOwnedLayout();
-    let bottom = this.bodyTop(f);
-    for (const r of L.rows) bottom = Math.max(bottom, r.y + r.h + (this.panelScroll || 0));
+    const L = this.wardrobeCharCards();
+    let bottom = L.top; for (const c of L.cards) bottom = Math.max(bottom, c.y + c.h + (this.panelScroll || 0));
     this.panelMaxScroll = Math.max(0, bottom - (f.y + f.h - 24 * S));
-    const ctx = ctxRaw(); ctx.save(); ctx.beginPath(); ctx.rect(f.x, this.bodyTop(f) - 2 * S, f.w, f.h - 96 * S); ctx.clip();
+    const ctx = ctxRaw(); ctx.save(); ctx.beginPath(); ctx.rect(f.x, f.y + 58 * S, f.w, f.h - 82 * S); ctx.clip();
+    for (const card of L.cards) {
+      const c = card.c, hov = inside(mx, my, card);
+      const ownedN = SKINS.filter((sk) => (META.ownedSkins || []).includes(c.id + ':' + sk.id)).length;
+      uiRect(card.x, card.y, card.w, card.h, withAlpha(hov ? '#243a5a' : '#1b2138', 0.96), { radius: 8 * S, stroke: hov ? P.shardL : P.ink2, lw: hov ? 3 : 2 });
+      const sp = getSprite(skinnedSprite(META, c.id)), sc = 2.6 * S;
+      drawSpriteUI(sp.frames[Math.floor(this.t * 3) % sp.frames.length], card.x + card.w / 2 - sp.w * sc / 2, card.y + 10 * S, sc);
+      uiText(c.name, card.x + card.w / 2, card.y + card.h - 22 * S, { size: 12 * S, align: 'center', color: '#fff', weight: '800' });
+      uiText('已持有 ' + ownedN + ' / ' + SKINS.length, card.x + card.w / 2, card.y + card.h - 8 * S, { size: 9.5 * S, align: 'center', color: P.shardL, weight: '700' });
+    }
+    ctx.restore(); this.drawScrollbar(f);
+    uiText('滾輪捲動　·　Esc 關閉', f.x + f.w / 2, f.y + f.h - 14 * S, { size: 11 * S, align: 'center', color: P.gray3 });
+  },
+  drawWardrobeSkins(f) {
+    const S = f.S; const mx = mouse.x * view.dpr, my = mouse.y * view.dpr;
+    const L = this.wardrobeSkinLayout(); const cid = L.cid;
+    const bh = inside(mx, my, L.back);   // ◀ 返回 (right of the tabs)
+    uiRect(L.back.x, L.back.y, L.back.w, L.back.h, withAlpha(bh ? '#27306a' : '#161b34', 0.95), { radius: 6 * S, stroke: withAlpha(P.shardL, bh ? 0.9 : 0.5), lw: 1.5 });
+    uiText('◀ 返回', L.back.x + L.back.w / 2, L.back.y + L.back.h / 2 + 1 * S, { size: 11 * S, align: 'center', baseline: 'middle', color: '#cfe0ff', weight: '700' });
+    let bottom = L.top; for (const r of L.rows) bottom = Math.max(bottom, r.y + r.h + (this.panelScroll || 0));
+    this.panelMaxScroll = Math.max(0, bottom - (f.y + f.h - 24 * S));
+    const ctx = ctxRaw(); ctx.save(); ctx.beginPath(); ctx.rect(f.x, L.top - 6 * S, f.w, f.y + f.h - 24 * S - (L.top - 6 * S)); ctx.clip();
+    const TIER = { normal: '普通', premium: '豪華', hidden: '隱藏' };
     for (const r of L.rows) {
-      const c = r.c; const eq = META.skins[c.id] || null;
-      uiRect(f.x + 16 * S, r.y, f.w - 32 * S, r.h, withAlpha('#1b2138', 0.6), { radius: 7 * S, stroke: P.ink2, lw: 1 });
-      const psp = getSprite(skinnedSprite(META, c.id)), sc = 2.0 * S;
-      drawSpriteUI(psp.frames[0], f.x + 26 * S, r.y + (r.h - psp.h * sc) / 2, sc);
-      uiText(c.name, f.x + 60 * S, r.y + r.h / 2 - 4 * S, { size: 12 * S, color: '#fff', weight: '800' });
-      const eqName = eq ? ((SKINS.find((s) => s.id === eq) || {}).name || '原色') : '原色';
-      uiText('使用中 · ' + eqName, f.x + 60 * S, r.y + r.h / 2 + 11 * S, { size: 9.5 * S, color: P.shardL, weight: '700' });
-      for (const ch of r.chips) {
-        const equipped = (ch.sid || null) === eq; const hov = inside(mx, my, ch);
-        uiRect(ch.x, ch.y, ch.w, ch.h, withAlpha(equipped ? '#243a5a' : '#12152a', 0.95), { radius: 5 * S, stroke: equipped ? P.shardL : (hov ? P.gray3 : P.ink2), lw: equipped ? 2 : 1 });
-        const sp = getSprite(skinSpriteName(c.id, ch.sid)), ss = Math.min((ch.w - 6 * S) / sp.w, (ch.h - 6 * S) / sp.h);
-        drawSpriteUI(sp.frames[0], ch.x + (ch.w - sp.w * ss) / 2, ch.y + (ch.h - sp.h * ss) / 2, ss);
+      const sk = r.sk, id = sk.id || null, key = id ? cid + ':' + id : null;
+      const owned = !id || (META.ownedSkins || []).includes(key);
+      const equipped = (id || null) === (META.skins[cid] || null);
+      const hidden = !!sk.hidden;
+      const pr = (!owned && id) ? skinPrice(META, sk) : null;
+      const stroke = equipped ? P.shardL : (hidden && !owned) ? P.goldL : P.ink2;
+      uiRect(f.x + 16 * S, r.y, f.w - 32 * S, r.h, withAlpha(equipped ? '#243a5a' : (hidden && !owned) ? '#241a10' : '#1b2138', 0.94), { radius: 7 * S, stroke, lw: equipped ? 2 : 1.5 });
+      const sp = getSprite(skinSpriteName(cid, id)), sc = Math.min((r.h - 8 * S) / sp.h, 2.2 * S);
+      drawSpriteUI(sp.frames[0], f.x + 26 * S, r.y + (r.h - sp.h * sc) / 2, sc, { alpha: owned ? 1 : 0.55 });
+      uiText((hidden ? '★ ' : '') + (id ? sk.name : '原色'), f.x + 66 * S, r.y + 17 * S, { size: 13 * S, color: owned ? '#fff' : (hidden ? P.goldL : P.gray3), weight: '800' });
+      if (id) uiText((TIER[skinTier(sk)] || '') + (pr && pr.onSale ? ' · 特賣！' : ''), f.x + 66 * S, r.y + 33 * S, { size: 9.5 * S, color: pr && pr.onSale ? P.emberL : P.gray3, weight: '700' });
+      const b = r.btn;
+      if (equipped) uiText('● 使用中', b.x + b.w / 2, b.y + b.h / 2 + 1 * S, { size: 11 * S, align: 'center', baseline: 'middle', color: P.shardL, weight: '800' });
+      else if (owned) { const h2 = inside(mx, my, b); uiRect(b.x, b.y, b.w, b.h, withAlpha(h2 ? '#27306a' : '#1b2840', 0.96), { radius: 6 * S, stroke: P.shardL, lw: 1.5 }); uiText('裝備', b.x + b.w / 2, b.y + b.h / 2 + 1 * S, { size: 11 * S, align: 'center', baseline: 'middle', color: '#cfe0ff', weight: '800' }); }
+      else { const afford = (META.gold || 0) >= pr.price, h2 = inside(mx, my, b); uiRect(b.x, b.y, b.w, b.h, withAlpha(afford ? (h2 ? '#3a5a2a' : '#26401c') : '#2a2030', 0.96), { radius: 6 * S, stroke: afford ? P.goldL : P.gray1, lw: 1.5 });
+        if (pr.onSale) uiText(goldStr(pr.base), b.x + 9 * S, b.y + b.h / 2 + 1 * S, { size: 8.5 * S, baseline: 'middle', color: P.gray2, weight: '600' });
+        uiText(goldStr(pr.price), b.x + b.w / 2 + (pr.onSale ? 12 * S : 0), b.y + b.h / 2 + 1 * S, { size: 11 * S, align: 'center', baseline: 'middle', color: afford ? P.goldL : P.gray3, weight: '800' });
       }
     }
-    ctx.restore();
-    this.drawScrollbar(f);
-    uiText('點任一造型即為該英雄套用　·　滾輪捲動　·　Esc 關閉', f.x + f.w / 2, f.y + f.h - 14 * S, { size: 11 * S, align: 'center', color: P.gray3 });
-  },
-  drawWardrobeShop(f) {
-    const S = f.S; const mx = mouse.x * view.dpr, my = mouse.y * view.dpr;
-    const cid = META.selectedCharacter || 'hunter'; const chDef = Characters.get(cid);
-    const L = this.wardrobeShopLayout();
-    uiText('套用於：' + (chDef ? chDef.name : cid), f.x + 24 * S, this.bodyTop(f) + 20 * S, { size: 12 * S, color: P.gray3, weight: '700' });
-    const can = META.gold >= SKINSHOP_REROLL_COST, hov = inside(mx, my, L.reroll);
-    uiRect(L.reroll.x, L.reroll.y, L.reroll.w, L.reroll.h, withAlpha(can ? (hov ? '#3a5a2a' : '#26401c') : '#2a2030', 0.96), { radius: 6 * S, stroke: can ? P.greenL : P.gray1, lw: 2 });
-    uiText('↻ 重新進貨　' + goldStr(SKINSHOP_REROLL_COST), L.reroll.x + L.reroll.w / 2, L.reroll.y + L.reroll.h / 2 + 1 * S, { size: 11 * S, align: 'center', baseline: 'middle', color: can ? '#fff' : P.gray3, weight: '800' });
-    const ms = skinShopCountdown(META), mm = Math.floor(ms / 60000), ssec = Math.floor((ms % 60000) / 1000);
-    uiText('下次免費換新 ' + mm + ':' + String(ssec).padStart(2, '0'), L.reroll.x + L.reroll.w / 2, L.reroll.y + L.reroll.h + 12 * S, { size: 9.5 * S, align: 'center', color: P.gray3 });
-    for (const c of L.cards) {
-      const o = c.o, key = o.id ? cid + ':' + o.id : null;
-      const owned = !o.id || (META.ownedSkins || []).includes(key);
-      const equipped = (o.id || null) === (META.skins[cid] || null);
-      const hover = inside(mx, my, c);
-      const stroke = equipped ? P.shardL : (o.hidden && !owned) ? P.purpleL : !owned ? P.goldL : hover ? P.gray3 : P.ink2;
-      uiRect(c.x, c.y, c.w, c.h, withAlpha(equipped ? '#243a5a' : (o.hidden && !owned) ? '#221833' : '#1b2138', 0.96), { radius: 7 * S, stroke, lw: equipped ? 3 : 2 });
-      const sp = getSprite(skinSpriteName(cid, o.id)), sc = 2.8 * S;
-      drawSpriteUI(sp.frames[0], c.x + c.w / 2 - sp.w * sc / 2, c.y + 8 * S, sc, { alpha: owned ? 1 : 0.5 });
-      uiText(o.name, c.x + c.w / 2, c.y + c.h - 24 * S, { size: 12 * S, align: 'center', color: owned ? '#fff' : P.gray3, weight: '800' });
-      const lab = equipped ? '● 使用中' : owned ? '套用' : ('🛒 ' + goldStr(o.price));
-      const col = equipped ? P.shardL : owned ? P.gray3 : (META.gold >= o.price ? P.goldL : P.gray3);
-      uiText(lab, c.x + c.w / 2, c.y + c.h - 8 * S, { size: 9.5 * S, align: 'center', color: col, weight: '700' });
-      if (o.hidden && !owned) uiText('★隱藏', c.x + c.w - 6 * S, c.y + 12 * S, { size: 8 * S, align: 'right', color: P.purpleL, weight: '900' });
-    }
+    ctx.restore(); this.drawScrollbar(f);
+    const sale = ensureSale(META); const ms = sale && sale.until ? Math.max(0, sale.until - Date.now()) : 0; const dd = Math.floor(ms / 86400000), hh = Math.floor((ms % 86400000) / 3600000);
+    uiText('🏷 特賣輪替剩 ' + dd + ' 天 ' + hh + ' 時　·　Esc 關閉', f.x + f.w / 2, f.y + f.h - 14 * S, { size: 11 * S, align: 'center', color: P.gray3 });
   },
 
   // ---- personal room (5-7) -------------------------------------------------
