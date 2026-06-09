@@ -62,3 +62,10 @@
 - **5.4 對照確認非 Bug**：`claimQuest()` 僅以 `bountyState.done`（prog≥goal）判定，無 `revealed` 額外閘；隱藏／傳奇委託達標即可領取。
 - （5.2 多任務同時追蹤＝單追蹤改陣列＋HUD 多列，屬較大 UI 重構，列入後續批次。）
 - 驗證：`questUnlocked(b_boss)` 在 `b_hunt` 未領取時為 false、領取後為 true；鎖定時 `claimQuest('b_boss')` 即使達標仍回 false，解鎖後可領；公會面板實機 render 零錯誤。
+
+---
+
+## 批次 B7a — 難度說明文字（第六章 6.4）
+
+- **6.4 難度選擇說明文字**：`hub.js drawSortie()` 在難度列下方新增一行各難度說明（D1 入門～D5 夢魘），協助新手判斷選擇。
+- 驗證：出擊面板實機 render 零錯誤，難度說明位於難度數字與「出擊狩獵」按鈕之間、不重疊（截圖確認）。
