@@ -48,7 +48,7 @@ const DEFAULT_META = () => ({
   levels: { unlocked: 1, diff: {} },   // # of biomes unlocked + highest cleared difficulty per biome
   skins: {},             // characterId -> equipped skinId (#5)
   ownedSkins: [],        // purchased "charId:skinId"
-  trackedQuest: 'story', // #2 quest shown on the left-side tracker
+  trackedQuests: ['story'], // #2/5.2 quests shown on the left-side tracker (multi-track, ≤3)
   questClaims: {},       // claimed bounty ids
   // round-5 hub systems (task 5)
   guild: { xp: 0, claimed: {} },         // 5-3 guild rank: accumulated XP + claimed rank rewards
@@ -95,7 +95,11 @@ export function loadMeta(slot) {
       for (const k of ['abilities','equipment','weapons','characters','items']) if (!Array.isArray(META.unlocked[k])) META.unlocked[k] = DEFAULT_META().unlocked[k];
       if (!META.skins || typeof META.skins !== 'object') META.skins = {};
       if (!Array.isArray(META.ownedSkins)) META.ownedSkins = [];
-      if (typeof META.trackedQuest !== 'string') META.trackedQuest = 'story';
+      // 5.2: migrate single trackedQuest → trackedQuests array (cap 3); keep only string ids
+      if (!Array.isArray(META.trackedQuests)) META.trackedQuests = [typeof META.trackedQuest === 'string' ? META.trackedQuest : 'story'];
+      META.trackedQuests = META.trackedQuests.filter((x) => typeof x === 'string').slice(0, 3);
+      if (!META.trackedQuests.length) META.trackedQuests = ['story'];
+      delete META.trackedQuest;
       if (!META.questClaims || typeof META.questClaims !== 'object') META.questClaims = {};
       // round-5 nested shapes (task 5 hub systems + task 2 stats)
       if (!META.guild || typeof META.guild !== 'object') META.guild = { xp: 0, claimed: {} };

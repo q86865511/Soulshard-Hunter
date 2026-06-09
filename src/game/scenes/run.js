@@ -16,7 +16,7 @@ import { BONDS, activeBonds, checkBonds, bondProgress, bondAdvancedBy } from '..
 import { exclusiveFor } from '../content/exclusives.js';
 import { BALANCE, weaponMaxLevel } from '../balance.js';
 import { isUnlocked, cheatUnlockAll } from '../content/unlocks.js';
-import { STORY_QUESTS, trackedQuestState, fmtQuestVal } from '../content/quests.js';
+import { STORY_QUESTS, trackedQuestStates, fmtQuestVal } from '../content/quests.js';
 import { heroLore } from '../content/lore.js';
 import { EVENTS } from '../content/events.js';
 import { HIDDEN_ROOMS, hiddenRoomById, claimHidden, hiddenClaimed } from '../content/hidden.js';
@@ -1161,13 +1161,16 @@ export const runScene = {
   // #2: persistent tracked-quest panel on the left, below the minimap
   drawQuestTracker() {
     if (this.dead || this.choice || this.equipChoice || this.eventChoice || this.shopOpen || this.paused) return;
-    const S = uiScale(); const q = trackedQuestState(META); if (!q) return;
-    const x = 12 * S, y = 196 * S, w = 158 * S, h = 46 * S;
-    uiRect(x, y, w, h, withAlpha('#0b0d1a', 0.6), { radius: 5 * S, stroke: withAlpha(P.goldL, 0.6), lw: 1.5 });
-    uiText('任務 · ' + q.title, x + 8 * S, y + 15 * S, { size: 10.5 * S, color: P.goldL, weight: '800' });
-    if (q.sub) uiText(q.sub, x + 8 * S, y + 28 * S, { size: 9 * S, color: P.gray3 });
-    uiBar(x + 8 * S, y + 34 * S, w - 16 * S, 5 * S, q.frac || 0, { fg: q.done ? P.greenL : P.shardL, bg: '#16183a', border: P.ink });
-    if (q.goal) uiText(fmtQuestVal(q.prog, q.fmt) + '/' + fmtQuestVal(q.goal, q.fmt), x + w - 8 * S, y + 31 * S, { size: 9 * S, align: 'right', color: P.gray3 });
+    const S = uiScale(); const list = trackedQuestStates(META); if (!list.length) return;   // 5.2: one row per tracked quest
+    const x = 12 * S, w = 158 * S, h = 46 * S, gap = 6 * S; let y = 196 * S;
+    for (const q of list) {
+      uiRect(x, y, w, h, withAlpha('#0b0d1a', 0.6), { radius: 5 * S, stroke: withAlpha(P.goldL, q.done ? 0.85 : 0.6), lw: 1.5 });
+      uiText('任務 · ' + q.title, x + 8 * S, y + 15 * S, { size: 10.5 * S, color: q.done ? P.greenL : P.goldL, weight: '800' });
+      if (q.sub) uiText(q.sub, x + 8 * S, y + 28 * S, { size: 9 * S, color: P.gray3 });
+      uiBar(x + 8 * S, y + 34 * S, w - 16 * S, 5 * S, q.frac || 0, { fg: q.done ? P.greenL : P.shardL, bg: '#16183a', border: P.ink });
+      if (q.goal) uiText(fmtQuestVal(q.prog, q.fmt) + '/' + fmtQuestVal(q.goal, q.fmt), x + w - 8 * S, y + 31 * S, { size: 9 * S, align: 'right', color: P.gray3 });
+      y += h + gap;
+    }
   },
 
   // 8.2: live 羈絆 panel on the left, BELOW the quest tracker — shows the bonds
@@ -1245,7 +1248,8 @@ export const runScene = {
     list.sort((a, x2) => x2.pg.level - a.pg.level);   // achieved first, higher tier first
     const achievedN = list.filter((o) => !o.near).length;
     const x = 12 * S, w = 170 * S;
-    const y = (trackedQuestState(META) ? 246 : 196) * S;   // tucked under the quest box (h=46) or where it would sit
+    const tq = trackedQuestStates(META).length;   // 5.2: sit below however many quest rows are tracked (h=46, gap=6)
+    const y = (tq ? 196 + tq * 46 + (tq - 1) * 6 + 4 : 196) * S;
     const rows = list.slice(0, 7), extra = list.length - rows.length;
     const headH = 22 * S, rowH = 22 * S;
     const h = headH + rows.length * rowH + (extra > 0 ? 12 * S : 0) + 6 * S;

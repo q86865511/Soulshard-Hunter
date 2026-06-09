@@ -70,9 +70,24 @@ export function questLockedBy(meta, q) {
   const pre = allBounties().find((x) => x.id === q.requires);
   return pre ? pre.title : q.requires;
 }
+// round16/5.2: track MULTIPLE quests at once. `meta.trackedQuests` is an array of ids
+// ('story' for the mainline + bounty ids), capped at MAX_TRACKED; the HUD stacks one row
+// per tracked quest. Lazily migrated from the old single `meta.trackedQuest`.
+export const MAX_TRACKED = 3;
+function ensureTracked(meta) {
+  if (!Array.isArray(meta.trackedQuests)) meta.trackedQuests = [meta.trackedQuest || 'story'];
+  return meta.trackedQuests;
+}
+export function isQuestTracked(meta, id) { return ensureTracked(meta).includes(id); }
+export function trackedCount(meta) { return ensureTracked(meta).length; }
+// toggle membership. returns 'added' | 'removed' | 'full' (at cap) | 'locked' (prereq).
 export function trackQuest(meta, id) {
-  if (id !== 'story') { const q = allBounties().find((x) => x.id === id); if (q && !questUnlocked(meta, q)) return false; }   // 5.5: don't track a locked quest
-  meta.trackedQuest = id; return true;
+  if (id !== 'story') { const q = allBounties().find((x) => x.id === id); if (q && !questUnlocked(meta, q)) return 'locked'; }   // 5.5: don't track a locked quest
+  const arr = ensureTracked(meta);
+  const i = arr.indexOf(id);
+  if (i >= 0) { arr.splice(i, 1); return 'removed'; }
+  if (arr.length >= MAX_TRACKED) return 'full';
+  arr.push(id); return 'added';
 }
 export function claimQuest(meta, id) {
   const q = allBounties().find((x) => x.id === id); if (!q) return false;
@@ -82,20 +97,30 @@ export function claimQuest(meta, id) {
   meta.questClaims = meta.questClaims || {};
   meta.questClaims[id] = true; meta.gold += q.reward;
   addGuildXp(meta, q.reward / 3);   // 5-3: bounties build guild reputation
-  if (meta.trackedQuest === id) meta.trackedQuest = 'story';
+  const arr = ensureTracked(meta); const ti = arr.indexOf(id); if (ti >= 0) arr.splice(ti, 1);   // claimed → untrack
   return true;
 }
-// the quest shown on the persistent left-side tracker (default = story mainline)
-export function trackedQuestState(meta) {
-  const id = meta.trackedQuest || 'story';
-  if (id !== 'story') {
-    const q = allBounties().find((x) => x.id === id);
-    if (q) { const st = bountyState(meta, q); return { title: q.title, sub: q.desc, prog: st.prog, goal: st.goal, frac: q.goal ? st.prog / q.goal : 1, fmt: q.fmt, done: st.done }; }
+// build one tracker-row state for a quest id ('story' = current mainline chapter).
+function oneState(meta, id) {
+  if (id === 'story') {
+    const st = chapterState(meta, meta.questIndex || 0);
+    if (!st) return { id: 'story', title: '主線 · 全章完成', sub: '你已成為魂晶之主', frac: 1, done: true };
+    return { id: 'story', title: st.q.title, sub: st.q.desc, prog: st.prog, goal: st.goal, frac: st.goal ? st.prog / st.goal : 1, fmt: st.q.fmt, done: st.done };
   }
-  const st = chapterState(meta, meta.questIndex || 0);
-  if (!st) return { title: '主線 · 全章完成', sub: '你已成為魂晶之主', frac: 1, done: true };
-  return { title: st.q.title, sub: st.q.desc, prog: st.prog, goal: st.goal, frac: st.goal ? st.prog / st.goal : 1, fmt: st.q.fmt, done: st.done };
+  const q = allBounties().find((x) => x.id === id);
+  if (!q || (meta.questClaims && meta.questClaims[id])) return null;   // unknown / already claimed → drop
+  const st = bountyState(meta, q);
+  return { id, title: q.title, sub: q.desc, prog: st.prog, goal: st.goal, frac: q.goal ? st.prog / q.goal : 1, fmt: q.fmt, done: st.done };
 }
+// every tracked quest's state (HUD draws one row each). Prunes stale ids in place.
+export function trackedQuestStates(meta) {
+  const arr = ensureTracked(meta);
+  const out = [];
+  for (let i = 0; i < arr.length; i++) { const s = oneState(meta, arr[i]); if (s) out.push(s); else { arr.splice(i, 1); i--; } }
+  return out;
+}
+// backward-compatible singular: the FIRST tracked quest (or null). Used by small summaries.
+export function trackedQuestState(meta) { return trackedQuestStates(meta)[0] || null; }
 export function fmtQuestVal(v, fmt) { return fmt === 'time' ? Math.floor(v / 60) + ':' + String(Math.floor(v % 60)).padStart(2, '0') : String(Math.floor(v)); }
 
 // claim the current chapter's reward (if its objective is met) and advance

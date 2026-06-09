@@ -32,6 +32,21 @@
 
 ---
 
+## 批次 B5.2 — 多任務同時追蹤（第五章 5.2）
+
+**範圍：** 把「左側任務追蹤」從單一任務擴成最多 3 個同時追蹤。additive、單人路徑；舊存檔自動遷移。
+
+- **`content/quests.js`**：`meta.trackedQuest`（單一字串）→ `meta.trackedQuests`（id 陣列，含 `'story'` 主線）。新增 `MAX_TRACKED=3`、`isQuestTracked()`、`trackedCount()`、`trackedQuestStates()`（回傳每個追蹤任務的列狀態、就地剔除已領取/失效 id）。`trackQuest()` 改為**切換**語意，回傳 `'added' | 'removed' | 'full'（已達上限）| 'locked'（前置未解）`。`claimQuest()` 領取後把該任務移出追蹤。`trackedQuestState()`（單數）保留為相容包裝（回傳第一個）。
+- **`state.js`**：預設 `trackedQuests:['story']`；`loadMeta` 遷移舊 `trackedQuest`→陣列（過濾非字串、夾 3 個、空則回 `['story']`、刪舊欄位）。
+- **`scenes/run.js`** `drawQuestTracker()`：改為**每個追蹤任務一列**垂直堆疊（h=46、gap=6）；完成的任務列以綠框/綠標/綠條標示。羈絆側欄位置改依追蹤列數動態下移。
+- **`scenes/hub.js`** 公會任務分頁：主線／委託的「追蹤」鈕改切換（`✓ 追蹤中` / `＋ 追蹤`），達上限提示「最多同時追蹤 3 個任務」；標題顯示「已追蹤 N/3」。
+
+### 驗證
+- 邏輯（`preview_eval` 直接驅動模組）：連續 `trackQuest` 回傳 added/added/**full**/**removed**，最終陣列 `['story','b_gold']`、count 2；`trackedQuestStates` 回傳正確標題/完成旗標。
+- 渲染（`/__shot`）：HUD 同時堆疊 3 列任務（主線進行中、清剿 300/300 綠色完成、致富 398/8000 進行中）；公會面板顯示三個 `✓ 追蹤中`／鎖定列／「已追蹤 3/3」。載入零錯誤。
+
+---
+
 ## 批次 B8 — 新系統與後端（第七章）+ 後台三新模組
 
 **範圍：** 第七章 7.1–7.8 全部落地（additive；單人離線路徑不受影響）。伺服器為權威驗證面，前端 offline-first。
