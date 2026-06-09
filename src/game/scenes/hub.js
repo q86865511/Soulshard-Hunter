@@ -15,7 +15,7 @@ import { SKINS, skinnedSprite, skinSpriteName } from '../content/characters.js';
 import { GUILD_RANKS, guildProgress, claimableRanks, claimGuildRank } from '../content/guild.js';
 import { FORGE_EFFECTS, forgeEffect, FORGE_MAX_LEVEL, FORGE_MAX_EFFECTS, forgeLevelCost, forgeEffectCost, forgeLevelCostBase, forgeEffectCostBase, forgeOf, forgeableWeapons, buyForgeLevel, buyForgeEffect, forgeSummary } from '../content/forge.js';
 import { BALANCE } from '../balance.js';   // round16/9.3 dynamic-pricing growth
-import { bankLimit, bankState, bankBorrow, BANK_INTEREST } from '../content/bank.js';   // round16/7.2 魂晶銀行
+import { bankLimit, bankState, bankBorrow, BANK_INTEREST, BANK_MIN } from '../content/bank.js';   // round16/7.2 魂晶銀行
 import { ensureSkinOffers, skinPrice, skinTier, ensureSale } from '../content/skinshop.js';   // R16/3.8 two-layer wardrobe + tier pricing
 import { NPCS, npcScript, markMet } from '../content/npcs.js';
 import { BONDS } from '../content/bonds.js';
@@ -186,7 +186,13 @@ export const hubScene = {
     }
   },
 
-  openPanel(id) { this.panel = id; this.tab = 0; this.personalTab = 0; this.panelScroll = 0; this.panelMaxScroll = 0; if (id === 'wardrobe') { this.wardrobeChar = null; ensureSale(META); } if (id === 'smith' && !this.forgeSel) this.forgeSel = (forgeableWeapons(META)[0] || {}).id || null; Sfx.play('uiClick'); },
+  openPanel(id) {
+    this.panel = id; this.tab = 0; this.personalTab = 0; this.panelScroll = 0; this.panelMaxScroll = 0;
+    if (id === 'wardrobe') { this.wardrobeChar = null; ensureSale(META); }
+    if (id === 'bank') this.bankAmount = bankLimit(META);   // 7.2: default the custom-borrow amount to the full limit
+    if (id === 'smith' && !this.forgeSel) this.forgeSel = (forgeableWeapons(META)[0] || {}).id || null;
+    Sfx.play('uiClick');
+  },
   feedback(msg) { this.flash = msg; this.flashT = 1.4; Sfx.play('buy'); },
 
   // ---- buy confirmation + per-category reset (task 8) ----------------------
@@ -351,36 +357,78 @@ export const hubScene = {
     }
     else if (this.panel === 'bank') this.updateBank(mx, my);   // 7.2 魂晶銀行
   },
-  // ---- 魂晶銀行 (7.2): borrow gold now, auto-repaid (×interest) from next run's gold ----
-  bankBtnRect(f) { const S = f.S; return { x: f.x + 24 * S, y: this.bodyTop(f) + 116 * S, w: 240 * S, h: 42 * S }; },
+  // ---- 魂晶銀行 (7.2): borrow a CUSTOM amount now, auto-repaid (×interest) from next run's gold ----
+  bankStep() { return Math.max(10, Math.round(bankLimit(META) / 20)); },
+  bankUi(f) {
+    const S = f.S, t0 = this.bodyTop(f);
+    const rowY = t0 + 104 * S;                     // amount-selector row
+    return {
+      minus: { x: f.x + 30 * S, y: rowY, w: 44 * S, h: 44 * S },
+      box: { x: f.x + 84 * S, y: rowY, w: 150 * S, h: 44 * S },
+      plus: { x: f.x + 244 * S, y: rowY, w: 44 * S, h: 44 * S },
+      full: { x: f.x + 300 * S, y: rowY + 4 * S, w: 70 * S, h: 36 * S },
+      bar: { x: f.x + 30 * S, y: rowY + 54 * S, w: 340 * S, h: 9 * S },
+      borrow: { x: f.x + 30 * S, y: rowY + 84 * S, w: 300 * S, h: 46 * S },
+    };
+  },
   updateBank(mx, my) {
     if (!mouse.justDown) return;
     if (bankState(META).debt > 0) return;
-    if (inside(mx, my, this.bankBtnRect(this.panelFrame()))) {
-      const limit = bankLimit(META);
-      this.ask('向銀行借款 ' + goldStr(limit) + '？', '下一局結算須還 ' + goldStr(Math.round(limit * BANK_INTEREST)) + '（含 ' + Math.round((BANK_INTEREST - 1) * 100) + '% 利息）', () => { if (bankBorrow(META)) { saveMeta(); this.feedback('已借款 ' + goldStr(limit)); } });
+    const lim = bankLimit(META), u = this.bankUi(this.panelFrame()), step = this.bankStep();
+    const clamp = () => { this.bankAmount = Math.max(BANK_MIN, Math.min(this.bankAmount == null ? lim : this.bankAmount, lim)); };
+    if (inside(mx, my, u.minus)) { this.bankAmount = (this.bankAmount == null ? lim : this.bankAmount) - step; clamp(); Sfx.play('uiClick'); return; }
+    if (inside(mx, my, u.plus)) { this.bankAmount = (this.bankAmount == null ? lim : this.bankAmount) + step; clamp(); Sfx.play('uiClick'); return; }
+    if (inside(mx, my, u.full)) { this.bankAmount = lim; Sfx.play('uiClick'); return; }
+    if (inside(mx, my, u.bar)) { this.bankAmount = Math.round(BANK_MIN + (lim - BANK_MIN) * Math.max(0, Math.min(1, (mx - u.bar.x) / u.bar.w))); clamp(); Sfx.play('uiClick'); return; }   // click the bar to set
+    if (inside(mx, my, u.borrow)) {
+      clamp(); const amt = this.bankAmount;
+      this.ask('向銀行借款 ' + goldStr(amt) + '？', '下一局結算須還 ' + goldStr(Math.round(amt * BANK_INTEREST)) + '（含 ' + Math.round((BANK_INTEREST - 1) * 100) + '% 利息）', () => { if (bankBorrow(META, amt)) { saveMeta(); this.feedback('已借款 ' + goldStr(amt)); } });
     }
   },
   drawBank() {
-    const f = this.drawPanelFrame('魂 晶 銀 行', '借金幣提前強化 · 下一局結算自動還款（含息）'); const S = f.S;
+    const f = this.drawPanelFrame('🏦 魂 晶 銀 行', '借金幣提前強化 · 下一局結算自動還款（含息）'); const S = f.S;
     const mx = mouse.x * view.dpr, my = mouse.y * view.dpr; const t0 = this.bodyTop(f);
     const b = bankState(META), limit = bankLimit(META);
-    uiText('利率：借出本金 × ' + BANK_INTEREST + '（即 +' + Math.round((BANK_INTEREST - 1) * 100) + '% 利息）· 同時僅能有一筆借款', f.x + 24 * S, t0 + 18 * S, { size: 12 * S, color: P.gray3, weight: '600' });
-    const r = this.bankBtnRect(f);
+    const coin = (x, y, sc) => { const sp = getSprite('coin'); drawSpriteUI(sp.frames[0], x, y - sp.h * sc, sc); };
+    // info strip
+    uiRect(f.x + 24 * S, t0 + 6 * S, f.w - 48 * S, 30 * S, withAlpha('#10142c', 0.7), { radius: 7 * S, stroke: withAlpha(P.goldL, 0.4), lw: 1 });
+    uiText('利率 × ' + BANK_INTEREST + '（+' + Math.round((BANK_INTEREST - 1) * 100) + '% 利息）　·　同時僅能有一筆借款　·　額度隨公會等級提升', f.x + 38 * S, t0 + 25 * S, { size: 11.5 * S, color: P.gray3, weight: '600' });
     if (b.debt > 0) {
-      uiText('目前欠款', f.x + 24 * S, t0 + 56 * S, { size: 13 * S, color: P.redL, weight: '800' });
-      uiText('借出本金 ' + goldStr(b.borrowed) + '　·　應還 ' + goldStr(b.debt), f.x + 24 * S, t0 + 80 * S, { size: 15 * S, color: '#fff', weight: '800' });
-      uiText('下一局結算時自動以該局金幣償還（不足則順延至往後局）。', f.x + 24 * S, t0 + 102 * S, { size: 11 * S, color: P.gray3 });
-      uiRect(r.x, r.y, r.w, r.h, withAlpha('#2a2030', 0.96), { radius: 8 * S, stroke: P.gray1, lw: 2 });
+      uiRect(f.x + 24 * S, t0 + 52 * S, f.w - 48 * S, 96 * S, withAlpha('#241016', 0.85), { radius: 9 * S, stroke: withAlpha(P.redL, 0.55), lw: 1.5 });
+      uiText('💳 目前欠款', f.x + 40 * S, t0 + 78 * S, { size: 14 * S, color: P.redL, weight: '800' });
+      coin(f.x + 44 * S, t0 + 116 * S, 2.4 * S);
+      uiText(String(b.debt) + '　應還', f.x + 70 * S, t0 + 110 * S, { size: 20 * S, color: '#fff', weight: '900' });
+      uiText('（借出本金 ' + goldStr(b.borrowed) + '）　下一局結算自動償還，不足順延。', f.x + 40 * S, t0 + 132 * S, { size: 11 * S, color: P.gray3 });
+      const r = { x: f.x + 24 * S, y: t0 + 162 * S, w: 300 * S, h: 44 * S };
+      uiRect(r.x, r.y, r.w, r.h, withAlpha('#2a2030', 0.96), { radius: 9 * S, stroke: P.gray1, lw: 2 });
       uiText('已有借款（剩餘 ' + goldStr(b.debt) + ' 待還）', r.x + r.w / 2, r.y + r.h / 2 + 1 * S, { size: 13 * S, align: 'center', baseline: 'middle', color: P.gray3, weight: '800' });
     } else {
-      uiText('可借額度（隨公會等級提升）', f.x + 24 * S, t0 + 56 * S, { size: 13 * S, color: P.shardL, weight: '800' });
-      uiText(goldStr(limit) + '　·　到期應還 ' + goldStr(Math.round(limit * BANK_INTEREST)), f.x + 24 * S, t0 + 80 * S, { size: 15 * S, color: P.goldL, weight: '800' });
-      const hov = inside(mx, my, r);
-      uiRect(r.x, r.y, r.w, r.h, withAlpha(hov ? '#2a6a3a' : '#1f5030', 0.96), { radius: 8 * S, stroke: P.greenL, lw: 2 });
-      uiText('借款 ' + goldStr(limit), r.x + r.w / 2, r.y + r.h / 2 + 1 * S, { size: 14 * S, align: 'center', baseline: 'middle', color: '#fff', weight: '800' });
+      if (this.bankAmount == null) this.bankAmount = limit;
+      this.bankAmount = Math.max(BANK_MIN, Math.min(this.bankAmount, limit));
+      const amt = this.bankAmount, repay = Math.round(amt * BANK_INTEREST), u = this.bankUi(f);
+      // credit-limit line
+      uiText('可借額度', f.x + 30 * S, t0 + 64 * S, { size: 13 * S, color: P.shardL, weight: '800' });
+      coin(f.x + 92 * S, t0 + 70 * S, 1.9 * S); uiText(String(limit), f.x + 112 * S, t0 + 66 * S, { size: 16 * S, color: P.goldL, weight: '900' });
+      uiText('自訂借款金額：', f.x + 30 * S, t0 + 96 * S, { size: 12 * S, color: P.gray3, weight: '700' });
+      // − / amount box / +
+      const btn = (rr, t, on) => { const h = inside(mx, my, rr); uiRect(rr.x, rr.y, rr.w, rr.h, withAlpha(h && on ? '#27306a' : '#1b2138', 0.96), { radius: 8 * S, stroke: on ? P.shardL : P.ink2, lw: 2 }); uiText(t, rr.x + rr.w / 2, rr.y + rr.h / 2 + 1 * S, { size: 20 * S, align: 'center', baseline: 'middle', color: on ? '#fff' : P.gray2, weight: '900' }); };
+      btn(u.minus, '−', amt > BANK_MIN);
+      uiRect(u.box.x, u.box.y, u.box.w, u.box.h, withAlpha('#10142c', 0.95), { radius: 8 * S, stroke: P.goldL, lw: 2 });
+      coin(u.box.x + 26 * S, u.box.y + u.box.h / 2 + 9 * S, 2.2 * S);
+      uiText(String(amt), u.box.x + u.box.w / 2 + 12 * S, u.box.y + u.box.h / 2 + 1 * S, { size: 22 * S, align: 'center', baseline: 'middle', color: P.goldL, weight: '900' });
+      btn(u.plus, '＋', amt < limit);
+      const fh = inside(mx, my, u.full); uiRect(u.full.x, u.full.y, u.full.w, u.full.h, withAlpha(fh ? '#27306a' : '#1b2138', 0.96), { radius: 7 * S, stroke: P.shardL, lw: 1.5 }); uiText('全額', u.full.x + u.full.w / 2, u.full.y + u.full.h / 2 + 1 * S, { size: 12 * S, align: 'center', baseline: 'middle', color: '#cfe0ff', weight: '800' });
+      // amount bar (click to set)
+      uiBar(u.bar.x, u.bar.y, u.bar.w, u.bar.h, (amt - BANK_MIN) / Math.max(1, limit - BANK_MIN), { fg: P.goldL, bg: '#16183a', border: P.ink });
+      // repay breakdown
+      uiText('到期應還', f.x + 30 * S, u.borrow.y - 14 * S, { size: 12 * S, color: P.gray3, weight: '700' });
+      uiText(goldStr(repay) + '　＝ 本金 ' + goldStr(amt) + ' ＋ 利息 ' + goldStr(repay - amt), f.x + 96 * S, u.borrow.y - 14 * S, { size: 12 * S, color: P.emberL, weight: '800' });
+      // borrow button
+      const hov = inside(mx, my, u.borrow);
+      uiRect(u.borrow.x, u.borrow.y, u.borrow.w, u.borrow.h, withAlpha(hov ? '#2a6a3a' : '#1f5030', 0.96), { radius: 9 * S, stroke: P.greenL, lw: 2 });
+      uiText('💰 借款 ' + goldStr(amt), u.borrow.x + u.borrow.w / 2, u.borrow.y + u.borrow.h / 2 + 1 * S, { size: 15 * S, align: 'center', baseline: 'middle', color: '#fff', weight: '900' });
     }
-    uiText('Esc 關閉', f.x + f.w / 2, f.y + f.h - 14 * S, { size: 11 * S, align: 'center', color: P.gray3 });
+    uiText('− / ＋ 或點擊金條調整金額　·　Esc 關閉', f.x + f.w / 2, f.y + f.h - 14 * S, { size: 11 * S, align: 'center', color: P.gray3 });
   },
   personalTabRects(f) {
     const S = f.S, w = 96 * S, h = 24 * S, gap = 8 * S, tw = w * 2 + gap;
@@ -447,7 +495,7 @@ export const hubScene = {
     if (this.talentState(def) !== 'ok') return;
     const cur = META.talents[def.id] || 0;
     META.gold -= this.hubCost(def.cost(cur), 'talentPurchases'); META.talents[def.id] = cur + 1;
-    META.hub.talentPurchases = (META.hub.talentPurchases || 0) + 1; saveMeta();
+    META.hub = META.hub || {}; META.hub.talentPurchases = (META.hub.talentPurchases || 0) + 1; saveMeta();
     this.feedback(def.name + ' Lv.' + (cur + 1));
   },
   facilityState(def) {
@@ -459,7 +507,7 @@ export const hubScene = {
     if (this.facilityState(def) !== 'ok') return;
     const cur = META.facilities[def.id] || 0;
     META.gold -= this.hubCost(def.cost(cur), 'facilityPurchases'); META.facilities[def.id] = cur + 1;
-    META.hub.facilityPurchases = (META.hub.facilityPurchases || 0) + 1;
+    META.hub = META.hub || {}; META.hub.facilityPurchases = (META.hub.facilityPurchases || 0) + 1;
     if (def.onPurchase) try { def.onPurchase(META, cur + 1); } catch (e) { /* */ }
     saveMeta(); this.feedback(def.name + ' Lv.' + (cur + 1));
   },

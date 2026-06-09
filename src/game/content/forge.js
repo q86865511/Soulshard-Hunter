@@ -48,7 +48,7 @@ export function forgeableWeapons(meta) {
 export function buyForgeLevel(meta, id) {
   const f = forgeOf(meta, id);
   if (f.level >= FORGE_MAX_LEVEL) return false;
-  const c = forgeLevelCost(f.level);
+  const c = forgeLevelCost(f.level, meta);
   if ((meta.gold || 0) < c) return false;
   meta.gold -= c;
   f.level += 1; meta.forge[id] = f;
@@ -59,7 +59,7 @@ export function buyForgeLevel(meta, id) {
 export function buyForgeEffect(meta, id, effectId) {
   const f = forgeOf(meta, id);
   if (f.effects.length >= FORGE_MAX_EFFECTS || f.effects.includes(effectId) || !forgeEffect(effectId)) return false;
-  const c = forgeEffectCost(f.effects.length);
+  const c = forgeEffectCost(f.effects.length, meta);
   if ((meta.gold || 0) < c) return false;
   meta.gold -= c;
   f.effects.push(effectId); meta.forge[id] = f;

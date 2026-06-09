@@ -5,6 +5,26 @@
 
 ---
 
+## 批次 B-QA2 — 續批 QA 修正 + 銀行自訂金額與 UI 美化
+
+**範圍：** 續批（B13a/B2/B3.8/B12）綜合 QA（自動化檢查＋遊戲功能/介面/程式碼結構三維度對抗式審查，10 agent）的確認修正，外加玩家要求的銀行借款金額自訂與面板美化。
+
+### QA 確認修正（4）
+- **`buyTalent`/`buyFacility` 漏 `META.hub` 防護**（hub.js，高）：購買後直接 `META.hub.xxxPurchases++`，若 `META.hub` 為 undefined（壞檔/邊界）會崩潰。比照 forge.js 補 `META.hub = META.hub || {}`。
+- **`forge.js` 成本函式未傳 `meta`**（高）：`buyForgeLevel`/`buyForgeEffect` 內呼叫 `forgeLevelCost(f.level)`/`forgeEffectCost(...)` 未帶 `meta`，違反 9.3 後的函式契約（雖目前都用全域 META）。改為傳入 `meta`。
+- **教學旗標未進 `DEFAULT_META`／遷移**（中）：`tutorialDone`/`tutorialBattleDone`/`tutorialHUDDone` 僅靠 falsy 隱式成立。補入 `DEFAULT_META` 預設 `false` ＋ `loadMeta` 遷移回填。
+- 自動化檢查全綠：`server` `npm run check` 0 錯、smoke 92/0、social 65/0、無語法紅旗。其餘審查發現（衣帽店欄位隔離、import 無環、bank 初始化）皆覆核為「無需修正」。
+
+### 銀行借款自訂金額 + UI 美化（B12 延伸）
+- **自訂金額**（`content/bank.js` `bankBorrow(meta, amount)` + `BANK_MIN=10`）：借款金額可自訂，夾在 `[10, 額度]`；不再強制借滿額。
+- **`hub.js` 銀行面板美化**：新增 − / ＋ 步進、可點擊的金條（拖點設定金額）、「全額」快捷；金額框與各金額皆配上**金幣圖示**；顯示「到期應還 ＝ 本金 ＋ 利息」拆解；標題加 🏦、借款鈕加 💰；資訊條框化。`bankAmount` 於開啟銀行時預設為額度上限。
+
+### 驗證
+- `preview_eval`：刪除 `META.hub` 後 `buyTalent` 不崩潰並重建 `META.hub`；`bankBorrow(lim/2)` 借出半額（200→100）；veteran 旗標下連跑 1800 幀零錯誤。
+- `/__shot`：銀行面板顯示自訂金額 🪙120（步進＋金條＋全額）、到期應還 🪙144 ＝ 本金 🪙120 ＋ 利息 🪙24、💰 借款鈕。載入零錯誤。
+
+---
+
 ## 批次 B12 — 魂晶銀行借貸系統（第七章 7.2）
 
 **範圍：** 城鎮可向銀行借金幣提前強化，下一局結算自動還款（含息）。additive、純前端＋存檔（透過既有雲端同步）；不動既有平衡。

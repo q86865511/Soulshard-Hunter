@@ -5,17 +5,19 @@
 import { guildRank } from './guild.js';
 
 export const BANK_INTEREST = 1.2;
+export const BANK_MIN = 10;   // smallest borrowable amount
 // credit limit by guild rank index (0-based); clamps to the last entry past the top rank.
 const LIMITS = [50, 100, 100, 200, 200, 350, 350, 500, 500, 700, 1000, 1000];
 
 export function bankLimit(meta) { return LIMITS[Math.min(guildRank(meta), LIMITS.length - 1)]; }
 export function bankState(meta) { if (!meta.bank || typeof meta.bank !== 'object') meta.bank = { debt: 0, borrowed: 0 }; return meta.bank; }
 
-// borrow the full available limit (one loan at a time). returns true on success.
-export function bankBorrow(meta) {
+// borrow a chosen amount (clamped to [BANK_MIN, limit]); one loan at a time. returns true on success.
+export function bankBorrow(meta, amount) {
   const b = bankState(meta);
   if (b.debt > 0) return false;            // outstanding loan — repay first
-  const amt = bankLimit(meta);
+  const lim = bankLimit(meta);
+  const amt = Math.max(BANK_MIN, Math.min(Math.round(amount != null ? amount : lim), lim));
   if (amt <= 0) return false;
   b.borrowed = amt; b.debt = Math.round(amt * BANK_INTEREST); meta.gold += amt;
   return true;
