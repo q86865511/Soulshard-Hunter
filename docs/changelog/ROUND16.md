@@ -5,6 +5,25 @@
 
 ---
 
+## 批次 B15 — 全遊戲 QA 修正（31-agent workflow）
+
+**範圍：** 一次涵蓋全遊戲多面向的 QA workflow（自動化檢查＋6 維度 game-function/UI/content/save/net/engine 對抗式審查＋靜態 sprite 稽核，共 31 agent）。自動化全綠（`npm run check`、smoke 92/0、social 65/0、無語法旗標）。確認並修正以下真實問題（誤報已逐一覆核排除）：
+
+- **（critical）魂牢突圍把玩家推進牆裡**（`run.js`）：魂牢拉回玩家用直接寫 `p.x/p.y`，可把玩家擠進實心牆（玩家不穿牆）→ 改走 `world.moveActor`（含碰撞），實測 200 秒玩家**0 幀**卡牆。
+- **（high）出擊「無盡」鈕寬度可變負/溢出**（`hub.js`）：寬度公式在窄面板會變負或超出面板 → 改為**右側錨定**固定寬。
+- **（medium）衣帽店「返回」鈕在窄螢幕跑出面板**（`hub.js`，B3.8 我方程式）：硬編 `f.x+290*S` → 改 `f.x+f.w-96*S` 右錨定，隨面板寬縮放。
+- **（medium）co-op 快照/地圖反序列化硬化**（`net/protocol.js`）：`b64ToU8` 加解碼上限（防惡意房主巨量 base64 OOM）、`deserializeMap` 夾 tw/th≤512 並補齊陣列、敵人/拾取 tuple 長度防護、拾取調色盤索引越界回退（`snap.kp[i]||'coin'`）。
+- **（low）`vignette()` 漏 save/restore**（`renderer.js`）：漸層 fillStyle 可能外洩 → 包 save/restore。
+- **（low）`/api/admin/feedback/:id` 寬鬆驗證**（`server.js`）：`parseInt('123abc')` 會誤收 → 改 `^\d+$` 嚴格驗證。
+
+**覆核為誤報、未改（節錄）：** 6 個「缺失 sprite」（實機 `getSprite` 皆回真實尺寸，靜態稽核漏看定義）、重置鈕與金幣重疊（實際差 12px 是間隙非重疊）、maxHp 下限、金幣除零、武器合成遺失、Boss 階段、緩速疊乘、銀行除零、衣帽店裁切、成就剔除、公會領取、特賣 until、leaderboard/admin LIMIT「注入」（皆 `clampInt` 數值化安全）、敵人 defIdx 越界（`coop.js` 已防護）。
+
+### 驗證
+- `preview_eval`：D2 連跑 200 秒（觸發魂牢）零錯誤、玩家 0 幀卡牆、仍受牆阻擋；6 個 sprite 實機皆有定義。
+- `server/test` 92 + 65 全綠、`npm run check` 0 錯。
+
+---
+
 ## 批次 B14 — 換裝倍率不殘留（9.4 精準版）+ 怪物穿牆（10.8 精準版）
 
 依玩家澄清，把兩個延後的深度重構改成**精準、低風險**的目標解法：

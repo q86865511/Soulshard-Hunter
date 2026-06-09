@@ -285,9 +285,11 @@ export function drawSpriteUI(spriteCanvas, x, y, scale = 1, { alpha = 1, flipX =
 }
 
 export function vignette(strength = 0.5) {
+  ctx.save();   // gradient fillStyle must not leak to later draws
   const g = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.35, W / 2, H / 2, Math.max(W, H) * 0.75);
   g.addColorStop(0, 'rgba(0,0,0,0)');
   g.addColorStop(1, `rgba(0,0,0,${strength})`);
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, W, H);
+  ctx.restore();
 }

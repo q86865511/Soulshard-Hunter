@@ -393,7 +393,7 @@ export async function buildApp(pool, { logger = false, rateMax = 120 } = {}) {
     });
     const p = schema.safeParse(req.body || {});
     if (!p.success) return reply.code(400).send({ error: zodMsg(p.error) });
-    const id = parseInt(req.params.id);
+    const id = /^\d+$/.test(req.params.id) ? parseInt(req.params.id, 10) : 0;   // strict: reject '123abc' etc.
     if (!id) return reply.code(400).send({ error: 'invalid id' });
     const sets = [], vals = [id];
     if (p.data.status !== undefined) sets.push(`status = $${vals.push(p.data.status)}`);

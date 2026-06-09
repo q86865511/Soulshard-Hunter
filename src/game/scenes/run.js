@@ -681,7 +681,8 @@ export const runScene = {
       if (BALANCE.SURROUND_MUST_CLEAR && sur.enemies.length >= 2 && !sur.breached) {
         const dx = p.x - sx, dy = p.y - sy, d = Math.hypot(dx, dy);
         if (d > sur.lockR) {
-          const k = sur.lockR / d; p.x = sx + dx * k; p.y = sy + dy * k; p.vx *= -0.3; p.vy *= -0.3;
+          const k = sur.lockR / d;   // pull the player back inside the ring — via moveActor so they can't be shoved INTO a wall (player doesn't phase walls)
+          this.world.moveActor(p, (sx + dx * k) - p.x, (sy + dy * k) - p.y); p.vx *= -0.3; p.vy *= -0.3;
           if (Math.random() < 0.16) this.world.particles.text(p.x, p.y - 16, '殺出缺口！', { color: P.purpleL, size: 10 });
         }
       }

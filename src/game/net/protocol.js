@@ -18,9 +18,10 @@ export function u8ToB64(u8) {
   for (let i = 0; i < u8.length; i += CH) s += String.fromCharCode.apply(null, u8.subarray(i, i + CH));
   return btoa(s);
 }
-export function b64ToU8(b64) {
-  const bin = atob(b64); const u8 = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+export function b64ToU8(b64, maxLen = 1 << 20) {
+  if (typeof b64 !== 'string' || b64.length > maxLen * 2) return new Uint8Array(0);   // reject absurd input (malicious host OOM)
+  const bin = atob(b64); const n = Math.min(bin.length, maxLen); const u8 = new Uint8Array(n);
+  for (let i = 0; i < n; i++) u8[i] = bin.charCodeAt(i);
   return u8;
 }
 
@@ -38,16 +39,20 @@ export function serializeMap(map) {
   };
 }
 export function deserializeMap(m) {
+  // clamp dimensions (untrusted host data) so a malicious runstart can't allocate a giant grid
+  const tw = Math.max(4, Math.min(512, m.tw | 0)), th = Math.max(4, Math.min(512, m.th | 0)), need = tw * th;
+  const pad = (u8) => { if (u8.length >= need) return u8; const o = new Uint8Array(need); o.set(u8); return o; };
+  const ent = Array.isArray(m.entrance) ? m.entrance : [0, 0];
   return {
-    tw: m.tw, th: m.th,
-    tiles: b64ToU8(m.tiles),
-    floorVar: b64ToU8(m.floorVar),
+    tw, th,
+    tiles: pad(b64ToU8(m.tiles)),
+    floorVar: pad(b64ToU8(m.floorVar)),
     tileset: m.tileset || undefined,
     biome: { id: m.biomeId, name: '' },
-    decor: (m.decor || []).map(([sprite, x, y, phase]) => ({ sprite, x, y, phase })),
-    hazards: (m.hazards || []).map(([kind, x, y, r]) => ({ kind, x, y, r })),
-    entrance: { x: m.entrance[0], y: m.entrance[1] },
-    pxW: m.tw * TS, pxH: m.th * TS, chests: [], npcs: [],
+    decor: (Array.isArray(m.decor) ? m.decor : []).map(([sprite, x, y, phase]) => ({ sprite, x, y, phase })),
+    hazards: (Array.isArray(m.hazards) ? m.hazards : []).map(([kind, x, y, r]) => ({ kind, x, y, r })),
+    entrance: { x: ent[0] || 0, y: ent[1] || 0 },
+    pxW: tw * TS, pxH: th * TS, chests: [], npcs: [],
   };
 }
 
@@ -132,6 +137,7 @@ export function applySnapshot(guest, snap) {
   // enemies: update/create, mark seen
   const seen = guest._seen || (guest._seen = new Set()); seen.clear();
   for (const t of snap.en) {
+    if (!t || t.length < 8) continue;   // guard against truncated/corrupt tuples (→ NaN scale/hp)
     const nid = t[0]; seen.add(nid);
     let e = guest.enemies.get(nid);
     if (!e) { e = guest.makeEnemy(t[1], t[2], t[3]); if (!e) continue; guest.enemies.set(nid, e); e.x = t[2]; e.y = t[3]; }
@@ -147,10 +153,12 @@ export function applySnapshot(guest, snap) {
   // pickups: update/create, drop unseen
   const seenK = guest._seenK || (guest._seenK = new Set()); seenK.clear();
   for (const t of snap.pk) {
+    if (!t || t.length < 4) continue;
     const nid = t[0]; seenK.add(nid);
+    const spr = (snap.kp && snap.kp[t[3]]) || 'coin';   // bounds-guarded palette lookup (was unchecked → undefined sprite)
     let q = guest.pickups.get(nid);
-    if (!q) { q = { x: t[1], y: t[2], tx: t[1], ty: t[2], sprite: snap.kp[t[3]], t: Math.random() * 6 }; guest.pickups.set(nid, q); }
-    else { q.tx = t[1]; q.ty = t[2]; q.sprite = snap.kp[t[3]]; }
+    if (!q) { q = { x: t[1], y: t[2], tx: t[1], ty: t[2], sprite: spr, t: Math.random() * 6 }; guest.pickups.set(nid, q); }
+    else { q.tx = t[1]; q.ty = t[2]; q.sprite = spr; }
   }
   for (const [nid] of guest.pickups) if (!seenK.has(nid)) guest.pickups.delete(nid);
   // beams

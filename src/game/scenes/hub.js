@@ -615,7 +615,7 @@ export const hubScene = {
     const dY = start.y - 44 * S;
     const dPrev = { x: f.x + f.w / 2 - 96 * S, y: dY, w: 30 * S, h: 26 * S };
     const dNext = { x: f.x + f.w / 2 + 66 * S, y: dY, w: 30 * S, h: 26 * S };
-    const modeBtn = { x: f.x + f.w / 2 + 104 * S, y: dY, w: Math.max(72 * S, f.x + f.w - 24 * S - (f.x + f.w / 2 + 104 * S)), h: 26 * S };   // 6.6 無盡 toggle (right of difficulty)
+    const modeBtn = { x: f.x + f.w - 24 * S - 96 * S, y: dY, w: 96 * S, h: 26 * S };   // 6.6 無盡 toggle — right-anchored (was a width that could go negative/overflow on narrow panels)
     const lvlY = dY - 44 * S;
     const levels = BIOMES.slice(0, Math.min(BIOMES.length, (META.levels && META.levels.unlocked) || 1));
     const lbW = Math.min(116 * S, (f.w - 48 * S) / Math.max(1, levels.length) - 8 * S);
@@ -700,7 +700,7 @@ export const hubScene = {
     const list = this.tab === 0 ? [{ id: null, base: true }, ...SKINS.filter(owned)] : [{ id: null, base: true }, ...SKINS];
     const rowH = 44 * S, top = this.bodyTop(f) + 6 * S;
     const rows = list.map((sk, i) => { const y = top + i * (rowH + 6 * S) - (this.panelScroll || 0); return { sk, y, h: rowH, btn: { x: f.x + f.w - 134 * S, y: y + 8 * S, w: 110 * S, h: 28 * S } }; });
-    const back = { x: f.x + 290 * S, y: f.y + 46 * S, w: 78 * S, h: 26 * S };   // to the right of the two tabs
+    const back = { x: f.x + f.w - 96 * S, y: f.y + 46 * S, w: 78 * S, h: 26 * S };   // right-anchored (scales with panel width, never off-screen)
     return { f, cid, rows, top, back };
   },
   updateWardrobe(mx, my) {
