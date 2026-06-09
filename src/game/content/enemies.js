@@ -29,7 +29,7 @@ Enemies.registerMany([
     // 死神 — hidden, killable superboss summoned 30s after the final boss dies (E2).
     // Registered in core so it is always available; spawned only by the run scene.
     id: 'reaper', name: '死神', sprite: 'reaper', ai: 'charger', tier: 5, boss: true, weight: 0,
-    hp: 5200, speed: 56, damage: 38, radius: 11, scale: 2.2, xp: 0, gold: 12, shard: 0.6,
+    hp: 5200, speed: 104, damage: 38, radius: 11, scale: 2.2, xp: 0, gold: 12, shard: 0.6,   // round16/10.3: 死神移速大幅加強 (56→104) — walking away no longer trivially escapes it
     knockbackResist: 0.82, bloodColor: P.void, dmgMult: 1.0,   // owns its own REAPER_DMG_* scaling — skip the extra BOSS_DMG_MULT (was a near one-shot)
     attack: { range: 240, cooldown: 1.4, burst: 6, spread: 0.5, projSpeed: 150, projDamage: 26, projColor: P.redL, projSprite: 'bolt_enemy' },
     hitStatus: { type: 'slow', mult: 0.6, dur: 2, chance: 0.8 },
