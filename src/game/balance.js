@@ -20,6 +20,7 @@ export const BALANCE = {
   REAPER_HP_BASE: 8, REAPER_HP_PER_THREAT: 1.4,
   REAPER_DMG_BASE: 1.35, REAPER_DMG_PER_THREAT: 0.03,   // round-6: ease the late-game near-one-shot contact (was 1.45 / 0.045); still a DPS check
   REAPER_GRACE: 0.6,                          // round16/10.9: post-clear invuln window so a boss death-blast / lingering AoE during the clear→Reaper transition can't false-trigger game over
+  ENDLESS_BOSS_INTERVAL: 180,                 // round16/6.6 無盡挑戰: a cross-biome boss every N seconds (no 20-min cap / no Reaper; threat keeps climbing)
 
   // ---- weapons / fusion (user clarification) ----------------------------
   WEAPON_MAX_LEVEL: 7,                       // weapons cap at level 7 ("maxed")

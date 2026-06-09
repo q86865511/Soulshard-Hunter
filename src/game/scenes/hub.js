@@ -470,6 +470,7 @@ export const hubScene = {
     const dY = start.y - 44 * S;
     const dPrev = { x: f.x + f.w / 2 - 96 * S, y: dY, w: 30 * S, h: 26 * S };
     const dNext = { x: f.x + f.w / 2 + 66 * S, y: dY, w: 30 * S, h: 26 * S };
+    const modeBtn = { x: f.x + f.w / 2 + 104 * S, y: dY, w: Math.max(72 * S, f.x + f.w - 24 * S - (f.x + f.w / 2 + 104 * S)), h: 26 * S };   // 6.6 無盡 toggle (right of difficulty)
     const lvlY = dY - 44 * S;
     const levels = BIOMES.slice(0, Math.min(BIOMES.length, (META.levels && META.levels.unlocked) || 1));
     const lbW = Math.min(116 * S, (f.w - 48 * S) / Math.max(1, levels.length) - 8 * S);
@@ -482,7 +483,7 @@ export const hubScene = {
     const chh = Math.max(60 * S, Math.min(92 * S, (pgY - 8 * S - top) / 2 - 8 * S));
     const pageChars = chars.slice(this.sortPage * perPage, this.sortPage * perPage + perPage);
     const cards = pageChars.map((c, i) => ({ c, x: f.x + 20 * S + (i % cols) * (cw + 12 * S), y: top + Math.floor(i / cols) * (chh + 8 * S), w: cw, h: chh }));
-    return { f, cards, prev, next, pages, pgY, levels, lvlButtons, lvlY, dPrev, dNext, dY, start };
+    return { f, cards, prev, next, pages, pgY, levels, lvlButtons, lvlY, dPrev, dNext, dY, modeBtn, start };
   },
   curBiome(L) { return this.selBiome || (L.levels.length ? L.levels[L.levels.length - 1].id : BIOMES[0].id); },
   maxDiff(biomeId) { return ((META.levels && META.levels.diff && META.levels.diff[biomeId]) || 0) + 1; },
@@ -502,9 +503,11 @@ export const hubScene = {
     if (inside(mx, my, L.next)) { this.sortPage = Math.min(L.pages - 1, this.sortPage + 1); Sfx.play('uiClick'); return; }
     for (const lb of L.lvlButtons) if (inside(mx, my, lb)) { this.selBiome = lb.b.id; this.selDiff = 1; Sfx.play('uiClick'); return; }
     const maxD = this.maxDiff(this.curBiome(L));
+    const endlessUnlocked = ((META.stats && META.stats.clears) || 0) > 0;   // 6.6: 無盡挑戰 unlocks after a first clear
+    if (endlessUnlocked && inside(mx, my, L.modeBtn)) { this.selMode = (this.selMode === 'endless') ? 'normal' : 'endless'; Sfx.play('uiClick'); return; }
     if (inside(mx, my, L.dPrev)) { this.selDiff = Math.max(0, this.selDiff - 1); Sfx.play('uiClick'); return; }   // 6.5: 0 = 劇情難度
     if (inside(mx, my, L.dNext)) { this.selDiff = Math.min(maxD, this.selDiff + 1); Sfx.play('uiClick'); return; }
-    if (inside(mx, my, L.start)) { const b = this.curBiome(L); const d = Math.min(this.maxDiff(b), Math.max(0, this.selDiff)); Sfx.play('portal'); saveMeta(); setScene(refs.run, { run: newRun({ biomeId: b, difficulty: d }) }); }
+    if (inside(mx, my, L.start)) { const b = this.curBiome(L); const d = Math.min(this.maxDiff(b), Math.max(0, this.selDiff)); const mode = (endlessUnlocked && this.selMode === 'endless') ? 'endless' : 'normal'; Sfx.play('portal'); saveMeta(); setScene(refs.run, { run: newRun({ biomeId: b, difficulty: d, mode }) }); }
   },
 
   // ---- quests (guild tab 0) ------------------------------------------------
@@ -1079,7 +1082,14 @@ export const hubScene = {
     arrow(L.dPrev, '−', this.selDiff > 0);
     arrow(L.dNext, '+', this.selDiff < maxD);
     uiText(isStory ? '劇情' : ('難度 ' + this.selDiff + (this.selDiff >= maxD ? ' · 最高可玩' : '')), f.x + f.w / 2, L.dY + 17 * S, { size: 13 * S, align: 'center', baseline: 'middle', color: isStory ? P.shardL : P.emberL, weight: '800' });
-    // 6.4 / 6.5: one-line difficulty explanation (new-player guidance)
+    // 6.6: 無盡挑戰 toggle chip (unlocked after a first clear), right of the difficulty row
+    const endlessUnlocked = ((META.stats && META.stats.clears) || 0) > 0;
+    if (endlessUnlocked) {
+      const mb = L.modeBtn, on = this.selMode === 'endless', mh = inside(mx, my, mb);
+      uiRect(mb.x, mb.y, mb.w, mb.h, withAlpha(on ? '#3a2d12' : (mh ? '#243a5a' : '#1b2138'), 0.96), { radius: 6 * S, stroke: on ? P.goldL : P.ink2, lw: on ? 2 : 1 });
+      uiText(on ? '♾ 無盡挑戰' : '模式：普通', mb.x + mb.w / 2, mb.y + mb.h / 2 + 1 * S, { size: 10 * S, align: 'center', baseline: 'middle', color: on ? P.goldL : P.gray3, weight: '700' });
+    } else { this.selMode = 'normal'; }
+    // 6.4 / 6.5 / 6.6: one-line difficulty / mode explanation (new-player guidance)
     const DIFF_DESC = {
       0: '劇情 · 敵人極弱、掉落豐厚，幾乎必過（不列入排行榜）',
       1: '入門 · 敵人較少、節奏輕鬆，適合熟悉操作',
@@ -1088,7 +1098,8 @@ export const hubScene = {
       4: '專家 · 敵更兇猛、遠程更多，容錯極低',
       5: '夢魘 · 極限挑戰，僅為最強的獵手準備',
     };
-    uiText(DIFF_DESC[this.selDiff] || '', f.x + f.w / 2, L.dY + 33 * S, { size: 10 * S, align: 'center', baseline: 'middle', color: P.gray3 });
+    const descTxt = (endlessUnlocked && this.selMode === 'endless') ? '無盡挑戰 · 無時限、首領每 180 秒一波、威脅持續攀升（不列入標準排行榜）' : (DIFF_DESC[this.selDiff] || '');
+    uiText(descTxt, f.x + f.w / 2, L.dY + 33 * S, { size: 10 * S, align: 'center', baseline: 'middle', color: P.gray3 });
     // start
     const hovS = inside(mx, my, L.start);
     uiRect(L.start.x, L.start.y, L.start.w, L.start.h, withAlpha(hovS ? '#2a6a3a' : '#1f5030', 0.98), { radius: 9 * S, stroke: P.greenL, lw: hovS ? 3 : 2 });
