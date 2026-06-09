@@ -167,7 +167,7 @@ export class World {
     if (e.guardian) { this.addPickup('key', e.x, e.y, 1); this.addPickup('chest', e.x, e.y, 2); }   // #8: room guardian → key + chest
     const floor = this.run.floor || 1;
     const lp = this.nearestPlayer(e.x, e.y) || this.player;   // co-op: scale loot off whoever's nearest the kill
-    const gMul = lp?.stats?.goldMult ?? 1;
+    const gMul = Math.min(lp?.stats?.goldMult ?? 1, BALANCE.GOLD_MULT_CAP);   // 9.1: cap stacked gold builds
     let gold = Math.round((e.gold || 0) * (1 + floor * 0.08) * gMul * BALANCE.GOLD_DROP_MULT);
     // scatter into a few coins
     let coins = clamp(Math.round(gold / 3), 1, 5);
