@@ -3,6 +3,24 @@ import { uiText, uiBar, uiRect, uiScale, view, drawSpriteUI, textWidth } from '.
 import { getSprite, iconOr } from '../engine/sprites.js';
 import { P, withAlpha } from '../engine/palette.js';
 import { Abilities } from './content/registry.js';
+import { AchievementToasts } from './toasts.js';
+
+// round16/4.9-B — global achievement-unlock banners (top-right, gold), drawn by both
+// the hub and the run scene. Fades in 0.3s → holds → fades out 0.5s; max 3 stacked.
+export function drawAchievementToasts(S = uiScale()) {
+  const list = AchievementToasts.list();
+  if (!list.length) return;
+  const now = AchievementToasts.now();
+  const w = 214 * S, h = 36 * S, x = view.W - w - 12 * S;
+  list.forEach((t, i) => {
+    const age = now - t.born, rem = t.until - now;
+    const a = age < 0.3 ? age / 0.3 : (rem < 0.5 ? Math.max(0, rem / 0.5) : 1);
+    const y = 70 * S + i * (h + 8 * S);
+    uiRect(x, y, w, h, withAlpha('#2a1f00', 0.92 * a), { radius: 6 * S, stroke: withAlpha(P.goldL, 0.9 * a), lw: 2 });
+    uiText('🏆 成就解鎖', x + 10 * S, y + 13 * S, { size: 9 * S, color: withAlpha(P.goldL, a), weight: '800' });
+    uiText(t.name, x + 10 * S, y + 27 * S, { size: 11 * S, color: withAlpha('#ffffff', a), weight: '700' });
+  });
+}
 
 // hit-test rects for the on-screen weapon/ability/item icons, refreshed each
 // frame by drawHud — the run scene reads these to show hover tooltips.

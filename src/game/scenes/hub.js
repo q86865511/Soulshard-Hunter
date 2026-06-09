@@ -10,6 +10,7 @@ import { Talents, Facilities, Characters, Weapons } from '../content/registry.js
 import { TALENT_BRANCHES } from '../content/talents.js';
 import { ACHIEVEMENTS, achievementProgress } from '../content/achievements.js';
 import { STORY_QUESTS, chapterState, claimChapter, guildQuests, trackQuest, claimQuest, trackedQuestState, fmtQuestVal, questUnlocked, questLockedBy } from '../content/quests.js';
+import { drawAchievementToasts } from '../hud.js';
 import { SKINS, skinnedSprite, skinSpriteName } from '../content/characters.js';
 import { GUILD_RANKS, guildProgress, claimableRanks, claimGuildRank } from '../content/guild.js';
 import { FORGE_EFFECTS, forgeEffect, FORGE_MAX_LEVEL, FORGE_MAX_EFFECTS, forgeLevelCost, forgeEffectCost, forgeOf, forgeableWeapons, buyForgeLevel, buyForgeEffect, forgeSummary } from '../content/forge.js';
@@ -650,6 +651,7 @@ export const hubScene = {
     if (this.confirm) this.drawConfirm();   // task 8: buy/reset confirmation on top
     if (Cheats.enabled) this.drawHubCheats();
     if (this.escMenu) this.drawEscMenu();
+    drawAchievementToasts();   // round16/4.9-B: global unlock banners (above panels)
     settingsUI.draw();
   },
 

@@ -69,3 +69,12 @@
 
 - **6.4 難度選擇說明文字**：`hub.js drawSortie()` 在難度列下方新增一行各難度說明（D1 入門～D5 夢魘），協助新手判斷選擇。
 - 驗證：出擊面板實機 render 零錯誤，難度說明位於難度數字與「出擊狩獵」按鈕之間、不重疊（截圖確認）。
+
+---
+
+## 批次 B9 — 全域成就解鎖橫幅（4.9 / 4.9-B 統一）
+
+- 新增 `src/game/toasts.js` 全域 `AchievementToasts` 佇列（純資料、無 import 避免循環）。
+- `hud.js` 新增 `drawAchievementToasts()`（右上金色橫幅、淡入 0.3s→停留→淡出 0.5s、最多 3 條堆疊）。
+- `state.js bankRun()` 解鎖成就時 push 名稱；`hub.js draw()` 與 `run.js render()` 末端皆呼叫 `drawAchievementToasts()`——城鎮與跑局都會顯示，不再只在成就殿堂可見。
+- 驗證：push 後 `list()` 回傳數正確、兩場景 render 零錯誤；`/__shot` 精確截圖確認右上三條金色橫幅堆疊（throttled rAF 的 preview 截圖為舊幀，故改用 `/__shot`）。

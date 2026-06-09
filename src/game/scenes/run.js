@@ -26,7 +26,7 @@ import {
   drawSprite, drawShadow, glowWorld, worldToScreen, fillRectWorld, uiBar, setShakeScale,
   fillCircleWorld, strokeCircleWorld,
 } from '../../engine/renderer.js';
-import { drawHud, drawLowHpWarning, hudIcons } from '../hud.js';
+import { drawHud, drawLowHpWarning, hudIcons, drawAchievementToasts } from '../hud.js';
 import { pressed, mouse } from '../../engine/input.js';
 import { rng, dist, clamp, TAU } from '../../engine/math.js';
 import { P, withAlpha } from '../../engine/palette.js';
@@ -1299,6 +1299,7 @@ export const runScene = {
     if (this.paused) this.drawPause();
     if (this.hiddenPanel) this.drawHidden();
     if (this.coop && this.coopMenu) this.drawCoopMenu();
+    drawAchievementToasts();   // round16/4.9-B: global unlock banners (above HUD/panels)
     settingsUI.draw();
     this.drawCheatPanel();   // F2 dev overlay (on top of everything)
   },
