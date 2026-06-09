@@ -1510,10 +1510,23 @@ export const runScene = {
       : ic.kind === 'equip' ? ('裝備 · ' + (def.slot === 'weapon' ? '專武' : def.slot === 'armor' ? '護甲' : '飾品'))
       : ('道具 ' + (ic.slot || ''));
     const desc = (ic.kind === 'weapon' && def.levelDesc) ? def.levelDesc(ic.level) : (def.desc || '');
-    const W = 210 * S; const lines = []; let line = '';
+    // 10.4 (hover): a weapon's evolution path is shown here, on hover, instead of an always-on line.
+    let evo = null;
+    if (ic.kind === 'weapon' && !def.evolved && def.evolveInto) {
+      const target = Weapons.get(def.evolveInto), req = def.evolveReq;
+      const hasReq = !req || (this.run.abilityLevels && this.run.abilityLevels[req] > 0);
+      const maxed = (ic.level || 1) >= weaponMaxLevel(def);
+      const reqName = req ? ((Abilities.get(req) && Abilities.get(req).name) || req) : null;
+      const ready = maxed && hasReq;
+      evo = { text: '↓ 進化：' + (target ? target.name : '???') + (reqName ? '（需 ' + reqName + ' ' + (hasReq ? '✓' : '✗') + '）' : '') + (ready ? '　★ 即將進化！' : (maxed ? '' : ' · 需滿級')), col: ready ? P.goldL : (hasReq ? P.shardL : P.gray3) };
+    } else if (ic.kind === 'weapon' && !def.evolved) {
+      evo = { text: '（此武器無進化路線）', col: P.gray2 };
+    }
+    let W = 210 * S; const lines = []; let line = '';
     for (const ch of desc) { if (textWidth(line + ch, 11 * S, '500') > W - 16 * S && line) { lines.push(line); line = ch; } else line += ch; }
     if (line) lines.push(line);
-    const H = (34 + lines.length * 14) * S;
+    if (evo) W = Math.max(W, textWidth(evo.text, 10 * S, '700') + 16 * S);   // widen for a long evolution line
+    const H = (34 + lines.length * 14) * S + (evo ? 16 * S : 0);
     let x = mx + 14 * S, y = my + 6 * S;
     if (x + W > view.W) x = view.W - W - 6 * S;
     if (y + H > view.H) y = view.H - H - 6 * S;
@@ -1521,6 +1534,7 @@ export const runScene = {
     uiText(def.name || ic.id || '?', x + 8 * S, y + 16 * S, { size: 13 * S, color: '#fff', weight: '800' });
     uiText(sub, x + W - 8 * S, y + 16 * S, { size: 10 * S, align: 'right', color: accent, weight: '700' });
     lines.forEach((l, i) => uiText(l, x + 8 * S, y + 32 * S + i * 14 * S, { size: 11 * S, color: P.gray4, weight: '500' }));
+    if (evo) uiText(evo.text, x + 8 * S, y + 32 * S + lines.length * 14 * S, { size: 10 * S, color: evo.col, weight: '700' });
   },
   drawBuildPanel(S) {
     const w = Math.min(view.W * 0.9, 640 * S), h = Math.min(view.H * 0.86, 500 * S);
@@ -1542,20 +1556,7 @@ export const runScene = {
       cell(bx, yL, getSprite(iconOr(inst.def.icon, 'weapon_w_soulbolt')), inst.def.evolved ? P.goldL : P.ink2, inst.def.evolved ? '★' : 'L' + inst.level, inst.def.evolved ? P.goldL : P.shardL);
       this.buildIcons.push({ x: bx, y: yL, w: sz, h: sz, kind: 'weapon', def: inst.def, level: inst.level });
     });
-    yL += sz + 8 * S;
-    // 10.4: weapon evolution path hints — target weapon + required passive ✓/✗, highlight when ready
-    const evoList = this.player.weapons.filter((inst) => !inst.def.evolved && inst.def.evolveInto);
-    for (const inst of evoList) {
-      const evo = Weapons.get(inst.def.evolveInto), req = inst.def.evolveReq;
-      const hasReq = !req || (this.run.abilityLevels && this.run.abilityLevels[req] > 0);
-      const maxed = inst.level >= weaponMaxLevel(inst.def);
-      const reqName = req ? ((Abilities.get(req) && Abilities.get(req).name) || req) : null;
-      const ready = maxed && hasReq;
-      const txt = '↓ ' + inst.def.name + ' → ' + (evo ? evo.name : '???') + (reqName ? '（需 ' + reqName + ' ' + (hasReq ? '✓' : '✗') + '）' : '') + (ready ? '　★ 即將進化！' : (maxed ? '' : ' · 需滿級'));
-      uiText(txt, colL, yL, { size: 9.5 * S, color: ready ? P.goldL : (hasReq ? P.shardL : P.gray3), weight: ready ? '800' : '600' });
-      yL += 12 * S;
-    }
-    yL += 10 * S;
+    yL += sz + 18 * S;   // 10.4: per-weapon evolution path now shown in the hover tooltip (drawTooltip), not as an always-on line
     const abils = this.run.abilities || [];
     head('被動', colL, yL, P.manaL, abils.length + ' / ' + MAX_PASSIVES, abils.length >= MAX_PASSIVES ? P.redL : P.gray3); yL += 14 * S;
     const perRow = 7;
