@@ -22,7 +22,7 @@ import { BONDS } from '../content/bonds.js';
 import { BIOMES } from '../../art/biomes.js';
 import {
   camera, uiText, uiRect, uiScale, view, drawSprite, drawShadow, drawSpriteUI,
-  worldToScreen, vignette, textWidth, glowWorld, uiBar, ctxRaw, goldStr,
+  worldToScreen, vignette, textWidth, glowWorld, uiBar, ctxRaw, goldStr, UI,
 } from '../../engine/renderer.js';
 import { getSprite, frameAt, iconOr } from '../../engine/sprites.js';
 import { moveAxis, pressed, mouse } from '../../engine/input.js';
@@ -181,8 +181,9 @@ export const hubScene = {
     uiText('選 單', view.W / 2, items[0].r.y - 30 * S, { size: 26 * S, align: 'center', color: '#fff', weight: '900' });
     for (const it of items) {
       const hov = inside(mx, my, it.r);
-      uiRect(it.r.x, it.r.y, it.r.w, it.r.h, withAlpha(hov ? '#27306a' : '#161b34', 0.96), { radius: 9 * S, stroke: hov ? it.col : withAlpha(it.col, 0.4), lw: hov ? 3 : 2 });
-      uiText(it.label, it.r.x + it.r.w / 2, it.r.y + it.r.h / 2 + 1 * S, { size: 16 * S, align: 'center', baseline: 'middle', color: hov ? '#fff' : '#cfe0ff', weight: '800' });
+      // 1.5: stronger button↔background contrast + a brighter outline (was 0.4 → faint)
+      uiRect(it.r.x, it.r.y, it.r.w, it.r.h, withAlpha(hov ? '#2a3a72' : '#141a36', 0.97), { radius: 9 * S, stroke: hov ? it.col : withAlpha(it.col, 0.6), lw: hov ? 3 : 2 });
+      uiText(it.label, it.r.x + it.r.w / 2, it.r.y + it.r.h / 2 + 1 * S, { size: UI.FONT_HEADING * S, align: 'center', baseline: 'middle', color: hov ? '#fff' : '#dbe6ff', weight: '800' });
     }
   },
 
@@ -444,8 +445,10 @@ export const hubScene = {
     const S = f.S;
     for (const tb of this.tabRects(f)) {
       const on = this.tab === tb.i;
-      uiRect(tb.x, tb.y, tb.w, tb.h, withAlpha(on ? '#243a5a' : '#161a30', 0.96), { radius: 6 * S, stroke: on ? P.shardL : P.ink2, lw: on ? 2 : 1 });
-      uiText(tb.name, tb.x + tb.w / 2, tb.y + tb.h / 2 + 1 * S, { size: 12 * S, align: 'center', baseline: 'middle', color: on ? '#fff' : P.gray3, weight: '800' });
+      // 1.5: clearer tab contrast — unselected darker, selected brighter + a bottom accent line
+      uiRect(tb.x, tb.y, tb.w, tb.h, withAlpha(on ? '#26406a' : '#11142a', 0.97), { radius: 6 * S, stroke: on ? P.shardL : withAlpha(P.ink2, 0.9), lw: on ? 2 : 1 });
+      if (on) uiRect(tb.x + 8 * S, tb.y + tb.h - 3.5 * S, tb.w - 16 * S, 2.5 * S, P.shardL, { radius: 1.5 * S });
+      uiText(tb.name, tb.x + tb.w / 2, tb.y + tb.h / 2 + 1 * S, { size: (UI.FONT_HEADING - 1) * S, align: 'center', baseline: 'middle', color: on ? '#fff' : P.gray3, weight: '800' });
     }
   },
 
@@ -839,8 +842,8 @@ export const hubScene = {
     uiRect(0, 0, view.W, view.H, withAlpha('#0b0d1a', 0.74));
     uiRect(f.x, f.y, f.w, f.h, withAlpha('#161a30', 0.98), { radius: 12 * S, stroke: P.ink2, lw: 2 });
     uiRect(f.x, f.y, f.w, 50 * S, withAlpha('#1f2542', 0.96), { radius: 12 * S });
-    uiText(title, f.x + 22 * S, f.y + 32 * S, { size: 20 * S, color: '#fff', weight: '900' });
-    if (sub) uiText(sub, f.x + 22 * S + textWidth(title, 20 * S, '900') + 12 * S, f.y + 32 * S, { size: 12 * S, color: P.gray3, weight: '600' });
+    uiText(title, f.x + 22 * S, f.y + 33 * S, { size: UI.FONT_TITLE * S, color: '#fff', weight: '900' });   // 1.6: unified panel-title size
+    if (sub) uiText(sub, f.x + 22 * S + textWidth(title, UI.FONT_TITLE * S, '900') + 12 * S, f.y + 33 * S, { size: UI.FONT_CAPTION * S, color: P.gray3, weight: '600' });
     const csp = getSprite('coin');
     drawSpriteUI(csp.frames[0], f.x + f.w - 150 * S, f.y + 14 * S, 2 * S);
     uiText(String(META.gold), f.x + f.w - 128 * S, f.y + 32 * S, { size: 17 * S, color: P.goldL, weight: '800' });
