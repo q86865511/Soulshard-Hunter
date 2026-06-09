@@ -361,14 +361,15 @@ export const hubScene = {
   bankStep() { return Math.max(10, Math.round(bankLimit(META) / 20)); },
   bankUi(f) {
     const S = f.S, t0 = this.bodyTop(f);
-    const rowY = t0 + 104 * S;                     // amount-selector row
+    const rowY = t0 + 112 * S;                     // amount-selector row (all offsets ×S → scale-safe)
     return {
-      minus: { x: f.x + 30 * S, y: rowY, w: 44 * S, h: 44 * S },
-      box: { x: f.x + 84 * S, y: rowY, w: 150 * S, h: 44 * S },
-      plus: { x: f.x + 244 * S, y: rowY, w: 44 * S, h: 44 * S },
-      full: { x: f.x + 300 * S, y: rowY + 4 * S, w: 70 * S, h: 36 * S },
-      bar: { x: f.x + 30 * S, y: rowY + 54 * S, w: 340 * S, h: 9 * S },
-      borrow: { x: f.x + 30 * S, y: rowY + 84 * S, w: 300 * S, h: 46 * S },
+      minus: { x: f.x + 30 * S, y: rowY, w: 46 * S, h: 46 * S },
+      box: { x: f.x + 86 * S, y: rowY, w: 156 * S, h: 46 * S },
+      plus: { x: f.x + 252 * S, y: rowY, w: 46 * S, h: 46 * S },
+      full: { x: f.x + 312 * S, y: rowY + 5 * S, w: 74 * S, h: 36 * S },
+      bar: { x: f.x + 30 * S, y: rowY + 66 * S, w: 356 * S, h: 10 * S },     // +20 below the box
+      repayY: rowY + 100 * S,                                                // repay line (well clear of the bar)
+      borrow: { x: f.x + 30 * S, y: rowY + 122 * S, w: 320 * S, h: 48 * S },
     };
   },
   updateBank(mx, my) {
@@ -409,7 +410,7 @@ export const hubScene = {
       // credit-limit line
       uiText('可借額度', f.x + 30 * S, t0 + 64 * S, { size: 13 * S, color: P.shardL, weight: '800' });
       coin(f.x + 92 * S, t0 + 70 * S, 1.9 * S); uiText(String(limit), f.x + 112 * S, t0 + 66 * S, { size: 16 * S, color: P.goldL, weight: '900' });
-      uiText('自訂借款金額：', f.x + 30 * S, t0 + 96 * S, { size: 12 * S, color: P.gray3, weight: '700' });
+      uiText('自訂借款金額', f.x + 30 * S, t0 + 102 * S, { size: 12 * S, color: P.gray3, weight: '700' });
       // − / amount box / +
       const btn = (rr, t, on) => { const h = inside(mx, my, rr); uiRect(rr.x, rr.y, rr.w, rr.h, withAlpha(h && on ? '#27306a' : '#1b2138', 0.96), { radius: 8 * S, stroke: on ? P.shardL : P.ink2, lw: 2 }); uiText(t, rr.x + rr.w / 2, rr.y + rr.h / 2 + 1 * S, { size: 20 * S, align: 'center', baseline: 'middle', color: on ? '#fff' : P.gray2, weight: '900' }); };
       btn(u.minus, '−', amt > BANK_MIN);
@@ -420,9 +421,9 @@ export const hubScene = {
       const fh = inside(mx, my, u.full); uiRect(u.full.x, u.full.y, u.full.w, u.full.h, withAlpha(fh ? '#27306a' : '#1b2138', 0.96), { radius: 7 * S, stroke: P.shardL, lw: 1.5 }); uiText('全額', u.full.x + u.full.w / 2, u.full.y + u.full.h / 2 + 1 * S, { size: 12 * S, align: 'center', baseline: 'middle', color: '#cfe0ff', weight: '800' });
       // amount bar (click to set)
       uiBar(u.bar.x, u.bar.y, u.bar.w, u.bar.h, (amt - BANK_MIN) / Math.max(1, limit - BANK_MIN), { fg: P.goldL, bg: '#16183a', border: P.ink });
-      // repay breakdown
-      uiText('到期應還', f.x + 30 * S, u.borrow.y - 14 * S, { size: 12 * S, color: P.gray3, weight: '700' });
-      uiText(goldStr(repay) + '　＝ 本金 ' + goldStr(amt) + ' ＋ 利息 ' + goldStr(repay - amt), f.x + 96 * S, u.borrow.y - 14 * S, { size: 12 * S, color: P.emberL, weight: '800' });
+      // repay breakdown (its own row, well below the bar — was overlapping it)
+      uiText('到期應還', f.x + 30 * S, u.repayY, { size: 12 * S, color: P.gray3, weight: '700' });
+      uiText(goldStr(repay) + '　＝ 本金 ' + goldStr(amt) + ' ＋ 利息 ' + goldStr(repay - amt), f.x + 96 * S, u.repayY, { size: 12 * S, color: P.emberL, weight: '800' });
       // borrow button
       const hov = inside(mx, my, u.borrow);
       uiRect(u.borrow.x, u.borrow.y, u.borrow.w, u.borrow.h, withAlpha(hov ? '#2a6a3a' : '#1f5030', 0.96), { radius: 9 * S, stroke: P.greenL, lw: 2 });
