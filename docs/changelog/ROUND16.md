@@ -104,3 +104,15 @@
 - **1.6 UI 代幣（基礎）**：`renderer.js` 新增 `export const UI`（`FONT_TITLE/HEADING/BODY/CAPTION`、`BTN_H`、`ICON_SM/MD/LG`、`GAP_*`）作為後續一致化的設計基準（additive；各畫面逐步套用）。
 - 驗證：`/__shot` 截圖確認標題（魂晶獵手／單人遊戲…）與城鎮（魂晶之鎮／任務追蹤／底欄）皆以標楷體渲染、版面完整、零錯誤。
 - （1.2 全形標點、1.3 連續縮放、1.4 金幣圖示化、1.5 按鈕外框、1.8 像素數字、3.0 面板通則套用＝後續 B1 子批，因屬全 UI 大範圍套用，分批進行以降低破版風險。）
+
+---
+
+## 批次 B7c — 無盡模式（第六章 6.6）
+
+- 新增 `run.mode = 'endless'`（`balance.js ENDLESS_BOSS_INTERVAL 180`）：`state.js newRun()` 帶 `mode`；`run.js` `enter()` 設 `this.endless`／`endlessWave`。
+- **核心行為**：`finalTick()` 在 endless 不生最終首領、不通關、不出死神；改為每 `ENDLESS_BOSS_INTERVAL` 秒由 `spawnEndlessBoss()` 生一隻**跨生態系隨機首領**（隨 threat 縮放）；威脅持續攀升不封頂。
+- **HUD**：`drawStageHud()` endless 顯示「無盡挑戰 · 威脅 N」+「第 N 波 · 距首領 mm:ss」。
+- **入口**：`hub.js` 出擊面板難度列右側新增「♾ 無盡挑戰」切換 chip（**通關任一關卡後解鎖**，`META.stats.clears>0`），描述列說明「無時限、首領每 180 秒一波、不列入標準排行榜」；`newRun({mode})` 帶入。
+- **排行榜**：`bankRun()` 對 `mode==='endless'` 的局**不上傳**標準排行榜（與劇情難度一致；專屬波次榜為後續伺服器工作）。
+- 驗證：`newRun({mode:'endless'}).mode==='endless'`；endless 局 time=181 → `finalTick` 生第 1 波首領（`endlessWave===1`、`boss===true`）；time=1300（過 20 分）仍 `cleared===false`、`finalBoss===false`（永不通關/出死神）；HUD 與出擊面板（含 chip + 說明）`/__shot` 渲染零錯誤。
+- （MVP 範圍：結算畫面沿用標準死亡頁，未特別顯示「波次 N」字樣——列為小幅後續。）

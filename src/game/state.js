@@ -244,6 +244,7 @@ export function newRun(opts = {}) {
   const run = {
     floor: 1, stage: 1, depth: 1, time: 0,
     biomeId: opts.biomeId || null, difficulty: (opts.difficulty == null ? 1 : opts.difficulty), cleared: false,   // 6.5: difficulty 0 = 劇情 (don't let `||` coerce 0→1)
+    mode: opts.mode || 'normal',   // 6.6: 'endless' = 無盡挑戰 (no 20-min cap, no Reaper, boss waves)
     gold: 0, goldEarned: 0, shards: 0,
     level: 1, xp: 0, xpNext: 20, kills: 0, score: 0, bossKills: 0,
     stats: makeBaseStats(),
@@ -330,7 +331,7 @@ export function bankRun(run) {
     biome: run.biomeId || null,
     coop_size: run.coopSize || 1,   // Phase 2: party size for the shared leaderboard
   };
-  if ((run.difficulty == null ? 1 : run.difficulty) >= 1) {   // 6.5: 劇情難度 (difficulty 0) is excluded from the shared leaderboard
+  if ((run.difficulty == null ? 1 : run.difficulty) >= 1 && run.mode !== 'endless') {   // 6.5 劇情 + 6.6 無盡 are excluded from the shared (standard) leaderboard
     try { postRunResult(runPayload); } catch (e) { /* ignore */ }                       // logged in → auto-upload
     try { if (!Net.isLoggedIn()) lastGuestRun = runPayload; } catch (e) { /* ignore */ }  // guest → offer a named upload from the leaderboard overlay
   }

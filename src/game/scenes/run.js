@@ -202,6 +202,8 @@ export const runScene = {
     // difficulty scaling + finale (final boss -> killable Reaper, E2)
     const D = this.run.difficulty == null ? 1 : this.run.difficulty;
     this.storyMode = D <= 0;   // 6.5 劇情難度
+    this.endless = this.run.mode === 'endless';   // 6.6 無盡挑戰
+    this.endlessWave = 0;
     this.diffMul = this.storyMode ? BALANCE.STORY_DIFF_MUL : (1 + (D - 1) * 0.35);
     if (this.storyMode) {   // weak enemies + generous loot, almost unloseable
       this.run.dropQuality = (this.run.dropQuality || 0) + BALANCE.STORY_DROP_QUALITY;
@@ -460,8 +462,26 @@ export const runScene = {
   // ---- finale: final boss at 20:00 -> clear -> killable Reaper +30s (E2) ----
   finalTick(dt) {
     const t = this.run.time;
+    if (this.endless) {   // 6.6: no final boss / no clear / no Reaper — recurring cross-biome boss waves; threat keeps climbing
+      const wave = Math.floor(t / BALANCE.ENDLESS_BOSS_INTERVAL);
+      if (wave > this.endlessWave && !this.boss) { this.endlessWave = wave; this.spawnEndlessBoss(wave); }
+      return;
+    }
     if (!this.finalBoss && !this.cleared && !this.boss && t >= LEVEL_TIME) this.spawnFinalBoss();   // don't spawn the finale on top of a still-living mini-boss
     if (this.cleared && !this.reaperSpawned && t >= this.reaperAt) this.spawnReaper();
+  },
+  spawnEndlessBoss(wave) {   // 6.6: random boss from the whole pool (cross-biome), scaling with threat
+    let bs = Enemies.filter((d) => d.boss && d.id !== REAPER_ID);
+    if (!bs.length) return;
+    const def = bs[rng.int(0, bs.length - 1)];
+    const hpScale = (4 + this.threat * 0.6) * this.diffMul;
+    const dmgScale = (1.4 + this.threat * 0.10) * this.diffMul;
+    let bx = this.player.x, by = this.player.y, tries = 0;
+    do { const a = rng.next() * TAU; bx = clamp(this.player.x + Math.cos(a) * 220, TS * 2, this.world.pxW - TS * 2); by = clamp(this.player.y + Math.sin(a) * 220, TS * 2, this.world.pxH - TS * 2); tries++; } while (this.world.solidAt(bx, by) && tries < 12);
+    this.bossRef = this.world.spawnEnemy(def, bx, by, { hpScale, dmgScale, quiet: true });
+    this.boss = true;
+    this.banner = '⚔ 第 ' + (wave + 1) + ' 波首領 · ' + (def.name || 'BOSS'); this.bannerT = 3.0;
+    addShake(8); Sfx.play('boss'); Music.setMode('boss');
   },
   spawnFinalBoss() {
     let def = Enemies.get(FINAL_BOSS[this.run.biomeId]);
@@ -1434,9 +1454,15 @@ export const runScene = {
 
   drawStageHud() {
     const S = uiScale();
-    uiText(`${this.map.biome.name} · 難度 ${this.run.difficulty || 1} · 威脅 ${this.threat}`, view.W / 2, 24 * S, { size: 15 * S, align: 'center', color: '#fff', weight: '800' });
+    const diffLabel = this.endless ? '無盡挑戰' : (this.storyMode ? '劇情' : '難度 ' + (this.run.difficulty || 1));   // 6.5/6.6
+    uiText(`${this.map.biome.name} · ${diffLabel} · 威脅 ${this.threat}`, view.W / 2, 24 * S, { size: 15 * S, align: 'center', color: '#fff', weight: '800' });
     let label, hot = false;
-    if (this.reaperRef && !this.reaperRef.dead) { label = '☠ 死神戰'; hot = true; }
+    if (this.endless) {   // 6.6: wave count + next-boss countdown (no clear/Reaper)
+      const wv = this.endlessWave + 1, nextAt = (this.endlessWave + 1) * BALANCE.ENDLESS_BOSS_INTERVAL;
+      const r = Math.max(0, nextAt - this.run.time), mm = Math.floor(r / 60), ss = Math.floor(r % 60);
+      label = `第 ${wv} 波　·　距首領 ${mm}:${ss.toString().padStart(2, '0')}`; hot = this.boss;
+    }
+    else if (this.reaperRef && !this.reaperRef.dead) { label = '☠ 死神戰'; hot = true; }
     else if (this.cleared) { const rem = Math.max(0, Math.ceil(this.reaperAt - this.run.time)); label = this.reaperSpawned ? '☠ 死神戰' : `通關！死神 ${rem}s　·　按 E 離場`; hot = true; }
     else if (this.finalBoss) { label = '最終決戰！'; hot = true; }
     else {
