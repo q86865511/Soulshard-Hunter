@@ -1076,6 +1076,15 @@ export const hubScene = {
     arrow(L.dPrev, '−', this.selDiff > 1);
     arrow(L.dNext, '+', this.selDiff < maxD);
     uiText('難度 ' + this.selDiff + (this.selDiff >= maxD ? ' · 最高可玩' : ''), f.x + f.w / 2, L.dY + 17 * S, { size: 13 * S, align: 'center', baseline: 'middle', color: P.emberL, weight: '800' });
+    // 6.4: one-line difficulty explanation (new-player guidance)
+    const DIFF_DESC = {
+      1: '入門 · 敵人較少、節奏輕鬆，適合熟悉操作',
+      2: '普通 · 敵潮變密，開始出現包圍與狀態威脅',
+      3: '困難 · 高壓追殺，中後期考驗 build 與走位',
+      4: '專家 · 敵更兇猛、遠程更多，容錯極低',
+      5: '夢魘 · 極限挑戰，僅為最強的獵手準備',
+    };
+    uiText(DIFF_DESC[this.selDiff] || '', f.x + f.w / 2, L.dY + 33 * S, { size: 10 * S, align: 'center', baseline: 'middle', color: P.gray3 });
     // start
     const hovS = inside(mx, my, L.start);
     uiRect(L.start.x, L.start.y, L.start.w, L.start.h, withAlpha(hovS ? '#2a6a3a' : '#1f5030', 0.98), { radius: 9 * S, stroke: P.greenL, lw: hovS ? 3 : 2 });
