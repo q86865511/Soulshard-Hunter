@@ -903,7 +903,7 @@ export const hubScene = {
       uiRect(r.x, r.y, r.wd, r.h, withAlpha(sel ? '#243a5a' : '#1b2138', 0.96), { radius: 6 * S, stroke: sel ? P.shardL : P.ink2, lw: sel ? 2 : 1 });
       const isp = getSprite(iconOr('weapon_' + r.w.id, 'weapon_w_soulbolt'));
       drawSpriteUI(isp.frames[0], r.x + 4 * S, r.y + 4 * S, (24 * S) / isp.w);
-      this.clip1(r.w.name, r.x + 32 * S, r.y + 14 * S, r.wd - 38 * S, 11.5 * S, '#fff', '700');
+      this.clip1(r.w.name, r.x + 40 * S, r.y + 14 * S, r.wd - 48 * S, 11.5 * S, '#fff', '700');   // 12px gap from the icon (was hugging it)
       if (sum) uiText(sum, r.x + r.wd - 6 * S, r.y + 25 * S, { size: 9 * S, align: 'right', color: P.emberL, weight: '700' });
     }
     ctx.restore();
