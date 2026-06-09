@@ -272,6 +272,14 @@ export const hubScene = {
     uiText(`${d.page + 1}/${d.lines.length}`, x + 16 * S, y + h - 12 * S, { size: 10 * S, color: P.gray3 });
   },
   panelTitle(id) { return { talents: '教堂 · 天賦', smith: '鐵匠鋪', guild: '獵人公會', wardrobe: '衣帽店', achievements: '成就殿堂', personal: '個人小屋', sortie: '出擊' }[id] || id; },
+  // 2.3 / 3.5-C: reusable「新」/「可領」badge — a yellow circle with a white「!」.
+  drawNewBadge(bx, by, S) {
+    const ctx = ctxRaw(), r = 7 * S;
+    ctx.save(); ctx.beginPath(); ctx.arc(bx, by, r, 0, Math.PI * 2);
+    ctx.fillStyle = '#f5c518'; ctx.fill();
+    ctx.lineWidth = 1.5 * S; ctx.strokeStyle = '#7a5c00'; ctx.stroke(); ctx.restore();
+    uiText('!', bx, by + 0.5 * S, { size: 10 * S, align: 'center', baseline: 'middle', color: '#fff', weight: '900', shadow: false });
+  },
 
   // ---- panel dispatch ------------------------------------------------------
   updatePanel() {
@@ -634,13 +642,14 @@ export const hubScene = {
     for (const s of this.stations) {
       const sp = getSprite(s.sprite); const ss = worldToScreen(s.x, s.y - sp.h - 6);
       uiText(s.label, ss.x, ss.y, { size: 12 * S, align: 'center', color: s.color, weight: '800' });
-      if (this.near === s) { const sp2 = worldToScreen(s.x, s.y + 8); uiText('按 E', sp2.x, sp2.y, { size: 12 * S, align: 'center', color: withAlpha('#fff', 0.6 + Math.sin(this.t * 6) * 0.3), weight: '800' }); }
+      if (this.near === s) { const sp2 = worldToScreen(s.x, s.y + 8); uiText('【E】進入', sp2.x, sp2.y, { size: 12 * S, align: 'center', color: withAlpha('#fff', 0.6 + Math.sin(this.t * 6) * 0.3), weight: '800' }); }
     }
     for (const n of this.npcs) {
       const sp = getSprite(n.def.sprite); const ss = worldToScreen(n.x, n.y - sp.h - 4);
       const isNew = !(META.npc && META.npc.met && META.npc.met[n.def.id]);
-      uiText((isNew ? '❗' : '') + n.def.name, ss.x, ss.y, { size: 11 * S, align: 'center', color: n.def.color, weight: '800' });
-      if (this.near === n) { const sp2 = worldToScreen(n.x, n.y + 8); uiText('交談 E', sp2.x, sp2.y, { size: 11 * S, align: 'center', color: withAlpha('#fff', 0.6 + Math.sin(this.t * 6) * 0.3), weight: '800' }); }
+      uiText(n.def.name, ss.x, ss.y, { size: 11 * S, align: 'center', color: n.def.color, weight: '800' });
+      if (isNew) this.drawNewBadge(ss.x, ss.y - 14 * S, S);   // 2.3: 「新」徽章 — 黃圈白驚嘆號於名字正上方
+      if (this.near === n) { const sp2 = worldToScreen(n.x, n.y + 8); uiText('【E】交談', sp2.x, sp2.y, { size: 11 * S, align: 'center', color: withAlpha('#fff', 0.6 + Math.sin(this.t * 6) * 0.3), weight: '800' }); }
     }
     this.world.particles.drawText();
     vignette(0.45);
@@ -650,7 +659,7 @@ export const hubScene = {
     const csp = getSprite('coin');
     drawSpriteUI(csp.frames[0], view.W - 110 * S, 12 * S, 2.2 * S);
     uiText(String(META.gold), view.W - 84 * S, 30 * S, { size: 18 * S, color: P.goldL, weight: '800' });
-    uiText('1 教堂　2 鐵匠　3 成就　4 公會　空白 出擊　走近建築/居民按 E　Esc 設定', view.W / 2, view.H - 16 * S, { size: 12 * S, align: 'center', color: P.gray3 });
+    uiText('1 教堂　2 鐵匠　3 成就　4 公會　空白 出擊　靠近 NPC 或建築按【E】互動　Esc 設定', view.W / 2, view.H - 16 * S, { size: 12 * S, align: 'center', color: P.gray3 });
     if (this.flashT > 0) uiText(this.flash, view.W / 2, view.H * 0.78, { size: 18 * S, align: 'center', color: withAlpha(P.goldL, Math.min(1, this.flashT)), weight: '800' });
     if (!this.panel && !this.dialogue) this.drawQuestTracker();
 
@@ -936,7 +945,7 @@ export const hubScene = {
 
   // ---- clothing store ------------------------------------------------------
   drawWardrobe() {
-    const f = this.drawPanelFrame('衣 帽 店', this.tab === 0 ? '我的造型 · 各英雄已擁有' : '造型商店 · 每 30 分鐘換新貨');
+    const f = this.drawPanelFrame('衣 帽 店', this.tab === 0 ? '我的造型 · 各英雄已擁有' : '造型商店 · 每 30 分鐘換新貨 · 購買後不可退款');   // 3.9
     this.drawTabs(f);
     if (this.tab === 0) this.drawWardrobeOwned(f); else this.drawWardrobeShop(f);
   },

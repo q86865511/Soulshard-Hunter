@@ -988,7 +988,9 @@ export const runScene = {
     if (Cheats.enabled && Cheats.godmode && this.player) this.player.hp = this.player.maxHp;   // F2 invincibility
     this.aimCamera();
     if (this.bannerT > 0) this.bannerT -= dt;
-    if (this.story) { this.story.t -= dt; if (this.story.t <= 0) this.story = null; else if (pressed('space') && this.story.t < this.story.dur - 0.6) this.story = null; }
+    // 4.7: the 空白 used to launch from the hub carried into the run and instantly
+    // skipped the intro. Require space to be RELEASED first (arm), then a fresh press skips.
+    if (this.story) { this.story.t -= dt; if (!pressed('space')) this.story.armed = true; if (this.story.t <= 0) this.story = null; else if (this.story.armed && pressed('space')) this.story = null; }
 
     if (this.challenge) this.updateChallenge(dt);   // 原#3 timed challenge
     this.spawnTick(dt);
@@ -1521,7 +1523,8 @@ export const runScene = {
   drawStageHud() {
     const S = uiScale();
     const diffLabel = this.endless ? '無盡挑戰' : (this.storyMode ? '劇情' : '難度 ' + (this.run.difficulty || 1));   // 6.5/6.6
-    uiText(`${this.map.biome.name} · ${diffLabel} · 威脅 ${this.threat}`, view.W / 2, 24 * S, { size: 15 * S, align: 'center', color: '#fff', weight: '800' });
+    const et = this.run.time || 0, em = Math.floor(et / 60), es = Math.floor(et % 60);   // 4.11: 已遊玩時間
+    uiText(`${this.map.biome.name} · ${diffLabel} · 威脅 ${this.threat} · ⏱ ${em}:${es.toString().padStart(2, '0')}`, view.W / 2, 24 * S, { size: 15 * S, align: 'center', color: '#fff', weight: '800' });
     let label, hot = false;
     if (this.endless) {   // 6.6: wave count + next-boss countdown (no clear/Reaper)
       const wv = this.endlessWave + 1, nextAt = (this.endlessWave + 1) * BALANCE.ENDLESS_BOSS_INTERVAL;
@@ -1978,9 +1981,10 @@ export const runScene = {
       const stroke = hover ? st.accent : (hints.length ? withAlpha(P.goldL, 0.85) : P.ink2);
       uiRect(r.x, r.y + oy, r.w, r.h, withAlpha(st.bg, 0.97), { radius: 9 * S, stroke, lw: hover ? 3 : (hints.length ? 2.5 : 2) });
       uiRect(r.x, r.y + oy, r.w, 5 * S, st.accent, { radius: 2 * S });   // rarity bar (always)
+      const tc = st.tagCol || st.accent;                                 // rarity pill uses the RARITY colour (普通灰/稀有紫/史詩金)
       const pw = textWidth(st.tag, 10 * S, '800') + 14 * S;              // rarity pill
-      uiRect(r.x + r.w - pw - 8 * S, r.y + oy + 10 * S, pw, 16 * S, withAlpha(st.accent, 0.2), { radius: 8 * S, stroke: st.accent, lw: 1 });
-      uiText(st.tag, r.x + r.w - pw / 2 - 8 * S, r.y + oy + 18 * S, { size: 10 * S, align: 'center', baseline: 'middle', color: st.accent, weight: '800' });
+      uiRect(r.x + r.w - pw - 8 * S, r.y + oy + 10 * S, pw, 16 * S, withAlpha(tc, 0.22), { radius: 8 * S, stroke: tc, lw: 1 });
+      uiText(st.tag, r.x + r.w - pw / 2 - 8 * S, r.y + oy + 18 * S, { size: 10 * S, align: 'center', baseline: 'middle', color: tc, weight: '800' });
       if (hints.length) uiText('★', r.x + r.w / 2, r.y + oy + 14 * S, { size: 11 * S, align: 'center', baseline: 'middle', color: P.goldL, weight: '900' });
       const sp = getSprite(iconOr(st.icon, c.kind === 'ability' ? 'ability_power' : 'weapon_w_soulbolt')); const isc = (r.w * 0.42) / sp.w;
       drawSpriteUI(sp.frames[0], r.x + r.w / 2 - sp.w * isc / 2, r.y + oy + 20 * S, isc);

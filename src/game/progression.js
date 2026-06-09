@@ -76,16 +76,18 @@ export function applyChoice(run, player, world, c) {
 // "effect" line (weapon stats) shown above the flavour text on the card.
 const RARITY = { 1: { accent: P.gray4, tag: '普通' }, 2: { accent: P.purpleL, tag: '稀有' }, 3: { accent: P.goldL, tag: '史詩' } };
 export function choiceStyle(c) {
-  if (c.kind === 'fuse') return { icon: 'weapon_' + (c.target ? c.target.def.id : 'w_soulbolt'), sub: '武器合成', tag: '合成', rarity: 3, accent: P.goldL, bg: '#4a3a16', desc: c.def.desc, effect: '' };
+  // `accent` = card theme (border/bar); `tagCol` = the rarity-pill colour (普通灰/稀有紫/史詩金),
+  // so weapons of different tiers no longer share one pill colour (round16/4.5).
+  if (c.kind === 'fuse') return { icon: 'weapon_' + (c.target ? c.target.def.id : 'w_soulbolt'), sub: '武器合成', tag: '合成', rarity: 3, accent: P.goldL, tagCol: P.goldL, bg: '#4a3a16', desc: c.def.desc, effect: '' };
   if (c.kind === 'weapon') {
     const r = RARITY[c.def.tier || 1];
-    return { icon: 'weapon_' + c.id, sub: '新武器', tag: r.tag, rarity: c.def.tier || 1, accent: P.shardL, bg: '#163a44', desc: c.def.desc, effect: c.def.levelDesc ? c.def.levelDesc(1) : '' };
+    return { icon: 'weapon_' + c.id, sub: '新武器', tag: r.tag, rarity: c.def.tier || 1, accent: P.shardL, tagCol: r.accent, bg: '#163a44', desc: c.def.desc, effect: c.def.levelDesc ? c.def.levelDesc(1) : '' };
   }
   if (c.kind === 'weaponup') {
-    return { icon: 'weapon_' + c.id, sub: `強化 Lv.${c.level}→${c.level + 1}`, tag: '升級', rarity: 2, accent: P.blueL, bg: '#1f2a52', desc: c.def.desc, effect: (c.def.levelDesc && c.def.levelDesc(c.level + 1)) || '' };
+    return { icon: 'weapon_' + c.id, sub: `強化 Lv.${c.level}→${c.level + 1}`, tag: '升級', rarity: 2, accent: P.blueL, tagCol: P.blueL, bg: '#1f2a52', desc: c.def.desc, effect: (c.def.levelDesc && c.def.levelDesc(c.level + 1)) || '' };
   }
-  if (c.def && c.def.cursed) return { icon: 'ability_' + c.id, sub: '詛咒強化', tag: '詛咒', rarity: 3, accent: P.redL, bg: '#3a1622', desc: c.def.desc, effect: '' };
+  if (c.def && c.def.cursed) return { icon: 'ability_' + c.id, sub: '詛咒強化', tag: '詛咒', rarity: 3, accent: P.redL, tagCol: P.redL, bg: '#3a1622', desc: c.def.desc, effect: '' };
   const TIERBG = { 1: '#26305a', 2: '#2e2a6a', 3: '#5a4011' };
   const r = RARITY[c.def.tier || 1];
-  return { icon: 'ability_' + c.id, sub: '被動', tag: r.tag, rarity: c.def.tier || 1, accent: r.accent, bg: TIERBG[c.def.tier || 1], desc: c.def.desc, effect: '' };
+  return { icon: 'ability_' + c.id, sub: '被動', tag: r.tag, rarity: c.def.tier || 1, accent: r.accent, tagCol: r.accent, bg: TIERBG[c.def.tier || 1], desc: c.def.desc, effect: '' };
 }
