@@ -4,6 +4,7 @@ import { Talents, Facilities, Characters } from './content/registry.js';
 import { checkCharacterUnlocks, skinnedSprite } from './content/characters.js';
 import { checkAchievements, reconcileUnlocks } from './content/achievements.js';
 import { restockSkinShop } from './content/skinshop.js';
+import { AchievementToasts } from './toasts.js';
 import { Audio } from '../engine/audio.js';
 import { setShakeEnabled } from '../engine/renderer.js';
 import { applyKeybinds } from '../engine/input.js';
@@ -314,6 +315,7 @@ export function bankRun(run) {
   let newChars = [], newAch = [];
   try { newChars = checkCharacterUnlocks(META) || []; } catch (e) { /* ignore */ }
   try { newAch = checkAchievements(META) || []; } catch (e) { /* ignore */ }
+  try { for (const a of newAch) AchievementToasts.push(a && (a.name || a.title || a.id)); } catch (e) { /* ignore */ }   // round16/4.9-B: banner each unlock (shown in hub + run)
   try { restockSkinShop(META); } catch (e) { /* ignore */ }   // 5-6: fresh clothing-store stock next visit
   saveMeta();
   // upload the run to the shared leaderboard (best-effort; score recomputed server-side)
