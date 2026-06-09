@@ -183,8 +183,11 @@ export function glowWorld(wx, wy, r, color, alpha = 0.5) {
 // All UI uses device pixels. Use uiScale() to keep UI readable across DPI.
 // UI scale tuned so 1080p ≈ 2. Keeps panels/text a sensible size across resolutions.
 // 1.3: continuous UI scaling (was integer 1/2/3 steps, which caused jumpy reflow/跑版).
-// Design basis 960×600; clamp 0.85–2.5 so small screens fit and 4K isn't oversized.
-export function uiScale() { return Math.max(0.85, Math.min(2.5, Math.min(W / 960, H / 600))); }
+// Design basis ~1100×680 (less aggressive than 960×600, which made 1080p panels fill the
+// screen); times a user multiplier (設定 UI 大小); clamped so small screens fit + 4K isn't huge.
+let _uiScaleMul = 1;
+export function setUiScaleMul(m) { _uiScaleMul = Math.max(0.6, Math.min(1.5, m || 1)); }
+export function uiScale() { return Math.max(0.6, Math.min(2.6, Math.min(W / 1100, H / 680) * _uiScaleMul)); }
 
 export function ctxRaw() { return ctx; }
 

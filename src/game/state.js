@@ -6,7 +6,7 @@ import { checkAchievements, reconcileUnlocks } from './content/achievements.js';
 import { restockSkinShop } from './content/skinshop.js';
 import { AchievementToasts } from './toasts.js';
 import { Audio } from '../engine/audio.js';
-import { setShakeEnabled } from '../engine/renderer.js';
+import { setShakeEnabled, setUiScaleMul } from '../engine/renderer.js';
 import { applyKeybinds } from '../engine/input.js';
 import { Net, queueCloudSave, postRunResult } from '../net/api.js';   // cloud save + leaderboard (offline-first)
 
@@ -42,7 +42,7 @@ const DEFAULT_META = () => ({
   stats: { runs: 0, kills: 0, bestFloor: 0, bestStage: 0, bestScore: 0, bestTime: 0, bossKills: 0, reaperKills: 0, miniBossKills: 0, clears: 0, deaths: 0, totalGold: 0, playTime: 0, history: [],
     // round-5: extra lifetime stats for the expanded achievements (task 2)
     charClears: {}, noDmgClears: 0, bestCharLevel: 0, bondsTriggered: 0, forgeUpgrades: 0, npcTalks: 0, hiddenRoomsFound: 0 },
-  settings: { master: 0.9, sfx: 0.75, music: 0.5, shake: true, muted: false, keybinds: {} },
+  settings: { master: 0.9, sfx: 0.75, music: 0.5, shake: true, muted: false, keybinds: {}, uiScale: 1 },
   achievements: [],      // unlocked achievement ids
   questIndex: 0,         // current story-quest chapter
   levels: { unlocked: 1, diff: {} },   // # of biomes unlocked + highest cleared difficulty per biome
@@ -64,6 +64,7 @@ export function applySettings() {
   const s = META.settings || {};
   Audio.setVolumes({ master: s.master, sfx: s.sfx, music: s.music, muted: s.muted });
   setShakeEnabled(s.shake !== false);
+  setUiScaleMul(typeof s.uiScale === 'number' ? s.uiScale : 1);   // 設定 · UI 大小
   try { applyKeybinds(s.keybinds); } catch (e) { /* */ }
 }
 

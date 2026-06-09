@@ -27,6 +27,7 @@ export const settingsUI = {
       rows.push({ key: s[0], label: s[1], type: 'slider', x: x + pw * 0.34, y: y + 70 * S + i * 42 * S, w: pw * 0.5, h: 12 * S }));
     [['shake', '畫面震動'], ['muted', '靜音']].forEach((t, i) =>
       rows.push({ key: t[0], label: t[1], type: 'toggle', x: x + pw * 0.34, y: y + 70 * S + (3 + i) * 42 * S, w: 56 * S, h: 24 * S }));
+    rows.push({ key: 'uiScale', label: 'UI 大小', type: 'uiscale', x: x + pw * 0.34, y: y + 70 * S + 5 * 42 * S, w: pw * 0.5, h: 12 * S });   // 1080p UI 大小可調
     const bw = 220 * S, bx = x + pw / 2 - bw / 2;
     const keys = { x: bx, y: y + ph - 178 * S, w: bw, h: 30 * S };
     const home = (this.returnHub || this.returnTitle) ? { x: bx, y: y + ph - 142 * S, w: bw, h: 30 * S } : null;
@@ -63,8 +64,10 @@ export const settingsUI = {
 
     const L = this.layout();
     if (mouse.down) {
-      for (const r of L.rows) if (r.type === 'slider' && mx >= r.x - 10 && mx <= r.x + r.w + 10 && my >= r.y - 12 && my <= r.y + r.h + 12) {
-        META.settings[r.key] = Math.round(Math.max(0, Math.min(1, (mx - r.x) / r.w)) * 20) / 20; applySettings();
+      for (const r of L.rows) {
+        const hit = mx >= r.x - 10 && mx <= r.x + r.w + 10 && my >= r.y - 12 && my <= r.y + r.h + 12;
+        if (r.type === 'slider' && hit) { META.settings[r.key] = Math.round(Math.max(0, Math.min(1, (mx - r.x) / r.w)) * 20) / 20; applySettings(); }
+        else if (r.type === 'uiscale' && hit) { const t = Math.max(0, Math.min(1, (mx - r.x) / r.w)); META.settings.uiScale = Math.round((0.6 + t * 0.9) * 20) / 20; applySettings(); }   // 0.6–1.5×
       }
     }
     if (mouse.justDown) {
@@ -103,6 +106,11 @@ export const settingsUI = {
         uiBar(r.x, r.y, r.w, r.h, v, { fg: P.shardL, bg: '#16183a', border: P.ink, radius: 3 });
         uiRect(r.x + r.w * v - 4 * S, r.y - 4 * S, 8 * S, r.h + 8 * S, '#fff', { radius: 3 * S });
         uiText(Math.round(v * 100) + '%', r.x + r.w + 14 * S, r.y + r.h / 2 + 1 * S, { size: 12 * S, baseline: 'middle', color: P.gray3 });
+      } else if (r.type === 'uiscale') {
+        const sc = META.settings.uiScale ?? 1, t = Math.max(0, Math.min(1, (sc - 0.6) / 0.9));
+        uiBar(r.x, r.y, r.w, r.h, t, { fg: P.goldL, bg: '#16183a', border: P.ink, radius: 3 });
+        uiRect(r.x + r.w * t - 4 * S, r.y - 4 * S, 8 * S, r.h + 8 * S, '#fff', { radius: 3 * S });
+        uiText(Math.round(sc * 100) + '%', r.x + r.w + 14 * S, r.y + r.h / 2 + 1 * S, { size: 12 * S, baseline: 'middle', color: P.gray3 });
       } else {
         const on = !!META.settings[r.key]; const hov = inside(mx, my, r);
         uiRect(r.x, r.y, r.w, r.h, on ? P.greenD : '#2a2030', { radius: r.h / 2, stroke: hov ? P.gray3 : P.ink2, lw: 2 });
