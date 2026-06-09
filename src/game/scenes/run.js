@@ -1542,7 +1542,20 @@ export const runScene = {
       cell(bx, yL, getSprite(iconOr(inst.def.icon, 'weapon_w_soulbolt')), inst.def.evolved ? P.goldL : P.ink2, inst.def.evolved ? '★' : 'L' + inst.level, inst.def.evolved ? P.goldL : P.shardL);
       this.buildIcons.push({ x: bx, y: yL, w: sz, h: sz, kind: 'weapon', def: inst.def, level: inst.level });
     });
-    yL += sz + 18 * S;
+    yL += sz + 8 * S;
+    // 10.4: weapon evolution path hints — target weapon + required passive ✓/✗, highlight when ready
+    const evoList = this.player.weapons.filter((inst) => !inst.def.evolved && inst.def.evolveInto);
+    for (const inst of evoList) {
+      const evo = Weapons.get(inst.def.evolveInto), req = inst.def.evolveReq;
+      const hasReq = !req || (this.run.abilityLevels && this.run.abilityLevels[req] > 0);
+      const maxed = inst.level >= weaponMaxLevel(inst.def);
+      const reqName = req ? ((Abilities.get(req) && Abilities.get(req).name) || req) : null;
+      const ready = maxed && hasReq;
+      const txt = '↓ ' + inst.def.name + ' → ' + (evo ? evo.name : '???') + (reqName ? '（需 ' + reqName + ' ' + (hasReq ? '✓' : '✗') + '）' : '') + (ready ? '　★ 即將進化！' : (maxed ? '' : ' · 需滿級'));
+      uiText(txt, colL, yL, { size: 9.5 * S, color: ready ? P.goldL : (hasReq ? P.shardL : P.gray3), weight: ready ? '800' : '600' });
+      yL += 12 * S;
+    }
+    yL += 10 * S;
     const abils = this.run.abilities || [];
     head('被動', colL, yL, P.manaL, abils.length + ' / ' + MAX_PASSIVES, abils.length >= MAX_PASSIVES ? P.redL : P.gray3); yL += 14 * S;
     const perRow = 7;
