@@ -1226,6 +1226,12 @@ export const runScene = {
     const pxW = m.tw * TS, pxH = m.th * TS;
     const dot = (wx, wy, col, sz) => { const dx = mx + (wx / pxW) * mw, dy = my + (wy / pxH) * mh; uiRect(dx - sz / 2, dy - sz / 2, sz, sz, col, { radius: sz / 2 }); };
     this.plotMinimap(dot, S * 1.6);   // same markers as the small map, larger
+    // 4.13: player marker = character avatar (頭貼) — pulsing gold ring so it stands out
+    const psp = getSprite(this.run.characterSprite || 'player');
+    const pdx = mx + (this.player.x / pxW) * mw, pdy = my + (this.player.y / pxH) * mh;
+    const asz = 24 * S, asc = (asz - 4 * S) / psp.w, pz = Math.sin(this.t * 5) * 0.5 + 0.5;
+    uiRect(pdx - asz / 2, pdy - asz / 2, asz, asz, withAlpha('#10121f', 0.9), { radius: asz / 2, stroke: withAlpha(P.goldL, 0.6 + 0.4 * pz), lw: 2 });
+    drawSpriteUI(psp.frames[0], pdx - psp.w * asc / 2, pdy - psp.h * asc / 2, asc);
     uiText('放大地圖　·　M 關閉', view.W / 2, my - 12 * S, { size: 12 * S, align: 'center', color: withAlpha(P.shardL, 0.85), weight: '700' });
   },
 

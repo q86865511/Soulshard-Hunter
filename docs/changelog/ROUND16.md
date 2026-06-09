@@ -237,3 +237,11 @@
 - **2.1 對話框主角頭像（右側）**：`hub.js drawDialogue` 右側鏡像新增主角頭像框（隨動畫換幀）＋英雄名；對話文字寬度縮減一個頭像欄寬，避免文字跑到頭像下。
 - **4.19 三選一面板可按 TAB 查看 build**：`run.js` 選強化時按 TAB 切換 `peekBuild`，疊出唯讀 build 面板（含 hover tooltip）＋「TAB 返回選擇強化」提示；peek 時忽略卡片輸入；選完／開新選擇時重置。選擇副標加「· TAB 查看 build」。
 - 驗證：reload 後 boot/console 零錯誤；choice peek build 與含主角頭像的對話框（page 1 顯示上一頁鈕）渲染零錯誤。
+
+---
+
+## 批次 B-misc4 — 大地圖玩家頭貼（4.13）＋ 局內標點（3.7 等）
+
+- **4.13 大地圖（M）玩家標示醒目化**：`run.js drawBigMinimap` 在標記層之上，於玩家位置疊出角色頭貼（`run.characterSprite`）＋脈動金圈，取代不顯眼的小方點。
+- **3.7／3.2／8.2-D 標點**：教堂天賦副標、個人小屋頁尾、羈絆圖鑑說明的半形逗號改全形。
+- 驗證：reload 後 boot/console 零錯誤；大地圖（含頭貼）渲染零錯誤。

@@ -758,7 +758,7 @@ export const hubScene = {
   },
 
   drawTalents() {
-    const f = this.drawPanelFrame('教 堂 · 天 賦', '向女神像祈求,以金幣永久強化');
+    const f = this.drawPanelFrame('教 堂 · 天 賦', '向女神像祈求，以金幣永久強化');
     const S = f.S;
     const cols = TALENT_BRANCHES.length; const colW = f.w / cols;
     TALENT_BRANCHES.forEach((br, ci) => { uiText(br.name, f.x + ci * colW + colW / 2, f.y + 72 * S, { size: 15 * S, align: 'center', color: br.color, weight: '800' }); });
@@ -1074,7 +1074,7 @@ export const hubScene = {
       const x = sx + c * (sw / 3), y = f.y + 96 * S + 6 * 26 * S + 30 * S + r * 24 * S;
       uiText(cc[0] + ' ' + cc[1] + (cc[2] ? '/' + cc[2] : ''), x, y, { size: 11 * S, color: P.gray4, weight: '700' });
     });
-    uiText('在此休憩,凝視你一路走來的足跡。　·　Esc 關閉', f.x + f.w / 2, f.y + f.h - 14 * S, { size: 11 * S, align: 'center', color: P.gray3 });
+    uiText('在此休憩，凝視你一路走來的足跡。　·　Esc 關閉', f.x + f.w / 2, f.y + f.h - 14 * S, { size: 11 * S, align: 'center', color: P.gray3 });
   },
 
   // 8.2-D 羈絆圖鑑：列出全部羈絆＋每階需求與效果；曾達成過的(META.bondsSeen)標亮供事前規劃。
@@ -1082,7 +1082,7 @@ export const hubScene = {
     const S = f.S; const seen = new Set(META.bondsSeen || []);
     const left = f.x + 22 * S, right = f.x + f.w - 22 * S, colW = right - left;
     const topY = f.y + 60 * S;
-    uiText('共 ' + BONDS.length + ' 種羈絆　·　湊齊特定武器／被動組合即可逐階啟動,效果持續整場探索', left, topY, { size: 11 * S, color: P.gray3, weight: '600' });
+    uiText('共 ' + BONDS.length + ' 種羈絆　·　湊齊特定武器／被動組合即可逐階啟動，效果持續整場探索', left, topY, { size: 11 * S, color: P.gray3, weight: '600' });
     const seenCount = BONDS.filter((b) => seen.has(b.id)).length;
     uiText('已解鎖 ' + seenCount + ' / ' + BONDS.length, right, topY, { size: 11 * S, align: 'right', color: P.goldL, weight: '800' });
     const viewTop = topY + 16 * S, viewBot = f.y + f.h - 16 * S, viewH = viewBot - viewTop;
