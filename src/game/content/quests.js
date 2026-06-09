@@ -112,13 +112,17 @@ function oneState(meta, id) {
   const st = bountyState(meta, q);
   return { id, title: q.title, sub: q.desc, prog: st.prog, goal: st.goal, frac: q.goal ? st.prog / q.goal : 1, fmt: q.fmt, done: st.done };
 }
-// every tracked quest's state (HUD draws one row each). Prunes stale ids in place.
+// every tracked quest's state (HUD draws one row each). READ-ONLY — claimed/unknown ids are
+// skipped for display but NOT spliced here (this runs from draw code; mutating persisted state
+// from a draw frame can't be saved reliably). Stale ids are dropped at load (loadMeta) and
+// claimed ids are removed by claimQuest, so the array never grows or lingers in normal play.
 export function trackedQuestStates(meta) {
-  const arr = ensureTracked(meta);
   const out = [];
-  for (let i = 0; i < arr.length; i++) { const s = oneState(meta, arr[i]); if (s) out.push(s); else { arr.splice(i, 1); i--; } }
+  for (const id of ensureTracked(meta)) { const s = oneState(meta, id); if (s) out.push(s); }
   return out;
 }
+// load-time validity check for a tracked id (state.js prunes corrupted/removed ids on load).
+export function isValidTrackId(id) { return id === 'story' || allBounties().some((q) => q.id === id); }
 // backward-compatible singular: the FIRST tracked quest (or null). Used by small summaries.
 export function trackedQuestState(meta) { return trackedQuestStates(meta)[0] || null; }
 export function fmtQuestVal(v, fmt) { return fmt === 'time' ? Math.floor(v / 60) + ':' + String(Math.floor(v % 60)).padStart(2, '0') : String(Math.floor(v)); }

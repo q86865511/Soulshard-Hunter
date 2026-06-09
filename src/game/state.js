@@ -4,6 +4,7 @@ import { Talents, Facilities, Characters } from './content/registry.js';
 import { checkCharacterUnlocks, skinnedSprite } from './content/characters.js';
 import { checkAchievements, reconcileUnlocks } from './content/achievements.js';
 import { restockSkinShop } from './content/skinshop.js';
+import { MAX_TRACKED, isValidTrackId } from './content/quests.js';   // 5.2: single source of truth for the track cap + id validation
 import { AchievementToasts } from './toasts.js';
 import { Audio } from '../engine/audio.js';
 import { setShakeEnabled, setUiScaleMul } from '../engine/renderer.js';
@@ -95,9 +96,9 @@ export function loadMeta(slot) {
       for (const k of ['abilities','equipment','weapons','characters','items']) if (!Array.isArray(META.unlocked[k])) META.unlocked[k] = DEFAULT_META().unlocked[k];
       if (!META.skins || typeof META.skins !== 'object') META.skins = {};
       if (!Array.isArray(META.ownedSkins)) META.ownedSkins = [];
-      // 5.2: migrate single trackedQuest → trackedQuests array (cap 3); keep only string ids
+      // 5.2: migrate single trackedQuest → trackedQuests array; drop invalid/removed ids, cap at MAX_TRACKED
       if (!Array.isArray(META.trackedQuests)) META.trackedQuests = [typeof META.trackedQuest === 'string' ? META.trackedQuest : 'story'];
-      META.trackedQuests = META.trackedQuests.filter((x) => typeof x === 'string').slice(0, 3);
+      META.trackedQuests = META.trackedQuests.filter((x) => typeof x === 'string' && isValidTrackId(x)).slice(0, MAX_TRACKED);
       if (!META.trackedQuests.length) META.trackedQuests = ['story'];
       delete META.trackedQuest;
       if (!META.questClaims || typeof META.questClaims !== 'object') META.questClaims = {};
