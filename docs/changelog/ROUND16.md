@@ -44,3 +44,11 @@
 ### 驗證
 - 單元（`preview_eval` 直接驅動模組）：`getRunChoices` 在 `evolvedWeaponIds` 含 `w_soulbolt` 時不提供該武器；`Pickup.update` 下遠距金幣（pickupRange 200、d=150）向玩家移動（150→100）且無方向翻轉（排斥已消除）。
 - 整合：`__DBG.startRun()` 連跑 3600 幀（60s）零錯誤（`__GAME_ERROR__` null）、33 擊殺、地面掉落物正常流動、玩家存活——`dropLoot`（含新 gear mult）與磁鐵在真實跑局中運作正常。
+
+---
+
+## 批次 B10a — 死神（第十章 10.3 / 10.9）
+
+- **10.3 死神移速大幅加強**：`content/enemies.js` reaper `speed 56 → 104`（接近玩家移速，charger 衝刺再加成）——靜止或慢速無法擺脫。
+- **10.9 死神出現誤觸 Game Over（BUG）**：`clearLevel()` 給玩家 `invuln = BALANCE.REAPER_GRACE (0.6)` 緩衝，避免 Boss 死亡爆炸／殘留 AoE 在「通關→死神」過渡幀誤殺玩家而跳結束畫面；通關以布林 `this.cleared`/`this.run.cleared`、死神以 `this.reaperSpawned` 表示（不動整數 `run.stage`）。（完整流場尋路 10.7/10.8 屬另一批 B10b。）
+- 驗證：`spawnReaper()` 產生的死神 `speed === 104`；`clearLevel()` 後 `player.invuln === 0.6`、`cleared`/`run.cleared` 為 true、`reaperSpawned` 為 true；零錯誤。

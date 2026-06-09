@@ -489,6 +489,7 @@ export const runScene = {
     this.run.gold += 220 + (this.run.difficulty || 1) * 160 + this.threat * 18;
     saveMeta();   // persist the unlock at once, so leaving/dying after this keeps it
     this.reaperAt = this.run.time + BALANCE.REAPER_DELAY;
+    if (this.player) this.player.invuln = Math.max(this.player.invuln || 0, BALANCE.REAPER_GRACE);   // 10.9: brief grace so a boss death-blast / lingering AoE can't false-trigger game over right as you win
     this.banner = '關卡通關！死神將在 ' + BALANCE.REAPER_DELAY + ' 秒後降臨 — 按 E 離場，或留下迎戰'; this.bannerT = 5.0;
     this.world.addPickup('heart', this.player.x, this.player.y, 60);
     addShake(8); Sfx.play('levelup'); Music.setMode('run');
