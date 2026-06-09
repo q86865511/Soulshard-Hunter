@@ -84,6 +84,11 @@ E({
 // (before/after) when an item is equipped or considered for swap.
 export const DELTA_FIELDS = ['maxHp', 'damageMult', 'fireRateMult', 'critChance', 'critMult', 'speed', 'defense', 'dodge', 'lifesteal', 'projCountAdd', 'pierceAdd', 'area', 'projSpeedMult', 'pickupRange', 'luck', 'hpRegen', 'goldMult', 'xpMult', 'knockbackMult', 'armorMult'];
 export function statSnapshot(stats) { const o = {}; for (const f of DELTA_FIELDS) o[f] = stats[f] || 0; return o; }
+// Fields equipment modifies MULTIPLICATIVELY (`*=`, base ≠ 0). For these the swap-revert must
+// DIVIDE (not subtract) so an item's contribution unwinds exactly even after other systems
+// (bonds, level-ups) multiplied the same field in between — otherwise the multiplier compounds
+// and a swapped-out item's effect "lingers". The rest are additive (`+=`) → revert by subtract.
+export const MULT_FIELDS = new Set(['damageMult', 'fireRateMult', 'projSpeedMult', 'area', 'goldMult', 'xpMult', 'knockbackMult', 'speed', 'pickupRange']);
 export function statDelta(before, after) { const d = {}; for (const f of DELTA_FIELDS) { const dv = (after[f] || 0) - (before[f] || 0); if (Math.abs(dv) > 1e-9) d[f] = dv; } return d; }
 
 // ---- apply helper ----------------------------------------------------------
@@ -101,18 +106,29 @@ export function equipItem(player, run, def, recordRun = true) {
     }
   } else {
     const slot = def.slot;
-    // 4.17 BUG fix: swapping armor/trinket previously LEFT the old item's stat bonus
-    // permanently applied (only the new item's apply() ran), so each swap stacked stale
-    // effects. Revert the slot's recorded contribution BEFORE applying the new item.
-    // (Local/authoritative player only — co-op remotes pass recordRun=false and the slot
-    // delta in run.equipDelta belongs to the host's shared run, so we must not touch it.)
-    if (run && recordRun && run.equipDelta && run.equipDelta[slot]) {
-      const old = run.equipDelta[slot];
-      for (const k in old) player.stats[k] = (player.stats[k] || 0) - old[k];
+    // 4.17 / 9.4 BUG fix: swapping armor/trinket must FULLY unwind the OLD item's contribution
+    // before applying the new one, else multiplicative bonuses (e.g. damageMult *= 1.2) linger and
+    // compound on every swap. We record each item's per-field contribution on the player (works for
+    // co-op remotes too) split into MULTIPLICATIVE ratios (revert by ÷, exact even after other
+    // systems multiplied the field) and ADDITIVE deltas (revert by −). Stored on player._equipMods.
+    player._equipMods = player._equipMods || {};
+    const oldMods = player._equipMods[slot];
+    if (oldMods) {
+      for (const k in oldMods.mul) { if (oldMods.mul[k]) player.stats[k] = (player.stats[k] || 0) / oldMods.mul[k]; }
+      for (const k in oldMods.add) player.stats[k] = (player.stats[k] || 0) - oldMods.add[k];
     }
     const before = statSnapshot(player.stats);                              // 原#1: record this slot's contribution
     try { def.apply?.(player); } catch (e) { console.warn('equip apply failed', def.id, e); }
+    const after = statSnapshot(player.stats);
+    const mods = { mul: {}, add: {} };
+    for (const k of DELTA_FIELDS) {
+      const b = before[k], a = after[k];
+      if (Math.abs(a - b) < 1e-9) continue;
+      if (MULT_FIELDS.has(k) && Math.abs(b) > 1e-9) mods.mul[k] = a / b;   // multiplicative → ratio
+      else mods.add[k] = a - b;                                            // additive → delta
+    }
+    player._equipMods[slot] = mods;
     if (player.hp > player.stats.maxHp) player.hp = player.stats.maxHp;      // clamp after a maxHp-reducing swap
-    if (run && recordRun) { run.equipment[slot] = def.id; run.equipDelta = run.equipDelta || {}; run.equipDelta[slot] = statDelta(before, statSnapshot(player.stats)); }
+    if (run && recordRun) { run.equipment[slot] = def.id; run.equipDelta = run.equipDelta || {}; run.equipDelta[slot] = statDelta(before, after); }   // additive delta kept for the equip-diff UI
   }
 }

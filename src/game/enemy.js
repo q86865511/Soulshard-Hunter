@@ -26,6 +26,7 @@ export class Enemy {
     this.speed = (def.speed ?? 30) * (opts.speedScale ?? 1) * (this.elite ? 0.85 : 1);
     this.damage = (def.damage ?? 8) * dmgScale * gDmg;
     this.radius = def.radius ?? 6;
+    this.phaseWalls = true;   // 10.8: enemies (incl. bosses) pass through walls → never get stuck on map geometry
     this.sprite = def.sprite;
     this.ai = def.ai ?? 'chase';
     this.tint = def.tint ?? (this.elite ? P.gold : null);
@@ -179,7 +180,7 @@ export class Enemy {
     // obstacle avoidance / lightweight pathing (F1): when a wall lies ahead, pick the
     // SMALLEST course change that clears both a near and a farther probe (so the enemy
     // doesn't immediately re-collide). If fully boxed in, slide along the wall tangent.
-    if (this.spawnT <= 0 && !this.charging && (mx !== 0 || my !== 0)) {
+    if (this.spawnT <= 0 && !this.charging && !this.phaseWalls && (mx !== 0 || my !== 0)) {   // 10.8: phasing enemies skip obstacle-avoidance (they go straight through)
       const probe = this.radius + 11;
       if (world.solidAt(this.x + mx * probe, this.y + my * probe)) {
         const baseA = Math.atan2(my, mx);

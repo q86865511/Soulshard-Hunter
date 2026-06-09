@@ -103,6 +103,13 @@ export class World {
   // axis-separated AABB vs solid tiles. e treated as a box of half-size = radius.
   moveActor(e, dx, dy) {
     const r = e.radius;
+    // 10.8: wall-phasing actors (enemies/bosses) ignore solid tiles entirely — they beeline to
+    // the player and never get stuck on walls. Still clamped inside the map so they can't fly off.
+    if (e.phaseWalls) {
+      e.x = Math.max(r, Math.min(this.pxW - r, e.x + dx));
+      e.y = Math.max(r, Math.min(this.pxH - r, e.y + dy));
+      return;
+    }
     // X
     e.x += dx;
     if (dx !== 0) {
