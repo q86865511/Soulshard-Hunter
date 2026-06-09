@@ -116,3 +116,11 @@
 - **排行榜**：`bankRun()` 對 `mode==='endless'` 的局**不上傳**標準排行榜（與劇情難度一致；專屬波次榜為後續伺服器工作）。
 - 驗證：`newRun({mode:'endless'}).mode==='endless'`；endless 局 time=181 → `finalTick` 生第 1 波首領（`endlessWave===1`、`boss===true`）；time=1300（過 20 分）仍 `cleared===false`、`finalBoss===false`（永不通關/出死神）；HUD 與出擊面板（含 chip + 說明）`/__shot` 渲染零錯誤。
 - （MVP 範圍：結算畫面沿用標準死亡頁，未特別顯示「波次 N」字樣——列為小幅後續。）
+
+---
+
+## 批次 B13a — 金幣獲取 nerf（第九章 9.1）
+
+- **9.1 金幣太好賺**：`balance.js` `GOLD_DROP_MULT 0.5 → 0.35`（每殺金幣 −30%）；新增 `GOLD_MULT_CAP 3.0`，於 `world.js dropLoot()` 將 `goldMult` clamp 到上限（`Math.min(goldMult, GOLD_MULT_CAP)`），堆疊金幣 build 不再失控。
+- 驗證：sim 設 `goldMult=10` 時，掉落金幣 ≈ 封頂值（×3.0×0.35），非未封頂（×10×0.35）——確認 clamp 生效；跑局零錯誤。
+- （經濟另半部：9.2 城鎮消費調漲、9.3 動態定價、9.4 加法堆疊管線＝後續 B13 子批，需整體 sim 調校。）

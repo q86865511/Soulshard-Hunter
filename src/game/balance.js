@@ -50,7 +50,8 @@ export const BALANCE = {
   ENEMY_SPEEDUP_CAP: 0.6,                    // ...capped at +60%
 
   // ---- loot / economy (D1 / 原#6, C3 / 原#21) ---------------------------
-  GOLD_DROP_MULT: 0.5,                        // gold per kill (was 0.62)
+  GOLD_DROP_MULT: 0.35,                       // round16/9.1: gold per kill nerf (太好賺) — 0.5 → 0.35
+  GOLD_MULT_CAP: 3.0,                          // round16/9.1: hard ceiling on the goldMult stat so stacked gold builds can't run away
   DROP_CHANCE_MULT: 0.6,                      // equip/item/heart drop chance off mobs
   GEAR_DROP_MULT: 0.7,                        // round16/10.5: extra cut on MOB equipment drops only (boss gear unchanged) — fewer mid-combat equip-choice interrupts
   // round16/6.5 劇情難度 (difficulty 0): enemies very weak, loot generous, almost unloseable; excluded from the leaderboard.
