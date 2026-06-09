@@ -320,6 +320,21 @@ defineAnim('xp', 6, 6, 3, (p, f) => {
   p.px(2, 2, lighten(c, 0.3));
 }, { anchor: [3, 3], fps: 8 });
 
+// round16/UI-fix #5 — a small bare skull for the top-right 擊殺 (kills) counter, sized to sit
+// in the same icon column as the coin / shard counters. Bare (no panel) so it matches them.
+defineAnim('skull_kill', 9, 9, 2, (p, f) => {
+  p.glow(4, 4, 4, P.redL, 0.22, 3);
+  p.ellipse(4, 4, 3.4, 3, P.bone);                    // cranium
+  p.ellipse(4, 3, 3, 2.3, lighten(P.bone, 0.18));     // lit top
+  p.rect(2, 6, 5, 2, P.bone);                          // jaw
+  p.ellipse(2.7, 4.3, 1.2, 1.3, P.ink);               // L eye socket
+  p.ellipse(5.3, 4.3, 1.2, 1.3, P.ink);               // R eye socket
+  if (f === 0) { p.px(2.4, 4, P.redL); p.px(5, 4, P.redL); }   // faint ember glint in sockets
+  p.px(4, 5.5, P.ink);                                 // nose
+  p.vline(3, 6, 8, withAlpha(P.ink, 0.55)); p.vline(5, 6, 8, withAlpha(P.ink, 0.55));   // teeth gaps
+  p.outline(P.ink);
+}, { anchor: [4, 8], fps: 2 });
+
 defineSprite('chest', 16, 14, (p) => {
   p.softShadow(8, 13, 6.5, 1.2, 0.3);
   // body — graded wood with grain

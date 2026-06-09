@@ -24,7 +24,7 @@ import { Cheats } from '../cheats.js';
 import {
   camera, clear, vignette, uiText, uiRect, uiScale, view, addShake, drawSpriteUI, textWidth,
   drawSprite, drawShadow, glowWorld, worldToScreen, fillRectWorld, uiBar, setShakeScale,
-  fillCircleWorld, strokeCircleWorld, goldStr, ctxRaw,
+  fillCircleWorld, strokeCircleWorld, goldStr, ctxRaw, uiClipRound,
 } from '../../engine/renderer.js';
 import { drawHud, drawLowHpWarning, hudIcons, drawAchievementToasts } from '../hud.js';
 import { pressed, mouse } from '../../engine/input.js';
@@ -409,7 +409,7 @@ export const runScene = {
     rects.forEach((r, i) => {
       const ev = this.eventChoice[i]; const hov = inside(mx, my, r); const oy = hov ? -8 * S : 0;
       uiRect(r.x, r.y + oy, r.w, r.h, withAlpha('#241a3a', 0.98), { radius: 9 * S, stroke: hov ? P.goldL : withAlpha(P.goldL, 0.5), lw: hov ? 3 : 2 });
-      uiRect(r.x, r.y + oy, r.w, 5 * S, P.goldL, { radius: 2 * S });
+      uiClipRound(r.x, r.y + oy, r.w, r.h, 9 * S, () => uiRect(r.x, r.y + oy, r.w, 5 * S, P.goldL));   // #7: accent clipped to rounded corners
       // 原#14: character portrait
       const psz = 46 * S; const sp = getSprite(iconOr(ev.icon, 'ability_power'));
       uiRect(r.x + r.w / 2 - psz / 2 - 3 * S, r.y + oy + 16 * S, psz + 6 * S, psz + 6 * S, withAlpha('#10121f', 0.7), { radius: 8 * S, stroke: withAlpha(P.goldL, 0.5), lw: 1.5 });
@@ -1092,7 +1092,7 @@ export const runScene = {
     rects.forEach((r, i) => {
       const c = cp.options[i]; const st = choiceStyle(c); const hover = cp.hover === i; const oy = hover ? -6 * S : 0;
       uiRect(r.x, r.y + oy, r.w, r.h, withAlpha(st.bg, 0.96), { radius: 8 * S, stroke: hover ? st.accent : withAlpha(st.accent, 0.5), lw: hover ? 3 : 2 });
-      uiRect(r.x, r.y + oy, r.w, 4 * S, st.accent, { radius: 2 * S });
+      uiClipRound(r.x, r.y + oy, r.w, r.h, 8 * S, () => uiRect(r.x, r.y + oy, r.w, 4 * S, st.accent));   // #7: accent clipped to rounded corners
       const sp = getSprite(iconOr(st.icon, c.kind === 'ability' ? 'ability_power' : 'weapon_w_soulbolt')); const isc = (r.w * 0.36) / sp.w;
       drawSpriteUI(sp.frames[0], r.x + r.w / 2 - sp.w * isc / 2, r.y + oy + 12 * S, isc);
       const midY = r.y + oy + 14 * S + sp.h * isc;
@@ -1152,7 +1152,7 @@ export const runScene = {
     const mw = 144 * S, mh = mw * m.th / m.tw;
     const mx = 12 * S, my = 72 * S;   // below the (taller) vitals panel — was 66, which overlapped it
     uiRect(mx - 4, my - 4, mw + 8, mh + 8, withAlpha('#0b0d1a', 0.72), { radius: 6 * S, stroke: P.shardL, lw: 2 });
-    uiRect(mx - 4, my - 4, mw + 8, 3 * S, withAlpha(P.shardL, 0.5), { radius: 2 * S });
+    uiClipRound(mx - 4, my - 4, mw + 8, mh + 8, 6 * S, () => uiRect(mx - 4, my - 4, mw + 8, 3 * S, withAlpha(P.shardL, 0.5)));   // #7
     drawSpriteUI(this.minimap, mx, my, mw / m.tw);
     const pxW = m.tw * TS, pxH = m.th * TS;
     const dot = (wx, wy, col, sz) => { const dx = mx + (wx / pxW) * mw, dy = my + (wy / pxH) * mh; uiRect(dx - sz / 2, dy - sz / 2, sz, sz, col, { radius: sz / 2 }); };
@@ -1181,17 +1181,48 @@ export const runScene = {
     const ns = worldToScreen(this.player.x, this.player.y - r - 8);
     uiText('拾取範圍 ' + Math.round(r), ns.x, ns.y, { size: 11 * uiScale(), align: 'center', color: P.shardL, weight: '800', shadowColor: withAlpha('#000', 0.8) });
   },
-  // 4.2: persistent recent-pickup log (bottom-right) — items auto-use on pickup, so this
-  // is the only record of what you grabbed. Latest at the bottom, brightest.
+  // 4.2 + R16 #6: persistent recent-pickup log (bottom-right) shown as ICON chips (latest at the
+  // bottom, brightest). Hover a chip → tooltip with its effect; a chip whose timed buff is still
+  // active shows the remaining seconds + a draining progress bar. Hit-rects go to hudIcons so the
+  // generic hover loop (drawInfo) picks them up.
   drawPickupLog() {
     const log = this.run.pickupLog;
     if (!log || !log.length || this.dead || this.choice || this.equipChoice || this.shopOpen || this.bigMap || this.showBuild || this.paused) return;
-    const S = uiScale(), shown = log.slice(-5), x = view.W - 12 * S, y0 = view.H - 54 * S;
-    uiText('近期拾取', x, y0 - shown.length * 14 * S - 3 * S, { size: 9 * S, align: 'right', color: P.gray3, weight: '700', shadowColor: withAlpha('#000', 0.8) });
+    const S = uiScale(), shown = log.slice(-6);
+    const sz = 26 * S, gap = 5 * S, x = view.W - 12 * S - sz, y0 = view.H - 70 * S;
+    uiText('近期拾取', x + sz, y0 - shown.length * (sz + gap) - 4 * S, { size: 9 * S, align: 'right', color: P.gray3, weight: '700', shadowColor: withAlpha('#000', 0.8) });
     shown.forEach((e, i) => {
-      const a = 0.4 + 0.6 * ((i + 1) / shown.length);
-      uiText('· ' + e.text, x, y0 - (shown.length - 1 - i) * 14 * S, { size: 10.5 * S, align: 'right', color: withAlpha(e.color, a), weight: '700', shadowColor: withAlpha('#000', 0.8) });
+      const idx = shown.length - 1 - i;                 // 0 = latest (sits at the bottom)
+      const y = y0 - idx * (sz + gap);
+      const a = 0.5 + 0.5 * ((i + 1) / shown.length);
+      const active = !!(e.buff && this.player.timedBuffs.includes(e.buff) && e.buff.t > 0);
+      const accent = active ? (e.buff.color || P.shardL) : (e.color || P.shardL);
+      uiRect(x, y, sz, sz, withAlpha('#10121f', active ? 0.94 : 0.55 + 0.3 * a), { radius: 5 * S, stroke: withAlpha(accent, active ? 1 : 0.55 * a + 0.2), lw: active ? 2 : 1.5 });
+      if (e.icon) { const sp = getSprite(iconOr(e.icon, 'shard')); drawSpriteUI(sp.frames[0], x + 3 * S, y + 3 * S, (sz - 6 * S) / sp.w, { alpha: active ? 1 : a }); }
+      else uiText(e.emoji || '·', x + sz / 2, y + sz / 2 + 1 * S, { size: 14 * S, align: 'center', baseline: 'middle', color: withAlpha(accent, a) });
+      if (active) {                                     // remaining-seconds badge + draining bar
+        const frac = Math.max(0, Math.min(1, e.buff.t / (e.buff.dur || e.buff.t)));
+        uiRect(x + 2 * S, y + sz - 4 * S, (sz - 4 * S) * frac, 2.5 * S, withAlpha(accent, 0.9), { radius: 1.2 * S });
+        uiText(Math.ceil(e.buff.t) + 's', x + sz - 2 * S, y + 10 * S, { size: 9 * S, align: 'right', baseline: 'middle', color: accent, weight: '900', shadowColor: withAlpha('#000', 0.85) });
+      }
+      hudIcons.push({ x, y, w: sz, h: sz, kind: 'pickup', entry: e, active, rem: active ? Math.ceil(e.buff.t) : 0 });
     });
+  },
+  // R16 #6: hover tooltip for a recent-pickup chip — name + effect text (+ remaining seconds).
+  drawPickupTooltip(ic, mx, my, S) {
+    const e = ic.entry; const W = 198 * S;
+    const lines = []; let line = '';
+    for (const ch of (e.desc || '')) { if (textWidth(line + ch, 10.5 * S, '500') > W - 16 * S && line) { lines.push(line); line = ch; } else line += ch; }
+    if (line) lines.push(line);
+    const H = (28 + lines.length * 13 + (ic.active ? 14 : 0)) * S;
+    let x = mx + 14 * S, y = my - H - 8 * S;
+    if (x + W > view.W) x = view.W - W - 6 * S;
+    if (y < 6 * S) y = my + 16 * S;
+    const accent = (ic.active && e.buff) ? (e.buff.color || P.shardL) : (e.color || P.shardL);
+    uiRect(x, y, W, H, withAlpha('#10121f', 0.97), { radius: 6 * S, stroke: accent, lw: 2 });
+    uiText((e.emoji ? e.emoji + ' ' : '') + (e.name || e.text || '拾取'), x + 8 * S, y + 17 * S, { size: 12 * S, color: '#fff', weight: '800' });
+    lines.forEach((l, i) => uiText(l, x + 8 * S, y + 31 * S + i * 13 * S, { size: 10.5 * S, color: P.gray4, weight: '500' }));
+    if (ic.active) uiText('剩餘 ' + ic.rem + ' 秒', x + 8 * S, y + 31 * S + lines.length * 13 * S, { size: 10.5 * S, color: accent, weight: '800' });
   },
   // 4.22: held vault keys (dropped by 守護怪, spent on locked vault chests).
   drawKeyHud() {
@@ -1408,7 +1439,7 @@ export const runScene = {
     const w = Math.min(view.W * 0.82, 560 * S), h = Math.min(view.H * 0.62, 350 * S);
     const x = (view.W - w) / 2, y = (view.H - h) / 2;
     uiRect(x, y, w, h, withAlpha('#12152a', 0.98), { radius: 12 * S, stroke: room.color || P.goldL, lw: 2.5 });
-    uiRect(x, y, w, 6 * S, withAlpha(room.color || P.goldL, 0.7), { radius: 3 * S });
+    uiClipRound(x, y, w, h, 12 * S, () => uiRect(x, y, w, 6 * S, withAlpha(room.color || P.goldL, 0.7)));   // #7
     uiText('✦ 隱藏房間 ✦', view.W / 2, y + 26 * S, { size: 12 * S, align: 'center', color: withAlpha(room.color || P.goldL, 0.85), weight: '800' });
     uiText(room.name, view.W / 2, y + 56 * S, { size: 26 * S, align: 'center', color: room.color || P.goldL, weight: '900', shadowColor: withAlpha('#000', 0.8) });
     this.wrapText(room.desc || '', view.W / 2, y + 86 * S, w - 60 * S, 13 * S, P.gray3);
@@ -1679,10 +1710,11 @@ export const runScene = {
     if (x + W > view.W) x = view.W - W - 6 * S;
     if (y + H > view.H) y = view.H - H - 6 * S;
     uiRect(x, y, W, H, withAlpha('#10121f', 0.97), { radius: 6 * S, stroke: achieved ? P.goldL : P.shardL, lw: 2 });
+    const tagCY = y + 8 * S + 9 * S;   // #8: vertical centre of the 18×18 tag box — name & tier align to it
     uiRect(x + 8 * S, y + 8 * S, 18 * S, 18 * S, withAlpha(achieved ? P.gold : '#2a2f4a', 0.95), { radius: 4 * S });
-    uiText(b.tag, x + 17 * S, y + 17 * S, { size: 11 * S, align: 'center', baseline: 'middle', color: achieved ? '#1a1404' : P.gray3, weight: '900' });
-    uiText(b.name, x + 32 * S, y + 18 * S, { size: 13 * S, color: '#fff', weight: '800' });
-    uiText('第 ' + pg.level + ' / ' + pg.max + ' 階', x + W - 8 * S, y + 18 * S, { size: 10 * S, align: 'right', color: achieved ? P.goldL : P.gray3, weight: '700' });
+    uiText(b.tag, x + 17 * S, tagCY, { size: 11 * S, align: 'center', baseline: 'middle', color: achieved ? '#1a1404' : P.gray3, weight: '900' });
+    uiText(b.name, x + 32 * S, tagCY, { size: 13 * S, baseline: 'middle', color: '#fff', weight: '800' });
+    uiText('第 ' + pg.level + ' / ' + pg.max + ' 階', x + W - 8 * S, tagCY, { size: 10 * S, align: 'right', baseline: 'middle', color: achieved ? P.goldL : P.gray3, weight: '700' });
     uiText('需求：' + b.goal, x + 8 * S, y + 36 * S, { size: 10 * S, color: P.gray3, weight: '600' });
     b.tiers.forEach((t, k) => {
       const reached = pg.level >= k + 1, ty = y + 50 * S + k * 14 * S;
@@ -1692,6 +1724,7 @@ export const runScene = {
   },
   drawTooltip(ic, mx, my, S) {
     if (ic.kind === 'bond') return this.drawBondTooltip(ic, mx, my, S);
+    if (ic.kind === 'pickup') return this.drawPickupTooltip(ic, mx, my, S);
     const def = ic.def; if (!def) return;
     const accent = ic.kind === 'weapon' ? P.shardL : ic.kind === 'ability' ? (def.cursed ? P.redL : P.manaL) : ic.kind === 'equip' ? P.goldL : P.emberL;
     const sub = ic.kind === 'weapon' ? (def.evolved ? '★ 進化武器' : '武器 Lv.' + ic.level)
@@ -2054,7 +2087,7 @@ export const runScene = {
       const oy = hover ? -8 * S : 0;
       const stroke = hover ? st.accent : (hints.length ? withAlpha(P.goldL, 0.85) : P.ink2);
       uiRect(r.x, r.y + oy, r.w, r.h, withAlpha(st.bg, 0.97), { radius: 9 * S, stroke, lw: hover ? 3 : (hints.length ? 2.5 : 2) });
-      uiRect(r.x, r.y + oy, r.w, 5 * S, st.accent, { radius: 2 * S });   // rarity bar (always)
+      uiClipRound(r.x, r.y + oy, r.w, r.h, 9 * S, () => uiRect(r.x, r.y + oy, r.w, 5 * S, st.accent));   // #7: rarity bar clipped to the card's rounded corners
       const tc = st.tagCol || st.accent;                                 // rarity pill uses the RARITY colour (普通灰/稀有紫/史詩金)
       const pw = textWidth(st.tag, 10 * S, '800') + 14 * S;              // rarity pill
       uiRect(r.x + r.w - pw - 8 * S, r.y + oy + 10 * S, pw, 16 * S, withAlpha(tc, 0.22), { radius: 8 * S, stroke: tc, lw: 1 });

@@ -918,8 +918,12 @@ export const hubScene = {
     for (const r of L.rows) {
       const reached = gp.xp >= r.rk.xp, claimed = META.guild.claimed && META.guild.claimed[r.i], canClaim = claimable.has(r.i);
       uiRect(r.x, r.y, r.w, r.h, withAlpha(reached ? (claimed ? '#1c2c1c' : '#243a5a') : '#1b2138', 0.95), { radius: 6 * S, stroke: canClaim ? P.gold : reached ? P.shardL : P.ink2, lw: canClaim ? 2 : 1 });
-      uiText((reached ? '★ ' : '☆ ') + r.rk.name, r.x + 12 * S, r.y + 15 * S, { size: 12 * S, color: reached ? '#fff' : P.gray3, weight: '800' });
-      uiText('需 ' + r.rk.xp + ' 聲望' + (r.rk.reward ? '　·　' + r.rk.reward.label : ''), r.x + 12 * S, r.y + 28 * S, { size: 9.5 * S, color: claimed ? P.greenL : P.gray4 });
+      // #3: clamp both text lines to stop before the claim button so long reward labels
+      // (e.g.「道具『淨化波』+ 🪙1200」) no longer bleed past the panel / under the button.
+      const txtL = r.x + 12 * S, txtR = r.rk.reward ? r.claim.x - 8 * S : r.x + r.w - 12 * S;
+      const clampTo = (str, sz, wt) => { if (textWidth(str, sz, wt) <= txtR - txtL) return str; while (str.length > 1 && textWidth(str + '…', sz, wt) > txtR - txtL) str = str.slice(0, -1); return str + '…'; };
+      uiText(clampTo((reached ? '★ ' : '☆ ') + r.rk.name + '　·　需 ' + r.rk.xp + ' 聲望', 12 * S, '800'), txtL, r.y + 15 * S, { size: 12 * S, color: reached ? '#fff' : P.gray3, weight: '800' });
+      if (r.rk.reward) uiText(clampTo('獎勵：' + r.rk.reward.label, 9.5 * S, '400'), txtL, r.y + 28 * S, { size: 9.5 * S, color: claimed ? P.greenL : P.gray4 });
       if (r.rk.reward) {
         const cH = inside(mx, my, r.claim);
         const col = claimed ? '#1c2c1c' : canClaim ? (cH ? '#caa12a' : '#9a7a1a') : '#26283e';

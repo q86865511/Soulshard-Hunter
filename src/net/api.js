@@ -134,7 +134,7 @@ export const Net = {
   adminRuns(limit) { return req('/admin/runs' + (limit ? '?limit=' + limit : ''), { authed: true }); },
   adminDeleteRun(id) { return req('/admin/delete-run', { method: 'POST', authed: true, body: { id } }); },
   // ---- round16/7.1 player feedback ----
-  submitFeedback(category, content, name) { return req('/feedback', { method: 'POST', authed: tokenAlive(token), body: { category, content, name } }); },
+  submitFeedback(category, content, name, image) { return req('/feedback', { method: 'POST', authed: tokenAlive(token), body: { category, content, name, image: image || undefined } }); },
   adminFeedback(params = {}) { const qs = new URLSearchParams(params).toString(); return req('/admin/feedback' + (qs ? '?' + qs : ''), { authed: true }); },
   adminUpdateFeedback(id, patch) { return req('/admin/feedback/' + id, { method: 'PATCH', authed: true, body: patch }); },
   // ---- round16/7.6-7.8 admin (audit log / stats / player inspect) ----

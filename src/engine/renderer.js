@@ -210,6 +210,15 @@ function roundRectPath(x, y, w, h, r) {
   ctx.closePath();
 }
 export { roundRectPath };
+// round16/UI-fix #7 — run a draw callback clipped to a rounded-rect. Used to cap a short
+// "top accent bar" to its parent card's rounded corners, so the bar's tight (radius-2) corners
+// can't poke past the card's radius-9 frame (the squared-corner artifact players reported).
+export function uiClipRound(x, y, w, h, radius, draw) {
+  ctx.save();
+  if (radius > 0) roundRectPath(x, y, w, h, radius); else { ctx.beginPath(); ctx.rect(x, y, w, h); }
+  ctx.clip();
+  try { draw(); } finally { ctx.restore(); }
+}
 
 // round16/1.1 — reverted to the original sans-serif UI font per player feedback (the KaiTi
 // calligraphic look read as "ugly"). Kept the rest of the round-16 work; font stays as-is.

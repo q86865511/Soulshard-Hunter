@@ -123,6 +123,9 @@ const feedbackSchema = z.object({
   category: z.enum(['ui', 'gameplay', 'bug', 'content', 'other']),
   content:  z.string().trim().min(5).max(1000),
   name:     z.string().trim().max(24).optional().nullable(),
+  // round16 #4: optional attached screenshot — a base64 image data: URL, capped ~2.6MB of
+  // text (~1.9MB binary). The regex rejects any non-image / non-data payload.
+  image:    z.string().max(2_600_000).regex(/^data:image\/(png|jpeg|jpg|webp);base64,/).optional().nullable(),
 });
 
 const strictLimit = { config: { rateLimit: { max: 15, timeWindow: '1 minute' } } };          // auth
@@ -254,16 +257,18 @@ export async function buildApp(pool, { logger = false, rateMax = 120 } = {}) {
   });
 
   // round16/7.1: submit player feedback (public; an optional Bearer token attaches user_id)
-  app.post('/api/feedback', { config: { rateLimit: { max: 8, timeWindow: '1 minute' } } }, async (req, reply) => {
+  // bodyLimit raised (#4) so an attached screenshot (~≤1.9MB base64) isn't rejected with 413
+  // before zod can validate it; the schema still caps the image field at ~2.6MB of text.
+  app.post('/api/feedback', { bodyLimit: 3_200_000, config: { rateLimit: { max: 8, timeWindow: '1 minute' } } }, async (req, reply) => {
     const p = feedbackSchema.safeParse(req.body || {});
     if (!p.success) return reply.code(400).send({ error: zodMsg(p.error) });
     if (realtime.isBannedIp(req.ip)) return reply.code(403).send({ error: '此 IP 已被封鎖' });
     let userId = null;
     const m = (req.headers.authorization || '').match(/^Bearer (.+)$/);
     if (m) { try { userId = jwt.verify(m[1], JWT_SECRET, { algorithms: ['HS256'] }).uid; } catch (e) { /* anonymous */ } }
-    const { category, content, name } = p.data;
-    await pool.query('INSERT INTO feedback (user_id, guest_name, category, content) VALUES ($1,$2,$3,$4)',
-      [userId, userId ? null : (name || null), category, content]);
+    const { category, content, name, image } = p.data;
+    await pool.query('INSERT INTO feedback (user_id, guest_name, category, content, image) VALUES ($1,$2,$3,$4,$5)',
+      [userId, userId ? null : (name || null), category, content, image || null]);
     return { ok: true };
   });
 
@@ -373,7 +378,7 @@ export async function buildApp(pool, { logger = false, rateMax = 120 } = {}) {
     if (q.status) { params.push(String(q.status)); where = `WHERE f.status = $3`; }
     const r = await pool.query(
       `SELECT f.id, COALESCE(u.username, f.guest_name, '訪客') AS author, f.category, f.content,
-              f.status, f.admin_note, f.created_at
+              f.status, f.admin_note, f.created_at, f.image
        FROM feedback f LEFT JOIN users u ON u.id = f.user_id ${where}
        ORDER BY f.created_at DESC LIMIT $1 OFFSET $2`, params);
     return { rows: r.rows };

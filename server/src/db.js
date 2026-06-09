@@ -90,6 +90,7 @@ export async function initSchema(p = pool) {
       created_at  timestamptz DEFAULT now(),
       updated_at  timestamptz DEFAULT now()
     );
+    ALTER TABLE feedback ADD COLUMN IF NOT EXISTS image text;   -- round16 #4: optional attached screenshot (data: URL), migrate existing deployments
     CREATE INDEX IF NOT EXISTS feedback_status_idx ON feedback (status, created_at DESC);
 
     -- admin audit log (round 16 / 7.6): every admin mutation leaves a trail

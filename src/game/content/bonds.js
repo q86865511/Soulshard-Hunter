@@ -32,7 +32,7 @@ function ctxOf(run, player) {
 }
 
 export const BONDS = [
-  { id: 'bond_inferno', name: '烈焰之心', tag: '焰', goal: '燃魂 ＋ 火焰武器 ＋ 玻璃大砲',
+  { id: 'bond_inferno', name: '焚天業火', tag: '焰', goal: '燃魂 ＋ 火焰武器 ＋ 玻璃大砲',
     parts: [
       { label: '燃魂', ids: ['ignite'], test: (c) => c.hasA('ignite') },
       { label: '火焰武器', ids: FIRE_WEAPONS, test: (c) => FIRE_WEAPONS.some((w) => c.hasW(w)) },
@@ -42,7 +42,7 @@ export const BONDS = [
       { at: 2, bonusDesc: '傷害 +6%', bonus: (s) => { s.damageMult *= 1.06; } },
       { at: 3, bonusDesc: '傷害 +8%', bonus: (s) => { s.damageMult *= 1.08; } },
     ] },
-  { id: 'bond_storm', name: '雷霆網絡', tag: '雷', goal: '連鎖閃電 ＋ 迅捷符文 ＋ 加速彈道',
+  { id: 'bond_storm', name: '雷霆萬鈞', tag: '雷', goal: '連鎖閃電 ＋ 迅捷符文 ＋ 加速彈道',
     parts: [
       { label: '連鎖閃電', ids: ['w_lightning'], test: (c) => c.hasW('w_lightning') },
       { label: '迅捷符文', ids: ['haste'], test: (c) => c.hasA('haste') },
@@ -62,7 +62,7 @@ export const BONDS = [
       { at: 2, bonusDesc: '吸血 +2%', bonus: (s) => { s.lifesteal = (s.lifesteal || 0) + 0.02; } },
       { at: 3, bonusDesc: '吸血 +2%、生命 +20', bonus: (s, p) => { s.lifesteal = (s.lifesteal || 0) + 0.02; s.maxHp += 20; p.heal(20); } },
     ] },
-  { id: 'bond_assassin', name: '致命精準', tag: '暴', goal: '銳利之眼 ＋ 加速彈道 ＋ 穿透',
+  { id: 'bond_assassin', name: '絕影狙殺', tag: '暴', goal: '銳利之眼 ＋ 加速彈道 ＋ 穿透',
     parts: [
       { label: '銳利之眼', ids: ['crit'], test: (c) => c.hasA('crit') },
       { label: '加速彈道', ids: ['velocity'], test: (c) => c.hasA('velocity') },
@@ -72,7 +72,7 @@ export const BONDS = [
       { at: 2, bonusDesc: '暴擊率 +5%、暴傷 +0.2', bonus: (s) => { s.critChance += 0.05; s.critMult += 0.2; } },
       { at: 3, bonusDesc: '暴擊率 +5%、暴傷 +0.3', bonus: (s) => { s.critChance += 0.05; s.critMult += 0.3; } },
     ] },
-  { id: 'bond_orbit', name: '環繞軍團', tag: '環', goal: '環衛刃 ＋ 環繞魂衛 ＋ 環域光環',
+  { id: 'bond_orbit', name: '萬刃環天', tag: '環', goal: '環衛刃 ＋ 環繞魂衛 ＋ 環域光環',
     parts: [
       { label: '環衛刃', ids: ['w_orbit'], test: (c) => c.hasW('w_orbit') },
       { label: '環繞魂衛', ids: ['orbit'], test: (c) => c.hasA('orbit') },
@@ -82,7 +82,7 @@ export const BONDS = [
       { at: 2, bonusDesc: '範圍 +10%', bonus: (s) => { s.area = (s.area || 1) * 1.1; } },
       { at: 3, bonusDesc: '範圍 +10%、投射物 +1', bonus: (s) => { s.area = (s.area || 1) * 1.1; s.projCountAdd = (s.projCountAdd || 0) + 1; } },
     ] },
-  { id: 'bond_swift', name: '疾風行者', tag: '速', goal: '疾風之靴 ＋ 瞬影 ＋ 加速彈道',
+  { id: 'bond_swift', name: '風馳電掣', tag: '速', goal: '疾風之靴 ＋ 瞬影 ＋ 加速彈道',
     parts: [
       { label: '疾風之靴', ids: ['swift'], test: (c) => c.hasA('swift') },
       { label: '瞬影', ids: ['dash'], test: (c) => c.hasA('dash') },
@@ -92,21 +92,21 @@ export const BONDS = [
       { at: 2, bonusDesc: '移速 +8%、衝刺冷卻 -10%', bonus: (s) => { s.speed *= 1.08; s.dashCd *= 0.9; } },
       { at: 3, bonusDesc: '移速 +6%、閃避 +5%', bonus: (s) => { s.speed *= 1.06; s.dodge = (s.dodge || 0) + 0.05; } },
     ] },
-  { id: 'bond_arsenal', name: '武器庫', tag: '武', goal: '攜帶 4 / 5 / 6 把武器', feeds: 'weapon',
+  { id: 'bond_arsenal', name: '百兵之王', tag: '武', goal: '攜帶 4 / 5 / 6 把武器', feeds: 'weapon',
     count: (c) => c.weaponCount,
     tiers: [
       { at: 4, bonusDesc: '傷害 +8%', bonus: (s) => { s.damageMult *= 1.08; } },
       { at: 5, bonusDesc: '傷害 +5%', bonus: (s) => { s.damageMult *= 1.05; } },
       { at: 6, bonusDesc: '傷害 +5%、射速 +5%', bonus: (s) => { s.damageMult *= 1.05; s.fireRateMult *= 1.05; } },
     ] },
-  { id: 'bond_scholar', name: '萬法通曉', tag: '識', goal: '擁有 6 / 9 / 12 個被動', feeds: 'ability',
+  { id: 'bond_scholar', name: '萬象通玄', tag: '識', goal: '擁有 6 / 9 / 12 個被動', feeds: 'ability',
     count: (c) => c.abilityCount,
     tiers: [
       { at: 6, bonusDesc: '傷害 +4%、生命 +12', bonus: (s, p) => { s.damageMult *= 1.04; s.maxHp += 12; p.heal(12); } },
       { at: 9, bonusDesc: '傷害 +4%、生命 +14', bonus: (s, p) => { s.damageMult *= 1.04; s.maxHp += 14; p.heal(14); } },
       { at: 12, bonusDesc: '傷害 +4%、生命 +16', bonus: (s, p) => { s.damageMult *= 1.04; s.maxHp += 16; p.heal(16); } },
     ] },
-  { id: 'bond_fortress', name: '鋼鐵壁壘', tag: '守', goal: '荊棘護甲 ＋ 防禦 ≥2 ＋ 活力',
+  { id: 'bond_fortress', name: '金剛不壞', tag: '守', goal: '荊棘護甲 ＋ 防禦 ≥2 ＋ 活力',
     parts: [
       { label: '荊棘護甲', ids: ['thorns'], test: (c) => c.hasA('thorns') },
       { label: '防禦 ≥2', ids: [], test: (c) => (c.stats.defense || 0) >= 2 },
@@ -116,7 +116,7 @@ export const BONDS = [
       { at: 2, bonusDesc: '減傷 +2、生命 +16', bonus: (s, p) => { s.defense += 2; s.maxHp += 16; p.heal(16); } },
       { at: 3, bonusDesc: '減傷 +2、生命 +20', bonus: (s, p) => { s.defense += 2; s.maxHp += 20; p.heal(20); } },
     ] },
-  { id: 'bond_glass', name: '玻璃藝術', tag: '脆', goal: '玻璃大砲 ＋ 任一詛咒 ＋ 過載',
+  { id: 'bond_glass', name: '琉璃幻滅', tag: '脆', goal: '玻璃大砲 ＋ 任一詛咒 ＋ 過載',
     parts: [
       { label: '玻璃大砲', ids: ['glasscannon'], test: (c) => c.hasA('glasscannon') },
       { label: '任一詛咒', ids: CURSES, test: (c) => c.anyA(...CURSES) },
@@ -126,14 +126,14 @@ export const BONDS = [
       { at: 2, bonusDesc: '傷害 +10%', bonus: (s) => { s.damageMult *= 1.1; } },
       { at: 3, bonusDesc: '傷害 +12%', bonus: (s) => { s.damageMult *= 1.12; } },
     ] },
-  { id: 'bond_collector', name: '鑑藏家', tag: '藏', goal: '裝備 1 / 2 / 3 個裝備欄', feeds: 'equip',
+  { id: 'bond_collector', name: '蒐羅萬象', tag: '藏', goal: '裝備 1 / 2 / 3 個裝備欄', feeds: 'equip',
     count: (c) => c.equips.size,
     tiers: [
       { at: 1, bonusDesc: '全能力 +2%、生命 +4', bonus: (s, p) => { s.damageMult *= 1.02; s.fireRateMult *= 1.02; s.maxHp += 4; p.heal(4); } },
       { at: 2, bonusDesc: '全能力 +2%、生命 +6', bonus: (s, p) => { s.damageMult *= 1.02; s.fireRateMult *= 1.02; s.maxHp += 6; p.heal(6); } },
       { at: 3, bonusDesc: '全能力 +2%、暴擊 +3%', bonus: (s) => { s.damageMult *= 1.02; s.fireRateMult *= 1.02; s.critChance += 0.03; } },
     ] },
-  { id: 'bond_homing', name: '索命彈幕', tag: '導', goal: '追魂彈 ＋ 追蹤魂彈 ＋ 散射',
+  { id: 'bond_homing', name: '追魂奪命', tag: '導', goal: '追魂彈 ＋ 追蹤魂彈 ＋ 散射',
     parts: [
       { label: '追魂彈', ids: ['w_homing'], test: (c) => c.hasW('w_homing') },
       { label: '追蹤魂彈', ids: ['homing'], test: (c) => c.hasA('homing') },

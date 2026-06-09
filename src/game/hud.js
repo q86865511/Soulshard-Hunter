@@ -1,5 +1,5 @@
 // In-run heads-up display (screen space).
-import { uiText, uiBar, uiRect, uiScale, view, drawSpriteUI, textWidth, PIXEL_FONT } from '../engine/renderer.js';
+import { uiText, uiBar, uiRect, uiScale, view, drawSpriteUI, textWidth, PIXEL_FONT, ctxRaw } from '../engine/renderer.js';
 import { getSprite, iconOr } from '../engine/sprites.js';
 import { P, withAlpha } from '../engine/palette.js';
 import { Abilities } from './content/registry.js';
@@ -32,6 +32,23 @@ function iconCounter(sprite, value, x, y, S, color) {
   const sc = 1.6 * S;
   drawSpriteUI(sp.frames[0], x, y - sp.h * sc + 2 * S, sc);
   uiText(String(value), x + sp.w * sc + 4 * S, y - 3 * S, { size: 12 * S, color, weight: '800', baseline: 'alphabetic', font: PIXEL_FONT });   // 1.8 pixel digits
+}
+
+// round16/UI-fix #2 — bare twin-chevron "dash" glyph drawn directly (no panel box), so the
+// dash row's icon matches the bare heart/xp sprites above it instead of the heavy boxed
+// ability_dash icon (which read as misaligned). Centred on (cx,cy) like the other two icons.
+function drawDashGlyph(cx, cy, h, col, S) {
+  const c = ctxRaw();
+  c.save();
+  c.strokeStyle = col; c.lineWidth = Math.max(1.6, 2 * S); c.lineCap = 'round'; c.lineJoin = 'round';
+  const a = h * 0.46, w = a * 0.52, step = h * 0.5;   // chevron half-height, half-width, centre-spacing
+  for (let k = 0; k < 2; k++) {
+    const x = cx - step / 2 + k * step;               // two chevrons centred symmetrically on cx
+    c.beginPath();
+    c.moveTo(x - w, cy - a); c.lineTo(x + w, cy); c.lineTo(x - w, cy + a);
+    c.stroke();
+  }
+  c.restore();
 }
 
 export function drawHud(run, player) {
@@ -74,12 +91,12 @@ export function drawHud(run, player) {
   uiBar(bx, r2y, vbarW, subH, clamp01(run.xp / run.xpNext), { fg: P.manaL, bg: '#16183a', border: P.ink, glow: true });
   uiText('Lv ' + run.level, bx + vbarW - 5 * S, r2y + subH / 2 + 0.5 * S, { size: 7 * S, align: 'right', baseline: 'middle', color: '#fff', weight: '900', shadowColor: withAlpha('#000', 0.8), font: PIXEL_FONT });   // 1.8
 
-  // 衝刺 (dash) — 改用圖示（取代「衝刺」文字），圖示大小與量條長度與上方一致
+  // 衝刺 (dash) — bare cyan chevron glyph (matches the heart/xp bare icons above), no text label
   const dashReady = (player.dashCd ?? 0) <= 0;
   const dFrac = dashReady ? 1 : 1 - player.dashCd / (player.stats.dashCd || 0.85);
-  vIcon(iconOr('ability_dash', 'ability_power'), r3y + subH / 2);
+  drawDashGlyph(ix + iconSz / 2, r3y + subH / 2, iconSz * 0.78, dashReady ? P.shardL : withAlpha(P.shardL, 0.4), S);
   uiBar(bx, r3y, vbarW, subH, dFrac, { fg: dashReady ? P.shardL : P.gray2, bg: '#16183a', border: P.ink });
-  if (dashReady) { uiRect(bx, r3y, vbarW, subH, withAlpha(P.shardL, 0.1 + 0.12 * pulse), { radius: 3 * S }); uiText('衝刺就緒', bx + vbarW - 5 * S, r3y + subH / 2 + 0.5 * S, { size: 8 * S, align: 'right', baseline: 'middle', color: P.shardL, weight: '800' }); }
+  if (dashReady) uiRect(bx, r3y, vbarW, subH, withAlpha(P.shardL, 0.1 + 0.12 * pulse), { radius: 3 * S });   // 就緒時量條微微脈動（取代「衝刺就緒」文字）
 
   // player status chips (D6) — to the RIGHT of the vitals panel (below it would clash with the minimap)
   if (player.status) {
@@ -100,7 +117,7 @@ export function drawHud(run, player) {
   const rx = W - pad;
   iconCounter('coin', run.gold, rx - 70 * S, pad + 20 * S, S, P.goldL);
   iconCounter('shard', run.shards, rx - 70 * S, pad + 44 * S, S, P.shardL);
-  uiText('擊殺 ' + (run.kills || 0), rx, pad + 64 * S, { size: 12 * S, align: 'right', color: P.gray3 });
+  iconCounter('skull_kill', run.kills || 0, rx - 70 * S, pad + 68 * S, S, P.redL);   // #5: 擊殺改用骷髏圖示，與金幣/魂晶同欄對齊
 
   // weapons row (bottom-left, primary) — shows level / ★ when evolved
   if (player.weapons && player.weapons.length) {

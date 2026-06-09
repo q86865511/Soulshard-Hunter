@@ -5,6 +5,33 @@
 
 ---
 
+## 批次 B-uifix1 — 玩家回報 8 項 UI/UX 修正
+
+**範圍：** 玩家實測回報的 8 個介面缺陷（附截圖）。全部 additive、單人路徑不受影響；#4 同時動到 server/DB。
+
+1. **移除「衝刺就緒」文字**（`hud.js`）：衝刺量條就緒時不再疊字，僅保留量條微脈動。
+2. **左欄三圖示對齊**（`hud.js`）：衝刺原本用「方框 content-icon」(`ability_dash`)，與上方裸圖示（愛心／經驗）風格不一致而看似沒對齊；改為新 `drawDashGlyph()` 直接畫一對青色雙箭頭（裸圖示、與 cx 對稱置中），與愛心／經驗同欄同視覺重量。
+3. **公會等級獎勵文字超出 UI**（`hub.js drawGuildRank`）：把「需 X 聲望」併到第一行（接在階級名後），獎勵標籤獨佔第二行；兩行都以 `clampTo()` 夾到「領取」按鈕左緣前（超出補「…」），長獎勵（如「道具『淨化波』+ 🪙1200」）不再壓到按鈕／溢出面板。
+4. **回報系統支援貼上／上傳圖片**（`net/ui.js`、`net/api.js`、`server/src/server.js`、`server/src/db.js`）：
+   - 前端 `openFeedback()` 新增截圖附件——可 **Ctrl+V 貼上**、點選檔案、或拖放；`readImageScaled()` 客端縮圖（最長邊 1600px，PNG，過大改 JPEG，>2.55MB 拒收）→ 預覽縮圖＋移除鈕。
+   - `submitFeedback(category, content, name, image)` 帶上 data URL；`feedbackSchema` 新增 `image`（`max(2_600_000)` ＋ `^data:image/...;base64,` 正則，擋非圖片／過大）；`/api/feedback` 路由 `bodyLimit` 提到 3.2MB（否則合法截圖會被 Fastify 預設 1MB 限制以 413 擋下）。
+   - `db.js` `ALTER TABLE feedback ADD COLUMN IF NOT EXISTS image text`（漸進部署遷移）；INSERT／admin SELECT 帶 `image`。後台回饋分頁顯示縮圖，點擊開全螢幕 lightbox。
+5. **右上「擊殺」改圖示並對齊金幣／魂晶**（`hud.js`、`art/core.js`）：新增裸 `skull_kill` 骷髏圖示，`iconCounter('skull_kill', …)` 與金幣／魂晶同一圖示欄（同 x、等距 24px）右上排列，取代原本右對齊純文字。
+6. **近期拾取改圖示＋懸停看效果＋持續效果倒數**（`run.js drawPickupLog/drawPickupTooltip`、`world.js collect`、`player.js addTimedBuff`）：
+   - 拾取紀錄改為**圖示卡片**直排（最新在下）；`world.collect` 的 `logPick` 改帶 `{name, desc, color, icon?, emoji?, buff?}`，道具撿取時若觸發 `addTimedBuff` 則把該 buff 連結到紀錄。
+   - 滑鼠懸停卡片 → `drawPickupTooltip` 顯示名稱＋效果＋（若仍生效）剩餘秒數（hit-rect 推進共用 `hudIcons`，由 `drawInfo` 統一處理）。
+   - 仍生效的限時 buff 卡片：邊框高亮＋右上「Ns」倒數＋底部遞減進度條（`addTimedBuff` 多存初始 `dur` 供算比例）。
+7. **三選一卡片框左上/右上方正破圖**（`engine/renderer.js`、`run.js`、`hub.js`）：頂部稀有度色條 `radius:2` 疊在 `radius:9` 圓角卡上，色條較方的角會戳出卡片圓角。新增 `uiClipRound(x,y,w,h,r,draw)`，把色條夾進卡片圓角路徑再畫——套用於**升級三選一／小王贊助三選一／co-op 三選一**，並順手修小地圖頂條與隱藏房面板頂條。
+8. **羈絆名稱與左側 ICON 對齊＋名稱本地化／中二化**（`run.js drawBondTooltip`、`content/bonds.js`）：
+   - 羈絆 tooltip 的名稱／階數改 `baseline:'middle'` 對齊 tag 方塊垂直中心（原 alphabetic 基線偏高）。
+   - 12 個羈絆改名為更中二、去中國化用語的台式命名：雷霆網絡→**雷霆萬鈞**、烈焰之心→焚天業火、致命精準→絕影狙殺、環繞軍團→萬刃環天、疾風行者→風馳電掣、武器庫→百兵之王（同時與設施「武器庫」消歧義）、萬法通曉→萬象通玄、鋼鐵壁壘→金剛不壞、玻璃藝術→琉璃幻滅、鑑藏家→蒐羅萬象、索命彈幕→追魂奪命（血色君王保留）。
+
+### 驗證
+- **伺服器**：`server/test/smoke.mjs` **90/90**（新增 4 條：附圖送出 ok／非圖片 data URL→400／超大圖→400／後台清單回傳 image；並把 `feedbackSchema` 過大測試逼出 413 vs 400 而補上 `bodyLimit`）、`social.smoke.mjs` **65/65**；`npm run check` 全綠。
+- **前端**（headless `/__shot` 截圖逐一比對）：衝刺列裸箭頭與愛心／經驗同欄對齊、無「衝刺就緒」字；右上骷髏擊殺與金幣／魂晶對齊；拾取卡片圖示化＋「疾風靈藥」卡顯示 6s 倒數＋進度條，懸停 tooltip 顯示「8 秒內 暴擊率 +25%、彈速 +30%／剩餘 6 秒」；升級三選一卡頂條圓角跟隨卡片無方正戳出；羈絆 tooltip「雷霆萬鈞」名稱與「雷」方塊垂直置中；回饋 Modal 出現「截圖（選填）」欄、貼上測試圖即生預覽。載入 `window.__GAME_ERROR__` 為 null、console 無 error。
+
+---
+
 ## 批次 B8 — 新系統與後端（第七章）+ 後台三新模組
 
 **範圍：** 第七章 7.1–7.8 全部落地（additive；單人離線路徑不受影響）。伺服器為權威驗證面，前端 offline-first。

@@ -118,7 +118,7 @@ export class Player {
   }
 
   heal(a) { this.hp = Math.min(this.stats.maxHp, this.hp + a); }
-  addTimedBuff(dur, onStart, onEnd, color = '#fff') { try { onStart?.(this); } catch (e) { /* */ } this.timedBuffs.push({ t: dur, onEnd, color }); }
+  addTimedBuff(dur, onStart, onEnd, color = '#fff') { try { onStart?.(this); } catch (e) { /* */ } this.timedBuffs.push({ t: dur, dur, onEnd, color }); }   // dur = initial duration (pickup-log countdown reads t/dur)
 
   // returns true only if the hit actually LANDED (so on-hit status riders respect
   // i-frames / dash / dodge instead of pinning the player with permanent slow+DoT)

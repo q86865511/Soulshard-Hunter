@@ -120,21 +120,77 @@ export function showBroadcast(msg, kind) {
 
 // round16/7.1 — player feedback form (opened from the in-town Esc menu). Works for guests too.
 const FB_CATS = [['bug', '🐛 問題回報 (Bug)'], ['ui', '🖼 介面 / 排版'], ['gameplay', '🎮 玩法 / 平衡'], ['content', '✨ 內容建議'], ['other', '💬 其他']];
+// round16 #4 — read an image File and downscale it (max edge 1600px) to a data URL. PNG for
+// crisp UI screenshots; falls back to JPEG when the PNG would be too large for the server cap.
+function readImageScaled(file, maxDim = 1600, quality = 0.82) {
+  return new Promise((resolve, reject) => {
+    if (!file || !/^image\//.test(file.type || '')) { reject(new Error('不是圖片檔')); return; }
+    const fr = new FileReader();
+    fr.onerror = () => reject(new Error('讀取失敗'));
+    fr.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        let w = img.width, h = img.height;
+        const scale = Math.min(1, maxDim / Math.max(w, h, 1));
+        w = Math.max(1, Math.round(w * scale)); h = Math.max(1, Math.round(h * scale));
+        const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+        cv.getContext('2d').drawImage(img, 0, 0, w, h);
+        let out = cv.toDataURL('image/png');
+        if (out.length > 1_400_000) out = cv.toDataURL('image/jpeg', quality);
+        if (out.length > 2_550_000) { reject(new Error('圖片太大，請裁切後再試')); return; }
+        resolve(out);
+      };
+      img.onerror = () => reject(new Error('圖片解析失敗'));
+      img.src = fr.result;
+    };
+    fr.readAsDataURL(file);
+  });
+}
 export function openFeedback() {
   ensureStyles(); closeModal();
   const cat = $('select', {}, FB_CATS.map(([v, t]) => $('option', { value: v, text: t })));
-  const content = $('textarea', { rows: 5, maxlength: 1000, placeholder: '請描述你遇到的問題或建議（5–1000 字）…',
+  const content = $('textarea', { rows: 5, maxlength: 1000, placeholder: '請描述你遇到的問題或建議（5–1000 字）… 可直接 Ctrl+V 貼上截圖',
     style: 'width:100%;box-sizing:border-box;padding:10px 11px;border-radius:9px;border:1px solid #2a3a6a;background:#0b0e20;color:#fff;font:14px/1.5 system-ui;resize:vertical' });
   const counter = $('div', { style: 'text-align:right;font-size:11px;color:#8ea0d8;margin-top:3px', text: '0 / 1000' });
   content.addEventListener('input', () => { counter.textContent = content.value.length + ' / 1000'; });
   const name = $('input', { type: 'text', maxlength: 24, placeholder: Net.isLoggedIn() ? ((Net.currentUser() || {}).username || '') : '暱稱（選填）' });
   const msg = $('div', { class: 'net-msg' });
+
+  // ---- #4 image attachment: paste / 選擇檔案 / 拖放 ----
+  let attached = null;
+  const fileInput = $('input', { type: 'file', accept: 'image/*', style: 'display:none' });
+  const preview = $('div', { style: 'margin-top:8px' });
+  const renderPreview = () => {
+    preview.innerHTML = '';
+    if (!attached) return;
+    const img = $('img', { src: attached, style: 'max-width:100%;max-height:160px;border-radius:8px;border:1px solid #2a3a6a;display:block' });
+    const rm = $('button', { class: 'net-ghost', style: 'margin-top:5px;padding:3px 10px;font-size:12px', text: '✕ 移除圖片', onclick: () => { attached = null; renderPreview(); } });
+    preview.append(img, rm);
+  };
+  const accept = async (file) => {
+    if (!file) return;
+    msg.className = 'net-msg'; msg.textContent = '處理圖片中…';
+    try { attached = await readImageScaled(file); msg.textContent = ''; renderPreview(); }
+    catch (e) { msg.textContent = e && e.message ? e.message : '圖片處理失敗'; }
+  };
+  fileInput.addEventListener('change', () => { if (fileInput.files && fileInput.files[0]) accept(fileInput.files[0]); fileInput.value = ''; });
+  const pasteHandler = (e) => {
+    const items = (e.clipboardData && e.clipboardData.items) || [];
+    for (const it of items) { if (it.type && it.type.indexOf('image') === 0) { const f = it.getAsFile(); if (f) { e.preventDefault(); accept(f); return; } } }
+  };
+  content.addEventListener('paste', pasteHandler);
+  const dropZone = $('div', { style: 'border:1px dashed #3a4a7a;border-radius:9px;padding:9px 11px;text-align:center;color:#8ea0d8;font-size:12px;cursor:pointer', text: '📎 點此選擇截圖，或拖放 / Ctrl+V 貼上' });
+  dropZone.addEventListener('click', () => fileInput.click());
+  dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.style.borderColor = '#7fc8ff'; });
+  dropZone.addEventListener('dragleave', () => { dropZone.style.borderColor = '#3a4a7a'; });
+  dropZone.addEventListener('drop', (e) => { e.preventDefault(); dropZone.style.borderColor = '#3a4a7a'; const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]; if (f) accept(f); });
+
   const submit = $('button', { class: 'net-primary', text: '送出回饋' });
   const doSubmit = async () => {
     const c = content.value.trim();
     if (c.length < 5) { msg.className = 'net-msg'; msg.textContent = '請至少輸入 5 個字'; return; }
     submit.disabled = true; msg.className = 'net-msg'; msg.textContent = '送出中…';
-    try { await Net.submitFeedback(cat.value, c, name.value.trim() || undefined); closeModal(); toast('回饋已送出，感謝你的回報！'); }
+    try { await Net.submitFeedback(cat.value, c, name.value.trim() || undefined, attached); closeModal(); toast('回饋已送出，感謝你的回報！'); }
     catch (e) { submit.disabled = false; msg.className = 'net-msg'; msg.textContent = e && e.message ? '送出失敗：' + e.message : '送出失敗（伺服器未啟動？）'; }
   };
   submit.addEventListener('click', doSubmit);
@@ -142,6 +198,7 @@ export function openFeedback() {
     $('h2', { text: '⚑ 回報問題' }),
     $('label', { text: '類別' }), cat,
     $('label', { text: '描述' }), content, counter,
+    $('label', { text: '截圖（選填）' }), dropZone, fileInput, preview,
     $('label', { text: '暱稱（選填）' }), name,
     msg,
     $('div', { class: 'net-row' }, [submit, $('button', { class: 'net-ghost', text: '取消', onclick: closeModal })]),
@@ -486,7 +543,16 @@ export function openAdmin() {
               try { await Net.adminUpdateFeedback(f.id, { admin_note: note }); f.admin_note = note; toast('備註已儲存'); } catch (e) { setMsg('儲存失敗'); }
             });
             const catLabel = (FB_CATS.find((c) => c[0] === f.category) || [, f.category])[1];
-            return [$('td', { text: fmtAgo(new Date(f.created_at).getTime()) }), $('td', { text: f.author || '訪客' }), $('td', { text: catLabel }), $('td', { style: 'white-space:normal;max-width:240px', text: f.content }), $('td', {}, [sel]), $('td', {}, [noteBtn])];
+            const cCell = $('td', { style: 'white-space:normal;max-width:240px' }, [$('div', { text: f.content })]);
+            if (f.image) {   // #4: thumbnail of the attached screenshot, click to view full-size
+              const thumb = $('img', { src: f.image, style: 'margin-top:5px;max-width:140px;max-height:90px;border-radius:6px;border:1px solid #2a3a6a;cursor:zoom-in' });
+              thumb.addEventListener('click', () => {
+                const ov = $('div', { style: 'position:fixed;inset:0;z-index:100000;background:rgba(0,0,0,.82);display:flex;align-items:center;justify-content:center;cursor:zoom-out' }, [$('img', { src: f.image, style: 'max-width:92vw;max-height:88vh;border-radius:10px;box-shadow:0 8px 40px rgba(0,0,0,.6)' })]);
+                ov.addEventListener('click', () => ov.remove()); document.body.appendChild(ov);
+              });
+              cCell.appendChild(thumb);
+            }
+            return [$('td', { text: fmtAgo(new Date(f.created_at).getTime()) }), $('td', { text: f.author || '訪客' }), $('td', { text: catLabel }), cCell, $('td', {}, [sel]), $('td', {}, [noteBtn])];
           }));
         } catch (e) { setMsg('無法載入回饋'); }
       };
