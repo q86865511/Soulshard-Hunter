@@ -406,7 +406,9 @@ export const runScene = {
     const prevBanner = this.banner;
     try { ev.apply(this); } catch (e) { /* */ }
     this.eventChoice = null;
-    if (this.banner === prevBanner) { this.banner = ev.name + ' · 「' + (ev.title || ev.name) + '」'; this.bannerT = 2.2; }   // keep a custom banner the patron set (e.g. Midas' calculated +X% damage)
+    // 4.14: remember the chosen patron so the HUD can show a persistent buff indicator (hover = effect).
+    (this.run.patrons = this.run.patrons || []).push({ name: ev.name, role: ev.role, title: ev.title, icon: ev.icon, desc: ev.desc });
+    if (this.banner === prevBanner) { this.banner = '✦ 贊助者 ' + ev.name + ' · 「' + (ev.title || ev.name) + '」'; this.bannerT = 2.4; }   // keep a custom banner the patron set (e.g. Midas' calculated +X% damage)
     this.world.particles.ring(this.player.x, this.player.y, P.goldL, 24, 140); Sfx.play('levelup');
   },
   drawEventChoice() {
@@ -1293,6 +1295,31 @@ export const runScene = {
     const S = uiScale();
     uiText('🔑 × ' + keys, view.W - 12 * S, 96 * S, { size: 13 * S, align: 'right', color: P.goldL, weight: '800', shadowColor: withAlpha('#000', 0.8) });
   },
+  // 4.14: persistent patron-buff strip (top-centre, under the stage line). Hover a patron icon → its effect.
+  drawPatronHud() {
+    const list = this.run.patrons;
+    if (!list || !list.length || this.dead || this.choice || this.equipChoice || this.eventChoice || this.paused || this.hudTut) return;
+    const S = uiScale(), sz = 22 * S, gap = 5 * S, total = list.length * (sz + gap) - gap;
+    let x = view.W / 2 - total / 2; const y = 80 * S;
+    for (const pt of list) {
+      const sp = getSprite(iconOr(pt.icon, 'patron_gambler'));
+      uiRect(x, y, sz, sz, withAlpha('#10121f', 0.72), { radius: 5 * S, stroke: withAlpha(P.goldL, 0.7), lw: 1.5 });
+      drawSpriteUI(sp.frames[0], x + 2 * S, y + 2 * S, (sz - 4 * S) / sp.w);
+      hudIcons.push({ x, y, w: sz, h: sz, kind: 'patron', patron: pt });
+      x += sz + gap;
+    }
+  },
+  drawPatronTooltip(ic, mx, my, S) {
+    const p = ic.patron; const W = 204 * S; const lines = []; let line = '';
+    for (const ch of (p.desc || '')) { if (textWidth(line + ch, 10.5 * S, '500') > W - 16 * S && line) { lines.push(line); line = ch; } else line += ch; }
+    if (line) lines.push(line);
+    const H = (44 + lines.length * 13) * S;
+    let x = mx + 14 * S, y = my + 8 * S; if (x + W > view.W) x = view.W - W - 6 * S; if (y + H > view.H) y = view.H - H - 6 * S;
+    uiRect(x, y, W, H, withAlpha('#10121f', 0.97), { radius: 6 * S, stroke: P.goldL, lw: 2 });
+    uiText('✦ ' + p.name, x + 8 * S, y + 17 * S, { size: 12 * S, color: P.goldL, weight: '800' });
+    uiText((p.role ? p.role + ' · ' : '') + '「' + (p.title || '') + '」', x + 8 * S, y + 32 * S, { size: 10 * S, color: P.shardL, weight: '700' });
+    lines.forEach((l, i) => uiText(l, x + 8 * S, y + 46 * S + i * 13 * S, { size: 10.5 * S, color: P.gray4, weight: '500' }));
+  },
   // TFT 式羈絆側欄：六角徽章（依階級銅/銀/金配色）＋名稱＋階數；已達成＋快達成。
   drawBondTracker() {
     if (this.dead || this.choice || this.equipChoice || this.eventChoice || this.shopOpen || this.paused || this.bigMap) return;
@@ -1529,6 +1556,7 @@ export const runScene = {
     this.drawKeyHud();        // 4.22: held vault keys
     this.drawPickupLog();     // 4.2: recent-pickup log
     this.drawStageHud();
+    this.drawPatronHud();   // 4.14 persistent patron-buff strip
     this.drawMinimap();
     this.drawQuestTracker();
     this.drawBondTracker();
@@ -1792,6 +1820,7 @@ export const runScene = {
   drawTooltip(ic, mx, my, S) {
     if (ic.kind === 'bond') return this.drawBondTooltip(ic, mx, my, S);
     if (ic.kind === 'pickup') return this.drawPickupTooltip(ic, mx, my, S);
+    if (ic.kind === 'patron') return this.drawPatronTooltip(ic, mx, my, S);
     const def = ic.def; if (!def) return;
     const accent = ic.kind === 'weapon' ? P.shardL : ic.kind === 'ability' ? (def.cursed ? P.redL : P.manaL) : ic.kind === 'equip' ? P.goldL : P.emberL;
     const sub = ic.kind === 'weapon' ? (def.evolved ? '★ 進化武器' : '武器 Lv.' + ic.level)

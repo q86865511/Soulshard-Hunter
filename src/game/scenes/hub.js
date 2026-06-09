@@ -947,7 +947,7 @@ export const hubScene = {
       const isp = getSprite(iconOr(def.icon, 'facility_f_forge'));
       drawSpriteUI(isp.frames[0], c.x + 8 * S, c.y + 8 * S, (30 * S) / isp.w);
       this.clip1(def.name, c.x + 46 * S, c.y + 20 * S, c.w - 92 * S, 13 * S, '#fff', '800');
-      uiText('Lv.' + cur + '/' + def.maxLevel, c.x + c.w - 9 * S, c.y + 20 * S, { size: 11 * S, align: 'right', color: P.emberL, weight: '800' });
+      for (let i = 0; i < def.maxLevel; i++) uiRect(c.x + c.w - 11 * S - (def.maxLevel - i) * 10 * S, c.y + 13 * S, 7 * S, 6 * S, i < cur ? P.emberL : '#333a55', { radius: 1 });   // 3.1: level pips (was「Lv.x/max」text), matches talents/forge
       this.wrap(def.desc, c.x + 10 * S, c.y + 42 * S, c.w - 20 * S, 10.5 * S);
       const label = st === 'max' ? '已滿級' : goldStr(this.hubCost(def.cost(cur), 'facilityPurchases'));
       const col = st === 'max' ? P.greenL : st === 'poor' ? P.redL : P.goldL;

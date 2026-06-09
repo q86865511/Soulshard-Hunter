@@ -7,6 +7,7 @@
 // Schema: { id, name, desc, hidden?, check(stats,meta)->bool, prog?(stats,meta)->[cur,goal],
 //           reward?(meta), rewardLabel? }
 import { BIOMES } from '../../art/biomes.js';
+import { SKINS } from './characters.js';   // 3.10-B: hidden-skin collection goals
 
 // reward helper: idempotently unlock a content id of a given kind
 const U = (kind, id) => (meta) => {
@@ -135,7 +136,14 @@ const R5B = [
   { id: 'r5b_socialite', name: '？？？', realName: '鎮民摯友', desc: '與全部 10 位居民交談', hidden: true, check: (s) => (s.npcTalks || 0) >= 10 },
 ];
 
-export const ACHIEVEMENTS = [...REWARDS, ...FAMILIES, ...R5_FAMILIES, ...R5B, ...BIOME_ACH, ...HIDDEN];
+// ---- round16/3.10-B: hidden full-body skin collection (the prestige cosmetics) ----
+const HIDDEN_SKIN_IDS = SKINS.filter((s) => s.hidden).map((s) => s.id);
+const ownsHiddenN = (m) => new Set(((m && m.ownedSkins) || []).map((k) => String(k).split(':')[1]).filter((id) => HIDDEN_SKIN_IDS.includes(id))).size;
+const SKIN16 = [
+  { id: 'skin_hidden1', name: '異界之姿', desc: '擁有任一隱藏全身造型', check: (s, m) => ownsHiddenN(m) >= 1, prog: (s, m) => [Math.min(ownsHiddenN(m), 1), 1], reward: U('items', 'g_swift_draught'), rewardLabel: '道具「疾風靈藥」' },
+  { id: 'skin_hidden_all', name: '？？？', realName: '形態大師', desc: '集齊全部隱藏全身造型', hidden: true, check: (s, m) => HIDDEN_SKIN_IDS.length > 0 && ownsHiddenN(m) >= HIDDEN_SKIN_IDS.length, prog: (s, m) => [ownsHiddenN(m), HIDDEN_SKIN_IDS.length] },
+];
+export const ACHIEVEMENTS = [...REWARDS, ...FAMILIES, ...R5_FAMILIES, ...R5B, ...SKIN16, ...BIOME_ACH, ...HIDDEN];
 
 // Re-apply rewards for already-earned achievements (idempotent) so unlocks survive
 // across updates / older saves.

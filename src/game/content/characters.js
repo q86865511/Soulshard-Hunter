@@ -35,7 +35,7 @@ C({ id: 'ranger', name: '疾風遊俠', desc: '移速 +15%、暴擊 +8%。起始
 
 C({ id: 'stormcaller', name: '風暴祭司', desc: '範圍 +20%、射速 +10%。起始武器：連鎖閃電。', sprite: 'char_stormcaller', startWeapon: 'w_lightning',
   art: { cloak: P.blue, cloakD: P.blueD, cloakL: P.blueL, trim: P.emberL, eye: P.emberL },
-  passive: (s) => { s.area *= 1.2; s.fireRateMult *= 1.1; }, unlock: { type: 'achievement', condition: 'reach_stage_5', hint: '抵達第 5 區解鎖' } });
+  passive: (s) => { s.area *= 1.2; s.fireRateMult *= 1.1; }, unlock: { type: 'achievement', condition: 'reach_stage_5', hint: '抵達威脅 5 級解鎖' } });
 
 C({ id: 'shadow', name: '暗影刺客', desc: '閃避 +12%、幸運 +0.2。起始武器：環衛刃。', sprite: 'char_shadow', startWeapon: 'w_orbit',
   art: { cloak: P.purple, cloakD: P.purpleD, cloakL: P.purpleL, trim: P.manaL, eye: P.manaL },
