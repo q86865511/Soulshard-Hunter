@@ -197,14 +197,17 @@ export class World {
   collect(type, payload, x, y, collector = null) {
     const run = this.run;
     const who = collector || this.player;   // co-op: the player who grabbed it (hearts heal them)
+    // 4.2: persistent recent-pickup log (meaningful grabs only — currency/xp are too noisy)
+    const logPick = (text, color) => { (run.pickupLog = run.pickupLog || []).push({ text, color, t: run.time || 0 }); if (run.pickupLog.length > 12) run.pickupLog.shift(); };
     switch (type) {
       case 'gold': run.gold += payload; run.goldEarned += payload; this.particles.text(x, y - 8, '+' + payload, { color: P.goldL, size: 11, weight: '800' }); Sfx.play('coin'); if (this.onCollectGold) this.onCollectGold(payload); break;
       case 'shard': run.shards += payload; this.particles.text(x, y - 8, '魂晶+' + payload, { color: P.shardL, size: 12 }); Sfx.play('shard'); break;
       case 'heart': if (who) who.heal(payload); this.particles.text(x, y - 10, '+' + payload, { color: P.redL, size: 12 }); Sfx.play('heart'); break;
       case 'xp': this.gainXp(payload); break;
-      case 'key': this.keys = (this.keys || 0) + (payload || 1); this.particles.text(x, y - 10, '🔑 鑰匙 +' + (payload || 1), { color: P.goldL, size: 12, weight: '800' }); Sfx.play('shard'); break;
+      case 'key': this.keys = (this.keys || 0) + (payload || 1); this.particles.text(x, y - 10, '🔑 鑰匙 +' + (payload || 1), { color: P.goldL, size: 12, weight: '800' }); logPick('🔑 鑰匙', P.goldL); Sfx.play('shard'); break;
       case 'item': {   // B2: ground items are used the instant they're picked up (no storage)
         const def = payload;
+        logPick(def.name, P.shardL);
         this.particles.text(x, y - 12, def.name, { color: P.shardL, size: 12, weight: '800' });
         if (def.desc) this.particles.text(x, y - 24, def.desc, { color: P.gray4, size: 10 });
         try { def.use && def.use(this, who || this.player, run); } catch (e) { /* */ }
@@ -212,6 +215,7 @@ export class World {
         break;
       }
       case 'equip':    // B1: open a paused choose-to-equip menu (falls back to auto-equip; co-op auto-equips the grabber)
+        if (payload && payload.name) logPick(payload.name, P.goldL);
         if (this.onEquipPickup) this.onEquipPickup(payload);
         else equipItem(who || this.player, run, payload, !who || who === this.player);   // a remote grabber gets the gear but doesn't clobber the host's run record
         this.particles.ring(x, y, P.goldL, 14, 80);

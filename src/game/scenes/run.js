@@ -1181,6 +1181,18 @@ export const runScene = {
     const ns = worldToScreen(this.player.x, this.player.y - r - 8);
     uiText('拾取範圍 ' + Math.round(r), ns.x, ns.y, { size: 11 * uiScale(), align: 'center', color: P.shardL, weight: '800', shadowColor: withAlpha('#000', 0.8) });
   },
+  // 4.2: persistent recent-pickup log (bottom-right) — items auto-use on pickup, so this
+  // is the only record of what you grabbed. Latest at the bottom, brightest.
+  drawPickupLog() {
+    const log = this.run.pickupLog;
+    if (!log || !log.length || this.dead || this.choice || this.equipChoice || this.shopOpen || this.bigMap || this.showBuild || this.paused) return;
+    const S = uiScale(), shown = log.slice(-5), x = view.W - 12 * S, y0 = view.H - 54 * S;
+    uiText('近期拾取', x, y0 - shown.length * 14 * S - 3 * S, { size: 9 * S, align: 'right', color: P.gray3, weight: '700', shadowColor: withAlpha('#000', 0.8) });
+    shown.forEach((e, i) => {
+      const a = 0.4 + 0.6 * ((i + 1) / shown.length);
+      uiText('· ' + e.text, x, y0 - (shown.length - 1 - i) * 14 * S, { size: 10.5 * S, align: 'right', color: withAlpha(e.color, a), weight: '700', shadowColor: withAlpha('#000', 0.8) });
+    });
+  },
   // 4.22: held vault keys (dropped by 守護怪, spent on locked vault chests).
   drawKeyHud() {
     const keys = (this.world && this.world.keys) | 0;
@@ -1380,13 +1392,21 @@ export const runScene = {
     }
   },
   drawHidden() {
+    // 4.16: framed reveal panel (was free-floating centred text); the reward string
+    // (hp.result, from claimHidden) already names the specific item.
     const S = uiScale(); const hp = this.hiddenPanel; const room = hp.room;
     uiRect(0, 0, view.W, view.H, withAlpha('#070912', 0.85));
-    uiText(room.name, view.W / 2, view.H * 0.34, { size: 30 * S, align: 'center', color: room.color, weight: '900', shadowColor: withAlpha('#000', 0.8) });
-    uiText(room.desc, view.W / 2, view.H * 0.34 + 30 * S, { size: 14 * S, align: 'center', color: P.gray3 });
-    if (hp.result != null) uiText(hp.result, view.W / 2, view.H * 0.5, { size: 15 * S, align: 'center', color: P.goldL, weight: '800' });
-    else if (hp.claimed) uiText('（此密室你已探索過）', view.W / 2, view.H * 0.5, { size: 13 * S, align: 'center', color: P.gray3 });
-    uiText(hp.result != null ? '點擊 / 按 E 關閉' : '點擊 / 按 E 探索此密室', view.W / 2, view.H * 0.62, { size: 12 * S, align: 'center', color: withAlpha('#fff', 0.6) });
+    const w = Math.min(view.W * 0.82, 560 * S), h = Math.min(view.H * 0.62, 350 * S);
+    const x = (view.W - w) / 2, y = (view.H - h) / 2;
+    uiRect(x, y, w, h, withAlpha('#12152a', 0.98), { radius: 12 * S, stroke: room.color || P.goldL, lw: 2.5 });
+    uiRect(x, y, w, 6 * S, withAlpha(room.color || P.goldL, 0.7), { radius: 3 * S });
+    uiText('✦ 隱藏房間 ✦', view.W / 2, y + 26 * S, { size: 12 * S, align: 'center', color: withAlpha(room.color || P.goldL, 0.85), weight: '800' });
+    uiText(room.name, view.W / 2, y + 56 * S, { size: 26 * S, align: 'center', color: room.color || P.goldL, weight: '900', shadowColor: withAlpha('#000', 0.8) });
+    this.wrapText(room.desc || '', view.W / 2, y + 86 * S, w - 60 * S, 13 * S, P.gray3);
+    if (hp.result != null) this.wrapText(hp.result, view.W / 2, y + h * 0.55, w - 56 * S, 14.5 * S, P.goldL);
+    else if (hp.claimed) uiText('（此密室你已探索過）', view.W / 2, y + h * 0.55, { size: 13 * S, align: 'center', color: P.gray3 });
+    else uiText('一份未知的寶藏在此等候…', view.W / 2, y + h * 0.55, { size: 13 * S, align: 'center', color: withAlpha('#fff', 0.7), weight: '600' });
+    uiText(hp.result != null ? '點擊 / 按 E 關閉' : '點擊 / 按 E 探索此密室', view.W / 2, y + h - 22 * S, { size: 12 * S, align: 'center', color: withAlpha('#ffd479', 0.6 + 0.3 * Math.sin(this.t * 5)), weight: '700' });
     settingsUI.draw();
   },
 
@@ -1402,6 +1422,7 @@ export const runScene = {
     this.world.particles.drawText();
     drawHud(this.run, this.player);
     this.drawKeyHud();        // 4.22: held vault keys
+    this.drawPickupLog();     // 4.2: recent-pickup log
     this.drawStageHud();
     this.drawMinimap();
     this.drawQuestTracker();
