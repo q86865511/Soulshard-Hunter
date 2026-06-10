@@ -29,8 +29,11 @@ export const settingsUI = {
       rows.push({ key: t[0], label: t[1], type: 'toggle', x: x + pw * 0.34, y: y + 70 * S + (3 + i) * 42 * S, w: 56 * S, h: 24 * S }));
     rows.push({ key: 'uiScale', label: 'UI 大小', type: 'uiscale', x: x + pw * 0.34, y: y + 70 * S + 5 * 42 * S, w: pw * 0.5, h: 12 * S });   // 1080p UI 大小可調
     const bw = 220 * S, bx = x + pw / 2 - bw / 2;
-    const keys = { x: bx, y: y + ph - 178 * S, w: bw, h: 30 * S };
-    const home = (this.returnHub || this.returnTitle) ? { x: bx, y: y + ph - 142 * S, w: bw, h: 30 * S } : null;
+    // R17 UI-sweep polish: without a 返回大廳 callback (title/hub) the reserved home slot left a
+    // visible dead band — collapse it by sliding 按鍵設定 down into the slot.
+    const hasHome = !!(this.returnHub || this.returnTitle);
+    const keys = { x: bx, y: y + ph - (hasHome ? 178 : 142) * S, w: bw, h: 30 * S };
+    const home = hasHome ? { x: bx, y: y + ph - 142 * S, w: bw, h: 30 * S } : null;
     const reset = { x: x + pw / 2 - 100 * S, y: y + ph - 96 * S, w: 200 * S, h: 30 * S };
     const close = { x: x + pw / 2 - 70 * S, y: y + ph - 50 * S, w: 140 * S, h: 36 * S };
     return { x, y, w: pw, h: ph, S, rows, keys, home, reset, close };

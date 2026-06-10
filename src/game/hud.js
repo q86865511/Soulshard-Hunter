@@ -27,11 +27,15 @@ export function drawAchievementToasts(S = uiScale()) {
 // frame by drawHud — the run scene reads these to show hover tooltips.
 export const hudIcons = [];
 
-function iconCounter(sprite, value, x, y, S, color) {
+// R17 UI-sweep: right-anchored — the old left-anchored value (70S reserved) ran 6-digit
+// late-game gold off the right viewport edge. `rightX` = the column's right edge.
+function iconCounter(sprite, value, rightX, y, S, color) {
   const sp = getSprite(sprite);
   const sc = 1.6 * S;
-  drawSpriteUI(sp.frames[0], x, y - sp.h * sc + 2 * S, sc);
-  uiText(String(value), x + sp.w * sc + 4 * S, y - 3 * S, { size: 12 * S, color, weight: '800', baseline: 'alphabetic', font: PIXEL_FONT });   // 1.8 pixel digits
+  const txt = String(value);
+  const tw = textWidth(txt, 12 * S, '800', PIXEL_FONT);
+  uiText(txt, rightX, y - 3 * S, { size: 12 * S, align: 'right', color, weight: '800', baseline: 'alphabetic', font: PIXEL_FONT });   // 1.8 pixel digits
+  drawSpriteUI(sp.frames[0], rightX - tw - 4 * S - sp.w * sc, y - sp.h * sc + 2 * S, sc);
 }
 
 // round16/UI-fix #2 — bare twin-chevron "dash" glyph drawn directly (no panel box), so the
@@ -115,9 +119,9 @@ export function drawHud(run, player) {
   // (stage / biome / timer are drawn by the run scene's drawStageHud)
   // top-right counters
   const rx = W - pad;
-  iconCounter('coin', run.gold, rx - 70 * S, pad + 20 * S, S, P.goldL);
-  iconCounter('shard', run.shards, rx - 70 * S, pad + 44 * S, S, P.shardL);
-  iconCounter('skull_kill', run.kills || 0, rx - 70 * S, pad + 68 * S, S, P.redL);   // #5: 擊殺改用骷髏圖示，與金幣/魂晶同欄對齊
+  iconCounter('coin', run.gold, rx, pad + 20 * S, S, P.goldL);
+  iconCounter('shard', run.shards, rx, pad + 44 * S, S, P.shardL);
+  iconCounter('skull_kill', run.kills || 0, rx, pad + 68 * S, S, P.redL);   // #5: 擊殺改用骷髏圖示，與金幣/魂晶同欄對齊（R17: 右對齊防 6 位數出界）
 
   // weapons row (bottom-left, primary) — shows level / ★ when evolved
   if (player.weapons && player.weapons.length) {

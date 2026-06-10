@@ -28,8 +28,12 @@ export const titleScene = {
   enter() { this.t = 0; this.mode = 'menu'; this.confirm = -1; this.slots = slotSummaries(); Music.setMode('title'); },
 
   // ---- layout (shared by update hit-testing + render) ----------------------
+  // R17 UI-sweep: fitted scale for the menu block — at uiScale 1.5 the sub-row bottom
+  // (0.58H + 126S) overdrew the fixed-0.845H 更新日誌 button; cap S so buttons + notes
+  // button + footer always stack cleanly within the viewport.
+  menuScale() { return Math.min(uiScale(), (view.H * 0.35 - 18) / 156); },
   layoutMenu() {
-    const S = uiScale();
+    const S = this.menuScale();
     // two big buttons (single vs multiplayer) + a row of three smaller (排行榜 · 帳號 · 設定)
     const bw = Math.min(210 * S, (view.W - 60 * S) / 2), bh = 66 * S, bgap = 20 * S;
     const totalBig = bw * 2 + bgap, x0 = view.W / 2 - totalBig / 2, yBig = view.H * 0.58;
@@ -154,7 +158,10 @@ export const titleScene = {
     vignette(0.5);
     settingsUI.draw();
   },
-  notesBtn() { const S = uiScale(); const w = 210 * S, h = 30 * S; return { x: view.W / 2 - w / 2, y: view.H * 0.845, w, h }; },
+  notesBtn() {   // R17 UI-sweep: anchored BELOW the sub-button row (was a fixed 0.845H that collided at high uiScale)
+    const S = this.menuScale(); const w = 210 * S, h = 30 * S;
+    return { x: view.W / 2 - w / 2, y: Math.max(view.H * 0.58 + 126 * S + 10, view.H * 0.815), w, h };
+  },
   // very small CJK-aware wrap that draws + returns line count
   wrapNote(str, x, y, maxw, size) {
     const lines = []; let line = '';
@@ -227,6 +234,7 @@ export const titleScene = {
   },
 
   drawMenu(S) {
+    S = this.menuScale();   // R17 UI-sweep: fonts/sizes follow the fitted menu scale
     // drifting hero behind the menu
     const sp = getSprite('player'); const scale = 6.5 * S; const bob = Math.sin(this.t * 2) * 4 * S;
     const hx = view.W / 2, hy = view.H * 0.46;

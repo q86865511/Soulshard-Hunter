@@ -149,7 +149,11 @@ export const hubScene = {
     return items;
   },
   escMenuLayout() {
-    const S = uiScale(); const items = this.escMenuItems();
+    const S0 = uiScale(); const items = this.escMenuItems();
+    // R17 UI-sweep: FIT the whole group to the viewport — at uiScale 1.5 a 9-item menu
+    // measured ~854px on a 720px screen (title off the top, last button past the bottom).
+    const need = (s) => 58 * s + items.length * 46 * s + (items.length - 1) * 10 * s;   // 58s = title glyph box (baseline -30s + ~22s ascent + pad)
+    const S = need(S0) > view.H - 24 ? S0 * (view.H - 24) / need(S0) : S0;
     const w = 300 * S, h = 46 * S, gap = 10 * S, x = view.W / 2 - w / 2;
     // 1.7: center the WHOLE group (title + buttons) — the「選 單」title floats ~44px above
     // the first button, so offset the buttons down by half the title block to centre the set.
@@ -157,6 +161,7 @@ export const hubScene = {
     const total = items.length * h + (items.length - 1) * gap;
     const y0 = view.H / 2 - (titleH + total) / 2 + titleH;
     items.forEach((it, i) => { it.r = { x, y: y0 + i * (h + gap), w, h }; });
+    items.eS = S;   // effective scale — drawEscMenu sizes its fonts with this
     return items;
   },
   updateEscMenu() {
@@ -179,9 +184,10 @@ export const hubScene = {
     else if (id === 'title') { this.escMenu = false; saveMeta(); setScene(refs.title, {}); }
   },
   drawEscMenu() {
-    const S = uiScale(); const mx = mouse.x * view.dpr, my = mouse.y * view.dpr;
+    const mx = mouse.x * view.dpr, my = mouse.y * view.dpr;
     uiRect(0, 0, view.W, view.H, withAlpha('#0b0d1a', 0.72));
     const items = this.escMenuLayout();
+    const S = items.eS || uiScale();   // R17 UI-sweep: fonts follow the fitted scale
     uiText('選 單', view.W / 2, items[0].r.y - 30 * S, { size: 26 * S, align: 'center', color: '#fff', weight: '900' });
     for (const it of items) {
       const hov = inside(mx, my, it.r);
@@ -616,7 +622,11 @@ export const hubScene = {
   forgeButtons(d) {
     const S = uiScale(); const sel = this.forgeSel; const f = sel ? forgeOf(META, sel) : { level: 0, effects: [] };
     const level = f.level < FORGE_MAX_LEVEL ? { x: d.x + 14 * S, y: d.y + 92 * S, w: d.w - 28 * S, h: 32 * S } : null;
-    const effects = FORGE_EFFECTS.map((e, i) => ({ ...e, owned: f.effects.includes(e.id), full: f.effects.length >= FORGE_MAX_EFFECTS, x: d.x + 14 * S, y: d.y + 150 * S + i * 38 * S, w: d.w - 28 * S, h: 32 * S }));
+    // R17 UI-sweep: compress the effect-row pitch when the (viewport-capped) detail pane can't
+    // fit all rows at 38S — at uiScale 1.5 the last rows used to paint past the panel bottom.
+    const pitch = Math.max(26 * S, Math.min(38 * S, (d.h - 150 * S - 8 * S) / Math.max(1, FORGE_EFFECTS.length)));
+    const rowH = Math.min(32 * S, pitch - 4 * S);
+    const effects = FORGE_EFFECTS.map((e, i) => ({ ...e, owned: f.effects.includes(e.id), full: f.effects.length >= FORGE_MAX_EFFECTS, x: d.x + 14 * S, y: d.y + 150 * S + i * pitch, w: d.w - 28 * S, h: rowH }));
     return { level, effects };
   },
 
@@ -705,8 +715,9 @@ export const hubScene = {
     const mainTrack = { x: f.x + 182 * S, y: t0 + 58 * S, w: 112 * S, h: 30 * S };
     const list = guildQuests(META).slice(0, 6);
     const rowH = 38 * S, top = t0 + 134 * S;
-    const rows = list.map((q, i) => { const y = top + i * (rowH + 6 * S); return { q, y, h: rowH, track: { x: f.x + f.w - 196 * S, y: y + 6 * S, w: 84 * S, h: 26 * S }, claim: { x: f.x + f.w - 104 * S, y: y + 6 * S, w: 84 * S, h: 26 * S } }; });
-    return { f, mainClaim, mainTrack, rows, t0 };
+    // R17 UI-sweep: rows scroll (at uiScale 1.5 rows 4-6 painted 145px past the panel bottom)
+    const rows = list.map((q, i) => { const y = top + i * (rowH + 6 * S) - (this.panelScroll || 0); return { q, y, h: rowH, track: { x: f.x + f.w - 196 * S, y: y + 6 * S, w: 84 * S, h: 26 * S }, claim: { x: f.x + f.w - 104 * S, y: y + 6 * S, w: 84 * S, h: 26 * S } }; });
+    return { f, mainClaim, mainTrack, rows, t0, top, clipTop: top - 8 * S };
   },
   updateQuests(mx, my) {
     if (!mouse.justDown) return;
@@ -715,6 +726,7 @@ export const hubScene = {
     if (cur && cur.done && inside(mx, my, L.mainClaim)) { const q = claimChapter(META); if (q) { saveMeta(); this.feedback('完成 ' + q.title); } return; }
     if (inside(mx, my, L.mainTrack)) { const res = trackQuest(META, 'story'); Sfx.play('uiClick'); if (res === 'full') { this.feedback('最多同時追蹤 ' + MAX_TRACKED + ' 個任務'); } else { saveMeta(); this.feedback(res === 'added' ? '追蹤主線' : '取消追蹤主線'); } return; }
     for (const r of L.rows) {
+      if (r.y + r.h < L.clipTop || r.y > L.f.y + L.f.h - 24 * L.f.S) continue;   // R17 UI-sweep: scrolled-out rows aren't clickable
       const lockedBy = questLockedBy(META, r.q);   // 5.5: locked rows hide their buttons; clicking the row hints the prerequisite
       if (lockedBy) { if (inside(mx, my, { x: L.f.x, y: r.y, w: L.f.w, h: r.h })) { this.feedback('🔒 需先完成：' + lockedBy); return; } continue; }
       if (inside(mx, my, r.track)) { const res = trackQuest(META, r.q.id); if (res === 'added' || res === 'removed') { saveMeta(); this.feedback((res === 'added' ? '追蹤：' : '取消追蹤：') + r.q.title); } else if (res === 'full') this.feedback('最多同時追蹤 ' + MAX_TRACKED + ' 個任務'); Sfx.play('uiClick'); return; }
@@ -787,7 +799,7 @@ export const hubScene = {
     const chh = Math.min(172 * S, (f.y + f.h - 40 * S - top - gap) / 2);
     const offers = ensureSkinOffers(META);
     const cards = offers.map((o, i) => ({ o, i, x: f.x + 24 * S + (i % cols) * (cw + gap), y: top + Math.floor(i / cols) * (chh + gap), w: cw, h: chh }));
-    const reroll = { x: f.x + f.w - 286 * S, y: f.y + 46 * S, w: 182 * S, h: 26 * S };
+    const reroll = { x: f.x + f.w - 286 * S, y: f.y + 50 * S, w: 182 * S, h: 26 * S };   // R17 UI-sweep polish: clear of the 50S title divider
     return { f, cards, reroll, back: this.wardrobeBackRect(f), top };
   },
   updateSkinShop(mx, my) {
@@ -982,9 +994,12 @@ export const hubScene = {
   drawLockedPanel(f, hint) {
     const S = f.S;
     this.panelMaxScroll = 0;
-    uiText('🔒', f.x + f.w / 2, f.y + f.h * 0.42, { size: 40 * S, align: 'center', color: P.gray2, weight: '900' });
-    uiText(hint, f.x + f.w / 2, f.y + f.h * 0.42 + 38 * S, { size: 14 * S, align: 'center', color: '#cfe0ff', weight: '800' });
-    uiText(gateProgress(META), f.x + f.w / 2, f.y + f.h * 0.42 + 60 * S, { size: 11 * S, align: 'center', color: P.gray3 });
+    // R17 UI-sweep polish: center within the BODY (below any tab row) — anchoring at 0.42·f.h
+    // left a ~180px dead band under the smith tabs while the lock sat too low.
+    const cy = (this.bodyTop(f) + f.y + f.h - 24 * S) / 2;
+    uiText('🔒', f.x + f.w / 2, cy - 22 * S, { size: 40 * S, align: 'center', color: P.gray2, weight: '900' });
+    uiText(hint, f.x + f.w / 2, cy + 16 * S, { size: 14 * S, align: 'center', color: '#cfe0ff', weight: '800' });
+    uiText(gateProgress(META), f.x + f.w / 2, cy + 38 * S, { size: 11 * S, align: 'center', color: P.gray3 });
     uiText('Esc 關閉', f.x + f.w / 2, f.y + f.h - 14 * S, { size: 11 * S, align: 'center', color: P.gray3 });
   },
   // ---- blacksmith: forge + facilities tabs ---------------------------------
@@ -1020,6 +1035,9 @@ export const hubScene = {
     const d = L.detail, sel = this.forgeSel;
     uiRect(d.x, d.y, d.w, d.h, withAlpha('#12152a', 0.9), { radius: 8 * S, stroke: P.ink2, lw: 1.5 });
     if (!sel) { uiText('選擇左側武器進行鍛造', d.x + d.w / 2, d.y + d.h / 2, { size: 12 * S, align: 'center', baseline: 'middle', color: P.gray3 }); return; }
+    // R17 UI-sweep: the pane content was UNCLIPPED — at uiScale 1.5 the last effect rows
+    // (廣域/疾速) painted 84px past the panel bottom, over the town. Clip to the pane.
+    const ctxD = ctxRaw(); ctxD.save(); ctxD.beginPath(); ctxD.rect(d.x, d.y, d.w, d.h); ctxD.clip();
     const wdef = Weapons.get(sel); const fdata = forgeOf(META, sel);
     const isp = getSprite(iconOr('weapon_' + sel, 'weapon_w_soulbolt'));
     drawSpriteUI(isp.frames[0], d.x + 14 * S, d.y + 12 * S, (34 * S) / isp.w);
@@ -1041,6 +1059,7 @@ export const hubScene = {
       if (state === 'owned' || state === 'full') uiText(state === 'owned' ? '已鑲嵌' : '欄位已滿', eb.x + eb.w - 10 * S, eb.y + eb.h - 10 * S, { size: 11 * S, align: 'right', color: labCol, weight: '800' });
       else goldLabel(eb.x + eb.w - 10 * S, eb.y + eb.h - 10 * S, forgeEffectCost(fdata.effects.length), { size: 11 * S, align: 'right', color: labCol, weight: '800' });   // R17/2.1
     }
+    ctxD.restore();   // R17 UI-sweep: end detail-pane clip
   },
   drawFacilities(f) {
     const S = f.S; const mx = mouse.x * view.dpr, my = mouse.y * view.dpr;
@@ -1090,6 +1109,12 @@ export const hubScene = {
     } else uiText('主線已全數完成 — 你已成為魂晶之主。', f.x + 24 * S, t0 + 40 * S, { size: 13 * S, color: P.goldL, weight: '800' });
     uiText('懸賞委託（可同時追蹤 · 已追蹤 ' + trackedCount(META) + '/' + MAX_TRACKED + '）', f.x + 24 * S, t0 + 118 * S, { size: 12 * S, color: P.shardL, weight: '800' });
     if (!L.rows.length) uiText('目前沒有可接的委託（達成條件可解鎖隱藏委託）', f.x + 24 * S, t0 + 140 * S, { size: 11 * S, color: P.gray3 });
+    // R17 UI-sweep: clip + scroll the bounty rows (mirrors the B16 guild-rank fix — at high
+    // uiScale rows 4-6 painted straight over the town, 145px past the panel bottom).
+    let qBottom = L.top;
+    for (const r of L.rows) qBottom = Math.max(qBottom, r.y + r.h + (this.panelScroll || 0));
+    this.panelMaxScroll = Math.max(0, qBottom - (f.y + f.h - 24 * S));
+    const ctxQ = ctxRaw(); ctxQ.save(); ctxQ.beginPath(); ctxQ.rect(f.x, L.clipTop, f.w, (f.y + f.h - 24 * S) - L.clipTop); ctxQ.clip();
     for (const r of L.rows) {
       const q = r.q, p = Math.min(q.goal, q.prog(META.stats || {})), done = p >= q.goal;
       const trk = isQuestTracked(META, q.id), hidden = q.id[0] === 'h';
@@ -1109,6 +1134,8 @@ export const hubScene = {
         else uiText('進行中', r.claim.x + r.claim.w / 2, r.claim.y + r.claim.h / 2 + 1 * S, { size: 10 * S, align: 'center', baseline: 'middle', color: P.gray3, weight: '700' });
       }
     }
+    ctxQ.restore();   // R17 UI-sweep: end bounty-row clip
+    this.drawScrollbar(f);
   },
   drawGuildRank(f) {
     const S = f.S; const mx = mouse.x * view.dpr, my = mouse.y * view.dpr; const t0 = this.bodyTop(f);
@@ -1342,7 +1369,7 @@ export const hubScene = {
     drawSpriteUI(psp.frames[Math.floor(this.t * 4) % psp.frames.length], f.x + 20 * S + 75 * S - psp.w * sc / 2, f.y + 92 * S, sc);
     uiText(ch ? ch.name : cid, f.x + 95 * S, f.y + 200 * S, { size: 14 * S, align: 'center', color: '#fff', weight: '900' });
     const gp = guildProgress(META);
-    uiText(gp.name, f.x + 95 * S, f.y + 216 * S, { size: 10 * S, align: 'center', color: P.gold, weight: '700' });
+    uiText(gp.name, f.x + 95 * S, f.y + 230 * S, { size: 10 * S, align: 'center', color: P.gold, weight: '700' });   // R17 UI-sweep polish: cleanly BELOW the 150S portrait frame (was straddling its border at high S)
     // stat columns
     const sx = f.x + 200 * S, sw = f.w - 220 * S;
     const fmtT = (v) => Math.floor(v / 60) + ':' + String(Math.floor(v % 60)).padStart(2, '0');

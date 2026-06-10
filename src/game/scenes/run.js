@@ -392,7 +392,7 @@ export const runScene = {
   },
   eventCardRects() {
     const S = uiScale(); const n = this.eventChoice ? this.eventChoice.length : 3;
-    const cw = Math.min(212 * S, (view.W - 50 * S) / n - 16 * S); const ch = Math.min(cw * 1.62, view.H * 0.74), gap = 18 * S;   // 原#14 + R17/1.5: taller card = breathing room between portrait and text
+    const cw = Math.min(212 * S, (view.W - 50 * S) / n - 16 * S); const ch = Math.min(cw * 1.45, view.H * 0.74), gap = 18 * S;   // 原#14 + R17/1.5 spacing; R17 UI-sweep polish: ×1.62 left the lower half empty — ×1.45 keeps the air without the dead band
     const totalW = n * cw + (n - 1) * gap, x0 = (view.W - totalW) / 2, y = (view.H - ch) / 2 + 6 * S;
     return Array.from({ length: n }, (_, i) => ({ x: x0 + i * (cw + gap), y, w: cw, h: ch }));
   },
@@ -1457,7 +1457,9 @@ export const runScene = {
     // the paused 3-choice overlay (stat OR gear) (#3 / C1)
     let choiceCards = null;
     if (this.shopChoice) {
-      const cw = Math.min(166 * S, (w - 64 * S) / 3), ch = cw * 1.62, cg = 14 * S;   // 原#4: taller cards fit the diff
+      // 原#4: GEAR cards stay tall (they fit the before/after diff rows); R17 UI-sweep polish:
+      // STAT-anvil cards only hold an emblem + name + 2 desc lines — ×1.62 left ~65% empty.
+      const cw = Math.min(166 * S, (w - 64 * S) / 3), ch = cw * (this.shopChoice.kind === 'gear' ? 1.62 : 1.0), cg = 14 * S;
       const totW = 3 * cw + 2 * cg, cx0 = x + (w - totW) / 2, cy = y + h / 2 - ch / 2;
       choiceCards = this.shopChoice.opts.map((opt, i) => ({ x: cx0 + i * (cw + cg), y: cy, w: cw, h: ch, opt }));
     }
@@ -2004,7 +2006,11 @@ export const runScene = {
     head('數值', colR, yR, P.emberL); yR += 16 * S;
     const st = this.player.stats;
     const stats = [['生命', Math.round(this.player.hp) + ' / ' + this.player.maxHp], ['傷害', '×' + st.damageMult.toFixed(2)], ['射速', '×' + st.fireRateMult.toFixed(2)], ['暴擊', Math.round(st.critChance * 100) + '%'], ['暴傷', '×' + (st.critMult || 2).toFixed(1)], ['移速', Math.round(st.speed)], ['減傷', String(st.defense || 0)], ['閃避', Math.round((st.dodge || 0) * 100) + '%'], ['吸血', Math.round((st.lifesteal || 0) * 100) + '%'], ['幸運', (st.luck || 0).toFixed(2)]];
-    for (const [k, v] of stats) { if (yR > bandTop - 8 * S) break; uiText(k, colR, yR, { size: 11.5 * S, color: P.gray3, weight: '500' }); uiText(v, x + w - 24 * S, yR, { size: 11.5 * S, align: 'right', color: '#fff', weight: '700' }); yR += 15 * S; }
+    // R17 UI-sweep: compress the row pitch when the height-clamped panel can't fit all 10 rows
+    // at 15S each (uiScale 1.5 silently dropped 吸血/幸運) — pitch floors at 11S, font follows.
+    const stride = Math.max(11 * S, Math.min(15 * S, (bandTop - 8 * S - yR) / stats.length));
+    const sFont = Math.min(11.5 * S, stride * 0.74);
+    for (const [k, v] of stats) { if (yR > bandTop - 8 * S) break; uiText(k, colR, yR, { size: sFont, color: P.gray3, weight: '500' }); uiText(v, x + w - 24 * S, yR, { size: sFont, align: 'right', color: '#fff', weight: '700' }); yR += stride; }
     // 8.2 羈絆可見化：底部全寬三態總覽（金=已達成含階級 / 白=接近 / 灰=未達成）
     uiRect(x + 18 * S, bandTop, w - 36 * S, Math.max(1, S), withAlpha(P.ink2, 0.9));
     const pgList = BONDS.map((b) => bondProgress(b, this.run, this.player));   // live → header count + grid glyphs always agree (checkBonds is throttled)
@@ -2028,7 +2034,8 @@ export const runScene = {
   drawBanner() {
     if (this.bannerT <= 0) return;
     const S = uiScale(); const a = Math.min(1, this.bannerT);
-    uiText(this.banner, view.W / 2, view.H * 0.2, { size: 28 * S, align: 'center', color: withAlpha('#ffe9a0', a), weight: '900', shadowColor: withAlpha('#000', a * 0.8) });
+    // R17 UI-sweep: keep the 28S banner clear of the boss HP bar (bottom 73S) + patron strip (80S)
+    uiText(this.banner, view.W / 2, Math.max(view.H * 0.2, 118 * S), { size: 28 * S, align: 'center', color: withAlpha('#ffe9a0', a), weight: '900', shadowColor: withAlpha('#000', a * 0.8) });
   },
   // G3: a cinematic letterbox recounting the current story chapter at run start
   drawStory() {
@@ -2111,7 +2118,8 @@ export const runScene = {
     ];
     lines.forEach((l, i) => uiText(l, cx, view.H * 0.11 + (40 + i * 20) * S, { size: 13 * S, align: 'center', color: i === 1 ? (this.reaperSlain ? P.goldL : P.gray3) : '#d8e8d0', weight: i === 2 ? '800' : '600' }));
     if (this.run.bankRepaid > 0) uiText('🏦 銀行還款 -' + goldStr(this.run.bankRepaid) + (META.bank && META.bank.debt > 0 ? '（尚欠 ' + goldStr(META.bank.debt) + '）' : ''), cx, view.H * 0.11 + (40 + lines.length * 20) * S, { size: 12 * S, align: 'center', color: P.emberL, weight: '700' });   // 7.2
-    this.drawResultSummary(view.H * 0.28);
+    // R17 UI-sweep: anchor the panel BELOW the header block — at uiScale 1.5 the fixed 0.28H top occluded the 3rd line + bank-repaid line
+    this.drawResultSummary(Math.max(view.H * 0.28, view.H * 0.11 + (40 + (lines.length + (this.run.bankRepaid > 0 ? 1 : 0)) * 20 + 12) * S));
     const blink = Math.sin(this.t * 4) * 0.5 + 0.5;
     uiText('點擊 / 空白鍵 返回城鎮', cx, view.H * 0.95, { size: 15 * S, align: 'center', color: withAlpha('#ffd479', 0.5 + blink * 0.5), weight: '700' });
   },
@@ -2129,7 +2137,8 @@ export const runScene = {
     ];
     lines.forEach((l, i) => uiText(l, cx, view.H * 0.11 + (40 + i * 20) * S, { size: 13 * S, align: 'center', color: i === 1 ? P.goldL : '#d8def0', weight: i === 1 ? '800' : '600' }));
     if (this.run.bankRepaid > 0) uiText('🏦 銀行還款 -' + goldStr(this.run.bankRepaid) + (META.bank && META.bank.debt > 0 ? '（尚欠 ' + goldStr(META.bank.debt) + '）' : ''), cx, view.H * 0.11 + (40 + lines.length * 20) * S, { size: 12 * S, align: 'center', color: P.emberL, weight: '700' });   // 7.2
-    this.drawResultSummary(view.H * 0.26);
+    // R17 UI-sweep: anchor below the header block (see drawWon)
+    this.drawResultSummary(Math.max(view.H * 0.26, view.H * 0.11 + (40 + (lines.length + (this.run.bankRepaid > 0 ? 1 : 0)) * 20 + 12) * S));
     const blink = Math.sin(this.t * 4) * 0.5 + 0.5;
     uiText('點擊 / 空白鍵 返回城鎮', cx, view.H * 0.95, { size: 15 * S, align: 'center', color: withAlpha('#ffd479', 0.5 + blink * 0.5), weight: '700' });
   },
@@ -2137,7 +2146,7 @@ export const runScene = {
   // 原#1/#13/#16: results-screen build (hover for details) + damage ranking + bonds + unlocks
   drawResultSummary(topY) {
     const S = uiScale();
-    const w = Math.min(view.W * 0.94, 720 * S), h = Math.min(view.H * 0.62, 430 * S);   // R17/1.6: taller — sections breathe
+    const w = Math.min(view.W * 0.94, 720 * S), h = Math.min(view.H * 0.62, 430 * S, view.H * 0.93 - topY);   // R17/1.6 taller; UI-sweep: never past the 0.95H hint when topY is pushed down
     const x = (view.W - w) / 2, y = topY;
     uiRect(x, y, w, h, withAlpha('#0e1322', 0.92), { radius: 8 * S, stroke: P.ink2, lw: 2 });
     // R17/1.6: one shared rhythm for the whole left column — header → HEAD_DROP → icon rows → SEC_GAP
@@ -2163,8 +2172,10 @@ export const runScene = {
     [['weapon'], ['armor'], ['trinket']].forEach(([slot], i) => { const bx = colL + i * (sz + gap); const d = eq[slot] && Equipment.get(eq[slot]); if (d) { cell(bx, yL, getSprite(iconOr(d.icon, 'equip_leather_armor')), P.goldL, '', ''); this.resultIcons.push({ x: bx, y: yL, w: sz, h: sz, kind: 'equip', def: d }); } else { uiRect(bx, yL, sz, sz, withAlpha('#10121f', 0.82), { radius: 4 * S, stroke: P.ink2, lw: 1 }); uiText('—', bx + sz / 2, yL + sz / 2 + 4 * S, { size: 11 * S, align: 'center', color: P.gray2 }); } });
     yL += sz + SEC_GAP;
     // bonds (原#13 + 8.2: 圖示徽章 + hover 看各階效果)
+    // R17 UI-sweep: with a maxed build at high uiScale the section LABEL landed exactly on the
+    // clip seam over「★ 本局解鎖」— skip the whole section when there's no room for label + a row.
     const bonds = activeBonds(this.run);
-    if (bonds.length) {
+    if (bonds.length && yL + HEAD_DROP + 20 * S <= y + h - 50 * S) {
       uiText('羈絆', colL, yL, { size: 10 * S, color: P.goldL, weight: '800' }); yL += HEAD_DROP;
       const bsz = 18 * S, bgap = 4 * S, bx0 = colL, maxX = colL + w * 0.46;
       let bx = bx0, by = yL;
