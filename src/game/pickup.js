@@ -5,11 +5,12 @@ import { dist, easeOutCubic } from '../engine/math.js';
 import { P, withAlpha } from '../engine/palette.js';
 import { BALANCE } from './balance.js';
 
-// 4.4: type / rarity colour for the ground-loot outline ring (null = no ring, e.g. currency).
-const RARITY_RING = { common: P.gray3, rare: P.purpleL, epic: P.goldL, legendary: P.goldL, curse: P.redL };
+// 4.4 → R17/5.1: ground-loot outline ring follows the panel rarity language —
+// 普通白 / 稀有藍 / 史詩紫 / 傳說黃 (null = no ring, e.g. currency).
+const RARITY_RING = { common: '#cfd4e0', rare: '#58a6ff', epic: P.purpleL, legendary: P.goldL, curse: P.redL };
 function pickupRing(pk) {
   switch (pk.type) {
-    case 'equip': { const r = (pk.def && (pk.def.rarity || ({ 1: 'common', 2: 'rare', 3: 'epic' })[pk.def.tier])) || 'rare'; return RARITY_RING[r] || P.purpleL; }
+    case 'equip': { const r = (pk.def && (pk.def.rarity || (pk.def.exclusive ? 'legendary' : ({ 1: 'common', 2: 'rare', 3: 'epic', 4: 'legendary' })[pk.def.tier]))) || 'rare'; return RARITY_RING[r] || '#58a6ff'; }
     case 'item': return P.greenL;
     case 'heart': return P.redL;
     case 'chest': return pk.locked ? P.redL : P.goldL;

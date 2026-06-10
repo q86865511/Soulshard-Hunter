@@ -47,4 +47,13 @@
   - **4.1 角色卡改版**：`perPage 6→9`（3×3）；移除底部英雄介紹塊（▸ 名稱／起始武器／敘述）；卡片自帶資訊 — 左 36%＝sprite＋名稱＋狀態（已選／🔒金幣或成就解鎖），右 64%＝「起始武器：…」（金）＋效果敘述 ≤2 行（CJK 逐字斷行＋第二行省略號裁切）；卡高 `max(56S, min(86S, 可用高/3−8S))`。
   - **4.2 無盡＝難度末階**：移除獨立 `modeBtn`／`selMode`（原全域 `META.stats.clears>0` 解鎖）；新 `biomeCleared(bid)`＝`META.levels.diff[bid] ≥ 1`（**逐關**，玩家定案）；步進域 `0(劇情)…maxDiff(+1 無盡，僅已通關生態)`；選中末階顯示「♾ 無盡挑戰」（金）＋無盡說明、最高難度時提示「再按＋進入無盡」；出擊時 `mode='endless'`、difficulty＝該關最高解鎖難度；切換生態重設 selDiff=1。
 - **驗證**（preview）：3×3 兩頁渲染正常；未通關生態 selDiff=99 → 夾至 1（無無盡階）、已通關生態 → 夾至 maxDiff+1 並顯示 ♾ 金標；模擬點擊出擊 → `run.mode='endless'`、`difficulty=3`（該關最高）、場景切至 run（rAF 節流下需 pump 一幀觀察 — 既有 gotcha）；`grep selMode/modeBtn` 歸零。
+
+## 批次 B5 — 稀有度四階色彩＋型別徽章（5.1）
+- **範圍**：`progression.js`、`scenes/run.js`、`pickup.js`。
+- **條目**：
+  - 單一真相源 `RARITY={1:普通 白#e6e9f2, 2:稀有 藍#58a6ff, 3:史詩 紫P.purpleL, 4:傳說 黃P.goldL}`（各帶配套深色卡底）＋`rarityOf(def,kind)`（合成與 `exclusive` 裝備＝傳說）＋`CHOICE_TYPE` 型別徽章表 — 全部 export。
+  - `choiceStyle()` 重寫：卡底＋頂條＋稀有度 pill 同一 RARITY 列；**升級卡稀有度跟隨武器本身 tier**（原強制稀有藍）；詛咒保留紅框紅底身分、稀有度 pill 仍顯真實 tier。
+  - 升級三選一左上角**型別 pill**（`1·武器`／`2·被動`／升級／合成／詛咒）取代裸數字。
+  - 一致化掃描：B 商店裝備卡與鐵砧三選一（原 ad-hoc 三色三元）、撿裝備覆蓋層名稱列、build/結算 tooltip 名稱色、`pickup.js RARITY_RING`（白/藍/紫/黃/紅，`exclusive`→傳說）。
+- **驗證**（preview）：強制三卡（t1 武器/t2 被動/t3 被動）→ 白框普通＋「1·武器」、藍框稀有＋「2·被動」、紫框史詩＋「3·被動」，卡底同色系；舊式 tier 色彩三元 grep 歸零；零 console error。
 - **驗證**（preview 驅動，零 console error / `__GAME_ERROR__` null）：slots 畫面截圖無重疊（493×374 小視窗）；衣帽間列身點擊（先前必拋處）`threw:null`；4000 殺統計 nova 引爆率 **24.4%**（目標 25%）；speed=200 玩家逃跑下範圍內金幣 120 幀內收斂吸附（finalDist 0.4）；keys+1 → 橫幅正確、keys−1 不觸發；離場確認框／贊助者三選一／結算左欄截圖確認新版面。

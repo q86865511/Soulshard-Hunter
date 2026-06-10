@@ -72,22 +72,49 @@ export function applyChoice(run, player, world, c) {
   else if (c.kind === 'fuse') player.fuseWeapons(c.target, c.sacrifice, world);
 }
 
-// presentation metadata for a choice card — rarity-coloured, with a numeric
-// "effect" line (weapon stats) shown above the flavour text on the card.
-const RARITY = { 1: { accent: P.gray4, tag: '普通' }, 2: { accent: P.purpleL, tag: '稀有' }, 3: { accent: P.goldL, tag: '史詩' } };
+// R17/5.1: FOUR rarity tiers in the conventional colour language — 普通白 / 稀有藍 /
+// 史詩紫 / 傳說黃. ONE row drives everything on a card (top bar + bg tint + rarity pill)
+// so the card body always matches its rarity; the separate TYPE badge says what KIND of
+// thing the offer is (武器/被動/升級/合成/裝備/詛咒), independent of how rare it is.
+export const RARITY = {
+  1: { tag: '普通', accent: '#e6e9f2', bg: '#262b3e' },
+  2: { tag: '稀有', accent: '#58a6ff', bg: '#16294a' },
+  3: { tag: '史詩', accent: P.purpleL, bg: '#2c1c4a' },
+  4: { tag: '傳說', accent: P.goldL, bg: '#42330f' },
+};
+export const CHOICE_TYPE = {
+  weapon: { label: '武器', col: P.shardL },
+  weaponup: { label: '升級', col: '#58a6ff' },
+  ability: { label: '被動', col: P.manaL },
+  fuse: { label: '合成', col: P.goldL },
+  equip: { label: '裝備', col: P.goldL },
+  curse: { label: '詛咒', col: P.redL },
+};
+// fusion/evolution flows and hero-exclusive gear read as LEGENDARY; everything else by tier
+export function rarityOf(def, kind) {
+  if (kind === 'fuse') return 4;
+  if (def && def.exclusive) return 4;
+  return Math.min(4, (def && def.tier) || 1);
+}
 export function choiceStyle(c) {
-  // `accent` = card theme (border/bar); `tagCol` = the rarity-pill colour (普通灰/稀有紫/史詩金),
-  // so weapons of different tiers no longer share one pill colour (round16/4.5).
-  if (c.kind === 'fuse') return { icon: 'weapon_' + (c.target ? c.target.def.id : 'w_soulbolt'), sub: '武器合成', tag: '合成', rarity: 3, accent: P.goldL, tagCol: P.goldL, bg: '#4a3a16', desc: c.def.desc, effect: '' };
+  if (c.kind === 'fuse') {
+    const r = RARITY[4];
+    return { icon: 'weapon_' + (c.target ? c.target.def.id : 'w_soulbolt'), sub: '武器合成', type: 'fuse', tag: r.tag, rarity: 4, accent: r.accent, tagCol: r.accent, bg: r.bg, desc: c.def.desc, effect: '' };
+  }
   if (c.kind === 'weapon') {
-    const r = RARITY[c.def.tier || 1];
-    return { icon: 'weapon_' + c.id, sub: '新武器', tag: r.tag, rarity: c.def.tier || 1, accent: P.shardL, tagCol: r.accent, bg: '#163a44', desc: c.def.desc, effect: c.def.levelDesc ? c.def.levelDesc(1) : '' };
+    const ri = rarityOf(c.def, 'weapon'); const r = RARITY[ri];
+    return { icon: 'weapon_' + c.id, sub: '新武器', type: 'weapon', tag: r.tag, rarity: ri, accent: r.accent, tagCol: r.accent, bg: r.bg, desc: c.def.desc, effect: c.def.levelDesc ? c.def.levelDesc(1) : '' };
   }
   if (c.kind === 'weaponup') {
-    return { icon: 'weapon_' + c.id, sub: `強化 Lv.${c.level}→${c.level + 1}`, tag: '升級', rarity: 2, accent: P.blueL, tagCol: P.blueL, bg: '#1f2a52', desc: c.def.desc, effect: (c.def.levelDesc && c.def.levelDesc(c.level + 1)) || '' };
+    // rarity follows the WEAPON's tier (a tier-1 weapon's level-up is a 普通 offer) — the type badge says 升級
+    const ri = rarityOf(c.def, 'weaponup'); const r = RARITY[ri];
+    return { icon: 'weapon_' + c.id, sub: `強化 Lv.${c.level}→${c.level + 1}`, type: 'weaponup', tag: r.tag, rarity: ri, accent: r.accent, tagCol: r.accent, bg: r.bg, desc: c.def.desc, effect: (c.def.levelDesc && c.def.levelDesc(c.level + 1)) || '' };
   }
-  if (c.def && c.def.cursed) return { icon: 'ability_' + c.id, sub: '詛咒強化', tag: '詛咒', rarity: 3, accent: P.redL, tagCol: P.redL, bg: '#3a1622', desc: c.def.desc, effect: '' };
-  const TIERBG = { 1: '#26305a', 2: '#2e2a6a', 3: '#5a4011' };
-  const r = RARITY[c.def.tier || 1];
-  return { icon: 'ability_' + c.id, sub: '被動', tag: r.tag, rarity: c.def.tier || 1, accent: r.accent, tagCol: r.accent, bg: TIERBG[c.def.tier || 1], desc: c.def.desc, effect: '' };
+  if (c.def && c.def.cursed) {
+    // cursed keeps its RED identity on the frame/bg; the rarity pill still tells the true tier
+    const ri = rarityOf(c.def, 'ability'); const r = RARITY[ri];
+    return { icon: 'ability_' + c.id, sub: '詛咒強化', type: 'curse', tag: r.tag, rarity: ri, accent: P.redL, tagCol: r.accent, bg: '#3a1622', desc: c.def.desc, effect: '' };
+  }
+  const ri = rarityOf(c.def, 'ability'); const r = RARITY[ri];
+  return { icon: 'ability_' + c.id, sub: '被動', type: 'ability', tag: r.tag, rarity: ri, accent: r.accent, tagCol: r.accent, bg: r.bg, desc: c.def.desc, effect: '' };
 }

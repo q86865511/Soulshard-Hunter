@@ -31,7 +31,7 @@ import { pressed, mouse } from '../../engine/input.js';
 import { rng, dist, clamp, TAU } from '../../engine/math.js';
 import { P, withAlpha } from '../../engine/palette.js';
 import { getSprite, frameAt, iconOr } from '../../engine/sprites.js';
-import { getRunChoices, applyChoice, choiceStyle, fusionAvailable, MAX_WEAPONS, MAX_PASSIVES } from '../progression.js';
+import { getRunChoices, applyChoice, choiceStyle, fusionAvailable, MAX_WEAPONS, MAX_PASSIVES, RARITY, CHOICE_TYPE, rarityOf } from '../progression.js';
 import { Sfx, Music } from '../../engine/audio.js';
 import { settingsUI } from '../ui/settings.js';
 
@@ -879,7 +879,7 @@ export const runScene = {
     const sp = getSprite(iconOr(def.icon, 'equip_leather_armor'));
     drawSpriteUI(sp.frames[0], L.x + L.w / 2 - 16 * S, L.y + 38 * S, (32 * S) / sp.w);
     const slotName = def.slot === 'weapon' ? '專武' : def.slot === 'armor' ? '護甲' : '飾品';
-    uiText(def.name + '　·　' + slotName, L.x + L.w / 2, L.y + 88 * S, { size: 14 * S, align: 'center', color: P.goldL, weight: '800' });
+    uiText(def.name + '　·　' + slotName, L.x + L.w / 2, L.y + 88 * S, { size: 14 * S, align: 'center', color: RARITY[rarityOf(def)].accent, weight: '800' });   // R17/5.1
     this.wrapText(def.desc || '', L.x + L.w / 2, L.y + 106 * S, L.w - 44 * S, 11 * S, P.gray4);
     // current equipment by category (依類別分區)
     const eq = this.run.equipment || {};
@@ -1705,7 +1705,7 @@ export const runScene = {
       uiText(gear ? '選擇一件裝備' : '選擇一項能力值強化', view.W / 2, L.choiceCards[0].y - 22 * S, { size: 16 * S, align: 'center', color: gear ? P.goldL : P.shardL, weight: '900' });
       for (const c of L.choiceCards) {
         const hover = inside(mx, my, c); const o = c.opt;
-        const rar = gear ? ((o.tier || 1) >= 3 ? P.goldL : (o.tier || 1) === 2 ? P.purpleL : P.shardL) : P.shardL;
+        const rar = gear ? RARITY[rarityOf(o)].accent : P.shardL;   // R17/5.1: 白/藍/紫/黃
         uiRect(c.x, c.y, c.w, c.h, withAlpha('#1b2840', 0.98), { radius: 8 * S, stroke: hover ? rar : withAlpha(rar, 0.5), lw: hover ? 3 : 2 });
         if (gear) {
           const sp = getSprite(iconOr(o.icon, 'equip_leather_armor'));
@@ -1731,7 +1731,7 @@ export const runScene = {
     const hover = inside(mx, my, c);
     if (kind === 'gear') {
       const o = c.offer; const afford = this.run.shards >= o.price;
-      const rar = (o.def.tier || 1) >= 3 ? P.goldL : (o.def.tier || 1) === 2 ? P.purpleL : P.shardL;
+      const rar = RARITY[rarityOf(o.def)].accent;   // R17/5.1: 白/藍/紫/黃 (exclusive = 傳說金)
       uiRect(c.x, c.y, c.w, c.h, withAlpha(o.bought ? '#1c2c1c' : '#1b2138', 0.96), { radius: 7 * S, stroke: o.bought ? P.ink2 : hover ? rar : withAlpha(rar, 0.55), lw: hover ? 3 : 2 });
       const sp = getSprite(iconOr(o.def.icon, 'equip_leather_armor'));
       drawSpriteUI(sp.frames[0], c.x + 6 * S, c.y + 6 * S, (26 * S) / sp.w);
@@ -1890,7 +1890,7 @@ export const runScene = {
     if (x + W > view.W) x = view.W - W - 6 * S;
     if (y + H > view.H) y = view.H - H - 6 * S;
     uiRect(x, y, W, H, withAlpha('#10121f', 0.97), { radius: 6 * S, stroke: accent, lw: 2 });
-    uiText(def.name || ic.id || '?', x + 8 * S, y + 16 * S, { size: 13 * S, color: '#fff', weight: '800' });
+    uiText(def.name || ic.id || '?', x + 8 * S, y + 16 * S, { size: 13 * S, color: RARITY[rarityOf(def)].accent, weight: '800' });   // R17/5.1: name reads its rarity
     uiText(sub, x + W - 8 * S, y + 16 * S, { size: 10 * S, align: 'right', color: accent, weight: '700' });
     lines.forEach((l, i) => uiText(l, x + 8 * S, y + 32 * S + i * 14 * S, { size: 11 * S, color: P.gray4, weight: '500' }));
     if (evo) uiText(evo.text, x + 8 * S, y + 32 * S + lines.length * 14 * S, { size: 10 * S, color: evo.col, weight: '700' });
@@ -2241,7 +2241,12 @@ export const runScene = {
       let dy = midY + 49 * S;
       if (st.effect) { const n = this.wrapText(st.effect, r.x + r.w / 2, dy, r.w - 22 * S, 12 * S, P.emberL); dy += n * (12 * S + 3) + 5 * S; }
       this.wrapText(st.desc || '', r.x + r.w / 2, dy, r.w - 22 * S, 11.5 * S, P.gray4);
-      uiText(String(i + 1), r.x + 11 * S, r.y + oy + 22 * S, { size: 14 * S, color: withAlpha('#fff', 0.45), weight: '900' });
+      // R17/5.1: type pill top-left (1·武器 / 2·被動 / 升級 / 合成 / 詛咒) — replaces the bare hotkey digit
+      const ti = CHOICE_TYPE[st.type] || CHOICE_TYPE.ability;
+      const tlab = (i + 1) + '·' + ti.label;
+      const tpw = textWidth(tlab, 10 * S, '800') + 14 * S;
+      uiRect(r.x + 8 * S, r.y + oy + 10 * S, tpw, 16 * S, withAlpha(ti.col, 0.2), { radius: 8 * S, stroke: ti.col, lw: 1 });
+      uiText(tlab, r.x + 8 * S + tpw / 2, r.y + oy + 18 * S, { size: 10 * S, align: 'center', baseline: 'middle', color: ti.col, weight: '800' });
       this.drawCardBonds(r, oy, S, hints);   // 8.2: bond breakdown at the card bottom
     });
   },
