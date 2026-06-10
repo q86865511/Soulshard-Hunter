@@ -36,6 +36,7 @@ import { openAuth, openLeaderboard, openAdmin, openFeedback, isModalOpen, netToa
 import { openSocial } from '../../net/social.js';
 import { Cheats } from '../cheats.js';
 import { cheatUnlockAll } from '../content/unlocks.js';
+import { gate, facilityGate, gateProgress } from '../content/town_gates.js';   // R17/9.1 mixed progression gates
 
 const inside = (mx, my, r) => mx >= r.x && mx <= r.x + r.w && my >= r.y && my <= r.y + r.h;
 // NPC placement offsets within their room (tiles from room centre)
@@ -382,6 +383,7 @@ export const hubScene = {
     };
   },
   updateBank(mx, my) {
+    if (gate(META, 'bank')) return;   // R17/9.1: gated until guild rank 2
     if (!mouse.justDown) return;
     if (bankState(META).debt > 0) return;
     const lim = bankLimit(META), u = this.bankUi(this.panelFrame()), step = this.bankStep();
@@ -397,6 +399,8 @@ export const hubScene = {
   },
   drawBank() {
     const f = this.drawPanelFrame('🏦 魂 晶 銀 行', '借金幣提前強化 · 下一局結算自動還款（含息）'); const S = f.S;
+    const gB = gate(META, 'bank');   // R17/9.1
+    if (gB) { this.drawLockedPanel(f, gB); return; }
     const mx = mouse.x * view.dpr, my = mouse.y * view.dpr; const t0 = this.bodyTop(f);
     const b = bankState(META), limit = bankLimit(META);
     const coin = (x, y, sc) => { const sp = getSprite('coin'); drawSpriteUI(sp.frames[0], x, y - sp.h * sc, sc); };
@@ -500,6 +504,7 @@ export const hubScene = {
   talentState(def) {
     const cur = META.talents[def.id] || 0;
     if (cur >= def.maxLevel) return 'max';
+    if ((def.row || 0) >= 2 && gate(META, 'talentRow2')) return 'gated';   // R17/9.1: 3rd talent row gated by guild rank
     if (def.requires) for (const r of def.requires) if (!(META.talents[r] > 0)) return 'locked';
     return META.gold >= this.hubCost(def.cost(cur), 'talentPurchases') ? 'ok' : 'poor';
   },
@@ -513,6 +518,7 @@ export const hubScene = {
   facilityState(def) {
     const cur = META.facilities[def.id] || 0;
     if (cur >= def.maxLevel) return 'max';
+    if (facilityGate(META, def.id, cur + 1)) return 'gated';   // R17/9.1: high facility levels gated by biome clears
     return META.gold >= this.hubCost(def.cost(cur), 'facilityPurchases') ? 'ok' : 'poor';
   },
   buyFacility(def) {
@@ -554,7 +560,7 @@ export const hubScene = {
   updateTalents(mx, my) {
     if (!mouse.justDown) return;
     const { nodes } = this.talentNodes();
-    for (const n of nodes) if (inside(mx, my, n)) { const def = n.def, cur = META.talents[def.id] || 0; if (this.talentState(def) === 'ok') this.ask('升級「' + def.name + '」 Lv.' + (cur + 1) + '？', goldStr(this.hubCost(def.cost(cur), 'talentPurchases')), () => this.buyTalent(def)); else { const st = this.talentState(def); this.feedback(st === 'locked' ? '需先解鎖前置天賦' : st === 'max' ? '已達滿級' : '金幣不足'); } return; }
+    for (const n of nodes) if (inside(mx, my, n)) { const def = n.def, cur = META.talents[def.id] || 0; if (this.talentState(def) === 'ok') this.ask('升級「' + def.name + '」 Lv.' + (cur + 1) + '？', goldStr(this.hubCost(def.cost(cur), 'talentPurchases')), () => this.buyTalent(def)); else { const st = this.talentState(def); this.feedback(st === 'gated' ? ('🔒 ' + gate(META, 'talentRow2')) : st === 'locked' ? '需先解鎖前置天賦' : st === 'max' ? '已達滿級' : '金幣不足'); } return; }
   },
 
   facilityCards() {
@@ -571,7 +577,7 @@ export const hubScene = {
   updateFacilities(mx, my) {
     if (!mouse.justDown) return;
     const { cards } = this.facilityCards();
-    for (const c of cards) if (inside(mx, my, c)) { const def = c.def, cur = META.facilities[def.id] || 0; if (this.facilityState(def) === 'ok') this.ask('升級「' + def.name + '」 Lv.' + (cur + 1) + '？', goldStr(this.hubCost(def.cost(cur), 'facilityPurchases')), () => this.buyFacility(def)); else { const st = this.facilityState(def); this.feedback(st === 'max' ? '已達滿級' : '金幣不足'); } return; }
+    for (const c of cards) if (inside(mx, my, c)) { const def = c.def, cur = META.facilities[def.id] || 0; if (this.facilityState(def) === 'ok') this.ask('升級「' + def.name + '」 Lv.' + (cur + 1) + '？', goldStr(this.hubCost(def.cost(cur), 'facilityPurchases')), () => this.buyFacility(def)); else { const st = this.facilityState(def); this.feedback(st === 'gated' ? ('🔒 ' + facilityGate(META, def.id, cur + 1)) : st === 'max' ? '已達滿級' : '金幣不足'); } return; }
   },
 
   // ---- forge (5-5) ---------------------------------------------------------
@@ -584,6 +590,7 @@ export const hubScene = {
     return { f, rows, detail, list, rowH };
   },
   updateForge(mx, my) {
+    if (gate(META, 'forge')) return;   // R17/9.1: gated until the first biome clear
     const L = this.forgeLayout();
     if (!mouse.justDown) return;
     for (const r of L.rows) if (mx >= r.x && mx <= r.x + r.wd && my >= r.y && my <= r.y + r.h) { this.forgeSel = r.w.id; this.panelScroll = this.panelScroll || 0; Sfx.play('uiClick'); return; }   // r.wd, NOT inside()'s r.w (which is the weapon def)
@@ -945,8 +952,8 @@ export const hubScene = {
       uiText(def.name, n.x + 38 * S, n.y + 17 * S, { size: 12.5 * S, color: '#fff', weight: '800' });
       this.clip1(def.desc, n.x + 38 * S, n.y + 31 * S, n.w - 44 * S, 10 * S, P.gray4);
       for (let i = 0; i < def.maxLevel; i++) uiRect(n.x + 40 * S + i * 9 * S, n.y + 42 * S, 7 * S, 5 * S, i < cur ? n.color : '#333a55', { radius: 1 });
-      const col = st === 'max' ? P.greenL : st === 'locked' ? P.gray3 : st === 'poor' ? P.redL : P.goldL;
-      if (st === 'max' || st === 'locked') uiText(st === 'max' ? '已滿級' : '需先解鎖前置', n.x + n.w - 8 * S, n.y + n.h - 9 * S, { size: 11 * S, align: 'right', color: col, weight: '800' });
+      const col = st === 'max' ? P.greenL : (st === 'locked' || st === 'gated') ? P.gray3 : st === 'poor' ? P.redL : P.goldL;
+      if (st === 'max' || st === 'locked' || st === 'gated') uiText(st === 'max' ? '已滿級' : st === 'gated' ? '🔒 進度解鎖' : '需先解鎖前置', n.x + n.w - 8 * S, n.y + n.h - 9 * S, { size: 11 * S, align: 'right', color: col, weight: '800' });
       else goldLabel(n.x + n.w - 8 * S, n.y + n.h - 9 * S, this.hubCost(def.cost(cur), 'talentPurchases'), { size: 11 * S, align: 'right', color: col, weight: '800' });   // R17/2.1
     }
     ctx.restore();
@@ -954,11 +961,24 @@ export const hubScene = {
     uiText('點擊節點升級　·　' + this.hubPriceHint('talentPurchases') + '　·　Esc 關閉', f.x + f.w / 2, f.y + f.h - 14 * S, { size: 11 * S, align: 'center', color: P.gray3 });
   },
 
+  // R17/9.1: shared locked-panel body for progression-gated systems
+  drawLockedPanel(f, hint) {
+    const S = f.S;
+    this.panelMaxScroll = 0;
+    uiText('🔒', f.x + f.w / 2, f.y + f.h * 0.42, { size: 40 * S, align: 'center', color: P.gray2, weight: '900' });
+    uiText(hint, f.x + f.w / 2, f.y + f.h * 0.42 + 38 * S, { size: 14 * S, align: 'center', color: '#cfe0ff', weight: '800' });
+    uiText(gateProgress(META), f.x + f.w / 2, f.y + f.h * 0.42 + 60 * S, { size: 11 * S, align: 'center', color: P.gray3 });
+    uiText('Esc 關閉', f.x + f.w / 2, f.y + f.h - 14 * S, { size: 11 * S, align: 'center', color: P.gray3 });
+  },
   // ---- blacksmith: forge + facilities tabs ---------------------------------
   drawSmith() {
     const f = this.drawPanelFrame('鐵 匠 鋪', '鍛造武器 · 升級營地設施');
     this.drawTabs(f);
-    if (this.tab === 0) this.drawForge(f); else this.drawFacilities(f);
+    if (this.tab === 0) {
+      const g = gate(META, 'forge');   // R17/9.1: forging unlocks after the first biome clear
+      if (g) { this.drawLockedPanel(f, g); return; }
+      this.drawForge(f);
+    } else this.drawFacilities(f);
     uiText(this.hubPriceHint(this.tab === 0 ? 'forgePurchases' : 'facilityPurchases'), f.x + f.w / 2, f.y + f.h - 14 * f.S, { size: 10 * f.S, align: 'center', color: P.gray3, weight: '600' });   // 9.3
   },
   drawForge(f) {
@@ -1021,8 +1041,8 @@ export const hubScene = {
       this.clip1(def.name, c.x + 46 * S, c.y + 20 * S, c.w - 92 * S, 13 * S, '#fff', '800');
       for (let i = 0; i < def.maxLevel; i++) uiRect(c.x + c.w - 11 * S - (def.maxLevel - i) * 10 * S, c.y + 13 * S, 7 * S, 6 * S, i < cur ? P.emberL : '#333a55', { radius: 1 });   // 3.1: level pips (was「Lv.x/max」text), matches talents/forge
       this.wrap(def.desc, c.x + 10 * S, c.y + 42 * S, c.w - 20 * S, 10.5 * S);
-      const col = st === 'max' ? P.greenL : st === 'poor' ? P.redL : P.goldL;
-      if (st === 'max') uiText('已滿級', c.x + c.w - 10 * S, c.y + c.h - 10 * S, { size: 12 * S, align: 'right', color: col, weight: '800' });
+      const col = st === 'max' ? P.greenL : st === 'gated' ? P.gray3 : st === 'poor' ? P.redL : P.goldL;
+      if (st === 'max' || st === 'gated') uiText(st === 'max' ? '已滿級' : '🔒 進度解鎖', c.x + c.w - 10 * S, c.y + c.h - 10 * S, { size: 12 * S, align: 'right', color: col, weight: '800' });
       else goldLabel(c.x + c.w - 10 * S, c.y + c.h - 10 * S, this.hubCost(def.cost(cur), 'facilityPurchases'), { size: 12 * S, align: 'right', color: col, weight: '800' });   // R17/2.1
     }
     ctx.restore();
