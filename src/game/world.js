@@ -482,14 +482,28 @@ export class World {
   drawTiles() {
     const z = camera.zoom;
     const halfW = view.W / 2 / z, halfH = view.H / 2 / z;
-    const x0 = clamp(Math.floor((camera.x - halfW) / TS) - 1, 0, this.tw - 1);
-    const x1 = clamp(Math.ceil((camera.x + halfW) / TS) + 1, 0, this.tw - 1);
-    const y0 = clamp(Math.floor((camera.y - halfH) / TS) - 1, 0, this.th - 1);
-    const y1 = clamp(Math.ceil((camera.y + halfH) / TS) + 1, 0, this.th - 1);
+    const rx0 = Math.floor((camera.x - halfW) / TS) - 1;   // raw visible range (may poke past the map)
+    const rx1 = Math.ceil((camera.x + halfW) / TS) + 1;
+    const ry0 = Math.floor((camera.y - halfH) / TS) - 1;
+    const ry1 = Math.ceil((camera.y + halfH) / TS) + 1;
+    const x0 = clamp(rx0, 0, this.tw - 1);
+    const x1 = clamp(rx1, 0, this.tw - 1);
+    const y0 = clamp(ry0, 0, this.th - 1);
+    const y1 = clamp(ry1, 0, this.th - 1);
     const ts = this.tileset;
     const floorSprites = ts.floor.map((n) => getSprite(n));
     const wallSp = getSprite(ts.wall);
     const topSp = getSprite(ts.wallTop);
+    // R17 B14: the void beyond the map edge used to render pure black — fill the visible
+    // out-of-bounds band with dimmed biome wall tiles (cheap per-tile hash varies the alpha
+    // slightly so it reads as receding rock/masonry, not a flat slab). Town + runs alike.
+    if (rx0 < 0 || ry0 < 0 || rx1 >= this.tw || ry1 >= this.th) {
+      for (let ty = ry0; ty <= ry1; ty++) for (let tx = rx0; tx <= rx1; tx++) {
+        if (tx >= 0 && tx < this.tw && ty >= 0 && ty < this.th) continue;
+        const hsh = (((tx * 73856093) ^ (ty * 19349663)) >>> 0) % 5;
+        drawSprite(wallSp.frames[0], tx * TS, ty * TS, { ax: 0, ay: 0, alpha: 0.30 + hsh * 0.025 });
+      }
+    }
     // floors
     for (let ty = y0; ty <= y1; ty++) for (let tx = x0; tx <= x1; tx++) {
       if (this.tileAt(tx, ty) === FLOOR) {

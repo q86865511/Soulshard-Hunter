@@ -67,10 +67,24 @@ export function ensureSkinOffers(meta) {
   return meta.skinShop.offers;
 }
 
+// true when nothing is left to stock — every buyable (char, skin) pair is owned
+export function skinPoolDry(meta) { const { normal, hidden } = offerPool(meta); return !normal.length && !hidden.length; }
+
 export function rerollSkinShop(meta) {
+  guardShape(meta);
+  // R17 QA: completionist pool exhausted — a reroll can't stock anything, never charge for the no-op
+  if (skinPoolDry(meta)) { meta.skinShop._poolDry = true; return false; }
   if ((meta.gold || 0) < SKINSHOP_REROLL_COST) return false;
   meta.gold -= SKINSHOP_REROLL_COST;
-  rollOffers(meta, false);   // paid reroll refreshes stock but does NOT extend the free 30-min deadline
+  const prev = meta.skinShop.offers;
+  // paid reroll refreshes stock but does NOT extend the free 30-min deadline
+  if (!rollOffers(meta, false).length) {
+    // hidden-only pool can roll all blanks — keep the old rack and refund
+    meta.skinShop.offers = prev;
+    meta.skinShop._poolDry = !prev.length;
+    meta.gold += SKINSHOP_REROLL_COST;
+    return false;
+  }
   return true;
 }
 

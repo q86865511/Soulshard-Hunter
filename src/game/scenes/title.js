@@ -69,12 +69,14 @@ export const titleScene = {
     if (settingsUI.open) { settingsUI.update(); return; }
     const mx = mouse.x * view.dpr, my = mouse.y * view.dpr;
 
-    if (this.mode === 'notes') {   // 更新日誌 overlay
-      if (pressed('escape')) { this.mode = 'menu'; return; }
+    if (this.mode === 'notes') {   // 更新日誌 overlay — R17 B13: version LIST → click a row → detail page
+      if (pressed('escape')) { if (this.notesSel != null) { this.notesSel = null; this.notesScroll = 0; } else this.mode = 'menu'; return; }
       if (mouse.wheel) this.notesScroll = Math.max(0, Math.min(this.notesMax || 0, (this.notesScroll || 0) + mouse.wheel * 0.5));
       if (mouse.justDown) {
-        if (this._notesClose && inside(mx, my, this._notesClose)) { this.mode = 'menu'; return; }
-        if (this._notesPanel && !inside(mx, my, this._notesPanel)) { this.mode = 'menu'; return; }
+        if (this._notesClose && inside(mx, my, this._notesClose)) { this.mode = 'menu'; this.notesSel = null; return; }
+        if (this.notesSel != null && this._notesBack && inside(mx, my, this._notesBack)) { this.notesSel = null; this.notesScroll = 0; return; }
+        if (this.notesSel == null) for (const r of (this._noteRows || [])) if (inside(mx, my, r)) { this.notesSel = r.i; this.notesScroll = 0; return; }
+        if (this._notesPanel && !inside(mx, my, this._notesPanel)) { this.mode = 'menu'; this.notesSel = null; return; }
       }
       return;
     }
@@ -101,7 +103,7 @@ export const titleScene = {
     if (isModalOpen()) return;   // a DOM overlay (login / 多人 / 排行榜) is up — don't let canvas keys/clicks drive the title behind it
     if (pressed('escape')) { settingsUI.show(); return; }
     if (mouse.justDown) {
-      if (inside(mx, my, this.notesBtn())) { this.mode = 'notes'; this.notesScroll = 0; return; }
+      if (inside(mx, my, this.notesBtn())) { this.mode = 'notes'; this.notesScroll = 0; this.notesSel = null; return; }
       for (const b of this.layoutMenu()) if (inside(mx, my, b.r)) { this.onMenu(b.id); return; }
     }
     if (pressed('space') || pressed('enter')) this.enterSlot(activeSlot());   // quick-start straight into the last-used slot
@@ -161,30 +163,59 @@ export const titleScene = {
     lines.forEach((l, i) => uiText(l, x, y + i * (size + 4), { size, color: P.gray4, weight: '500' }));
     return lines.length;
   },
+  // R17 B13: two views — a version LIST (one row per round, mirroring docs/changelog/) and,
+  // after clicking a row, that version's DETAIL page (◀ 返回 steps back to the list).
   drawNotes(S) {
     const mx = mouse.x * view.dpr, my = mouse.y * view.dpr;
     const w = Math.min(view.W * 0.82, 660 * S), h = Math.min(view.H * 0.72, 540 * S);
     const x = (view.W - w) / 2, y = (view.H - h) / 2;
+    const sel = this.notesSel != null ? PATCH_NOTES[this.notesSel] : null;
     uiRect(0, 0, view.W, view.H, withAlpha('#0b0d1a', 0.6));
     uiRect(x, y, w, h, withAlpha('#161a30', 0.99), { radius: 12 * S, stroke: P.ink2, lw: 2 });
     uiRect(x, y, w, 46 * S, withAlpha('#1f2542', 0.98), { radius: 12 * S });
-    uiText('📜 更新日誌', x + w / 2, y + 29 * S, { size: 19 * S, align: 'center', color: '#fff', weight: '900' });
+    uiText(sel ? ('📜 ' + sel.v + (sel.title ? '　·　' + sel.title : '')) : '📜 更新日誌 · 版本一覽', x + w / 2, y + 29 * S, { size: sel ? 16 * S : 19 * S, align: 'center', color: '#fff', weight: '900' });
     const closeR = { x: x + w - 38 * S, y: y + 9 * S, w: 28 * S, h: 28 * S };
     uiRect(closeR.x, closeR.y, closeR.w, closeR.h, withAlpha('#3a2030', 0.9), { radius: 6 * S, stroke: P.redD, lw: 2 });
     uiText('✕', closeR.x + closeR.w / 2, closeR.y + closeR.h / 2 + 1 * S, { size: 15 * S, align: 'center', baseline: 'middle', color: P.redL, weight: '900' });
+    this._notesBack = null;
+    if (sel) {   // back button (top-left of the header)
+      const backR = { x: x + 10 * S, y: y + 9 * S, w: 70 * S, h: 28 * S };
+      const bh = inside(mx, my, backR);
+      uiRect(backR.x, backR.y, backR.w, backR.h, withAlpha(bh ? '#27306a' : '#141832', 0.95), { radius: 6 * S, stroke: withAlpha(P.shardL, bh ? 0.9 : 0.5), lw: 1.5 });
+      uiText('◀ 返回', backR.x + backR.w / 2, backR.y + backR.h / 2 + 1 * S, { size: 11 * S, align: 'center', baseline: 'middle', color: '#cfe0ff', weight: '700' });
+      this._notesBack = backR;
+    }
     const ctx = ctxRaw(); ctx.save(); ctx.beginPath(); ctx.rect(x, y + 50 * S, w, h - 70 * S); ctx.clip();
     let yy = y + 64 * S - (this.notesScroll || 0); const left = x + 22 * S, lineW = w - 44 * S;
-    for (const note of PATCH_NOTES) {
-      uiText(note.v + (note.title ? '　·　' + note.title : ''), left, yy, { size: 15 * S, color: P.goldL, weight: '900' });
-      if (note.date) uiText(note.date, x + w - 22 * S, yy, { size: 10 * S, align: 'right', color: P.gray3 });
-      yy += 22 * S;
-      for (const it of note.items) { const n = this.wrapNote('· ' + it, left + 4 * S, yy, lineW - 8 * S, 12 * S); yy += n * 16 * S + 2 * S; }
-      yy += 12 * S;
+    this._noteRows = [];
+    if (!sel) {   // ---- version list: one clickable row per round ----
+      const rowH = 44 * S, gap = 8 * S;
+      PATCH_NOTES.forEach((note, i) => {
+        const r = { x: x + 16 * S, y: yy, w: w - 32 * S, h: rowH, i };
+        const hov = inside(mx, my, r);
+        uiRect(r.x, r.y, r.w, r.h, withAlpha(hov ? '#27306a' : (i === 0 ? '#1d2440' : '#171c34'), 0.96), { radius: 8 * S, stroke: hov ? P.shardL : (i === 0 ? withAlpha(P.goldL, 0.55) : P.ink2), lw: hov ? 2.5 : 1.5 });
+        uiText(note.v, r.x + 14 * S, r.y + 19 * S, { size: 14 * S, color: i === 0 ? P.goldL : '#eaf2ff', weight: '900' });
+        if (i === 0) uiText('最新', r.x + 14 * S + textWidth(note.v, 14 * S, '900') + 8 * S, r.y + 18 * S, { size: 9 * S, color: P.emberL, weight: '800' });
+        this.clipNote(note.title || '', r.x + 14 * S, r.y + 35 * S, r.w - 120 * S, 10.5 * S, P.gray4);
+        uiText((note.date ? note.date + '　·　' : '') + note.items.length + ' 項　›', r.x + r.w - 12 * S, r.y + r.h / 2 + 4 * S, { size: 10 * S, align: 'right', color: P.gray3, weight: '700' });
+        this._noteRows.push(r);
+        yy += rowH + gap;
+      });
+    } else {   // ---- detail page for the selected version ----
+      if (sel.date) { uiText(sel.date, x + w - 22 * S, yy, { size: 10 * S, align: 'right', color: P.gray3 }); }
+      for (const it of sel.items) { const n = this.wrapNote('· ' + it, left + 4 * S, yy, lineW - 8 * S, 12 * S); yy += n * 16 * S + 6 * S; }
     }
     this.notesMax = Math.max(0, (yy + (this.notesScroll || 0)) - (y + 64 * S) - (h - 80 * S));
     ctx.restore();
-    uiText('滑鼠滾輪捲動　·　Esc / 點外部關閉', x + w / 2, y + h - 14 * S, { size: 10 * S, align: 'center', color: P.gray3 });
+    uiText(sel ? '滑鼠滾輪捲動　·　Esc / ◀ 返回版本一覽' : '點擊版本查看詳細內容　·　Esc / 點外部關閉', x + w / 2, y + h - 14 * S, { size: 10 * S, align: 'center', color: P.gray3 });
     this._notesClose = closeR; this._notesPanel = { x, y, w, h };
+  },
+  // single-line CJK clip with ellipsis (local helper for the version list rows)
+  clipNote(str, x, y, maxw, size, color) {
+    let s = str;
+    while (s.length > 1 && textWidth(s, size, '600') > maxw) s = s.slice(0, -1);
+    if (s.length < str.length && s.length > 1) s = s.slice(0, -1) + '…';
+    uiText(s, x, y, { size, color: color || P.gray4, weight: '600' });
   },
 
   drawMenu(S) {

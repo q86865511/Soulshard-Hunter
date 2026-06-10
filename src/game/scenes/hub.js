@@ -16,7 +16,7 @@ import { GUILD_RANKS, guildProgress, claimableRanks, claimGuildRank } from '../c
 import { FORGE_EFFECTS, forgeEffect, FORGE_MAX_LEVEL, FORGE_MAX_EFFECTS, forgeLevelCost, forgeEffectCost, forgeLevelCostBase, forgeEffectCostBase, forgeOf, forgeableWeapons, buyForgeLevel, buyForgeEffect, forgeSummary } from '../content/forge.js';
 import { BALANCE } from '../balance.js';   // round16/9.3 dynamic-pricing growth
 import { bankLimit, bankState, bankBorrow, BANK_INTEREST, BANK_MIN } from '../content/bank.js';   // round16/7.2 魂晶銀行
-import { ensureSkinOffers, skinPrice, skinTier, ensureSale, rerollSkinShop, skinShopCountdown, SKINSHOP_REROLL_COST } from '../content/skinshop.js';   // R16/3.8 → R17/3.2 8-slot pair shop
+import { ensureSkinOffers, skinPrice, skinTier, ensureSale, rerollSkinShop, skinShopCountdown, skinPoolDry, SKINSHOP_REROLL_COST } from '../content/skinshop.js';   // R16/3.8 → R17/3.2 8-slot pair shop
 import { NPCS, npcScript, markMet } from '../content/npcs.js';
 import { BONDS } from '../content/bonds.js';
 import { BIOMES } from '../../art/biomes.js';
@@ -656,7 +656,9 @@ export const hubScene = {
     const next = { x: f.x + f.w / 2 + 82 * S, y: pgY, w: 34 * S, h: 22 * S };
     const top = f.y + 58 * S;
     const cw = (f.w - 40 * S - (cols - 1) * 12 * S) / cols;
-    const chh = Math.max(56 * S, Math.min(86 * S, (pgY - 8 * S - top) / 3 - 8 * S));
+    // R17 B15: NO hard floor — at high uiScale a 56S floor pushed the grid over the page/level
+    // rows. Tight space instead switches the cards into a compact mode (drawSortie reads card.h).
+    const chh = Math.max(34 * S, Math.min(86 * S, (pgY - 8 * S - top) / 3 - 8 * S));
     const pageChars = chars.slice(this.sortPage * perPage, this.sortPage * perPage + perPage);
     const cards = pageChars.map((c, i) => ({ c, x: f.x + 20 * S + (i % cols) * (cw + 12 * S), y: top + Math.floor(i / cols) * (chh + 8 * S), w: cw, h: chh }));
     return { f, cards, prev, next, pages, pgY, levels, lvlButtons, lvlY, dPrev, dNext, dY, start };
@@ -744,7 +746,7 @@ export const hubScene = {
     if (inside(mx, my, r.mine)) { this.wardrobeView = 'mine'; this.wardrobeChar = null; this.panelScroll = 0; Sfx.play('uiClick'); }
     else if (inside(mx, my, r.shop)) { this.wardrobeView = 'shop'; this.panelScroll = 0; ensureSkinOffers(META); saveMeta(); Sfx.play('uiClick'); }
   },
-  wardrobeBackRect(f) { const S = f.S; return { x: f.x + f.w - 96 * S, y: f.y + 46 * S, w: 78 * S, h: 26 * S }; },
+  wardrobeBackRect(f) { const S = f.S; return { x: f.x + f.w - 96 * S, y: f.y + 48 * S, w: 78 * S, h: 26 * S }; },   // R17 B15: +2S — sat exactly on the header divider
   updateWardrobeChars(mx, my) {
     if (!mouse.justDown) return;
     if (inside(mx, my, this.wardrobeBackRect(this.panelFrame()))) { this.wardrobeView = null; this.panelScroll = 0; Sfx.play('uiClick'); return; }
@@ -792,8 +794,11 @@ export const hubScene = {
     if (!mouse.justDown) return;
     const L = this.skinShopLayout(this.panelFrame());
     if (inside(mx, my, L.back)) { this.wardrobeView = null; this.panelScroll = 0; Sfx.play('uiClick'); return; }
-    if (inside(mx, my, L.reroll)) {
-      this.ask('重新進貨？', goldStr(SKINSHOP_REROLL_COST) + '　·　立即更換 8 款上架造型', () => { if (rerollSkinShop(META)) { saveMeta(); this.feedback('已重新進貨'); } else this.feedback('金幣不足'); });
+    if (!skinPoolDry(META) && inside(mx, my, L.reroll)) {   // R17 QA: pool exhausted — button is hidden, ignore the click
+      this.ask('重新進貨？', goldStr(SKINSHOP_REROLL_COST) + '　·　立即更換 8 款上架造型', () => {
+        if (rerollSkinShop(META)) { saveMeta(); this.feedback('已重新進貨'); }
+        else this.feedback((META.gold || 0) < SKINSHOP_REROLL_COST ? '金幣不足' : '未進到新貨，金幣已退還');
+      });
       return;
     }
     for (const cd of L.cards) if (inside(mx, my, cd)) { this.buySkinOffer(cd.o); return; }
@@ -1224,13 +1229,16 @@ export const hubScene = {
     const bh = inside(mx, my, L.back);
     uiRect(L.back.x, L.back.y, L.back.w, L.back.h, withAlpha(bh ? '#27306a' : '#161b34', 0.95), { radius: 6 * S, stroke: withAlpha(P.shardL, bh ? 0.9 : 0.5), lw: 1.5 });
     uiText('◀ 返回', L.back.x + L.back.w / 2, L.back.y + L.back.h / 2 + 1 * S, { size: 11 * S, align: 'center', baseline: 'middle', color: '#cfe0ff', weight: '700' });
-    const ms = skinShopCountdown(META), mm = Math.floor(ms / 60000), ss2 = Math.floor((ms % 60000) / 1000);
-    uiText('↻ 下次免費進貨 ' + mm + ':' + String(ss2).padStart(2, '0'), L.reroll.x - 12 * S, L.reroll.y + L.reroll.h / 2 + 1 * S, { size: 10.5 * S, align: 'right', baseline: 'middle', color: P.gray3, weight: '700' });
-    const rh = inside(mx, my, L.reroll);
-    uiRect(L.reroll.x, L.reroll.y, L.reroll.w, L.reroll.h, withAlpha(rh ? '#3a5a2a' : '#26401c', 0.96), { radius: 6 * S, stroke: P.greenL, lw: 1.5 });
-    goldLabel(L.reroll.x + L.reroll.w / 2, L.reroll.y + L.reroll.h / 2 + 1 * S, SKINSHOP_REROLL_COST, { size: 11 * S, align: 'center', baseline: 'middle', color: '#fff', weight: '800', prefix: '↺ 重新進貨 ' });
+    const dry = skinPoolDry(META);   // R17 QA: pool exhausted — reroll/countdown are no-ops, hide them
+    if (!dry) {
+      const ms = skinShopCountdown(META), mm = Math.floor(ms / 60000), ss2 = Math.floor((ms % 60000) / 1000);
+      uiText('↻ 下次免費進貨 ' + mm + ':' + String(ss2).padStart(2, '0'), L.reroll.x - 12 * S, L.reroll.y + L.reroll.h / 2 + 1 * S, { size: 10.5 * S, align: 'right', baseline: 'middle', color: P.gray3, weight: '700' });
+      const rh = inside(mx, my, L.reroll);
+      uiRect(L.reroll.x, L.reroll.y, L.reroll.w, L.reroll.h, withAlpha(rh ? '#3a5a2a' : '#26401c', 0.96), { radius: 6 * S, stroke: P.greenL, lw: 1.5 });
+      goldLabel(L.reroll.x + L.reroll.w / 2, L.reroll.y + L.reroll.h / 2 + 1 * S, SKINSHOP_REROLL_COST, { size: 11 * S, align: 'center', baseline: 'middle', color: '#fff', weight: '800', prefix: '↺ 重新進貨 ' });
+    }
     if (!L.cards.length) {
-      uiText('已蒐集所有上架造型！', f.x + f.w / 2, f.y + f.h / 2, { size: 16 * S, align: 'center', baseline: 'middle', color: P.goldL, weight: '900' });
+      uiText(dry ? '已蒐集所有上架造型！' : '本輪沒有進到新貨——重新進貨試試手氣', f.x + f.w / 2, f.y + f.h / 2, { size: 16 * S, align: 'center', baseline: 'middle', color: P.goldL, weight: '900' });
       return;
     }
     const TIER = { normal: '普通', premium: '豪華', hidden: '★隱藏' };
@@ -1430,12 +1438,17 @@ export const hubScene = {
       const rx = card.x + lw2 + 2 * S, rw = card.w - lw2 - 12 * S;
       const wpn = Weapons.get(c.startWeapon);
       this.clip1('起始武器：' + (wpn ? wpn.name : c.startWeapon), rx, card.y + 17 * S, rw, 9.5 * S, unlocked ? P.goldL : P.gray3, '700');
-      const dsz = 8.5 * S; let rest = c.desc || '';
-      for (let li = 0; li < 2 && rest; li++) {
+      // R17 B15: compact mode when the grid is squeezed (high uiScale / short panel) — the desc
+      // lines are the first thing to go so the grid never overlaps the page/level rows below.
+      const descLines = card.h >= 70 * S ? 2 : card.h >= 52 * S ? 1 : 0;
+      // R17 B12: hero descs end with their own「起始武器：X。」sentence — the card already has a
+      // dedicated line for it, so strip the duplicate before wrapping the effect text.
+      const dsz = 8.5 * S; let rest = (c.desc || '').replace(/(?:^|。)?\s*起始武器：[^。]*。?\s*$/, (m) => (m.startsWith('。') ? '。' : ''));
+      for (let li = 0; li < descLines && rest; li++) {
         let line = '';
         while (rest && textWidth(line + rest[0], dsz, '500') <= rw) { line += rest[0]; rest = rest.slice(1); }
         if (!line) break;   // a single glyph wider than rw (degenerate) — bail
-        if (li === 1 && rest) { while (line.length > 1 && textWidth(line + '…', dsz, '500') > rw) line = line.slice(0, -1); line += '…'; rest = ''; }
+        if (li === descLines - 1 && rest) { while (line.length > 1 && textWidth(line + '…', dsz, '500') > rw) line = line.slice(0, -1); line += '…'; rest = ''; }
         uiText(line, rx, card.y + 32 * S + li * 12 * S, { size: dsz, color: unlocked ? P.gray4 : P.gray2, weight: '500' });
       }
     }
@@ -1461,7 +1474,7 @@ export const hubScene = {
     uiText('難度', f.x + 24 * S, L.dY + 17 * S, { size: 11 * S, color: P.gray3, weight: '700' });
     arrow(L.dPrev, '−', this.selDiff > 0);
     arrow(L.dNext, '+', this.selDiff < topD);
-    uiText(isEndless ? '♾ 無盡挑戰' : isStory ? '劇情' : ('難度 ' + this.selDiff + (this.selDiff >= maxD ? ' · 最高可玩' : '')), f.x + f.w / 2, L.dY + 17 * S, { size: 13 * S, align: 'center', baseline: 'middle', color: isEndless ? P.goldL : isStory ? P.shardL : P.emberL, weight: '800' });
+    uiText(isEndless ? '∞ 無盡挑戰' : isStory ? '劇情' : ('難度 ' + this.selDiff + (this.selDiff >= maxD ? ' · 最高可玩' : '')), f.x + f.w / 2, L.dY + 17 * S, { size: 13 * S, align: 'center', baseline: 'middle', color: isEndless ? P.goldL : isStory ? P.shardL : P.emberL, weight: '800' });   // R17 B15: ∞ (U+221E math glyph, in the CJK font) — ♾ U+267E emoji-rendered as a blob
     // 6.4 / 6.5 / 6.6: one-line difficulty / mode explanation (new-player guidance)
     const DIFF_DESC = {
       0: '劇情 · 敵人極弱、掉落豐厚，幾乎必過（不列入排行榜）',

@@ -57,17 +57,20 @@ const fmtStat = (v, fmt) => {
 };
 
 // Stat-anvil POOL. Buying an anvil (C1) opens a paused 3-of-these random pick.
+// R17 B15: apply(s, p, f) — `f` is the per-NAME diminishing factor (ANVIL_DIMINISH^prior buys).
+// The B8 anvil nerf only covered the gen ground-item anvils; this primary B-shop path had
+// none, so repeat purchases stacked at full strength. `flat: true` = integer gains exempt.
 const ANVIL_POOL = [
-  { name: '力量鐵砧', desc: '傷害 ×1.08', apply: (s) => { s.damageMult *= 1.08; } },
-  { name: '迅捷鐵砧', desc: '射速 ×1.07', apply: (s) => { s.fireRateMult *= 1.07; } },
-  { name: '堅韌鐵砧', desc: '生命上限 +16', apply: (s, p) => { s.maxHp += 16; p.heal(16); } },
-  { name: '銳利鐵砧', desc: '暴擊率 +4%', apply: (s) => { s.critChance += 0.04; } },
-  { name: '疾風鐵砧', desc: '移速 ×1.05', apply: (s) => { s.speed *= 1.05; } },
-  { name: '壁壘鐵砧', desc: '減傷 +1', apply: (s) => { s.defense += 1; } },
-  { name: '貫穿鐵砧', desc: '穿透 +1', apply: (s) => { s.pierceAdd = (s.pierceAdd || 0) + 1; } },
-  { name: '增幅鐵砧', desc: '範圍 ×1.10', apply: (s) => { s.area = (s.area || 1) * 1.1; } },
-  { name: '吸血鐵砧', desc: '吸血 +2%', apply: (s) => { s.lifesteal = (s.lifesteal || 0) + 0.02; } },
-  { name: '狂暴鐵砧', desc: '暴擊傷害 +0.3', apply: (s) => { s.critMult = (s.critMult || 2) + 0.3; } },
+  { name: '力量鐵砧', desc: '傷害 ×1.08', apply: (s, p, f = 1) => { s.damageMult *= 1 + 0.08 * f; } },
+  { name: '迅捷鐵砧', desc: '射速 ×1.07', apply: (s, p, f = 1) => { s.fireRateMult *= 1 + 0.07 * f; } },
+  { name: '堅韌鐵砧', desc: '生命上限 +16', apply: (s, p, f = 1) => { const g = Math.max(5, Math.round(16 * f)); s.maxHp += g; p.heal(g); } },
+  { name: '銳利鐵砧', desc: '暴擊率 +4%', apply: (s, p, f = 1) => { s.critChance += 0.04 * f; } },
+  { name: '疾風鐵砧', desc: '移速 ×1.05', apply: (s, p, f = 1) => { s.speed *= 1 + 0.05 * f; } },
+  { name: '壁壘鐵砧', desc: '減傷 +1', flat: true, apply: (s) => { s.defense += 1; } },
+  { name: '貫穿鐵砧', desc: '穿透 +1', flat: true, apply: (s) => { s.pierceAdd = (s.pierceAdd || 0) + 1; } },
+  { name: '增幅鐵砧', desc: '範圍 ×1.10', apply: (s, p, f = 1) => { s.area = (s.area || 1) * (1 + 0.10 * f); } },
+  { name: '吸血鐵砧', desc: '吸血 +2%', apply: (s, p, f = 1) => { s.lifesteal = (s.lifesteal || 0) + 0.02 * f; } },
+  { name: '狂暴鐵砧', desc: '暴擊傷害 +0.3', apply: (s, p, f = 1) => { s.critMult = (s.critMult || 2) + 0.3 * f; } },
 ];
 
 // A level lasts 20 minutes (E2): a DISTINCT mini-boss every 5 min, the level's
@@ -489,7 +492,7 @@ export const runScene = {
     do { const a = rng.next() * TAU; bx = clamp(this.player.x + Math.cos(a) * 220, TS * 2, this.world.pxW - TS * 2); by = clamp(this.player.y + Math.sin(a) * 220, TS * 2, this.world.pxH - TS * 2); tries++; } while (this.world.solidAt(bx, by) && tries < 12);
     this.bossRef = this.world.spawnEnemy(def, bx, by, { hpScale, dmgScale, quiet: true });
     this.boss = true;
-    this.banner = '⚔ 第 ' + (wave + 1) + ' 波首領 · ' + (def.name || 'BOSS'); this.bannerT = 3.0;
+    this.banner = '⚔ 第 ' + wave + ' 波首領 · ' + (def.name || 'BOSS'); this.bannerT = 3.0;   // R17 B15: first boss (t=180s, wave=1) reads「第 1 波」— wave+1 skipped a number players never saw
     addShake(8); Sfx.play('boss'); Music.setMode('boss');
   },
   spawnFinalBoss() {
@@ -1485,7 +1488,13 @@ export const runScene = {
     this.run.shards -= price; this.anvilBuys = (this.anvilBuys || 0) + 1;
     const pool = ANVIL_POOL.slice(), pick = [];
     for (let i = 0; i < 3 && pool.length; i++) pick.push(pool.splice(rng.int(0, pool.length - 1), 1)[0]);
-    this.shopChoice = { kind: 'stat', opts: pick }; Sfx.play('buy');
+    // R17 B15: resolve each option's diminishing factor NOW so the card desc tells the truth
+    const nMap = (this.run._anvN = this.run._anvN || {});
+    this.shopChoice = { kind: 'stat', opts: pick.map((o) => {
+      const f = o.flat ? 1 : Math.pow(BALANCE.ANVIL_DIMINISH ?? 0.85, nMap[o.name] || 0);
+      return { ...o, f, desc: o.desc + (f < 0.999 ? `（重複鍛造 · 效益 ×${f.toFixed(2)}）` : '') };
+    }) };
+    Sfx.play('buy');
   },
   buyGearAnvil() {
     const price = this.gearPrice();
@@ -1501,7 +1510,11 @@ export const runScene = {
     return { x: view.W / 2 - 80 * S, y: c0.y + c0.h + 12 * S, w: 160 * S, h: 30 * S };
   },
   pickShop(opt) {
-    if (this.shopChoice.kind === 'stat') { try { opt.apply(this.player.stats, this.player); } catch (e) { /* */ } this.run.anvilCount = (this.run.anvilCount || 0) + 1; this.shopChoice = null; this.maybeBoon(); }
+    if (this.shopChoice.kind === 'stat') {
+      try { opt.apply(this.player.stats, this.player, opt.f ?? 1); } catch (e) { /* */ }
+      if (!opt.flat) { const nMap = (this.run._anvN = this.run._anvN || {}); nMap[opt.name] = (nMap[opt.name] || 0) + 1; }   // R17 B15: count per-name buys for diminishing
+      this.run.anvilCount = (this.run.anvilCount || 0) + 1; this.shopChoice = null; this.maybeBoon();
+    }
     else { equipItem(this.player, this.run, opt); this.run.gearTaken = true; this.shopChoice = null; }
     Sfx.play('levelup');
   },
@@ -2132,6 +2145,9 @@ export const runScene = {
     this.resultIcons = [];
     const cell = (bx, by, sp, stroke, badge, bcol) => { uiRect(bx, by, sz, sz, withAlpha('#10121f', 0.82), { radius: 4 * S, stroke, lw: 2 }); drawSpriteUI(sp.frames[0], bx + 3 * S, by + 3 * S, (sz - 6 * S) / sp.w); if (badge) uiText(badge, bx + sz - 3 * S, by + sz - 3 * S, { size: 9 * S, align: 'right', color: bcol, weight: '800' }); };
     // LEFT — build (hover any icon for its effect)
+    // R17 B15: clip the column above the「★ 本局解鎖」strip — a maxed build at high uiScale
+    // could otherwise run its bond rows straight through the bottom strip.
+    const ctxL = ctxRaw(); ctxL.save(); ctxL.beginPath(); ctxL.rect(x, y, w * 0.47, h - 46 * S); ctxL.clip();
     const colL = x + 18 * S; let yL = y + 24 * S;
     uiText('本局配置', colL, yL, { size: 13 * S, color: P.shardL, weight: '800' });
     uiText('滑鼠移到圖示看效果', colL + 86 * S, yL, { size: 9.5 * S, color: P.gray3 }); yL += SEC_GAP;
@@ -2161,6 +2177,7 @@ export const runScene = {
       }
       yL = by + bsz + SEC_GAP;
     }
+    ctxL.restore();   // R17 B15: end left-column clip
     // RIGHT — damage ranking (原#16)
     const colR = x + w * 0.47; let yR = y + 24 * S; const rw = w * 0.5 - 18 * S;
     uiText('傷害排行', colR, yR, { size: 13 * S, color: P.emberL, weight: '800' });
@@ -2278,7 +2295,7 @@ export const runScene = {
       const stroke = hover ? st.accent : (hints.length ? withAlpha(P.goldL, 0.85) : P.ink2);
       uiRect(r.x, r.y + oy, r.w, r.h, withAlpha(st.bg, 0.97), { radius: 9 * S, stroke, lw: hover ? 3 : (hints.length ? 2.5 : 2) });
       uiClipRound(r.x, r.y + oy, r.w, r.h, 9 * S, () => uiRect(r.x, r.y + oy, r.w, 5 * S, st.accent));   // #7: rarity bar clipped to the card's rounded corners
-      const tc = st.tagCol || st.accent;                                 // rarity pill uses the RARITY colour (普通灰/稀有紫/史詩金)
+      const tc = st.tagCol || st.accent;                                 // rarity pill uses the RARITY colour (R17: 普通白/稀有藍/史詩紫/傳說黃)
       const pw = textWidth(st.tag, 10 * S, '800') + 14 * S;              // rarity pill
       uiRect(r.x + r.w - pw - 8 * S, r.y + oy + 10 * S, pw, 16 * S, withAlpha(tc, 0.22), { radius: 8 * S, stroke: tc, lw: 1 });
       uiText(st.tag, r.x + r.w - pw / 2 - 8 * S, r.y + oy + 18 * S, { size: 10 * S, align: 'center', baseline: 'middle', color: tc, weight: '800' });
