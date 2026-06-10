@@ -128,6 +128,15 @@ export function loadMeta(slot) {
       if (!META.npc.met || typeof META.npc.met !== 'object') META.npc.met = {};
       if (!META.hidden || typeof META.hidden !== 'object') META.hidden = { claimed: {} };
       if (!META.hidden.claimed || typeof META.hidden.claimed !== 'object') META.hidden.claimed = {};
+      // R17 QA (major): rooms claimed pre-R17 got the OLD generic rewards; the once-per-save
+      // guard would lock those saves out of the new exclusives forever. Backfill the unlock
+      // (ids mirror content/hidden.js HIDDEN_ROOMS — kept literal here to avoid an import cycle).
+      {
+        const hc = META.hidden.claimed, mu = META.unlocked = META.unlocked || {};
+        const back = (room, kind, id) => { const a = mu[kind] = mu[kind] || []; if (hc[room] && !a.includes(id)) a.push(id); };
+        back('vault', 'equipment', 'hr_vault_sigil'); back('archive', 'weapons', 'hr_archive_codex'); back('relic', 'abilities', 'hr_relic_heart');
+        if (hc.egg) { META.flags = META.flags || {}; if (!META.flags.devEgg) META.flags.devEgg = true; }
+      }
       if (!Array.isArray(META.bondsSeen)) META.bondsSeen = [];   // round16/8.2: 羈絆圖鑑 ever-seen set
       for (const k of ['charClears']) if (!META.stats[k] || typeof META.stats[k] !== 'object') META.stats[k] = {};
       for (const k of ['noDmgClears', 'bestCharLevel', 'bondsTriggered', 'forgeUpgrades', 'npcTalks']) if (typeof META.stats[k] !== 'number') META.stats[k] = 0;

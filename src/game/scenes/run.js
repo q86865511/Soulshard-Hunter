@@ -122,6 +122,7 @@ export const runScene = {
     this.t = 0; this.dead = false; this.deathT = 0;
     this.levelQueue = this.run.startBonusLevels || 0;
     this.choice = null; this.banner = ''; this.bannerT = 0;
+    this.leaveConfirm = false; this._lastKeys = 0;   // R17 QA: singleton scene — stale _lastKeys from a prior run suppressed the key banner
     this.paused = false; this.confirmQuit = false;   // 4.8
     // co-op: the run ends only when EVERY avatar is down (one player dying isn't game-over)
     this.world.onPlayerDeath = () => { if (this.coop) { if (!this.world.anyPlayerAlive()) this.onDeath(); } else this.onDeath(); };

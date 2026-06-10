@@ -100,4 +100,21 @@
   - **10.1 重看教學**：hub ESC 選單新增「📖 新手指南」→ `triggerTutorial(force=true)` 無視 tutorialDone 隨時重播蕾恩；run 暫停選單改 4 鈕（繼續/設定/**📖 介面一覽**/放棄）— 介面一覽即時重開 hudTut 介面導覽。
   - **10.2 難度解鎖教學**：新旗標 `META.tutorialSortieDone`（DEFAULT_META＋loadMeta 預設掃描）；蕾恩第 5 頁新增「每通關一個生態與難度，就會解鎖下一個生態、更高難度——通關過的生態還能挑戰『無盡』！」（5→6 頁）；**出擊面板首開導覽** `drawSortieTut()`：三個金色 callout 指向關卡列（通關生態→解鎖下一個）、難度步進器（通關難度→更高難度與無盡）、出擊鈕，任意點擊/按鍵關閉、once-per-save、輸入全攔截（updatePanel 最高優先）；通關畫面文案「解鎖難度 N」→「難度 N 已解鎖」。
 - **驗證**（preview）：首開出擊 → 導覽出現＋截圖（標題移至面板上緣外，不壓標題列）；點擊關閉＋旗標寫入＋再開不出現；ESC 選單含新手指南、`tutorialDone=true` 下重播成功（6 頁）；暫停選單 4 鈕截圖正常。
+
+## 批次 B11 — 全遊戲 QA＋收尾（11.1）
+- **範圍**：QA 流程＋確認修復（`scenes/hub.js`、`scenes/run.js`、`content/skinshop.js`、`state.js`）＋最終文件。
+- **QA 流程**：
+  - **15 代理對抗審查工作流**（6 維度 opus 審查員 × 輸入圖層/存檔相容/經濟數學/稀有度渲染/模擬正確性/衣帽間流程 → 每項發現由獨立 opus 驗證員以「預設駁回」立場溯源驗證）→ **6/9 項確認**（1 major、5 minor）、3 項駁回（理論性/非缺陷）。
+  - **Inline 回歸矩陣**：`__DBG.coopRoundTrip()` 協作快照全綠（2 玩家編解碼/渲染）；registry 計數正確成長（武器 30→31、被動 53→54、裝備 +1）；**24/24 面板渲染零例外**（hub 16 面板態 × run 8 覆蓋層，1280×720）；舊存檔 round-trip（字串 offers 遷移／新旗標補預設／隱藏房 claim 保留）；無盡模式 400 秒煙霧（第 1 波首領 180s 準時、威脅爬升、無誤觸通關/死神）；D1 智慧走位模擬 8 分鐘滿血（B8）。
+- **確認缺陷與修復**：
+  - **[major] 舊存檔永久錯失隱藏房專屬內容**：R17 前已 claim 過 vault/archive/relic 的存檔，once-per-save 守衛使其永遠拿不到新專屬獎勵 → `loadMeta` 增加回填（claimed 但缺 unlock → 補發 `hr_vault_sigil`/`hr_archive_codex`/`hr_relic_heart`＋devEgg 旗標；字面 id 映射避免 import 循環，涵蓋開機/換 slot/雲端同步全路徑）。
+  - **[minor] 鎖定鍛造面板上殘留可點的「重置鍛造」鈕**：`resetTarget()` 在 forge gated 時回傳 null。
+  - **[minor] 低公會等級下已購第 3 排天賦顯示「🔒 進度解鎖」**：gate 改僅對未持有（cur=0）節點生效 — 既得等級永遠可見可續升。
+  - **[minor] 重置退款少於實付（動態加價未退）但確認框承諾全額**：確認框文案改誠實「以基準價返還金幣（不含動態加價部分）」（基準價退款為 R16 既定設計）。
+  - **[minor] 跨局殘留 `_lastKeys` 抑制第二局鑰匙橫幅**：`enter()` 重設 `_lastKeys=0`＋`leaveConfirm=false`（singleton scene 旗標清掃）。
+  - **[minor] 造型全收集後商店每幀重 roll（倒數凍結＋CPU 浪費）**：`rollOffers` 記錄 `_poolDry`；`ensureSkinOffers` 僅 due 或（空且非 dry）才 roll，非 due roll 不重設 30 分期限。
+- **驗證**（preview，逐項）：回填 — 模擬 pre-R17 claimed 存檔 `loadMeta` 後四項全補發；dry pool — 3 次 ensure 僅 1 roll、`_poolDry=true`、倒數完好；gated forge `resetTarget()===null`、解鎖後恢復；已購 t_crit 不顯 gated、未購 t_regen 仍 gated；最終 boot＋30 秒戰鬥＋hub 返回零錯誤。
+- **Server**：本回合零變更（`server/` 未動，`server/test` 不在範圍）。
+
+**ROUND17 完成** — 23 項玩家回饋全數落地（B0–B11），含 QA 確認修復。
 - **驗證**（preview 驅動，零 console error / `__GAME_ERROR__` null）：slots 畫面截圖無重疊（493×374 小視窗）；衣帽間列身點擊（先前必拋處）`threw:null`；4000 殺統計 nova 引爆率 **24.4%**（目標 25%）；speed=200 玩家逃跑下範圍內金幣 120 幀內收斂吸附（finalDist 0.4）；keys+1 → 橫幅正確、keys−1 不觸發；離場確認框／贊助者三選一／結算左欄截圖確認新版面。

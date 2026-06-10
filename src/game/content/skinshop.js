@@ -42,6 +42,7 @@ function rollOffers(meta, resetTimer = true) {
   meta.skinShop = meta.skinShop || { roll: 0, offers: [], nextRoll: 0 };
   meta.skinShop.offers = offers;
   meta.skinShop.roll = (meta.skinShop.roll || 0) + 1;
+  meta.skinShop._poolDry = offers.length === 0;   // R17 QA: completionist pool exhausted — don't re-roll every frame
   if (resetTimer) meta.skinShop.nextRoll = nowMs() + SKINSHOP_REFRESH_MS;   // only the free auto-restock resets the 30-min deadline
   return offers;
 }
@@ -54,11 +55,15 @@ function guardShape(meta) {
   ss.offers = ss.offers.filter((o) => o && typeof o === 'object' && o.c && o.s && SKINS.some((sk) => sk.id === o.s));
 }
 
-// current stock; rolls a fresh batch if empty OR the 30-min timer has elapsed
+// current stock; rolls a fresh batch if empty OR the 30-min timer has elapsed.
+// R17 QA: ensure runs every frame the shop is drawn — when the pool is EXHAUSTED a roll
+// yields 0 offers, so an unconditional empty→re-roll froze the countdown (timer reset每幀)
+// and burned CPU. _poolDry suppresses retries until the next due tick; a non-due roll
+// never touches the 30-min deadline.
 export function ensureSkinOffers(meta) {
   guardShape(meta);
   const due = !meta.skinShop.nextRoll || nowMs() >= meta.skinShop.nextRoll;
-  if (!meta.skinShop.offers.length || due) rollOffers(meta);
+  if (due || (!meta.skinShop.offers.length && !meta.skinShop._poolDry)) rollOffers(meta, due);
   return meta.skinShop.offers;
 }
 

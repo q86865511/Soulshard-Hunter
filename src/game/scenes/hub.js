@@ -230,7 +230,7 @@ export const hubScene = {
   // which upgrade category the current panel/tab can reset (each separate)
   resetTarget() {
     if (this.panel === 'talents') return { label: '重置天賦', fn: () => this.resetTalents() };
-    if (this.panel === 'smith' && this.tab === 0) return { label: '重置鍛造', fn: () => this.resetForge() };
+    if (this.panel === 'smith' && this.tab === 0) return gate(META, 'forge') ? null : { label: '重置鍛造', fn: () => this.resetForge() };   // R17 QA: no live control over the locked panel
     if (this.panel === 'smith' && this.tab === 1) return { label: '重置設施', fn: () => this.resetFacilities() };
     return null;
   },
@@ -356,7 +356,7 @@ export const hubScene = {
     const frame = this.panelFrame();
     if (this.handleScrollbar(mx, my, frame)) return;
     const rt = this.resetTarget();   // task 8: per-category reset button
-    if (rt && mouse.justDown && inside(mx, my, this.resetBtnRect(frame))) { this.ask(rt.label + '？', '清除此分頁的升級並返還已花費金幣', rt.fn); return; }
+    if (rt && mouse.justDown && inside(mx, my, this.resetBtnRect(frame))) { this.ask(rt.label + '？', '清除此分頁的升級，以基準價返還金幣（不含動態加價部分）', rt.fn); return; }   // R17 QA: honest wording — refunds are at base cost
     if (mouse.justDown) {
       if (inside(mx, my, frame.close)) { this.panel = null; return; }
       if (!inside(mx, my, frame)) { this.panel = null; return; }
@@ -516,7 +516,7 @@ export const hubScene = {
   talentState(def) {
     const cur = META.talents[def.id] || 0;
     if (cur >= def.maxLevel) return 'max';
-    if ((def.row || 0) >= 2 && gate(META, 'talentRow2')) return 'gated';   // R17/9.1: 3rd talent row gated by guild rank
+    if ((def.row || 0) >= 2 && !(cur > 0) && gate(META, 'talentRow2')) return 'gated';   // R17/9.1: 3rd talent row gated by guild rank — owned nodes (pre-gate buys) stay upgradeable, never shown locked
     if (def.requires) for (const r of def.requires) if (!(META.talents[r] > 0)) return 'locked';
     return META.gold >= this.hubCost(def.cost(cur), 'talentPurchases') ? 'ok' : 'poor';
   },
