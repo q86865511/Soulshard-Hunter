@@ -8,7 +8,7 @@ const A = (o) => Abilities.register(o);
 
 // ---- tier 1 (stat boosts) --------------------------------------------------
 A({ id: 'g_dodge_step', name: '閃身步法', tier: 1, weight: 8, maxStacks: 5, desc: '閃避 +6%', apply: (p) => { p.stats.dodge = (p.stats.dodge ?? 0) + 0.06; } });
-A({ id: 'g_treasure_sense', name: '尋寶直覺', tier: 1, weight: 7, maxStacks: 5, desc: '金幣 +18%、拾取範圍 +35%', apply: (p) => { p.stats.goldMult *= 1.18; p.stats.pickupRange *= 1.35; } });
+A({ id: 'g_treasure_sense', name: '尋寶直覺', tier: 1, weight: 7, maxStacks: 5, desc: '金幣 +9%、拾取範圍 +35%', apply: (p) => { p.stats.goldMult *= 1.09;   /* R17/8.3 HAND-EDIT: gold income halved */ p.stats.pickupRange *= 1.35; } });
 A({ id: 'g_scholar', name: '魂學者', tier: 1, weight: 7, maxStacks: 5, desc: '經驗 +20%、幸運 +0.08', apply: (p) => { p.stats.xpMult *= 1.20; p.stats.luck += 0.08; } });
 
 // ---- tier 2 (rare) ---------------------------------------------------------

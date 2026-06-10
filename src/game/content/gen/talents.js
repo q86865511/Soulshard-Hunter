@@ -3,6 +3,7 @@ import { Enemies, Items, Equipment, Abilities, Talents, Facilities } from '../re
 import { P, lighten, darken, mix, withAlpha } from '../../../engine/palette.js';
 import { dist, rng, clamp } from '../../../engine/math.js';
 import { Projectile } from '../../projectile.js';
+import { BALANCE } from '../../balance.js';   // R17/8.3 HAND-EDIT: gen costs were hardcoded and skipped the R16/R17 town-price hikes
 
 // ===== Talents 天賦註冊 =====
 
@@ -12,25 +13,25 @@ import { Projectile } from '../../projectile.js';
 Talents.register({
   id: "g_keenedge",
   name: "利刃",
-  desc: "鍛鍊刃鋒，每級永久提升 3.5% 傷害。",
+  desc: "鍛鍊刃鋒，每級永久提升 2.5% 傷害。",
   branch: "offense",
   row: 0,
   maxLevel: 5,
-  cost: (lvl)=> Math.round(50 * Math.pow(1.55, lvl)),
-  apply: (s, l)=>{ s.damageMult *= 1 + 0.035 * l; }
+  cost: (lvl)=> Math.round(50 * BALANCE.TALENT_COST_MUL * Math.pow(1.55, lvl)),
+  apply: (s, l)=>{ s.damageMult *= 1 + 0.025 * l; }
 });
 
 // offense row1: 暴擊精通 - 增加暴擊率與暴擊傷害（需先點利刃）
 Talents.register({
   id: "g_critmaster",
   name: "暴擊精通",
-  desc: "鑽研致命一擊，每級增加 2.5% 暴擊率與 8% 暴擊傷害。",
+  desc: "鑽研致命一擊，每級增加 2% 暴擊率與 6% 暴擊傷害。",
   branch: "offense",
   row: 1,
   maxLevel: 4,
-  cost: (lvl)=> Math.round(80 * Math.pow(1.6, lvl)),
+  cost: (lvl)=> Math.round(80 * BALANCE.TALENT_COST_MUL * Math.pow(1.6, lvl)),
   requires: ["g_keenedge"],
-  apply: (s, l)=>{ s.critChance += 0.025 * l; s.critMult += 0.08 * l; }
+  apply: (s, l)=>{ s.critChance += 0.02 * l; s.critMult += 0.06 * l; }
 });
 
 // --- DEFENSE 防禦系 ---
@@ -39,25 +40,25 @@ Talents.register({
 Talents.register({
   id: "g_ironheart",
   name: "鐵骨",
-  desc: "強健體魄，每級永久增加 12 點最大生命。",
+  desc: "強健體魄，每級永久增加 9 點最大生命。",
   branch: "defense",
   row: 0,
   maxLevel: 5,
-  cost: (lvl)=> Math.round(50 * Math.pow(1.55, lvl)),
-  apply: (s, l)=>{ s.maxHp += 12 * l; }
+  cost: (lvl)=> Math.round(50 * BALANCE.TALENT_COST_MUL * Math.pow(1.55, lvl)),
+  apply: (s, l)=>{ s.maxHp += 9 * l; }
 });
 
 // defense row1: 守護壁壘 - 增加防禦與閃避（需先點鐵骨）
 Talents.register({
   id: "g_bulwark",
   name: "守護壁壘",
-  desc: "築起防線，每級增加 2 點防禦與 2% 閃避。",
+  desc: "築起防線，每級增加 1 點防禦與 1.5% 閃避。",
   branch: "defense",
   row: 1,
   maxLevel: 4,
-  cost: (lvl)=> Math.round(80 * Math.pow(1.6, lvl)),
+  cost: (lvl)=> Math.round(80 * BALANCE.TALENT_COST_MUL * Math.pow(1.6, lvl)),
   requires: ["g_ironheart"],
-  apply: (s, l)=>{ s.defense += 2 * l; s.dodge += 0.02 * l; }
+  apply: (s, l)=>{ s.defense += 1 * l; s.dodge += 0.015 * l; }
 });
 
 // --- UTILITY 輔助系 ---
@@ -66,25 +67,25 @@ Talents.register({
 Talents.register({
   id: "g_swiftfoot",
   name: "疾風步",
-  desc: "步伐輕盈，每級永久提升 4% 移動速度。",
+  desc: "步伐輕盈，每級永久提升 3% 移動速度。",
   branch: "utility",
   row: 0,
   maxLevel: 5,
-  cost: (lvl)=> Math.round(45 * Math.pow(1.55, lvl)),
-  apply: (s, l)=>{ s.speed *= 1 + 0.04 * l; }
+  cost: (lvl)=> Math.round(45 * BALANCE.TALENT_COST_MUL * Math.pow(1.55, lvl)),
+  apply: (s, l)=>{ s.speed *= 1 + 0.03 * l; }
 });
 
 // utility row1: 磁吸引力 - 增加拾取範圍與閃避（需先點疾風步）
 Talents.register({
   id: "g_magnetism",
   name: "磁吸引力",
-  desc: "牽引魂晶，每級增加 30% 拾取範圍與 1% 閃避。",
+  desc: "牽引魂晶，每級增加 22% 拾取範圍與 1% 閃避。",
   branch: "utility",
   row: 1,
   maxLevel: 4,
-  cost: (lvl)=> Math.round(70 * Math.pow(1.55, lvl)),
+  cost: (lvl)=> Math.round(70 * BALANCE.TALENT_COST_MUL * Math.pow(1.55, lvl)),
   requires: ["g_swiftfoot"],
-  apply: (s, l)=>{ s.pickupRange *= 1 + 0.30 * l; s.dodge += 0.01 * l; }
+  apply: (s, l)=>{ s.pickupRange *= 1 + 0.22 * l; s.dodge += 0.01 * l; }
 });
 
 // --- FORTUNE 財運系 ---
@@ -93,23 +94,23 @@ Talents.register({
 Talents.register({
   id: "g_scavenger",
   name: "拾荒者",
-  desc: "搜刮戰場，每級永久增加 8% 金幣掉落。",
+  desc: "搜刮戰場，每級永久增加 4% 金幣掉落。",
   branch: "fortune",
   row: 0,
   maxLevel: 5,
-  cost: (lvl)=> Math.round(55 * Math.pow(1.55, lvl)),
-  apply: (s, l)=>{ s.goldMult *= 1 + 0.08 * l; }
+  cost: (lvl)=> Math.round(55 * BALANCE.TALENT_COST_MUL * Math.pow(1.55, lvl)),
+  apply: (s, l)=>{ s.goldMult *= 1 + 0.04 * l; }
 });
 
 // fortune row1: 賭徒之心 - 增加幸運與經驗（需先點拾荒者）
 Talents.register({
   id: "g_gambler",
   name: "賭徒之心",
-  desc: "命運眷顧，每級增加 5% 幸運與 5% 經驗獲取。",
+  desc: "命運眷顧，每級增加 4% 幸運與 4% 經驗獲取。",
   branch: "fortune",
   row: 1,
   maxLevel: 4,
-  cost: (lvl)=> Math.round(90 * Math.pow(1.6, lvl)),
+  cost: (lvl)=> Math.round(90 * BALANCE.TALENT_COST_MUL * Math.pow(1.6, lvl)),
   requires: ["g_scavenger"],
-  apply: (s, l)=>{ s.luck += 0.05 * l; s.xpMult *= 1 + 0.05 * l; }
+  apply: (s, l)=>{ s.luck += 0.04 * l; s.xpMult *= 1 + 0.04 * l; }
 });

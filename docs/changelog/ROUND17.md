@@ -77,4 +77,12 @@
   - **7.2 精英化**：改以 `opts.elite` 正規路徑生成（**修正既有 bug**：原本 spawn 後才設 `elite`，建構子的金 tint／韌性／精英倍率全沒吃到）；`GUARDIAN_HP_SCALE=2.4`/`DMG_SCALE=1.0`（×3.2/×1.5 精英倍率 → 實效 ~7.7×HP、1.5×傷，原 6×/1.3×）；新 `crown_elite` sprite（9×7 雙幀金冠＋微光）懸浮頭頂＋金色脈衝 glow。協作備註：guardian 旗標不入網路位元，但 elite 金 tint 會同步。
   - **7.3 開鎖確認**：鎖箱碰觸不再自動吞鑰匙 — pickup 改舉 `world.vaultNear`（world 每幀重置），run.js 互動鏈最高優先；頭頂脈衝提示「【E】使用鑰匙開啟寶庫」→ `openVault()` 扣鑰匙、雙金環、橫幅「🔑 寶庫開啟！」；無鑰匙維持「🔒 需要鑰匙」浮字。替代鑰匙來源（機關）本回合範圍外。
 - **驗證**（preview）：開局零守護怪、plan=[199.9s, 113.8s] ∈ [90,240]；快轉後 2 隻甦醒（hp 869、elite、金 tint）；皇冠渲染零錯誤；鑰匙在手碰鎖箱 → `vaultNear` 舉起且**鑰匙未扣**；`openVault` → 開箱＋鑰匙-1＋正確橫幅。
+
+## 批次 B8 — 數值稽核＋微 nerf＋城鎮經濟（8.1–8.3）
+- **範圍**：`balance.js`、`content/talents.js`、`content/facilities.js`、`content/abilities.js`、`content/events.js`＋ **6 個 gen 手改**（`gen/talents.js`、`gen/facilities.js`、`gen_items_anvils.js`、`abilities_utility.js`、`gen_abilities_c.js`、`equipment_gear.js` — 已記入 CLAUDE.md gotcha，重跑 integrate.mjs 會還原）。
+- **條目**：
+  - **8.1 換裝精準回退稽核**：200 次隨機護甲/飾品換裝＋全卸下 → 玩家 stats 與初始 **byte-exact**（零漂移）— R16/9.4 不變量成立，「近乎無敵」非換裝殘留所致 → 依玩家指示施以全面微 nerf。
+  - **8.2 局內微 nerf**：鐵砧遞減 `ANVIL_DIMINISH=0.85`（同類重複購買 8%→6.8%→5.78%…，desc 註明；浮字顯示實際增益）；贊助者修剪 ~20%：berserker 1.35→1.28、midas 1.25→1.12＋傷害上限 0.30→0.24、gambler 1.12→1.10（並修 desc「10%」→「5%」文不符碼）、mage 1.12→1.10、pyro 1.05→1.04、engineer 1.06→1.05；**不加** DAMAGE_MULT 軟頂（讀點分散、會破壞精準回退不變量）。
+  - **8.3 城鎮經濟**（玩家給定數字）：四個 `*_COST_MUL` 2.0→**3.0**（價格 ×1.5）；**順手修正既有漏洞：gen 天賦/設施成本原本寫死、R16 的 ×2 從未套用** — 現已接上 MUL（gen 天賦 L0 55→165）。金幣收益砍半：t_gold 6→3%/級、f_bank 5→2.5%/級、greed 1.25→1.12、貪婪之約金幣 1.4→1.2（魂晶不動）、p_midas 1.25→1.12、p_merchant +1200→+600、尋寶直覺 1.18→1.09、幸運星辰 1.15→1.08、貪婪之戒 1.30→1.15、拾荒者 8→4%/級。局外成長值修剪 ~25-30%：核心天賦（t_damage 2.5→2%、t_firerate 3.5→2.5%、t_crit 1.5→1.2%、t_hp 10→7、t_regen 0.2→0.15、t_speed 3→2%、t_pickup 12→9%、t_dash 5→4%、t_luck 0.07→0.05、t_xp 6→4%）＋gen 天賦（利刃 3.5→2.5%、暴擊精通 2.5/8→2/6%、鐵骨 12→9、壁壘 2/2→1/1.5%、疾風步 4→3%、磁吸 30→22%、賭徒之心 5/5→4/4%）＋設施（f_shrine 7→5、f_altar 6→4、戰利寶庫 25→15、神諭 0.6→0.4、汲泉 8%/4→5%/3、補給營回復 0.2→0.15、圖桌 2/1.5→1.5/1%）；所有 desc 同步。重置退款走 `def.cost(i)` 自動一致。
+- **驗證**（preview）：8.1 稽核 200 次零漂移；鐵砧遞減 0.08→0.068→0.0578；`t_gold.cost(0)=165`、`g_scavenger.cost(0)=165`（gen 已接 MUL）；patron desc spot-check；D1 fresh-save 模擬（智慧走位）8 分鐘滿血存活（threat 5）— B8 對新存檔局內生存面零接觸（僅動 meta/贊助者/鐵砧/金流），開局可玩性不受影響。
 - **驗證**（preview 驅動，零 console error / `__GAME_ERROR__` null）：slots 畫面截圖無重疊（493×374 小視窗）；衣帽間列身點擊（先前必拋處）`threw:null`；4000 殺統計 nova 引爆率 **24.4%**（目標 25%）；speed=200 玩家逃跑下範圍內金幣 120 幀內收斂吸附（finalDist 0.4）；keys+1 → 橫幅正確、keys−1 不觸發；離場確認框／贊助者三選一／結算左欄截圖確認新版面。

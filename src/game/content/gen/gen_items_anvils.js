@@ -8,6 +8,9 @@ import { getSprite, defineSprite, defineAnim, Painter } from '../../../engine/sp
 import { defineIcon, panel, sym } from '../../../art/icons.js';
 import { drawSlime, drawBat, drawWisp, drawBrute, drawHunter } from '../../../art/core.js';
 import { Sfx } from '../../../engine/audio.js';
+import { BALANCE } from '../../balance.js';   // R17/8.2 HAND-EDIT: anvil diminishing returns
+// R17/8.2: each repeat purchase of the SAME anvil yields x ANVIL_DIMINISH of the previous gain
+const anvN = (p, k) => { p._anvN = p._anvN || {}; const n = p._anvN[k] || 0; p._anvN[k] = n + 1; return Math.pow(BALANCE.ANVIL_DIMINISH ?? 0.85, n); };
 
 // gen_items_anvils — 4 tactical consumables + 4 permanent stat "anvils".
 // File-body form (no import/export). All bindings provided by MEGA_HEADER.
@@ -115,41 +118,42 @@ Items.register({
 
 // A) 力量鐵砧 — +8% damage.
 Items.register({
-  id: 'it_anvil_might', name: '力量鐵砧', desc: '【鐵砧】永久提升 傷害 +8%（本次冒險）', tier: 2, weight: 5, price: 60, icon: 'item_it_anvil_might',
+  id: 'it_anvil_might', name: '力量鐵砧', desc: '【鐵砧】永久提升 傷害 +8%（本次冒險，重複購買效益遞減）', tier: 2, weight: 5, price: 60, icon: 'item_it_anvil_might',
   use: (w, p) => {
-    p.stats.damageMult *= 1.08;
-    anvilFx(w, p, '傷害 +8%');
+    const fM = anvN(p, 'might'); p.stats.damageMult *= 1 + 0.08 * fM;
+    anvilFx(w, p, '傷害 +' + (8 * fM).toFixed(1) + '%');
     return true;
   },
 });
 
 // B) 活力鐵砧 — +15 max HP (and top up current HP by the same amount).
 Items.register({
-  id: 'it_anvil_vigor', name: '活力鐵砧', desc: '【鐵砧】永久提升 生命上限 +15（本次冒險）', tier: 2, weight: 5, price: 60, icon: 'item_it_anvil_vigor',
+  id: 'it_anvil_vigor', name: '活力鐵砧', desc: '【鐵砧】永久提升 生命上限 +15（本次冒險，重複購買效益遞減）', tier: 2, weight: 5, price: 60, icon: 'item_it_anvil_vigor',
   use: (w, p) => {
-    p.stats.maxHp += 15;
-    p.heal(15);
-    anvilFx(w, p, '生命 +15');
+    const gV = Math.max(5, Math.round(15 * anvN(p, 'vigor')));
+    p.stats.maxHp += gV;
+    p.heal(gV);
+    anvilFx(w, p, '生命 +' + gV);
     return true;
   },
 });
 
 // C) 疾速鐵砧 — +5% move speed.
 Items.register({
-  id: 'it_anvil_swift', name: '疾速鐵砧', desc: '【鐵砧】永久提升 移動速度 +5%（本次冒險）', tier: 2, weight: 5, price: 55, icon: 'item_it_anvil_swift',
+  id: 'it_anvil_swift', name: '疾速鐵砧', desc: '【鐵砧】永久提升 移動速度 +5%（本次冒險，重複購買效益遞減）', tier: 2, weight: 5, price: 55, icon: 'item_it_anvil_swift',
   use: (w, p) => {
-    p.stats.speed *= 1.05;
-    anvilFx(w, p, '移速 +5%');
+    const fS = anvN(p, 'swift'); p.stats.speed *= 1 + 0.05 * fS;
+    anvilFx(w, p, '移速 +' + (5 * fS).toFixed(1) + '%');
     return true;
   },
 });
 
 // D) 專注鐵砧 — +4% crit chance.
 Items.register({
-  id: 'it_anvil_focus', name: '專注鐵砧', desc: '【鐵砧】永久提升 暴擊率 +4%（本次冒險）', tier: 2, weight: 5, price: 58, icon: 'item_it_anvil_focus',
+  id: 'it_anvil_focus', name: '專注鐵砧', desc: '【鐵砧】永久提升 暴擊率 +4%（本次冒險，重複購買效益遞減）', tier: 2, weight: 5, price: 58, icon: 'item_it_anvil_focus',
   use: (w, p) => {
-    p.stats.critChance += 0.04;
-    anvilFx(w, p, '暴擊 +4%');
+    const fF = anvN(p, 'focus'); p.stats.critChance += 0.04 * fF;
+    anvilFx(w, p, '暴擊 +' + (4 * fF).toFixed(1) + '%');
     return true;
   },
 });

@@ -27,8 +27,8 @@ A({
 
 A({
   id: 'ac_fortune', name: '幸運星辰', tier: 1, weight: 7, maxStacks: 5,
-  desc: '幸運 +0.10、金幣 +15%、經驗 +10%',
-  apply: (p) => { p.stats.luck += 0.10; p.stats.goldMult *= 1.15; p.stats.xpMult *= 1.10; },
+  desc: '幸運 +0.10、金幣 +8%、經驗 +10%',   // R17/8.3 HAND-EDIT: gold income halved
+  apply: (p) => { p.stats.luck += 0.10; p.stats.goldMult *= 1.08; p.stats.xpMult *= 1.10; },
 });
 
 // ---- tier 2 (rare stat passive + behavioural) -----------------------------

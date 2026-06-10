@@ -13,13 +13,14 @@ const F = (o) => Facilities.register(o);
 // round16/9.2: base cost ×FACILITY_COST_MUL.
 const cost = (base, growth = 1.95) => (lvl) => Math.round(base * BALANCE.FACILITY_COST_MUL * Math.pow(growth, lvl));
 
+// R17/8.3: values trimmed; the gold facility HALVED per the economy rebalance.
 F({
-  id: 'f_shrine', name: '生命神龕', desc: '每次出擊 生命上限 +7/級', maxLevel: 4, icon: 'facility_f_shrine',
-  cost: cost(140), applyRun: (run, l) => { run.stats.maxHp += 7 * l; },
+  id: 'f_shrine', name: '生命神龕', desc: '每次出擊 生命上限 +5/級', maxLevel: 4, icon: 'facility_f_shrine',
+  cost: cost(140), applyRun: (run, l) => { run.stats.maxHp += 5 * l; },
 });
 F({
-  id: 'f_bank', name: '金庫', desc: '金幣獲取 +5%/級', maxLevel: 5, icon: 'facility_f_bank',
-  cost: cost(160), applyRun: (run, l) => { run.stats.goldMult *= 1 + 0.05 * l; },
+  id: 'f_bank', name: '金庫', desc: '金幣獲取 +2.5%/級', maxLevel: 5, icon: 'facility_f_bank',
+  cost: cost(160), applyRun: (run, l) => { run.stats.goldMult *= 1 + 0.025 * l; },
 });
 F({
   id: 'f_forge', name: '鍛造爐', desc: '提升裝備掉落品質/級', maxLevel: 4, icon: 'facility_f_forge',
@@ -30,8 +31,8 @@ F({
   cost: cost(260), applyRun: (run, l) => { run.startBonusLevels = (run.startBonusLevels || 0) + l; },
 });
 F({
-  id: 'f_altar', name: '魂晶祭壇', desc: '每次出擊 起始魂晶 +6/級', maxLevel: 5, icon: 'facility_f_altar',
-  cost: cost(150), applyRun: (run, l) => { run.shards += 6 * l; },
+  id: 'f_altar', name: '魂晶祭壇', desc: '每次出擊 起始魂晶 +4/級', maxLevel: 5, icon: 'facility_f_altar',
+  cost: cost(150), applyRun: (run, l) => { run.shards += 4 * l; },
 });
 F({
   id: 'f_arsenal', name: '武器庫', desc: '解鎖更多起始武器', maxLevel: 3, icon: 'facility_f_arsenal',

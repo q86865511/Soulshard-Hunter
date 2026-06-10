@@ -54,11 +54,14 @@ export const BALANCE = {
   GOLD_MULT_CAP: 3.0,                          // round16/9.1: hard ceiling on the goldMult stat so stacked gold builds can't run away
   DROP_CHANCE_MULT: 0.6,                      // equip/item/heart drop chance off mobs
   GEAR_DROP_MULT: 0.7,                        // round16/10.5: extra cut on MOB equipment drops only (boss gear unchanged) — fewer mid-combat equip-choice interrupts
-  // round16/9.2: town-spend base-cost multipliers (talents/facilities/forge were too cheap → fully maxed in 4-5 runs)
-  TALENT_COST_MUL: 2.0,
-  FACILITY_COST_MUL: 2.0,
-  FORGE_LEVEL_MUL: 2.0,
-  FORGE_EFFECT_MUL: 2.0,
+  // round16/9.2 → R17/8.3: town-spend base-cost multipliers, raised again ×1.5 per player
+  // feedback (out-of-run growth still accumulated too fast). gen/talents + gen/facilities
+  // now consume these too (they had hardcoded costs and silently skipped the R16 hike).
+  TALENT_COST_MUL: 3.0,
+  FACILITY_COST_MUL: 3.0,
+  FORGE_LEVEL_MUL: 3.0,
+  FORGE_EFFECT_MUL: 3.0,
+  ANVIL_DIMINISH: 0.85,                        // R17/8.2: each repeat purchase of the SAME stat anvil yields ×0.85 of the previous gain
   HUB_COST_GROWTH: 1.08,                       // round16/9.3: VS-style dynamic pricing — each purchase in a panel raises that panel's prices +8%
   // round16/6.5 劇情難度 (difficulty 0): enemies very weak, loot generous, almost unloseable; excluded from the leaderboard.
   STORY_DIFF_MUL: 0.5,                        // enemy hp/dmg scalar (vs 1.0 at D1)

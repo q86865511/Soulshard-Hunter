@@ -49,9 +49,9 @@ Equipment.register({
 // ---- trinkets --------------------------------------------------------------
 Equipment.register({
   id: 'g_greed_ring', name: '貪婪之戒', slot: 'trinket', tier: 2, weight: 6, price: 45, icon: 'equip_g_greed_ring',
-  desc: '金幣獲取 +30%、幸運 +1',
+  desc: '金幣獲取 +15%、幸運 +1',   // R17/8.3 HAND-EDIT: gold income halved
   apply: (p) => {
-    p.stats.goldMult *= 1.30;
+    p.stats.goldMult *= 1.15;
     p.stats.luck += 1;
   },
 });

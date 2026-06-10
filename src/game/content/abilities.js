@@ -16,7 +16,7 @@ A({ id: 'vitality', name: '生命寶石', tier: 1, weight: 8, maxStacks: 8, desc
 A({ id: 'crit', name: '銳利之眼', tier: 1, weight: 8, maxStacks: 6, desc: '暴擊率 +7%', apply: (p) => p.stats.critChance += 0.07 });
 A({ id: 'velocity', name: '加速彈道', tier: 1, weight: 7, maxStacks: 5, desc: '彈速 +22%', apply: (p) => p.stats.projSpeedMult *= 1.22 });
 A({ id: 'magnet', name: '拾取磁石', tier: 1, weight: 6, maxStacks: 4, desc: '拾取範圍 +60%', apply: (p) => p.stats.pickupRange *= 1.6 });
-A({ id: 'greed', name: '貪婪之觸', tier: 1, weight: 6, maxStacks: 5, desc: '金幣獲取 +25%', apply: (p) => p.stats.goldMult *= 1.25 });
+A({ id: 'greed', name: '貪婪之觸', tier: 1, weight: 6, maxStacks: 5, desc: '金幣獲取 +12%', apply: (p) => p.stats.goldMult *= 1.12 });   // R17/8.3: gold income halved
 A({ id: 'regen', name: '再生之種', tier: 1, weight: 5, maxStacks: 4, desc: '每秒回復 +0.5 生命', apply: (p) => p.stats.hpRegen += 0.5 });
 A({ id: 'dash', name: '瞬影', tier: 1, weight: 5, maxStacks: 3, desc: '衝刺冷卻 -22%', apply: (p) => p.stats.dashCd *= 0.78 });
 
@@ -121,8 +121,8 @@ A({ id: 'curse_titan', name: '巨力詛咒', tier: 3, weight: 2, maxStacks: 2, c
   apply: (p) => { p.stats.damageMult *= 1.50; p.stats.speed *= 0.85; } });
 A({ id: 'curse_glasssoul', name: '琉璃魂', tier: 3, weight: 2, maxStacks: 1, cursed: true, desc: '暴擊 +20%、暴傷 +0.5，但閃避歸零、生命 -10%',
   apply: (p) => { p.stats.critChance += 0.20; p.stats.critMult += 0.5; p.stats.dodge = 0; p.stats.maxHp = Math.round(p.stats.maxHp * 0.9); p.hp = Math.min(p.hp, p.stats.maxHp); } });
-A({ id: 'curse_greedpact', name: '貪婪之約', tier: 2, weight: 3, maxStacks: 2, cursed: true, desc: '金幣/魂晶 +40%，但受到傷害 +10%',
-  apply: (p) => { p.stats.goldMult *= 1.4; p.stats.shardMult = (p.stats.shardMult || 1) * 1.4; p.stats.armorMult = (p.stats.armorMult || 0) - 0.10; } });
+A({ id: 'curse_greedpact', name: '貪婪之約', tier: 2, weight: 3, maxStacks: 2, cursed: true, desc: '金幣 +20%、魂晶 +40%，但受到傷害 +10%',
+  apply: (p) => { p.stats.goldMult *= 1.2; p.stats.shardMult = (p.stats.shardMult || 1) * 1.4; p.stats.armorMult = (p.stats.armorMult || 0) - 0.10; } });   // R17/8.3: gold half (shards untouched)
 
 // ---- helpers ---------------------------------------------------------------
 export function getAbilityChoices(run, n = 3) {
