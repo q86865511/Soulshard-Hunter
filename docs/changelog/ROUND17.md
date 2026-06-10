@@ -30,4 +30,14 @@
   - 純繪製處改 `goldLabel`：確認框持有列、天賦節點價格、鍛造「強化等級」鈕＋特效價、設施卡價格、銀行借款鈕、公會領取鈕（主線＋支線）、衣帽間價格鈕（特賣底價改純數字）、出擊鎖定卡 🔒 價格。
   - title 兩處「金庫 🪙N」→「金庫 N」（金庫已是標籤，免重複「金幣」）；guild.js 六個 rank 獎勵 label「＋🪙N」→「＋N 金幣」；patchnotes 移除 🪙。
 - **驗證**：preview 截圖確認框／天賦／鍛造／設施／銀行全部出現像素金幣、零 □；`grep 🪙` 僅剩註解；零 console error。
+
+## 批次 B3 — 衣帽間重構＋造型商店改版（3.1–3.3）
+- **範圍**：`content/skinshop.js`（重寫）、`scenes/hub.js`、`content/characters.js`。
+- **條目**：
+  - **3.1 分層入口**：`wardrobeView: null|'mine'|'shop'` — 入口兩大門（👤 我的造型／🛍 造型商店）；我的造型 → 英雄格（含 ◀ 返回）→ 單英雄**僅已擁有**清單（點列＝套用，`pickSkin` 改純裝備）；Esc 逐層返回（updatePanel 分層處理）；衣帽間頁籤移除（tabRects 還原雙頁籤面板專用）。
+  - **3.2 造型商店**：池 = 已解鎖角色 × 全 SKINS 的 **(char,skin) 配對**（排除已擁有與 `exclusive`）；8 格（2×4 卡：造型 sprite、名稱、角色·階級、價格）；每格 **1% 隱藏池機率**（普通池耗盡時 10% 安慰機率）；30 分免費進貨＋重 roll 200 金（原 70）；價格 `SKIN_TIER_PRICE={normal:1000, premium:3000}`（原 450/900），隱藏款 `hiddenSkinPrice(id)`＝id 雜湊 → **20000–50000**（5000 級距、跨存檔穩定）；特賣每週 2 普通＋1 豪華 **×0.8**，**隱藏永不打折**（skinPrice 直接短路）。
+  - **3.3 換裝正修**：列命中矩形以重構根除（搭配 B1 熱修）；新增 `ownsSkin(meta,cid,skinId)`（characters.js）統一擁有判定，支援 B6 `exclusive+unlockFlag` 帳號全英雄共用造型。
+  - **存檔遷移**：`guardShape()` — 舊字串陣列 offers 載入即清空重 roll（不升 SAVE_VERSION）；無效配對過濾。
+  - 順手修：hub.js 缺 `uiClipRound` import（隱藏卡頂部金條觸發 ReferenceError — 僅在隱藏款上架時才會炸，靠 1% 強制測試抓到）。
+- **驗證**（preview 全流程模擬點擊）：入口→我的造型→英雄→點列身套用原色（舊崩潰點，零錯誤）→返回×2→商店→購買（確認框→金幣 -800 特賣價、`hunter:bone` 入 ownedSkins）；舊 offers 形狀遷移自動重 roll；`hiddenSkinPrice` 確定性（golem=45000 穩定）；stub Math.random 強制 1% 路徑 → 4 隱藏款金框＋25k/40k/45k/50k 價位、池耗盡回落普通款；倒數計時移入面板內。
 - **驗證**（preview 驅動，零 console error / `__GAME_ERROR__` null）：slots 畫面截圖無重疊（493×374 小視窗）；衣帽間列身點擊（先前必拋處）`threw:null`；4000 殺統計 nova 引爆率 **24.4%**（目標 25%）；speed=200 玩家逃跑下範圍內金幣 120 幀內收斂吸附（finalDist 0.4）；keys+1 → 橫幅正確、keys−1 不觸發；離場確認框／贊助者三選一／結算左欄截圖確認新版面。

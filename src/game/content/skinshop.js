@@ -1,23 +1,44 @@
-// 5-6 衣帽店 rotation. The shop's SHOP tab stocks 4 randomly rotating skins that
-// refresh on a 30-minute REAL-TIME timer (task-10) — fully random, drawn from every
-// hero-agnostic skin, with ~45% chance one slot is a HIDDEN skin (a totally different
-// silhouette). Offers persist on META.skinShop.offers; a paid reroll forces a new batch.
+// 5-6 衣帽店 rotation → R17/3.2 rework. The shop stocks 8 randomly rotating
+// (character, skin) PAIR offers drawn from the player's UNLOCKED heroes × every
+// purchasable skin (minus already-owned pairs), refreshed every 30 real minutes.
+// Hidden skins are a 1% per-slot jackpot. Prices by tier: 1000 / 3000, hidden in a
+// deterministic 20000–50000 band; the weekly sale only discounts non-hidden tiers (×0.8).
+// Offers persist on META.skinShop.offers as [{c, s}]; a paid reroll forces a new batch.
 // Skins are owned per-character (META.ownedSkins "charId:skinId") and equipped per hero.
 import { SKINS } from './characters.js';
 
-export const SKINSHOP_REROLL_COST = 70;
-export const SKINSHOP_SLOTS = 4;                       // task-10: always 4 on the rack
-export const SKINSHOP_REFRESH_MS = 30 * 60 * 1000;     // task-10: auto-restock every 30 real minutes
-export const SKINSHOP_HIDDEN_CHANCE = 0.45;            // chance a slot rolls a hidden skin
+export const SKINSHOP_REROLL_COST = 200;               // R17/3.2: was 70 — prices jumped, so does the reroll
+export const SKINSHOP_SLOTS = 8;                       // R17/3.2: 8 on the rack (was 4)
+export const SKINSHOP_REFRESH_MS = 30 * 60 * 1000;     // auto-restock every 30 real minutes
+export const SKINSHOP_HIDDEN_CHANCE = 0.01;            // R17/3.2: per-slot hidden jackpot (was a 45% one-slot roll)
 const nowMs = () => (typeof Date !== 'undefined' && Date.now) ? Date.now() : 0;
 
 function shuffle(a) { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
 
+const buyable = (s) => !s.exclusive;   // B6 hidden-room reward skins never hit the rack
+
+// pool of {c, s} pairs the player could buy right now (unlocked chars × skins, minus owned)
+function offerPool(meta) {
+  const chars = (meta.unlocked && meta.unlocked.characters) || [];
+  const ownedSet = new Set(meta.ownedSkins || []);
+  const normal = [], hidden = [];
+  for (const c of chars) for (const sk of SKINS) {
+    if (!buyable(sk) || ownedSet.has(c + ':' + sk.id)) continue;
+    (sk.hidden ? hidden : normal).push({ c, s: sk.id });
+  }
+  return { normal, hidden };
+}
+
 function rollOffers(meta, resetTimer = true) {
-  const normal = shuffle(SKINS.filter((s) => !s.hidden).map((s) => s.id));
-  const hidden = SKINS.filter((s) => s.hidden).map((s) => s.id);
-  const offers = normal.slice(0, SKINSHOP_SLOTS);
-  if (hidden.length && Math.random() < SKINSHOP_HIDDEN_CHANCE) offers[Math.floor(Math.random() * offers.length)] = hidden[Math.floor(Math.random() * hidden.length)];
+  const { normal, hidden } = offerPool(meta);
+  shuffle(normal); shuffle(hidden);
+  const offers = [];
+  for (let i = 0; i < SKINSHOP_SLOTS; i++) {
+    if (hidden.length && Math.random() < SKINSHOP_HIDDEN_CHANCE) { offers.push(hidden.pop()); continue; }
+    if (normal.length) { offers.push(normal.pop()); continue; }
+    // non-hidden pool exhausted (completionist): a slightly kinder 10% hidden roll per empty slot
+    if (hidden.length && Math.random() < 0.10) offers.push(hidden.pop());
+  }
   meta.skinShop = meta.skinShop || { roll: 0, offers: [], nextRoll: 0 };
   meta.skinShop.offers = offers;
   meta.skinShop.roll = (meta.skinShop.roll || 0) + 1;
@@ -25,11 +46,19 @@ function rollOffers(meta, resetTimer = true) {
   return offers;
 }
 
+// pre-R17 saves stored offers as plain skin-id strings — clear so a pair batch re-rolls
+function guardShape(meta) {
+  const ss = meta.skinShop;
+  if (!ss || typeof ss !== 'object') { meta.skinShop = { roll: 0, offers: [], nextRoll: 0 }; return; }
+  if (!Array.isArray(ss.offers)) { ss.offers = []; return; }
+  ss.offers = ss.offers.filter((o) => o && typeof o === 'object' && o.c && o.s && SKINS.some((sk) => sk.id === o.s));
+}
+
 // current stock; rolls a fresh batch if empty OR the 30-min timer has elapsed
 export function ensureSkinOffers(meta) {
-  if (!meta.skinShop || typeof meta.skinShop !== 'object') meta.skinShop = { roll: 0, offers: [], nextRoll: 0 };
+  guardShape(meta);
   const due = !meta.skinShop.nextRoll || nowMs() >= meta.skinShop.nextRoll;
-  if (!Array.isArray(meta.skinShop.offers) || !meta.skinShop.offers.length || due) rollOffers(meta);
+  if (!meta.skinShop.offers.length || due) rollOffers(meta);
   return meta.skinShop.offers;
 }
 
@@ -46,20 +75,23 @@ export function skinShopCountdown(meta) { return (meta.skinShop && meta.skinShop
 // after a sortie banks: the 30-min timer governs refresh now, so only clear if already due
 export function restockSkinShop(meta) { if (meta.skinShop && meta.skinShop.nextRoll && nowMs() >= meta.skinShop.nextRoll) meta.skinShop.offers = []; }
 
-export function isOffered(meta, skinId) { return !!(meta.skinShop && Array.isArray(meta.skinShop.offers) && meta.skinShop.offers.includes(skinId)); }
-
-// ---- R16/3.8 tier pricing + weekly sale ----------------------------------
-// Skins now cost by tier (replacing the old per-skin hardcoded price), and EVERY skin is
-// buyable any time (no more 4-slot rotation gate). A weekly sale discounts a few.
-export const SKIN_TIER_PRICE = { normal: 450, premium: 900, hidden: 3000 };
+// ---- R16/3.8 tier pricing + weekly sale → R17/3.2 price rework -------------
+export const SKIN_TIER_PRICE = { normal: 1000, premium: 3000 };   // R17/3.2: was 450/900; hidden priced per-skin below
 export const SKIN_SALE_MS = 7 * 24 * 60 * 60 * 1000;
 export function skinTier(sk) { return sk.tier || (sk.hidden ? 'hidden' : ((sk.price || 0) >= 320 ? 'premium' : 'normal')); }
-export function skinBasePrice(sk) { return SKIN_TIER_PRICE[skinTier(sk)] || sk.price || 500; }
+// R17/3.2: hidden skins land in a stable 20000–50000 band — deterministic per skin id
+// (hash → 5000-step rungs) so the price never jitters between visits or saves.
+export function hiddenSkinPrice(id) {
+  let h = 0; for (const ch of String(id)) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  return 20000 + (h % 7) * 5000;
+}
+export function skinBasePrice(sk) { const t = skinTier(sk); return t === 'hidden' ? hiddenSkinPrice(sk.id) : (SKIN_TIER_PRICE[t] || sk.price || 1000); }
 function rollSale(meta) {
   meta.skinShop = meta.skinShop || { roll: 0, offers: [], nextRoll: 0 };
-  const normals = shuffle(SKINS.filter((s) => !s.hidden).map((s) => s.id)).slice(0, 2);
-  const hiddens = shuffle(SKINS.filter((s) => s.hidden).map((s) => s.id)).slice(0, 1);
-  const map = {}; normals.forEach((id) => { map[id] = 0.8; }); hiddens.forEach((id) => { map[id] = 0.9; });
+  // R17/3.2: the sale only ever touches normal/premium — hidden skins are never discounted
+  const normals = shuffle(SKINS.filter((s) => !s.exclusive && skinTier(s) === 'normal').map((s) => s.id)).slice(0, 2);
+  const prems = shuffle(SKINS.filter((s) => !s.exclusive && skinTier(s) === 'premium').map((s) => s.id)).slice(0, 1);
+  const map = {}; for (const id of [...normals, ...prems]) map[id] = 0.8;   // flat 8折
   meta.skinShop.sale = { map, until: nowMs() + SKIN_SALE_MS };
 }
 export function ensureSale(meta) {
@@ -71,6 +103,7 @@ export function ensureSale(meta) {
 // { price, base, onSale, saleUntil } for a skin, after any active sale discount.
 export function skinPrice(meta, sk) {
   const base = skinBasePrice(sk); const sale = ensureSale(meta);
+  if (skinTier(sk) === 'hidden') return { price: base, base, onSale: false, saleUntil: sale.until };   // R17/3.2: never on sale
   const f = (sale.map && sale.map[sk.id]) || 1;
   return { price: Math.round(base * f), base, onSale: f < 1, saleUntil: sale.until };
 }

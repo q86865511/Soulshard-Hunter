@@ -137,6 +137,16 @@ export function skinSpriteName(charId, skinId) {
 export function skinnedSprite(meta, charId) {
   return skinSpriteName(charId, meta && meta.skins && meta.skins[charId]);
 }
+// R17/3.1: single ownership check for a (character, skin) pair. Normal skins live in
+// META.ownedSkins as "charId:skinId"; exclusive reward skins (B6 hidden rooms) instead
+// carry an `unlockFlag` checked against META.flags — owned account-wide, for every hero.
+export function ownsSkin(meta, charId, skinId) {
+  if (!skinId) return true;   // base look
+  if (((meta && meta.ownedSkins) || []).includes(charId + ':' + skinId)) return true;
+  const sk = SKINS.find((s) => s.id === skinId);
+  if (sk && sk.exclusive && sk.unlockFlag) return !!(meta && meta.flags && meta.flags[sk.unlockFlag]);
+  return false;
+}
 
 // unlock achievement-gated characters based on lifetime stats
 // data-driven condition matcher: reach_stage_N / kills_N / survive_N / bosses_N
