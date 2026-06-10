@@ -3,6 +3,7 @@ import { drawSprite, drawShadow, strokeCircleWorld } from '../engine/renderer.js
 import { getSprite, frameAt } from '../engine/sprites.js';
 import { dist, easeOutCubic } from '../engine/math.js';
 import { P, withAlpha } from '../engine/palette.js';
+import { BALANCE } from './balance.js';
 
 // 4.4: type / rarity colour for the ground-loot outline ring (null = no ring, e.g. currency).
 const RARITY_RING = { common: P.gray3, rare: P.purpleL, epic: P.goldL, legendary: P.goldL, curse: P.redL };
@@ -82,7 +83,9 @@ export class Pickup {
       // 10.6: attraction speed must stay POSITIVE — the old `220 - d*2` went negative once the
       // pickup range exceeded ~110 (a boosted pickupRange), so coins fled the player. Clamp the
       // per-frame step to the remaining distance so it can't overshoot past the player and oscillate.
-      const speed = this.magnet ? 340 : Math.max(70, 240 - d * 1.6);
+      // R17/1.3: the pull must also beat the PLAYER — a speed-stacked hunter outran the old 70px/s rim pull.
+      const ps = (player.stats.speed || 82) * (BALANCE.PICKUP_PULL_FACTOR || 1.5) + (BALANCE.PICKUP_PULL_FLAT || 60);
+      const speed = this.magnet ? Math.max(420, ps * 2) : Math.max(ps, 240 - d * 1.6);
       const a = Math.atan2(player.y - this.y, player.x - this.x);
       const step = Math.min(speed * dt, d);
       this.x += Math.cos(a) * step;

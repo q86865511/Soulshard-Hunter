@@ -45,8 +45,12 @@ export const titleScene = {
     ];
   },
   layoutSlots() {
-    const S = uiScale(); const cw = Math.min(540 * S, view.W - 36 * S), ch = 90 * S, gap = 12 * S;
-    const x = view.W / 2 - cw / 2, y0 = view.H * 0.26;
+    // R17/1.1: anchored below the compact logo (fixed offsets, not 0.26H) so heading/cards
+    // can never ride up into the title; cards shrink on short viewports instead of clipping.
+    const S = uiScale(); const cw = Math.min(540 * S, view.W - 36 * S), gap = 12 * S;
+    const y0 = view.H * 0.085 + 76 * S;
+    const ch = Math.max(64 * S, Math.min(90 * S, (view.H - y0 - 64 * S) / 3 - gap));
+    const x = view.W / 2 - cw / 2;
     const cards = [];
     for (let i = 0; i < 3; i++) { const r = { x, y: y0 + i * (ch + gap), w: cw, h: ch }; cards.push({ i, r, delR: { x: r.x + r.w - 66 * S, y: r.y + 10 * S, w: 56 * S, h: 26 * S } }); }
     return { cards, back: { x: view.W / 2 - 80 * S, y: y0 + 3 * (ch + gap) + 8 * S, w: 160 * S, h: 40 * S } };
@@ -131,9 +135,15 @@ export const titleScene = {
       drawSpriteUI(frameAt(sp, this.t, a.ph), view.W * a.x - sp.w * a.s * S / 2, view.H * a.y + bob, a.s * S, { alpha: 0.55 });
     }
 
-    // title
-    uiText('魂 晶 獵 手', view.W / 2, view.H * 0.16, { size: 50 * S, align: 'center', color: P.shardL, weight: '900', shadowColor: 'rgba(0,0,0,0.7)' });
-    uiText('S O U L S H A R D   H U N T E R', view.W / 2, view.H * 0.16 + 34 * S, { size: 13 * S, align: 'center', color: P.gray3, weight: '700' });
+    // title — R17/1.1: the slots list collided with the full-size logo on short viewports,
+    // so the slot screen gets a compact logo pinned near the top instead.
+    if (this.mode === 'slots') {
+      uiText('魂 晶 獵 手', view.W / 2, view.H * 0.085, { size: 30 * S, align: 'center', color: P.shardL, weight: '900', shadowColor: 'rgba(0,0,0,0.7)' });
+      uiText('S O U L S H A R D   H U N T E R', view.W / 2, view.H * 0.085 + 22 * S, { size: 10 * S, align: 'center', color: P.gray3, weight: '700' });
+    } else {
+      uiText('魂 晶 獵 手', view.W / 2, view.H * 0.16, { size: 50 * S, align: 'center', color: P.shardL, weight: '900', shadowColor: 'rgba(0,0,0,0.7)' });
+      uiText('S O U L S H A R D   H U N T E R', view.W / 2, view.H * 0.16 + 34 * S, { size: 13 * S, align: 'center', color: P.gray3, weight: '700' });
+    }
 
     if (this.mode === 'slots') this.drawSlots(S);
     else if (this.mode === 'notes') this.drawNotes(S);
@@ -202,7 +212,7 @@ export const titleScene = {
   },
 
   drawSlots(S) {
-    uiText('選擇存檔', view.W / 2, view.H * 0.23, { size: 18 * S, align: 'center', color: '#ffd479', weight: '800' });
+    uiText('選擇存檔', view.W / 2, view.H * 0.085 + 52 * S, { size: 18 * S, align: 'center', color: '#ffd479', weight: '800' });
     const L = this.layoutSlots(); const mx = mouse.x * view.dpr, my = mouse.y * view.dpr;
     for (const c of L.cards) {
       const s = this.slots[c.i]; const hov = inside(mx, my, c.r); const r = c.r;
@@ -216,7 +226,7 @@ export const titleScene = {
         const char = Characters.get(s.char); const cn = char ? char.name : s.char;
         uiText('存檔格 ' + (c.i + 1) + '　' + cn + (s.active ? '　★使用中' : ''), px, r.y + 26 * S, { size: 15 * S, color: '#fff', weight: '800' });
         uiText('遊戲時數 ' + fmtTime(s.playTime) + '　·　成就 ' + s.achievements + '　·　金庫 ' + goldStr(s.gold), px, r.y + 48 * S, { size: 12 * S, color: P.shardL, weight: '700' });
-        uiText('最高威脅 ' + s.bestStage + ' 級　·　最高分 ' + s.bestScore + '　·　通關 ' + s.clears + '　·　生態 ' + s.biomesUnlocked + '/10', px, r.y + 68 * S, { size: 11.5 * S, color: P.gray3 });
+        if (r.h >= 78 * S) uiText('最高威脅 ' + s.bestStage + ' 級　·　最高分 ' + s.bestScore + '　·　通關 ' + s.clears + '　·　生態 ' + s.biomesUnlocked + '/10', px, r.y + 68 * S, { size: 11.5 * S, color: P.gray3 });   // R17/1.1: dropped when cards compress
         // delete button (two-click confirm)
         const d = c.delR; const confirming = this.confirm === c.i;
         uiRect(d.x, d.y, d.w, d.h, withAlpha(confirming ? '#5a2030' : '#2a1620', 0.95), { radius: 6 * S, stroke: withAlpha('#ff8a7a', confirming ? 0.9 : 0.4), lw: confirming ? 2 : 1 });

@@ -709,6 +709,7 @@ export const hubScene = {
   updateWardrobe(mx, my) {
     if (this.wardrobeChar == null) { this.updateWardrobeChars(mx, my); return; }
     const L = this.wardrobeSkinLayout();
+    const S = L.f.S;   // R17/1.2: the row hit-test below referenced an undefined `S` — clicking a row body threw and "killed" the panel
     if (mouse.justDown && inside(mx, my, L.back)) { this.wardrobeChar = null; this.panelScroll = 0; Sfx.play('uiClick'); return; }
     if (!mouse.justDown) return;
     for (const r of L.rows) if (inside(mx, my, r.btn) || inside(mx, my, { x: L.f.x + 16 * S, y: r.y, w: L.f.w - 32 * S, h: r.h })) { this.pickSkin(L.cid, r.sk); return; }
@@ -1037,8 +1038,8 @@ export const hubScene = {
   // ---- achievement hall ----------------------------------------------------
   // 3.5-B: filter chips (全部 / 已達成 / 未達成) so the 200+ list is browsable.
   achFilterRects(f) {
-    const S = f.S, y = f.y + 60 * S, w = 78 * S, h = 22 * S, gap = 8 * S, x0 = f.x + 24 * S;
-    return [0, 1, 2].map((i) => ({ x: x0 + i * (w + gap), y, w, h, i }));
+    const S = f.S, y = f.y + 60 * S, w = 70 * S, h = 22 * S, gap = 8 * S, x0 = f.x + 24 * S;   // R17/1.8: 4 tabs — slightly narrower
+    return [0, 1, 2, 3].map((i) => ({ x: x0 + i * (w + gap), y, w, h, i }));
   },
   updateAchievements(mx, my) {
     if (!mouse.justDown) return;
@@ -1048,14 +1049,16 @@ export const hubScene = {
     const f = this.drawPanelFrame('成 就 殿 堂', '達成成就 · 解鎖更多內容');
     const S = f.S; const mx = mouse.x * view.dpr, my = mouse.y * view.dpr;
     const got = META.achievements || [];
-    // 3.5-B filter tabs
-    const FILTERS = ['全部', '已達成', '未達成']; const fl = this.achFilter || 0;
+    // 3.5-B filter tabs + R17/1.8: a dedicated 隱藏 tab (violet accent)
+    const HID = '#d36bff';
+    const FILTERS = ['全部', '已達成', '未達成', '隱藏']; const fl = this.achFilter || 0;
     this.achFilterRects(f).forEach((r) => {
       const on = fl === r.i, hov = inside(mx, my, r);
-      uiRect(r.x, r.y, r.w, r.h, withAlpha(on ? '#243a5a' : (hov ? '#1f2740' : '#1b2138'), 0.96), { radius: 6 * S, stroke: on ? P.shardL : P.ink2, lw: on ? 2 : 1 });
-      uiText(FILTERS[r.i], r.x + r.w / 2, r.y + r.h / 2 + 1 * S, { size: 11 * S, align: 'center', baseline: 'middle', color: on ? P.shardL : P.gray3, weight: '800' });
+      const acc = r.i === 3 ? HID : P.shardL;
+      uiRect(r.x, r.y, r.w, r.h, withAlpha(on ? '#243a5a' : (hov ? '#1f2740' : '#1b2138'), 0.96), { radius: 6 * S, stroke: on ? acc : P.ink2, lw: on ? 2 : 1 });
+      uiText(FILTERS[r.i], r.x + r.w / 2, r.y + r.h / 2 + 1 * S, { size: 11 * S, align: 'center', baseline: 'middle', color: on ? acc : P.gray3, weight: '800' });
     });
-    const list = ACHIEVEMENTS.filter((a) => fl === 0 ? true : fl === 1 ? got.includes(a.id) : !got.includes(a.id));
+    const list = ACHIEVEMENTS.filter((a) => fl === 0 ? true : fl === 1 ? got.includes(a.id) : fl === 2 ? !got.includes(a.id) : !!a.hidden);
     const cols = 2;
     const cardW = (f.w - 40 * S - (cols - 1) * 14 * S) / cols, cardH = 62 * S;
     const gridTop = f.y + 92 * S, clipTop = f.y + 86 * S;
@@ -1070,11 +1073,13 @@ export const hubScene = {
       const x = f.x + 20 * S + c * (cardW + 14 * S), y = gridTop + r * (cardH + 9 * S) - (this.panelScroll || 0);
       if (y > f.y + f.h || y + cardH < clipTop) return;   // cull off-screen rows
       const done = got.includes(a.id);
-      const name = (a.hidden && !done) ? '？？？' : (a.realName || a.name);
-      let desc = (a.hidden && !done) ? '隱藏成就 — 達成後揭曉' : a.desc;
+      const hid = !!a.hidden;   // R17/1.8: hidden achievements keep a violet identity BOTH before and after completion
+      const name = (hid && !done) ? '？？？' : (a.realName || a.name);
+      let desc = (hid && !done) ? '隱藏成就 — 達成後揭曉' : a.desc;
       if (!done && !a.hidden && a.prog) { const pg = a.prog(META.stats || {}, META); desc += `（${Math.min(pg[0], pg[1])}/${pg[1]}）`; }
-      uiRect(x, y, cardW, cardH, withAlpha(done ? '#1d2c1d' : '#1b2138', 0.96), { radius: 7 * S, stroke: done ? P.goldL : P.ink2, lw: 2 });
-      uiText(done ? '★' : '☆', x + 12 * S, y + 23 * S, { size: 17 * S, color: done ? P.goldL : P.gray2, weight: '900' });
+      uiRect(x, y, cardW, cardH, withAlpha(done ? (hid ? '#2a1d33' : '#1d2c1d') : (hid ? '#221a2c' : '#1b2138'), 0.96), { radius: 7 * S, stroke: hid ? withAlpha(HID, done ? 0.9 : 0.5) : (done ? P.goldL : P.ink2), lw: 2 });
+      uiText(done ? '★' : '☆', x + 12 * S, y + 23 * S, { size: 17 * S, color: done ? (hid ? HID : P.goldL) : P.gray2, weight: '900' });
+      if (hid) { const pw = textWidth('★隱藏', 8.5 * S, '800') + 10 * S; uiRect(x + cardW - pw - 8 * S, y + 8 * S, pw, 14 * S, withAlpha(HID, 0.18), { radius: 7 * S, stroke: withAlpha(HID, 0.7), lw: 1 }); uiText('★隱藏', x + cardW - pw / 2 - 8 * S, y + 15 * S, { size: 8.5 * S, align: 'center', baseline: 'middle', color: HID, weight: '800' }); }
       uiText(name, x + 34 * S, y + 20 * S, { size: 12.5 * S, color: done ? '#fff' : P.gray3, weight: '800' });
       this.clip1(desc, x + 34 * S, y + 38 * S, cardW - 42 * S, 10 * S, done ? P.gray4 : P.gray2);
       if (a.rewardLabel) this.clip1((done ? '✓ 已解鎖：' : '✦ 解鎖：') + a.rewardLabel, x + 34 * S, y + 53 * S, cardW - 42 * S, 9.5 * S, done ? P.greenL : P.shardL, '700');

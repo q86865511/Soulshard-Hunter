@@ -391,7 +391,7 @@ export const runScene = {
   },
   eventCardRects() {
     const S = uiScale(); const n = this.eventChoice ? this.eventChoice.length : 3;
-    const cw = Math.min(212 * S, (view.W - 50 * S) / n - 16 * S); const ch = cw * 1.46, gap = 18 * S;   // 原#14: taller for portrait
+    const cw = Math.min(212 * S, (view.W - 50 * S) / n - 16 * S); const ch = Math.min(cw * 1.62, view.H * 0.74), gap = 18 * S;   // 原#14 + R17/1.5: taller card = breathing room between portrait and text
     const totalW = n * cw + (n - 1) * gap, x0 = (view.W - totalW) / 2, y = (view.H - ch) / 2 + 6 * S;
     return Array.from({ length: n }, (_, i) => ({ x: x0 + i * (cw + gap), y, w: cw, h: ch }));
   },
@@ -421,14 +421,14 @@ export const runScene = {
       const ev = this.eventChoice[i]; const hov = inside(mx, my, r); const oy = hov ? -8 * S : 0;
       uiRect(r.x, r.y + oy, r.w, r.h, withAlpha('#241a3a', 0.98), { radius: 9 * S, stroke: hov ? P.goldL : withAlpha(P.goldL, 0.5), lw: hov ? 3 : 2 });
       uiClipRound(r.x, r.y + oy, r.w, r.h, 9 * S, () => uiRect(r.x, r.y + oy, r.w, 5 * S, P.goldL));   // #7: accent clipped to rounded corners
-      // 原#14: character portrait
-      const psz = 46 * S; const sp = getSprite(iconOr(ev.icon, 'ability_power'));
-      uiRect(r.x + r.w / 2 - psz / 2 - 3 * S, r.y + oy + 16 * S, psz + 6 * S, psz + 6 * S, withAlpha('#10121f', 0.7), { radius: 8 * S, stroke: withAlpha(P.goldL, 0.5), lw: 1.5 });
-      drawSpriteUI(sp.frames[0], r.x + r.w / 2 - psz / 2, r.y + oy + 19 * S, psz / sp.w);
-      uiText(ev.role || '', r.x + r.w / 2, r.y + oy + psz + 32 * S, { size: 11 * S, align: 'center', color: P.shardL, weight: '700' });
-      uiText(ev.name, r.x + r.w / 2, r.y + oy + psz + 50 * S, { size: 15.5 * S, align: 'center', color: '#fff', weight: '900' });
-      uiText('「' + (ev.title || '') + '」', r.x + r.w / 2, r.y + oy + psz + 67 * S, { size: 12.5 * S, align: 'center', color: P.goldL, weight: '800' });
-      this.wrapText(ev.desc, r.x + r.w / 2, r.y + oy + psz + 86 * S, r.w - 22 * S, 11.5 * S, P.gray4);
+      // 原#14 + R17/1.5: character portrait — spacing widened (icon and text were cramped)
+      const psz = 50 * S; const sp = getSprite(iconOr(ev.icon, 'ability_power'));
+      uiRect(r.x + r.w / 2 - psz / 2 - 3 * S, r.y + oy + 18 * S, psz + 6 * S, psz + 6 * S, withAlpha('#10121f', 0.7), { radius: 8 * S, stroke: withAlpha(P.goldL, 0.5), lw: 1.5 });
+      drawSpriteUI(sp.frames[0], r.x + r.w / 2 - psz / 2, r.y + oy + 21 * S, psz / sp.w);
+      uiText(ev.role || '', r.x + r.w / 2, r.y + oy + psz + 44 * S, { size: 11 * S, align: 'center', color: P.shardL, weight: '700' });
+      uiText(ev.name, r.x + r.w / 2, r.y + oy + psz + 64 * S, { size: 16 * S, align: 'center', color: '#fff', weight: '900' });
+      uiText('「' + (ev.title || '') + '」', r.x + r.w / 2, r.y + oy + psz + 84 * S, { size: 12.5 * S, align: 'center', color: P.goldL, weight: '800' });
+      this.wrapText(ev.desc, r.x + r.w / 2, r.y + oy + psz + 106 * S, r.w - 22 * S, 11.5 * S, P.gray4);
       uiText(String(i + 1), r.x + 11 * S, r.y + oy + 22 * S, { size: 14 * S, color: withAlpha('#fff', 0.45), weight: '900' });
     });
   },
@@ -931,6 +931,35 @@ export const runScene = {
     if (!this.dead && !this.banked) { this.banked = true; bankRun(this.run); }   // bank at most once (bankRun already applies bestStage/bestScore)
     setScene(refs.hub, {});
   },
+  // ---- R17/1.7: post-clear leave confirm ------------------------------------
+  // After the final boss dies, E anywhere used to finishRun(true) instantly — players trying to
+  // reach the shrine (or fight the Reaper) got yanked to the results screen. Single-player only.
+  leaveConfirmLayout() {
+    const S = uiScale(); const w = 190 * S, h = 44 * S, gap = 18 * S;
+    const y = view.H / 2 + 12 * S;
+    return { S, yes: { x: view.W / 2 - w - gap / 2, y, w, h }, no: { x: view.W / 2 + gap / 2, y, w, h } };
+  },
+  updateLeaveConfirm() {
+    const L = this.leaveConfirmLayout(); const mx = mouse.x * view.dpr, my = mouse.y * view.dpr;
+    if (pressed('escape') || pressed('pause')) { this.leaveConfirm = false; Sfx.play('uiClick'); return; }
+    if (pressed('interact') || pressed('enter')) { this.leaveConfirm = false; this.finishRun(true); return; }   // a fresh E confirms (E,E = quick leave)
+    if (!mouse.justDown) return;
+    if (inside(mx, my, L.yes)) { this.leaveConfirm = false; this.finishRun(true); }
+    else if (inside(mx, my, L.no)) { this.leaveConfirm = false; Sfx.play('uiClick'); }
+    else { this.leaveConfirm = false; Sfx.play('uiClick'); }   // click outside = cancel
+  },
+  drawLeaveConfirm() {
+    const S = uiScale(); const L = this.leaveConfirmLayout();
+    const mx = mouse.x * view.dpr, my = mouse.y * view.dpr;
+    uiRect(0, 0, view.W, view.H, withAlpha('#0b0d1a', 0.7));
+    uiText('離開戰場並結算勝利？', view.W / 2, view.H / 2 - 54 * S, { size: 26 * S, align: 'center', color: '#fff', weight: '900' });
+    uiText('死神仍會降臨——留下迎戰可得傳說獎勵', view.W / 2, view.H / 2 - 26 * S, { size: 13 * S, align: 'center', color: P.gray3 });
+    const btn = (r, label, col) => { const hov = inside(mx, my, r); uiRect(r.x, r.y, r.w, r.h, withAlpha(hov ? '#243a5a' : '#1b2138', 0.97), { radius: 8 * S, stroke: hov ? col : P.ink2, lw: hov ? 3 : 2 }); uiText(label, r.x + r.w / 2, r.y + r.h / 2 + 1 * S, { size: 15 * S, align: 'center', baseline: 'middle', color: '#fff', weight: '800' }); };
+    btn(L.yes, '確定離場', P.greenL);
+    btn(L.no, '繼續戰鬥', P.goldL);
+    uiText('E / Enter 確定　·　Esc / 點擊外部 取消', view.W / 2, L.yes.y + L.yes.h + 24 * S, { size: 10.5 * S, align: 'center', color: P.gray3 });
+  },
+
   drawPause() {
     const S = uiScale(); const L = this.pauseLayout();
     const mx = mouse.x * view.dpr, my = mouse.y * view.dpr;
@@ -965,6 +994,7 @@ export const runScene = {
       return;
     }
     if (this.paused) { this.updatePause(); return; }
+    if (this.leaveConfirm) { this.updateLeaveConfirm(); return; }   // R17/1.7: post-clear leave needs a confirm
     if (this.hudTut) { this.updateHudTut(); return; }   // 6.3A first-run HUD walkthrough pauses the field
     if (this.hiddenPanel) { this.updateHidden(dt); return; }   // a hidden room pauses the run for its choice
     if (this.choice) { this.updateChoice(); return; }
@@ -1004,6 +1034,11 @@ export const runScene = {
     const hpFrac = this.player.maxHp ? this.player.hp / this.player.maxHp : 1;
     setShakeScale(hpFrac < 0.25 ? 1.0 : 0.42);
     this.world.update(dt);
+    // R17/1.4: a key pickup was just small floating text and easy to miss — surface it as a banner.
+    // Increase-only detection: opening the vault DECREMENTS world.keys and must not retrigger.
+    const wk = this.world.keys | 0;
+    if (wk > (this._lastKeys | 0)) { this.banner = '🔑 獲得鑰匙！可開啟封鎖的寶庫寶箱'; this.bannerT = 3.2; Sfx.play('levelup'); }
+    this._lastKeys = wk;
     if (Cheats.enabled && Cheats.godmode && this.player) this.player.hp = this.player.maxHp;   // F2 invincibility
     this.aimCamera();
     if (this.bannerT > 0) this.bannerT -= dt;
@@ -1031,7 +1066,12 @@ export const runScene = {
     if (this.nearShrine && pressed('interact')) { this.useShrine(); }
     else if (this.nearNpc && pressed('interact')) { this.useNpc(this.nearNpc); }
     else if (this.nearHidden && pressed('interact')) { this.openHidden(this.nearHidden); }
-    else if (this.cleared && pressed('interact')) { this.finishRun(true); return; }   // leave as a win during the Reaper window
+    else if (this.cleared && pressed('interact')) {   // leave as a win during the Reaper window
+      // R17/1.7: E used to end the run INSTANTLY anywhere outside an interactable's 22px ring —
+      // confirm first. Co-op can't freeze the shared world, so it keeps the immediate exit.
+      if (this.coop) { this.finishRun(true); return; }
+      this.leaveConfirm = true; Sfx.play('uiClick'); return;
+    }
     // C2: surface a "can-fuse" hint (without revealing the recipe) on the rising edge
     const fr = fusionAvailable(this.run, this.player);
     if (fr && !this.fusionReady) { this.banner = '✦ 可進行武器合成 — 升級時將出現合成選項'; this.bannerT = 2.8; }
@@ -1576,6 +1616,7 @@ export const runScene = {
     if (this.coop && this.coopPick && !this.coopMenu) this.drawCoopPick();
     if (this.dead) { if (this.won) this.drawWon(); else this.drawDeath(); }
     if (this.paused) this.drawPause();
+    if (this.leaveConfirm && !this.dead) this.drawLeaveConfirm();   // R17/1.7
     if (this.hudTut) this.drawHudTut();   // 6.3A first-run HUD walkthrough (on top)
     if (this.hiddenPanel) this.drawHidden();
     if (this.coop && this.coopMenu) this.drawCoopMenu();
@@ -2033,33 +2074,34 @@ export const runScene = {
   // 原#1/#13/#16: results-screen build (hover for details) + damage ranking + bonds + unlocks
   drawResultSummary(topY) {
     const S = uiScale();
-    const w = Math.min(view.W * 0.94, 720 * S), h = Math.min(view.H * 0.58, 404 * S);
+    const w = Math.min(view.W * 0.94, 720 * S), h = Math.min(view.H * 0.62, 430 * S);   // R17/1.6: taller — sections breathe
     const x = (view.W - w) / 2, y = topY;
     uiRect(x, y, w, h, withAlpha('#0e1322', 0.92), { radius: 8 * S, stroke: P.ink2, lw: 2 });
-    const sz = 26 * S, gap = 5 * S;
+    // R17/1.6: one shared rhythm for the whole left column — header → HEAD_DROP → icon rows → SEC_GAP
+    const sz = 26 * S, gap = 6 * S, SEC_GAP = 16 * S, HEAD_DROP = 13 * S;
     this.resultIcons = [];
     const cell = (bx, by, sp, stroke, badge, bcol) => { uiRect(bx, by, sz, sz, withAlpha('#10121f', 0.82), { radius: 4 * S, stroke, lw: 2 }); drawSpriteUI(sp.frames[0], bx + 3 * S, by + 3 * S, (sz - 6 * S) / sp.w); if (badge) uiText(badge, bx + sz - 3 * S, by + sz - 3 * S, { size: 9 * S, align: 'right', color: bcol, weight: '800' }); };
     // LEFT — build (hover any icon for its effect)
     const colL = x + 18 * S; let yL = y + 24 * S;
     uiText('本局配置', colL, yL, { size: 13 * S, color: P.shardL, weight: '800' });
-    uiText('滑鼠移到圖示看效果', colL + 86 * S, yL, { size: 9.5 * S, color: P.gray3 }); yL += 17 * S;
-    uiText('武器', colL, yL, { size: 10 * S, color: P.gray3 }); yL += 13 * S;
+    uiText('滑鼠移到圖示看效果', colL + 86 * S, yL, { size: 9.5 * S, color: P.gray3 }); yL += SEC_GAP;
+    uiText('武器', colL, yL, { size: 10 * S, color: P.gray3 }); yL += HEAD_DROP;
     this.player.weapons.forEach((inst, i) => { const bx = colL + i * (sz + gap); cell(bx, yL, getSprite(iconOr(inst.def.icon, 'weapon_w_soulbolt')), inst.def.evolved ? P.goldL : P.ink2, inst.def.evolved ? '★' : 'L' + inst.level, inst.def.evolved ? P.goldL : P.shardL); this.resultIcons.push({ x: bx, y: yL, w: sz, h: sz, kind: 'weapon', def: inst.def, level: inst.level }); });
-    yL += sz + 10 * S;
+    yL += sz + SEC_GAP;
     const abils = this.run.abilities || [];
-    uiText('被動 ×' + abils.length, colL, yL, { size: 10 * S, color: P.manaL }); yL += 13 * S;
+    uiText('被動 ×' + abils.length, colL, yL, { size: 10 * S, color: P.manaL }); yL += HEAD_DROP;
     const per = 8; abils.slice(0, 16).forEach((id, i) => { const bx = colL + (i % per) * (sz + gap), by = yL + Math.floor(i / per) * (sz + gap); const ab = Abilities.get(id); const stk = (this.run.abilityLevels && this.run.abilityLevels[id]) || 1; cell(bx, by, getSprite(iconOr('ability_' + id, 'ability_power')), ab && ab.cursed ? P.redL : P.ink2, stk > 1 ? '×' + stk : '', P.goldL); if (ab) this.resultIcons.push({ x: bx, y: by, w: sz, h: sz, kind: 'ability', id, def: ab, level: stk }); });
-    yL += (Math.ceil(Math.min(abils.length, 16) / per) || 1) * (sz + gap) + 10 * S;
+    yL += (Math.ceil(Math.min(abils.length, 16) / per) || 1) * (sz + gap) - gap + SEC_GAP;
     const eq = this.run.equipment || {};
-    uiText('裝備', colL, yL, { size: 10 * S, color: P.goldL });
-    [['weapon'], ['armor'], ['trinket']].forEach(([slot], i) => { const bx = colL + 44 * S + i * (sz + gap); const d = eq[slot] && Equipment.get(eq[slot]); if (d) { cell(bx, yL - 12 * S, getSprite(iconOr(d.icon, 'equip_leather_armor')), P.goldL, '', ''); this.resultIcons.push({ x: bx, y: yL - 12 * S, w: sz, h: sz, kind: 'equip', def: d }); } else { uiRect(bx, yL - 12 * S, sz, sz, withAlpha('#10121f', 0.82), { radius: 4 * S, stroke: P.ink2, lw: 1 }); uiText('—', bx + sz / 2, yL - 12 * S + sz / 2 + 4 * S, { size: 11 * S, align: 'center', color: P.gray2 }); } });
-    yL += sz + 2 * S;
+    uiText('裝備', colL, yL, { size: 10 * S, color: P.goldL }); yL += HEAD_DROP;   // R17/1.6: own row, same rhythm as the others
+    [['weapon'], ['armor'], ['trinket']].forEach(([slot], i) => { const bx = colL + i * (sz + gap); const d = eq[slot] && Equipment.get(eq[slot]); if (d) { cell(bx, yL, getSprite(iconOr(d.icon, 'equip_leather_armor')), P.goldL, '', ''); this.resultIcons.push({ x: bx, y: yL, w: sz, h: sz, kind: 'equip', def: d }); } else { uiRect(bx, yL, sz, sz, withAlpha('#10121f', 0.82), { radius: 4 * S, stroke: P.ink2, lw: 1 }); uiText('—', bx + sz / 2, yL + sz / 2 + 4 * S, { size: 11 * S, align: 'center', color: P.gray2 }); } });
+    yL += sz + SEC_GAP;
     // bonds (原#13 + 8.2: 圖示徽章 + hover 看各階效果)
     const bonds = activeBonds(this.run);
     if (bonds.length) {
-      uiText('羈絆', colL, yL, { size: 10 * S, color: P.goldL, weight: '800' });
-      const bsz = 18 * S, bgap = 4 * S, bx0 = colL + textWidth('羈絆', 10 * S, '800') + 8 * S, maxX = colL + w * 0.46;
-      let bx = bx0, by = yL - bsz + 4 * S;
+      uiText('羈絆', colL, yL, { size: 10 * S, color: P.goldL, weight: '800' }); yL += HEAD_DROP;
+      const bsz = 18 * S, bgap = 4 * S, bx0 = colL, maxX = colL + w * 0.46;
+      let bx = bx0, by = yL;
       for (const gb of bonds) {
         if (bx + bsz > maxX) { bx = bx0; by += bsz + bgap; }
         const pg = bondProgress(gb.bond, this.run, this.player);
@@ -2067,7 +2109,7 @@ export const runScene = {
         this.resultIcons.push({ x: bx, y: by, w: bsz, h: bsz, kind: 'bond', bond: gb.bond, prog: pg });
         bx += bsz + bgap;
       }
-      yL = by + bsz + 6 * S;
+      yL = by + bsz + SEC_GAP;
     }
     // RIGHT — damage ranking (原#16)
     const colR = x + w * 0.47; let yR = y + 24 * S; const rw = w * 0.5 - 18 * S;

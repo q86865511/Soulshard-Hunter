@@ -95,11 +95,14 @@ A({
   },
 });
 A({
-  id: 'nova', name: '魂爆', tier: 3, weight: 3, maxStacks: 3, desc: '擊殺敵人時引發魂晶爆炸',
+  id: 'nova', name: '魂爆', tier: 3, weight: 3, maxStacks: 3, desc: '擊殺敵人時有機率（25%/35%/45%）引發強力魂晶爆炸',
   apply: (p, run, lvl) => {
     if (lvl === 1) p.hooks.kill.push((e, w) => {
       const lv = run.abilityLevels.nova || 1;
-      w.spawnExplosion(e.x, e.y, 22 + lv * 6, P.emberL, 12 + lv * 7, { knockback: 60 });
+      // R17/1.9: every-kill chains wiped whole swarms — now a per-kill chance, with a bigger boom to compensate
+      const chance = (BALANCE.NOVA_CHANCE || [0.25, 0.35, 0.45])[Math.min(2, lv - 1)];
+      if (Math.random() >= chance) return;
+      w.spawnExplosion(e.x, e.y, 26 + lv * 8, P.emberL, 30 + lv * 16, { knockback: 70 });
     });
   },
 });

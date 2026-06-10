@@ -68,6 +68,11 @@ export const BALANCE = {
   MOB_SHARD_BASE: 0.06,                       // 原#4: any mob has this base chance to drop a shard
   MOB_SHARD_BOSS: 0.0,                        // bosses use their own e.shard; no base bonus
 
+  // ---- round-17 -----------------------------------------------------------
+  NOVA_CHANCE: [0.25, 0.35, 0.45],            // R17/1.9: 魂爆 procs by chance per kill (was every kill); explosion damage compensated up
+  PICKUP_PULL_FACTOR: 1.5,                    // R17/1.3: in-range pull speed = player speed × FACTOR + FLAT — fast builds could outrun coins
+  PICKUP_PULL_FLAT: 60,
+
   // ---- soulshard shop (C1 / C3) — prices LOWERED, esp. the stat anvils -----
   ANVIL_BASE_PRICE: 26,                       // base soulshard cost of a stat anvil (was 40-55)
   ANVIL_PRICE_GROWTH: 1.35,                   // round-6: throttle unlimited in-run stat stacking (was 1.2; the dense swarm bankrolled too many)
