@@ -9,16 +9,19 @@ export const LOCKED = {
     'w_homing', 'w_lightning', 'wc_turret', 'wc_beam',                 // 原#6
     'g_laserbeam', 'g_blackhole',                                      // round-5 (evolved w_soulstorm/w_inferno dropped — they never consult isUnlocked)
     'g_halo', 'g_ricochet', 'g_dartfan', 'wc_cone', 'wc_ricochet',
+    'hr_archive_codex',                                                // R17/6.2: 遠古檔案室 exclusive
   ],
   abilities: [
     'bigshot', 'glasscannon', 'ac_volatile_rounds', 'ac_soul_harvest', 'ac_riposte',  // 原#6
     'overload', 'g_executioner', 'g_chainlight', 'g_detonate',         // round-5
     'ac_static_field', 'ac_warbanner', 'curse_titan', 'g_blink_master',
+    'hr_relic_heart',                                                  // R17/6.3: 聖物密室 exclusive
   ],
   equipment: [
     'cannon_staff',                                                    // 原#6
     'g_dragon_scale', 'g_machinegun', 'g_laser', 'g_sniper',           // round-5
     'ep_chromatic_core', 'ep_void_mantle', 'ep_starfall_orb', 'ep_doom_scatter', 'ep_prism_lance',
+    'hr_vault_sigil',                                                  // R17/6.1: 魂晶寶庫 exclusive
   ],
   items: [
     'it_timeslow_burst', 'it_shock_nova', 'ic_coin_cache',             // round-5 (ground-item gating)

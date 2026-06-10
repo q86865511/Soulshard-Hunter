@@ -110,6 +110,20 @@ export const SKINS = [
       for (let y = 9 + oy; y <= 16 + oy; y++) { const w = 1.4 + (y - (9 + oy)) * 0.4; p.hline(8 - w, 8 + w, y, a.cloak); }
       p.ellipse(8, 6 + oy, 2.2, 2.2, a.skin || P.skin); p.px(7, 6 + oy, P.ink); p.px(9, 6 + oy, P.ink);
       p.ring(8, 2 + oy, 3, a.trim); p.px(8, -1 + oy, P.white); } },
+  // R17/6.4: 彩蛋房 exclusive — never sold; owned account-wide once META.flags.devEgg is set
+  // (ownsSkin reads `unlockFlag`). A mischievous dev-imp with headphones and a floating cursor.
+  { id: 'devkid', name: '開發者 · 小妖', hidden: true, exclusive: true, unlockFlag: 'devEgg', tier: 'hidden',
+    art: { cloak: P.magenta, cloakD: P.purpleD, cloakL: P.sakura, trim: P.shardL, eye: P.toxic },
+    body: (p, f, a) => { const oy = (f === 1 || f === 3) ? -1 : 0; const fl = (f === 1 || f === 3) ? 1 : 0;
+      p.px(6, 16 + oy, a.cloakD); p.px(10, 16 + oy, a.cloakD);                                  // stubby legs
+      p.ellipse(8, 12 + oy, 3, 3.2, a.cloakD); p.ellipse(8, 12 + oy, 2.4, 2.6, a.cloak);        // round body
+      p.line(11, 13 + oy, 14, 11 + oy - fl, a.cloakL); p.px(14, 10 + oy - fl, a.cloakL);        // whippy tail
+      p.ellipse(8, 6 + oy, 3.4, 3, a.cloak); p.ellipse(8, 7 + oy, 2.6, 2, a.cloakL);            // big head
+      p.px(5, 2 + oy, a.trim); p.px(11, 2 + oy, a.trim); p.px(4, 1 + oy, a.cloakL); p.px(12, 1 + oy, a.cloakL);   // horns
+      p.px(7, 6 + oy, a.eye); p.px(9, 6 + oy, a.eye); p.px(7, 5 + oy, P.white);                 // glowing eyes
+      p.hline(5, 11, 3 + oy, P.steelL); p.rect(4, 4 + oy, 1, 3, P.steel); p.rect(11, 4 + oy, 1, 3, P.steel);      // headphones
+      p.px(13, 8 + oy - fl, P.white); p.px(14, 9 + oy - fl, P.white); p.px(13, 9 + oy - fl, withAlpha(P.white, 0.6));   // floating cursor ▸
+      p.sparkle(3, 10 + oy, P.shardL); } },
 ];
 // Skin variant sprites are generated LAZILY on first use — gen-content heroes are
 // registered after this module loads, so an eager loop would miss them (rendering

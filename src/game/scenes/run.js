@@ -20,6 +20,7 @@ import { STORY_QUESTS, trackedQuestStates, fmtQuestVal } from '../content/quests
 import { heroLore } from '../content/lore.js';
 import { EVENTS } from '../content/events.js';
 import { HIDDEN_ROOMS, hiddenRoomById, claimHidden, hiddenClaimed } from '../content/hidden.js';
+import { skinSpriteName } from '../content/characters.js';   // R17/6.5: devkid reveal sprite in the hidden panel
 import { Cheats } from '../cheats.js';
 import {
   camera, clear, vignette, uiText, uiRect, uiScale, view, addShake, drawSpriteUI, textWidth,
@@ -1535,7 +1536,8 @@ export const runScene = {
     const already = hiddenClaimed(room.id);
     if (this.coop) {   // co-op can't pause the shared world → resolve immediately
       const res = already ? '此密室已探索過' : (claimHidden(room.id) || '');
-      this.banner = '隱藏房間 · ' + (res || room.name); this.bannerT = 2.8; Sfx.play('levelup');
+      const txt = typeof res === 'string' ? res : (res && res.text) || '';   // R17/6.5: claims return reveal objects now
+      this.banner = '隱藏房間 · ' + (txt || room.name); this.bannerT = 2.8; Sfx.play('levelup');
       return;
     }
     this.hiddenPanel = { room, claimed: already, result: null, t: 0 }; Sfx.play('levelup');
@@ -1547,7 +1549,9 @@ export const runScene = {
     if (!(mouse.justDown || pressed('interact') || pressed('space') || pressed('slot1'))) return;
     if (hp.result == null) {
       hp.result = hp.claimed ? '此密室已被探索過 — 寶藏早已取走。' : (claimHidden(hp.room.id) || '此密室已被探索過。');
-      this.banner = '隱藏房間 · ' + hp.result; this.bannerT = 3.2; Sfx.play('levelup');
+      const txt = typeof hp.result === 'string' ? hp.result : hp.result.text;   // R17/6.5
+      this.banner = '隱藏房間 · ' + txt; this.bannerT = 3.2; Sfx.play('levelup');
+      if (typeof hp.result === 'object') { try { this.world.particles.ring(this.player.x, this.player.y, P.goldL, 30, 170); } catch (e) { /* */ } }
     } else { this.hiddenPanel = null; }   // a second press closes
   },
   drawHiddenRooms() {
@@ -1575,7 +1579,20 @@ export const runScene = {
     uiText('✦ 隱藏房間 ✦', view.W / 2, y + 26 * S, { size: 12 * S, align: 'center', color: withAlpha(room.color || P.goldL, 0.85), weight: '800' });
     uiText(room.name, view.W / 2, y + 56 * S, { size: 26 * S, align: 'center', color: room.color || P.goldL, weight: '900', shadowColor: withAlpha('#000', 0.8) });
     this.wrapText(room.desc || '', view.W / 2, y + 86 * S, w - 60 * S, 13 * S, P.gray3);
-    if (hp.result != null) this.wrapText(hp.result, view.W / 2, y + h * 0.55, w - 56 * S, 14.5 * S, P.goldL);
+    if (hp.result != null && typeof hp.result === 'object') {
+      // R17/6.5: reveal card — the unlocked thing's icon + name, not just a sentence
+      const rv = hp.result;
+      const iconName = rv.icon || skinSpriteName(META.selectedCharacter || 'hunter', 'devkid');
+      const sp = getSprite(iconOr(iconName, 'ability_power'));
+      const isz = 44 * S, ix = view.W / 2 - isz / 2, iy = y + h * 0.40;
+      const pulse = 0.5 + Math.sin(this.t * 4) * 0.5;
+      uiRect(ix - 7 * S, iy - 7 * S, isz + 14 * S, isz + 14 * S, withAlpha('#10121f', 0.9), { radius: 9 * S, stroke: withAlpha(P.goldL, 0.6 + pulse * 0.4), lw: 2.5 });
+      drawSpriteUI(sp.frames[0], ix, iy, isz / sp.w);
+      uiText(rv.name || '', view.W / 2, iy + isz + 24 * S, { size: 17 * S, align: 'center', color: P.goldL, weight: '900', shadowColor: withAlpha('#000', 0.8) });
+      if (rv.kindLabel) uiText('— ' + rv.kindLabel + ' —', view.W / 2, iy + isz + 40 * S, { size: 10.5 * S, align: 'center', color: P.shardL, weight: '700' });
+      this.wrapText(rv.text || '', view.W / 2, iy + isz + 58 * S, w - 56 * S, 12.5 * S, P.gray4);
+    }
+    else if (hp.result != null) this.wrapText(hp.result, view.W / 2, y + h * 0.55, w - 56 * S, 14.5 * S, P.goldL);
     else if (hp.claimed) uiText('（此密室你已探索過）', view.W / 2, y + h * 0.55, { size: 13 * S, align: 'center', color: P.gray3 });
     else uiText('一份未知的寶藏在此等候…', view.W / 2, y + h * 0.55, { size: 13 * S, align: 'center', color: withAlpha('#fff', 0.7), weight: '600' });
     uiText(hp.result != null ? '點擊 / 按 E 關閉' : '點擊 / 按 E 探索此密室', view.W / 2, y + h - 22 * S, { size: 12 * S, align: 'center', color: withAlpha('#ffd479', 0.6 + 0.3 * Math.sin(this.t * 5)), weight: '700' });

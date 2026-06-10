@@ -56,4 +56,17 @@
   - 升級三選一左上角**型別 pill**（`1·武器`／`2·被動`／升級／合成／詛咒）取代裸數字。
   - 一致化掃描：B 商店裝備卡與鐵砧三選一（原 ad-hoc 三色三元）、撿裝備覆蓋層名稱列、build/結算 tooltip 名稱色、`pickup.js RARITY_RING`（白/藍/紫/黃/紅，`exclusive`→傳說）。
 - **驗證**（preview）：強制三卡（t1 武器/t2 被動/t3 被動）→ 白框普通＋「1·武器」、藍框稀有＋「2·被動」、紫框史詩＋「3·被動」，卡底同色系；舊式 tier 色彩三元 grep 歸零；零 console error。
+
+## 批次 B6 — 隱藏房間專屬內容（6.1–6.5）
+- **範圍**：新 `content/hidden_rewards.js`、`content/hidden.js`（獎勵重寫）、`content/unlocks.js`、`content/characters.js`、`scenes/run.js`。
+- **條目**：
+  - **四個隱藏房改贈他處拿不到的專屬內容**（玩家定案「加入全新內容」）：
+    - 6.1 魂晶寶庫 → **傳說飾品「寶庫之印」**（`hr_vault_sigil`，tier4：金幣 +15%／幸運 +0.3／拾取範圍 +15%）＋1000 金（原 400）。
+    - 6.2 遠古檔案室 → **專屬武器「禁書迴響」**（`hr_archive_codex`，tier3／7 級：cd 2.4−0.18l 放出 2+⌊l/2⌋ 發魔紫追蹤符文彈、單發 10+4l）＋300 金（原「解鎖一項封存內容+120」— 玩家點名看不懂的就是這條）。
+    - 6.3 聖物密室 → **專屬被動「聖物之心」**（`hr_relic_heart`，3 疊：每殺 40/35/30 名自身聖光爆發 60+30lv 傷＋0.6s 無敵）＋300 金。
+    - 6.4 彩蛋房 → **隱藏造型「開發者 · 小妖」**（`devkid`，全身 body override：圓滾小妖＋耳機＋飄浮游標；`exclusive+unlockFlag:'devEgg'` — 不進商店池、`ownsSkin` 全英雄共用）＋888 金。
+  - 三個 id 加入 `LOCKED`（武器/被動/裝備）— claim 前任何池都不出現；claim 走 `META.unlocked` 正規閘道。
+  - **6.5 揭示 UI**：`claim()` 改回傳 `{text, icon, name, kindLabel}`；`drawHidden()` 揭示卡（脈衝金框 44S 圖示＋金色名稱＋類別＋說明）＋金環粒子；coop 即時分支與 banner 相容字串/物件兩態。
+  - 三個新 icon（`defineIcon`：禁書＋符文／聖光之心／金印鑰孔）。
+- **驗證**（preview）：三內容註冊成功；fresh save 四房 claim → `META.unlocked` 各就各位＋devEgg 旗標、重複 claim 回 null（once-per-save）；`ownsSkin('hunter'/'pyro','devkid')` 皆 true、`char_hunter__devkid` 烘焙 4 幀；codex `addWeapon` 後 200 幀正常開火；寶庫之印裝備 goldMult=1.15、換裝後**精準回退**（JSON 比對相等）；揭示面板截圖（圖示＋名稱＋類別）。
 - **驗證**（preview 驅動，零 console error / `__GAME_ERROR__` null）：slots 畫面截圖無重疊（493×374 小視窗）；衣帽間列身點擊（先前必拋處）`threw:null`；4000 殺統計 nova 引爆率 **24.4%**（目標 25%）；speed=200 玩家逃跑下範圍內金幣 120 幀內收斂吸附（finalDist 0.4）；keys+1 → 橫幅正確、keys−1 不觸發；離場確認框／贊助者三選一／結算左欄截圖確認新版面。
