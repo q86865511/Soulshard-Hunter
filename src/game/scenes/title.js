@@ -202,7 +202,15 @@ export const titleScene = {
         yy += rowH + gap;
       });
     } else {   // ---- detail page for the selected version ----
-      if (sel.date) { uiText(sel.date, x + w - 22 * S, yy, { size: 10 * S, align: 'right', color: P.gray3 }); }
+      // R17 B16: the date used to share the first item's baseline (right-aligned over full-width
+      // wrapped text → overlap) — it now lives in the header next to the close button instead,
+      // and is skipped entirely when a narrow panel would run it into the centred title
+      // (the version list already shows each round's date).
+      if (sel.date) {
+        const tw2 = textWidth('📜 ' + sel.v + (sel.title ? '　·　' + sel.title : ''), 16 * S, '900');
+        const dLeft = closeR.x - 8 * S - textWidth(sel.date, 10 * S, '600');
+        if (dLeft > x + w / 2 + tw2 / 2 + 6 * S) uiText(sel.date, closeR.x - 8 * S, y + 29 * S, { size: 10 * S, align: 'right', color: P.gray3 });
+      }
       for (const it of sel.items) { const n = this.wrapNote('· ' + it, left + 4 * S, yy, lineW - 8 * S, 12 * S); yy += n * 16 * S + 6 * S; }
     }
     this.notesMax = Math.max(0, (yy + (this.notesScroll || 0)) - (y + 64 * S) - (h - 80 * S));
