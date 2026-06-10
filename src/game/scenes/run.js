@@ -905,8 +905,8 @@ export const runScene = {
   pauseLayout() {
     const S = uiScale();
     const w = 240 * S, h = 46 * S, gap = 14 * S;
-    const x = view.W / 2 - w / 2, y0 = view.H / 2 - (h * 3 + gap * 2) / 2;
-    return { S, resume: { x, y: y0, w, h }, settings: { x, y: y0 + (h + gap), w, h }, quit: { x, y: y0 + (h + gap) * 2, w, h } };
+    const x = view.W / 2 - w / 2, y0 = view.H / 2 - (h * 4 + gap * 3) / 2;   // R17/10.1: 4 buttons
+    return { S, resume: { x, y: y0, w, h }, settings: { x, y: y0 + (h + gap), w, h }, guide: { x, y: y0 + (h + gap) * 2, w, h }, quit: { x, y: y0 + (h + gap) * 3, w, h } };
   },
   updatePause() {
     const L = this.pauseLayout(); const mx = mouse.x * view.dpr, my = mouse.y * view.dpr;
@@ -919,6 +919,7 @@ export const runScene = {
     }
     if (inside(mx, my, L.resume)) { this.paused = false; Sfx.play('uiClick'); }
     else if (inside(mx, my, L.settings)) settingsUI.show(null, { returnHub: () => this.abandon() });   // settings menu also offers 返回大廳 in-run
+    else if (inside(mx, my, L.guide)) { this.paused = false; this.hudTut = true; this._hudTutShown = true; Sfx.play('uiClick'); }   // R17/10.1: replay介面一覽
     else if (inside(mx, my, L.quit)) { this.confirmQuit = true; Sfx.play('uiClick'); }   // 4.8: ask first
   },
   abandon() {
@@ -976,6 +977,7 @@ export const runScene = {
     uiText('暫 停', view.W / 2, L.resume.y - 36 * S, { size: 30 * S, align: 'center', color: '#fff', weight: '900' });
     btn(L.resume, '繼 續');
     btn(L.settings, '設 定');
+    btn(L.guide, '📖 介面一覽');   // R17/10.1: re-show the HUD walkthrough any time
     btn(L.quit, '放棄並返回城鎮', P.redL);
   },
 
@@ -2091,7 +2093,7 @@ export const runScene = {
     const lines = [
       `${this.map.biome.name} · 難度 ${this.run.difficulty || 1} 通關　·　擊殺 ${this.run.kills}　·　分數 ${this.run.score}`,
       this.reaperSlain ? '☠ 斬殺死神！傳說獎勵已入袋' : '死神未斬 — 下次留下迎戰可得傳說獎勵',
-      (nextName ? `★ 解鎖新關卡：${nextName}　` : '★ 已是最深關卡　') + `· 解鎖難度 ${(this.run.difficulty || 1) + 1}　· 帶回 ${goldStr(this.run.gold)}`,
+      (nextName ? `★ 解鎖新關卡：${nextName}　` : '★ 已是最深關卡　') + `· 難度 ${(this.run.difficulty || 1) + 1} 已解鎖　· 帶回 ${goldStr(this.run.gold)}`,   // R17/10.2 wording
     ];
     lines.forEach((l, i) => uiText(l, cx, view.H * 0.11 + (40 + i * 20) * S, { size: 13 * S, align: 'center', color: i === 1 ? (this.reaperSlain ? P.goldL : P.gray3) : '#d8e8d0', weight: i === 2 ? '800' : '600' }));
     if (this.run.bankRepaid > 0) uiText('🏦 銀行還款 -' + goldStr(this.run.bankRepaid) + (META.bank && META.bank.debt > 0 ? '（尚欠 ' + goldStr(META.bank.debt) + '）' : ''), cx, view.H * 0.11 + (40 + lines.length * 20) * S, { size: 12 * S, align: 'center', color: P.emberL, weight: '700' });   // 7.2

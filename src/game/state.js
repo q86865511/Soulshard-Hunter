@@ -57,7 +57,7 @@ const DEFAULT_META = () => ({
   forge: {},                             // 5-5 weaponId -> { level, effects:[id,...] } out-of-run weapon upgrades
   hub: { talentPurchases: 0, facilityPurchases: 0, forgePurchases: 0 },   // round16/9.3 VS-式動態定價：各面板購買次數
   bank: { debt: 0, borrowed: 0 },        // round16/7.2 魂晶銀行：含息應還 / 本金
-  tutorialDone: false, tutorialBattleDone: false, tutorialHUDDone: false,   // round16/6.1-6.3 新手教學「看過一次」旗標
+  tutorialDone: false, tutorialBattleDone: false, tutorialHUDDone: false, tutorialSortieDone: false,   // round16/6.1-6.3 + R17/10.2 新手教學「看過一次」旗標
 
   skinShop: { roll: 0, offers: [], nextRoll: 0 },   // 5-6 clothing store: rotating offers + 30-min refresh timer (task-10)
   npc: { met: {} },                      // 5-1 npc id -> true once talked to (for "new" markers / story gating)
@@ -119,7 +119,7 @@ export function loadMeta(slot) {
       if (!META.bank || typeof META.bank !== 'object') META.bank = { debt: 0, borrowed: 0 };
       for (const k of ['debt', 'borrowed']) if (typeof META.bank[k] !== 'number') META.bank[k] = 0;
       // round16/6.1-6.3: tutorial flags (old saves → treat as not-yet-seen so the guide still shows once)
-      for (const k of ['tutorialDone', 'tutorialBattleDone', 'tutorialHUDDone']) if (typeof META[k] !== 'boolean') META[k] = false;
+      for (const k of ['tutorialDone', 'tutorialBattleDone', 'tutorialHUDDone', 'tutorialSortieDone']) if (typeof META[k] !== 'boolean') META[k] = false;   // + R17/10.2
       if (!META.skinShop || typeof META.skinShop !== 'object') META.skinShop = { roll: 0, offers: [] };
       if (typeof META.skinShop.roll !== 'number') META.skinShop.roll = 0;
       if (typeof META.skinShop.nextRoll !== 'number') META.skinShop.nextRoll = 0;   // task-10: 30-min refresh timer

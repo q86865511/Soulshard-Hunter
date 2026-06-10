@@ -140,6 +140,7 @@ export const hubScene = {
       { id: 'account', label: Net.isLoggedIn() ? ('☁ ' + (u.username || '帳號')) : '☁ 登入 / 註冊', col: P.shardL },
       { id: 'multi', label: '👥 多人連線', col: P.shardL },
       { id: 'leaderboard', label: '🏆 排行榜', col: P.shardL },
+      { id: 'guide', label: '📖 新手指南', col: P.greenL },   // R17/10.1: replay the town tutorial any time
     ];
     if (Net.isAdmin()) items.push({ id: 'admin', label: '🛠 管理主控台', col: P.manaL });
     items.push({ id: 'feedback', label: '⚑ 回報問題', col: P.goldL });
@@ -171,6 +172,7 @@ export const hubScene = {
     else if (id === 'account') openAuth();
     else if (id === 'multi') { if (Net.isLoggedIn()) openSocial(); else { openAuth(); netToast('多人連線需要先登入帳號'); } }
     else if (id === 'leaderboard') openLeaderboard();
+    else if (id === 'guide') { this.escMenu = false; this.triggerTutorial(true); }   // R17/10.1
     else if (id === 'admin') openAdmin();
     else if (id === 'feedback') openFeedback();
     else if (id === 'settings') { this.escMenu = false; settingsUI.show(); }
@@ -191,6 +193,7 @@ export const hubScene = {
 
   openPanel(id) {
     this.panel = id; this.tab = 0; this.personalTab = 0; this.panelScroll = 0; this.panelMaxScroll = 0;
+    if (id === 'sortie' && !META.tutorialSortieDone) this.sortieTut = true;   // R17/10.2: first-open walkthrough
     if (id === 'wardrobe') { this.wardrobeView = null; this.wardrobeChar = null; ensureSale(META); }   // R17/3.1: entry screen first
     if (id === 'bank') this.bankAmount = bankLimit(META);   // 7.2: default the custom-borrow amount to the full limit
     if (id === 'smith' && !this.forgeSel) this.forgeSel = (forgeableWeapons(META)[0] || {}).id || null;
@@ -272,15 +275,17 @@ export const hubScene = {
     this.closeDialogue();
     if (st) this.openPanel(st);
   },
-  // 6.1 新手教學：城鎮引導（蕾恩，5 頁，看過一次後不再；舊存檔升級也會觸發）
-  triggerTutorial() {
-    if (META.tutorialDone || this.dialogue || this.panel) return;
+  // 6.1 新手教學：城鎮引導（蕾恩，6 頁，看過一次後不再；舊存檔升級也會觸發）
+  // R17/10.1: force=true（ESC 選單「📖 新手指南」）無視 tutorialDone 隨時重播
+  triggerTutorial(force = false) {
+    if ((!force && META.tutorialDone) || this.dialogue || this.panel) return;
     const guide = NPCS.find((n) => n.id === 'guide') || { name: '蕾恩', title: '城鎮嚮導', color: P.greenL, sprite: 'npc_guide' };
     const lines = [
       { text: '你醒了……終於。我是蕾恩，城鎮的嚮導。' },
       { text: '這裡是魂晶之鎮，獵手們在戰場闖蕩後回來的避風港。' },
       { text: '傳送門就在廣場中央——走進去，選好英雄和生態，出發狩獵！' },
       { text: '回來後，把賺來的金幣花在各個房間，讓自己越來越強。' },
+      { text: '每通關一個生態與難度，就會解鎖下一個生態、更高難度——通關過的生態還能挑戰「無盡」！' },   // R17/10.2
       { text: '其他居民也可以交談，他們各有各的故事……準備好了嗎？' },
     ];
     this.dialogue = { npc: { ...guide, station: null }, sprite: guide.sprite, lines, page: 0, onClose: () => { META.tutorialDone = true; saveMeta(); } };
@@ -333,6 +338,13 @@ export const hubScene = {
   updatePanel() {
     const mx = mouse.x * view.dpr, my = mouse.y * view.dpr;
     if (this.confirm) { this.updateConfirm(mx, my); return; }   // task 8: modal intercepts everything
+    // R17/10.2: sortie first-open walkthrough — eats ALL input until dismissed (once per save)
+    if (this.panel === 'sortie' && this.sortieTut) {
+      if (mouse.justDown || pressed('escape') || pressed('space') || pressed('interact') || pressed('enter')) {
+        this.sortieTut = false; META.tutorialSortieDone = true; saveMeta(); Sfx.play('uiClick');
+      }
+      return;
+    }
     if (pressed('escape') || pressed('build')) {
       // R17/3.1: the wardrobe is layered (entry → mine/shop → per-hero) — Esc steps back one layer
       if (this.panel === 'wardrobe' && (this.wardrobeChar != null || this.wardrobeView)) {
@@ -856,7 +868,7 @@ export const hubScene = {
     if (!this.panel && !this.dialogue) this.drawQuestTracker();
 
     if (this.panel === 'talents') this.drawTalents();
-    else if (this.panel === 'sortie') this.drawSortie();
+    else if (this.panel === 'sortie') { this.drawSortie(); if (this.sortieTut) this.drawSortieTut(); }   // R17/10.2
     else if (this.panel === 'achievements') this.drawAchievements();
     else if (this.panel === 'wardrobe') this.drawWardrobe();
     else if (this.panel === 'smith') this.drawSmith();
@@ -1466,6 +1478,29 @@ export const hubScene = {
     const hovS = inside(mx, my, L.start);
     uiRect(L.start.x, L.start.y, L.start.w, L.start.h, withAlpha(hovS ? '#2a6a3a' : '#1f5030', 0.98), { radius: 9 * S, stroke: P.greenL, lw: hovS ? 3 : 2 });
     uiText('出 擊 狩 獵', L.start.x + L.start.w / 2, L.start.y + L.start.h / 2 + 1 * S, { size: 18 * S, align: 'center', baseline: 'middle', color: '#fff', weight: '900' });
+  },
+
+  // R17/10.2: first-open sortie walkthrough — three callouts teaching the unlock loop
+  // (clear a biome → next biome; clear a difficulty → next step; cleared biomes get 無盡).
+  drawSortieTut() {
+    const S = uiScale(); const L = this.sortieLayout(); const f = L.f;
+    uiRect(0, 0, view.W, view.H, withAlpha('#070912', 0.62));
+    uiText('出 擊 指 南', view.W / 2, Math.max(20 * S, f.y - 12 * S), { size: 20 * S, align: 'center', color: P.goldL, weight: '900', shadowColor: withAlpha('#000', 0.8) });
+    const ctx = ctxRaw();
+    const callout = (tx, ty, bx, by, label) => {
+      const tw = textWidth(label, 11.5 * S, '700') + 18 * S, bh = 24 * S;
+      ctx.save(); ctx.strokeStyle = withAlpha('#fff', 0.7); ctx.lineWidth = 1.5 * S;
+      ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(tx, ty); ctx.stroke();
+      ctx.fillStyle = withAlpha(P.goldL, 0.9); ctx.beginPath(); ctx.arc(tx, ty, 3.5 * S, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+      uiRect(bx - tw / 2, by - bh / 2, tw, bh, withAlpha('#10142c', 0.97), { radius: 6 * S, stroke: P.goldL, lw: 1.5 });
+      uiText(label, bx, by + 1 * S, { size: 11.5 * S, align: 'center', baseline: 'middle', color: '#fff', weight: '700' });
+    };
+    const lb = L.lvlButtons[0];
+    if (lb) callout(lb.x + lb.w / 2, lb.y + 4 * S, Math.max(f.x + 150 * S, lb.x + lb.w / 2 + 70 * S), lb.y - 30 * S, '通關生態 → 解鎖下一個生態');
+    callout(view.W / 2 + 80 * S, L.dY + 13 * S, Math.min(f.x + f.w - 160 * S, view.W / 2 + 180 * S), L.dY - 22 * S, '通關難度 → 解鎖更高難度與「無盡」');
+    callout(L.start.x + L.start.w / 2 - 60 * S, L.start.y + 8 * S, L.start.x - 90 * S, L.start.y + 14 * S, '選好就出擊！');
+    uiText('點擊任意處關閉（只出現一次，ESC 選單可重看新手指南）', view.W / 2, f.y + f.h + 18 * S > view.H ? view.H - 10 * S : f.y + f.h + 14 * S, { size: 11 * S, align: 'center', color: withAlpha(P.goldL, 0.7 + 0.3 * Math.sin(this.t * 5)), weight: '700', shadowColor: withAlpha('#000', 0.8) });
   },
 
   // ---- text helpers --------------------------------------------------------
