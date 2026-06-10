@@ -20,4 +20,14 @@
   - **1.7 通關後離場確認**：通關後範圍外按 E 改開 `leaveConfirm` 確認框（確定離場/繼續戰鬥；E/Enter 確定、Esc/點外取消）；co-op 維持即時離場（共享世界不可凍結）；查明魂晶礦脈非商店 → 保留所有地圖互動物。
   - **1.8 隱藏成就**：完成前後皆紫羅蘭 `#d36bff` 邊框＋`★隱藏` 徽章＋紫星號；FILTERS 增第 4 頁籤「隱藏」（70S 寬 ×4）。
   - **1.9 魂爆機率化**：`BALANCE.NOVA_CHANCE=[0.25,0.35,0.45]` 按等級取用；引爆半徑 22+lv*6→26+lv*8、傷害 12+lv*7→30+lv*16（補償）；desc 同步。
+
+## 批次 B2 — 金幣圖示系統（2.1）
+- **範圍**：新 `src/game/ui/gold.js`、`engine/renderer.js`、`scenes/title.js`、`scenes/hub.js`、`content/guild.js`、`content/patchnotes.js`。
+- **條目**：
+  - 根因：`goldStr()` 的 🪙（U+1FA99）不在 CJK 字型堆疊中 → 全 UI 顯示 □。
+  - 新 **`goldLabel(x,y,n,{size,align,baseline,color,weight,prefix}) `**：畫像素 `coin` sprite＋數字（支援 prefix、置中/右對齊預量寬、alphabetic/middle 基線），回傳總寬。
+  - **`goldStr()` 改純文字「N 金幣」**（句子安全）：ask() 內文、feedback、銀行明細、結算「帶回 N 金幣」全自動通順。
+  - 純繪製處改 `goldLabel`：確認框持有列、天賦節點價格、鍛造「強化等級」鈕＋特效價、設施卡價格、銀行借款鈕、公會領取鈕（主線＋支線）、衣帽間價格鈕（特賣底價改純數字）、出擊鎖定卡 🔒 價格。
+  - title 兩處「金庫 🪙N」→「金庫 N」（金庫已是標籤，免重複「金幣」）；guild.js 六個 rank 獎勵 label「＋🪙N」→「＋N 金幣」；patchnotes 移除 🪙。
+- **驗證**：preview 截圖確認框／天賦／鍛造／設施／銀行全部出現像素金幣、零 □；`grep 🪙` 僅剩註解；零 console error。
 - **驗證**（preview 驅動，零 console error / `__GAME_ERROR__` null）：slots 畫面截圖無重疊（493×374 小視窗）；衣帽間列身點擊（先前必拋處）`threw:null`；4000 殺統計 nova 引爆率 **24.4%**（目標 25%）；speed=200 玩家逃跑下範圍內金幣 120 幀內收斂吸附（finalDist 0.4）；keys+1 → 橫幅正確、keys−1 不觸發；離場確認框／贊助者三選一／結算左欄截圖確認新版面。

@@ -7,7 +7,7 @@ import { openAuth, openLeaderboard, isModalOpen, netToast } from '../../net/ui.j
 import { openSocial } from '../../net/social.js';
 import { Characters } from '../content/registry.js';
 import { PATCH_NOTES, GAME_VERSION } from '../content/patchnotes.js';
-import { uiText, uiRect, uiScale, view, drawSpriteUI, vignette, ctxRaw, goldStr, textWidth } from '../../engine/renderer.js';
+import { uiText, uiRect, uiScale, view, drawSpriteUI, vignette, ctxRaw, textWidth } from '../../engine/renderer.js';
 import { getSprite, frameAt } from '../../engine/sprites.js';
 import { pressed, mouse } from '../../engine/input.js';
 import { P, withAlpha } from '../../engine/palette.js';
@@ -207,7 +207,7 @@ export const titleScene = {
     const nb = this.notesBtn(), nhov = inside(mx, my, nb);
     uiRect(nb.x, nb.y, nb.w, nb.h, withAlpha(nhov ? '#27306a' : '#141832', 0.92), { radius: 7 * S, stroke: nhov ? P.goldL : withAlpha(P.goldL, 0.45), lw: nhov ? 2.5 : 1.5 });
     uiText('📜 更新日誌 · ' + GAME_VERSION, nb.x + nb.w / 2, nb.y + nb.h / 2 + 1 * S, { size: 12 * S, align: 'center', baseline: 'middle', color: nhov ? '#fff' : P.goldL, weight: '700' });
-    uiText('金庫 ' + goldStr(META.gold) + '　·　最高威脅 ' + (META.stats.bestStage || 0) + ' 級　·　最高分 ' + (META.stats.bestScore || 0), view.W / 2, view.H * 0.93, { size: 12 * S, align: 'center', color: P.gray2 });
+    uiText('金庫 ' + Math.round(META.gold || 0) + '　·　最高威脅 ' + (META.stats.bestStage || 0) + ' 級　·　最高分 ' + (META.stats.bestScore || 0), view.W / 2, view.H * 0.93, { size: 12 * S, align: 'center', color: P.gray2 });   // R17/2.1:「金庫」already labels it — no broken 🪙 glyph
     uiText('空白鍵 快速進入上次存檔　·　Esc 設定', view.W / 2, view.H * 0.97, { size: 11 * S, align: 'center', color: withAlpha(P.gray2, 0.7) });
   },
 
@@ -225,7 +225,7 @@ export const titleScene = {
       } else {
         const char = Characters.get(s.char); const cn = char ? char.name : s.char;
         uiText('存檔格 ' + (c.i + 1) + '　' + cn + (s.active ? '　★使用中' : ''), px, r.y + 26 * S, { size: 15 * S, color: '#fff', weight: '800' });
-        uiText('遊戲時數 ' + fmtTime(s.playTime) + '　·　成就 ' + s.achievements + '　·　金庫 ' + goldStr(s.gold), px, r.y + 48 * S, { size: 12 * S, color: P.shardL, weight: '700' });
+        uiText('遊戲時數 ' + fmtTime(s.playTime) + '　·　成就 ' + s.achievements + '　·　金庫 ' + Math.round(s.gold || 0), px, r.y + 48 * S, { size: 12 * S, color: P.shardL, weight: '700' });   // R17/2.1
         if (r.h >= 78 * S) uiText('最高威脅 ' + s.bestStage + ' 級　·　最高分 ' + s.bestScore + '　·　通關 ' + s.clears + '　·　生態 ' + s.biomesUnlocked + '/10', px, r.y + 68 * S, { size: 11.5 * S, color: P.gray3 });   // R17/1.1: dropped when cards compress
         // delete button (two-click confirm)
         const d = c.delR; const confirming = this.confirm === c.i;

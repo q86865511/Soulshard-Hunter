@@ -252,9 +252,11 @@ export function textWidth(str, size = 16, weight = '600', font = FONT) {
   ctx.restore();
   return w;
 }
-// round16/1.4: unify every gold amount behind one coin-icon prefix (replaces the
-// inconsistent mix of 「金」/「金幣」/no-icon). Use anywhere a gold AMOUNT is shown.
-export function goldStr(n) { return '🪙' + (typeof n === 'number' ? Math.round(n) : n); }
+// round16/1.4 → R17/2.1: the 🪙 emoji is missing from the CJK font stack on common
+// Windows configs (rendered as □), so the STRING form is now text-only「N 金幣」.
+// Anywhere the amount is drawn directly (price tags, buttons), use ui/gold.js goldLabel()
+// instead — it draws the real pixel coin sprite next to the number.
+export function goldStr(n) { return (typeof n === 'number' ? Math.round(n) : n) + ' 金幣'; }
 // round16/1.8: pixel bitmap font for ASCII-only numeric values (HP/Lv/gold/timer…).
 // Press Start 2P only covers ASCII, so use ONLY for digit/latin strings, never CJK.
 // It renders ~20% wider, so callers shrink the size (×0.82).

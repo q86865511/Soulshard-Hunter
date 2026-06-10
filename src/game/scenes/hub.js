@@ -30,6 +30,7 @@ import { dist, clamp } from '../../engine/math.js';
 import { P, withAlpha } from '../../engine/palette.js';
 import { Sfx, Music } from '../../engine/audio.js';
 import { settingsUI } from '../ui/settings.js';
+import { goldLabel } from '../ui/gold.js';   // R17/2.1: coin sprite + amount (the 🪙 emoji renders as □)
 import { Net } from '../../net/api.js';
 import { openAuth, openLeaderboard, openAdmin, openFeedback, isModalOpen, netToast } from '../../net/ui.js';
 import { openSocial } from '../../net/social.js';
@@ -218,7 +219,7 @@ export const hubScene = {
     uiText('確 認', c.x + c.w / 2, c.y + 30 * S, { size: 18 * S, align: 'center', color: '#fff', weight: '900' });
     uiText(cf.text, c.x + c.w / 2, c.y + 64 * S, { size: 14 * S, align: 'center', color: '#fff', weight: '700' });
     if (cf.detail) uiText(cf.detail, c.x + c.w / 2, c.y + 90 * S, { size: 13 * S, align: 'center', color: P.goldL, weight: '800' });
-    uiText('持有 ' + goldStr(META.gold), c.x + c.w / 2, c.y + 112 * S, { size: 11 * S, align: 'center', color: P.gray3 });
+    goldLabel(c.x + c.w / 2, c.y + 112 * S, META.gold || 0, { size: 11 * S, align: 'center', color: P.gray3, weight: '700', prefix: '持有 ' });   // R17/2.1: real coin sprite
     const hy = inside(mx, my, c.yes); uiRect(c.yes.x, c.yes.y, c.yes.w, c.yes.h, withAlpha(hy ? '#2a6a3a' : '#1f5030', 0.98), { radius: 7 * S, stroke: P.greenL, lw: 2 }); uiText('確 定', c.yes.x + c.yes.w / 2, c.yes.y + c.yes.h / 2 + 1 * S, { size: 14 * S, align: 'center', baseline: 'middle', color: '#fff', weight: '800' });
     const hn = inside(mx, my, c.no); uiRect(c.no.x, c.no.y, c.no.w, c.no.h, withAlpha(hn ? '#3a2030' : '#2a2030', 0.98), { radius: 7 * S, stroke: P.redD, lw: 2 }); uiText('取 消', c.no.x + c.no.w / 2, c.no.y + c.no.h / 2 + 1 * S, { size: 14 * S, align: 'center', baseline: 'middle', color: P.redL, weight: '800' });
   },
@@ -428,7 +429,7 @@ export const hubScene = {
       // borrow button
       const hov = inside(mx, my, u.borrow);
       uiRect(u.borrow.x, u.borrow.y, u.borrow.w, u.borrow.h, withAlpha(hov ? '#2a6a3a' : '#1f5030', 0.96), { radius: 9 * S, stroke: P.greenL, lw: 2 });
-      uiText('💰 借款 ' + goldStr(amt), u.borrow.x + u.borrow.w / 2, u.borrow.y + u.borrow.h / 2 + 1 * S, { size: 15 * S, align: 'center', baseline: 'middle', color: '#fff', weight: '900' });
+      goldLabel(u.borrow.x + u.borrow.w / 2, u.borrow.y + u.borrow.h / 2 + 1 * S, amt, { size: 15 * S, align: 'center', baseline: 'middle', color: '#fff', weight: '900', prefix: '借款 ' });   // R17/2.1
     }
     uiText('− / ＋ 或點擊金條調整金額　·　Esc 關閉', f.x + f.w / 2, f.y + f.h - 14 * S, { size: 11 * S, align: 'center', color: P.gray3 });
   },
@@ -878,9 +879,9 @@ export const hubScene = {
       uiText(def.name, n.x + 38 * S, n.y + 17 * S, { size: 12.5 * S, color: '#fff', weight: '800' });
       this.clip1(def.desc, n.x + 38 * S, n.y + 31 * S, n.w - 44 * S, 10 * S, P.gray4);
       for (let i = 0; i < def.maxLevel; i++) uiRect(n.x + 40 * S + i * 9 * S, n.y + 42 * S, 7 * S, 5 * S, i < cur ? n.color : '#333a55', { radius: 1 });
-      const label = st === 'max' ? '已滿級' : st === 'locked' ? '需先解鎖前置' : goldStr(this.hubCost(def.cost(cur), 'talentPurchases'));
       const col = st === 'max' ? P.greenL : st === 'locked' ? P.gray3 : st === 'poor' ? P.redL : P.goldL;
-      uiText(label, n.x + n.w - 8 * S, n.y + n.h - 9 * S, { size: 11 * S, align: 'right', color: col, weight: '800' });
+      if (st === 'max' || st === 'locked') uiText(st === 'max' ? '已滿級' : '需先解鎖前置', n.x + n.w - 8 * S, n.y + n.h - 9 * S, { size: 11 * S, align: 'right', color: col, weight: '800' });
+      else goldLabel(n.x + n.w - 8 * S, n.y + n.h - 9 * S, this.hubCost(def.cost(cur), 'talentPurchases'), { size: 11 * S, align: 'right', color: col, weight: '800' });   // R17/2.1
     }
     ctx.restore();
     this.drawScrollbar(f);
@@ -923,7 +924,7 @@ export const hubScene = {
     uiText('鍛造等級 ' + fdata.level + '/' + FORGE_MAX_LEVEL + '（每級傷害 +8%）', d.x + 56 * S, d.y + 42 * S, { size: 11 * S, color: P.emberL, weight: '700' });
     for (let i = 0; i < FORGE_MAX_LEVEL; i++) uiRect(d.x + 56 * S + i * 12 * S, d.y + 50 * S, 9 * S, 6 * S, i < fdata.level ? P.ember : '#333a55', { radius: 1 });
     const b = this.forgeButtons(d);
-    if (b.level) { const can = META.gold >= forgeLevelCost(fdata.level), hov = inside(mx, my, b.level); uiRect(b.level.x, b.level.y, b.level.w, b.level.h, withAlpha(can ? (hov ? '#3a5a2a' : '#26401c') : '#2a2030', 0.96), { radius: 6 * S, stroke: can ? P.greenL : P.gray1, lw: 2 }); uiText('強化等級　' + goldStr(forgeLevelCost(fdata.level)), b.level.x + b.level.w / 2, b.level.y + b.level.h / 2 + 1 * S, { size: 12 * S, align: 'center', baseline: 'middle', color: can ? '#fff' : P.gray3, weight: '800' }); }
+    if (b.level) { const can = META.gold >= forgeLevelCost(fdata.level), hov = inside(mx, my, b.level); uiRect(b.level.x, b.level.y, b.level.w, b.level.h, withAlpha(can ? (hov ? '#3a5a2a' : '#26401c') : '#2a2030', 0.96), { radius: 6 * S, stroke: can ? P.greenL : P.gray1, lw: 2 }); goldLabel(b.level.x + b.level.w / 2, b.level.y + b.level.h / 2 + 1 * S, forgeLevelCost(fdata.level), { size: 12 * S, align: 'center', baseline: 'middle', color: can ? '#fff' : P.gray3, weight: '800', prefix: '強化等級 ' }); }
     else uiText('★ 鍛造等級已滿', d.x + 14 * S, d.y + 110 * S, { size: 12 * S, color: P.greenL, weight: '800' });
     uiText('特效（最多 ' + FORGE_MAX_EFFECTS + ' 種，已鑲 ' + fdata.effects.length + '）', d.x + 14 * S, d.y + 144 * S, { size: 11 * S, color: P.shardL, weight: '800' });
     for (const eb of b.effects) {
@@ -933,8 +934,9 @@ export const hubScene = {
       uiRect(eb.x, eb.y, eb.w, eb.h, withAlpha(bg, 0.96), { radius: 6 * S, stroke: state === 'owned' ? P.greenL : (hov && state === 'ok' ? eb.color : P.ink2), lw: 2 });
       uiText(eb.name, eb.x + 10 * S, eb.y + 13 * S, { size: 12 * S, color: eb.color, weight: '800' });
       this.clip1(eb.desc, eb.x + 52 * S, eb.y + 13 * S, eb.w - 130 * S, 9.5 * S, P.gray4);
-      const lab = state === 'owned' ? '已鑲嵌' : state === 'full' ? '欄位已滿' : goldStr(forgeEffectCost(fdata.effects.length));
-      uiText(lab, eb.x + eb.w - 10 * S, eb.y + eb.h - 10 * S, { size: 11 * S, align: 'right', color: state === 'owned' ? P.greenL : afford ? P.goldL : P.gray3, weight: '800' });
+      const labCol = state === 'owned' ? P.greenL : afford ? P.goldL : P.gray3;
+      if (state === 'owned' || state === 'full') uiText(state === 'owned' ? '已鑲嵌' : '欄位已滿', eb.x + eb.w - 10 * S, eb.y + eb.h - 10 * S, { size: 11 * S, align: 'right', color: labCol, weight: '800' });
+      else goldLabel(eb.x + eb.w - 10 * S, eb.y + eb.h - 10 * S, forgeEffectCost(fdata.effects.length), { size: 11 * S, align: 'right', color: labCol, weight: '800' });   // R17/2.1
     }
   },
   drawFacilities(f) {
@@ -953,9 +955,9 @@ export const hubScene = {
       this.clip1(def.name, c.x + 46 * S, c.y + 20 * S, c.w - 92 * S, 13 * S, '#fff', '800');
       for (let i = 0; i < def.maxLevel; i++) uiRect(c.x + c.w - 11 * S - (def.maxLevel - i) * 10 * S, c.y + 13 * S, 7 * S, 6 * S, i < cur ? P.emberL : '#333a55', { radius: 1 });   // 3.1: level pips (was「Lv.x/max」text), matches talents/forge
       this.wrap(def.desc, c.x + 10 * S, c.y + 42 * S, c.w - 20 * S, 10.5 * S);
-      const label = st === 'max' ? '已滿級' : goldStr(this.hubCost(def.cost(cur), 'facilityPurchases'));
       const col = st === 'max' ? P.greenL : st === 'poor' ? P.redL : P.goldL;
-      uiText(label, c.x + c.w - 10 * S, c.y + c.h - 10 * S, { size: 12 * S, align: 'right', color: col, weight: '800' });
+      if (st === 'max') uiText('已滿級', c.x + c.w - 10 * S, c.y + c.h - 10 * S, { size: 12 * S, align: 'right', color: col, weight: '800' });
+      else goldLabel(c.x + c.w - 10 * S, c.y + c.h - 10 * S, this.hubCost(def.cost(cur), 'facilityPurchases'), { size: 12 * S, align: 'right', color: col, weight: '800' });   // R17/2.1
     }
     ctx.restore();
     this.drawScrollbar(f);
@@ -977,7 +979,8 @@ export const hubScene = {
       uiBar(f.x + 200 * S, t0 + 38 * S, f.w - 224 * S, 6 * S, cur.goal ? cur.prog / cur.goal : 1, { fg: cur.done ? P.greenL : P.shardL, bg: '#16183a', border: P.ink });
       const can = cur.done, hov = inside(mx, my, L.mainClaim);
       uiRect(L.mainClaim.x, L.mainClaim.y, L.mainClaim.w, L.mainClaim.h, withAlpha(can ? (hov ? '#2a6a3a' : '#1f5030') : '#2a2030', 0.96), { radius: 7 * S, stroke: can ? P.greenL : P.gray1, lw: 2 });
-      uiText(can ? ('領取　' + goldStr(cur.q.reward)) : '尚未達成', L.mainClaim.x + L.mainClaim.w / 2, L.mainClaim.y + L.mainClaim.h / 2 + 1 * S, { size: 12 * S, align: 'center', baseline: 'middle', color: can ? '#fff' : P.gray3, weight: '800' });
+      if (can) goldLabel(L.mainClaim.x + L.mainClaim.w / 2, L.mainClaim.y + L.mainClaim.h / 2 + 1 * S, cur.q.reward, { size: 12 * S, align: 'center', baseline: 'middle', color: '#fff', weight: '800', prefix: '領取 ' });   // R17/2.1
+      else uiText('尚未達成', L.mainClaim.x + L.mainClaim.w / 2, L.mainClaim.y + L.mainClaim.h / 2 + 1 * S, { size: 12 * S, align: 'center', baseline: 'middle', color: P.gray3, weight: '800' });
       const trk = isQuestTracked(META, 'story'), th = inside(mx, my, L.mainTrack);
       uiRect(L.mainTrack.x, L.mainTrack.y, L.mainTrack.w, L.mainTrack.h, withAlpha(trk || th ? '#243a5a' : '#1b2138', 0.96), { radius: 7 * S, stroke: trk ? P.shardL : P.ink2, lw: trk ? 3 : 2 });
       uiText(trk ? '✓ 追蹤中' : '＋ 追蹤主線', L.mainTrack.x + L.mainTrack.w / 2, L.mainTrack.y + L.mainTrack.h / 2 + 1 * S, { size: 11 * S, align: 'center', baseline: 'middle', color: trk ? P.shardL : '#fff', weight: '800' });
@@ -999,7 +1002,8 @@ export const hubScene = {
         uiText(trk ? '✓ 追蹤中' : '＋ 追蹤', r.track.x + r.track.w / 2, r.track.y + r.track.h / 2 + 1 * S, { size: 10 * S, align: 'center', baseline: 'middle', color: trk ? P.shardL : '#fff', weight: '700' });
         const cH = inside(mx, my, r.claim);
         uiRect(r.claim.x, r.claim.y, r.claim.w, r.claim.h, withAlpha(done ? (cH ? '#2a6a3a' : '#1f5030') : '#2a2030', 0.96), { radius: 5 * S, stroke: done ? P.greenL : P.gray1, lw: 1 });
-        uiText(done ? ('領 ' + goldStr(q.reward)) : '進行中', r.claim.x + r.claim.w / 2, r.claim.y + r.claim.h / 2 + 1 * S, { size: 10 * S, align: 'center', baseline: 'middle', color: done ? '#fff' : P.gray3, weight: '700' });
+        if (done) goldLabel(r.claim.x + r.claim.w / 2, r.claim.y + r.claim.h / 2 + 1 * S, q.reward, { size: 10 * S, align: 'center', baseline: 'middle', color: '#fff', weight: '700', prefix: '領 ' });   // R17/2.1
+        else uiText('進行中', r.claim.x + r.claim.w / 2, r.claim.y + r.claim.h / 2 + 1 * S, { size: 10 * S, align: 'center', baseline: 'middle', color: P.gray3, weight: '700' });
       }
     }
   },
@@ -1142,8 +1146,8 @@ export const hubScene = {
       if (equipped) uiText('● 使用中', b.x + b.w / 2, b.y + b.h / 2 + 1 * S, { size: 11 * S, align: 'center', baseline: 'middle', color: P.shardL, weight: '800' });
       else if (owned) { const h2 = inside(mx, my, b); uiRect(b.x, b.y, b.w, b.h, withAlpha(h2 ? '#27306a' : '#1b2840', 0.96), { radius: 6 * S, stroke: P.shardL, lw: 1.5 }); uiText('裝備', b.x + b.w / 2, b.y + b.h / 2 + 1 * S, { size: 11 * S, align: 'center', baseline: 'middle', color: '#cfe0ff', weight: '800' }); }
       else { const afford = (META.gold || 0) >= pr.price, h2 = inside(mx, my, b); uiRect(b.x, b.y, b.w, b.h, withAlpha(afford ? (h2 ? '#3a5a2a' : '#26401c') : '#2a2030', 0.96), { radius: 6 * S, stroke: afford ? P.goldL : P.gray1, lw: 1.5 });
-        if (pr.onSale) uiText(goldStr(pr.base), b.x + 9 * S, b.y + b.h / 2 + 1 * S, { size: 8.5 * S, baseline: 'middle', color: P.gray2, weight: '600' });
-        uiText(goldStr(pr.price), b.x + b.w / 2 + (pr.onSale ? 12 * S : 0), b.y + b.h / 2 + 1 * S, { size: 11 * S, align: 'center', baseline: 'middle', color: afford ? P.goldL : P.gray3, weight: '800' });
+        if (pr.onSale) uiText(String(Math.round(pr.base)), b.x + 9 * S, b.y + b.h / 2 + 1 * S, { size: 8.5 * S, baseline: 'middle', color: P.gray2, weight: '600' });   // R17/2.1: struck base price, number only
+        goldLabel(b.x + b.w / 2 + (pr.onSale ? 12 * S : 0), b.y + b.h / 2 + 1 * S, pr.price, { size: 11 * S, align: 'center', baseline: 'middle', color: afford ? P.goldL : P.gray3, weight: '800' });
       }
     }
     ctx.restore(); this.drawScrollbar(f);
@@ -1257,9 +1261,9 @@ export const hubScene = {
       drawSpriteUI(sp.frames[0], card.x + card.w / 2 - sp.w * sc / 2, card.y + 6 * S, sc, { alpha: unlocked ? 1 : 0.3 });
       uiText(c.name, card.x + card.w / 2, card.y + card.h - 22 * S, { size: 12 * S, align: 'center', color: unlocked ? '#fff' : P.gray3, weight: '800' });
       if (!unlocked) {
-        const label = c.unlock.type === 'gold' ? goldStr(c.unlock.cost) : '成就解鎖';
         const afford = c.unlock.type === 'gold' && META.gold >= c.unlock.cost;
-        uiText('🔒 ' + label, card.x + card.w / 2, card.y + card.h - 7 * S, { size: 9 * S, align: 'center', color: afford ? P.goldL : P.gray3, weight: '700' });
+        if (c.unlock.type === 'gold') goldLabel(card.x + card.w / 2, card.y + card.h - 7 * S, c.unlock.cost, { size: 9 * S, align: 'center', color: afford ? P.goldL : P.gray3, weight: '700', prefix: '🔒 ' });   // R17/2.1
+        else uiText('🔒 成就解鎖', card.x + card.w / 2, card.y + card.h - 7 * S, { size: 9 * S, align: 'center', color: P.gray3, weight: '700' });
       } else if (selected) uiText('● 已選', card.x + card.w / 2, card.y + card.h - 7 * S, { size: 9 * S, align: 'center', color: P.shardL, weight: '800' });
     }
     // hovered (or selected) hero info — ability / description + starting weapon
