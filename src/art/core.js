@@ -263,6 +263,17 @@ defineSprite('spark', 6, 6, (p) => {
   p.rect(2, 2, 2, 2, P.white);
 }, { anchor: [3, 3] });
 
+// R17/7.2: golden crown hovering over a vault guardian — reads "elite, kill me for the key"
+defineAnim('crown_elite', 9, 7, 2, (p, f) => {
+  p.glow(4, 4, 4, P.goldL, 0.3, 3);
+  p.rect(1, 4, 7, 2, P.gold); p.hline(1, 7, 4, P.goldL);
+  p.px(1, 2, P.gold); p.px(4, 1, P.gold); p.px(7, 2, P.gold);
+  p.px(1, 3, P.goldL); p.px(4, 2, P.goldL); p.px(7, 3, P.goldL);
+  p.px(4, f ? 1 : 2, P.white);                       // shimmering tip
+  p.px(2, 5, P.emberL); p.px(6, 5, P.shardL);        // jewels
+  p.outline(P.ink);
+}, { anchor: [4, 6], fps: 3 });
+
 // ---------------------------------------------------------------------------
 // PICKUPS — all get a soft glow + a kira sparkle so loot reads as desirable.
 // ---------------------------------------------------------------------------

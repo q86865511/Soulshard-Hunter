@@ -65,12 +65,15 @@ export class Pickup {
         world.particles.ring(this.x, this.y, P.goldL, 18, 100);
         world.particles.text(this.x, this.y - 16, '發現隱藏寶箱！', { color: P.goldL, size: 13 });
       }
-      if (this.revealed && !this.opened && d < player.radius + this.radius + 2) {
-        if (this.locked && (world.keys | 0) <= 0) {   // #8: locked vault — needs a key
-          if (this.t - (this._lockMsg || -9) > 1.2) { this._lockMsg = this.t; world.particles.text(this.x, this.y - 16, '🔒 需要鑰匙', { color: P.redL, size: 12 }); }
+      if (this.revealed && !this.opened && d < player.radius + this.radius + 6) {
+        if (this.locked) {   // #8 → R17/7.3: a key is no longer auto-spent on touch
+          if ((world.keys | 0) <= 0) {
+            if (this.t - (this._lockMsg || -9) > 1.2) { this._lockMsg = this.t; world.particles.text(this.x, this.y - 16, '🔒 需要鑰匙', { color: P.redL, size: 12 }); }
+            return;
+          }
+          world.vaultNear = this;   // key in hand — run.js prompts【E】使用鑰匙開啟寶庫 and confirms
           return;
         }
-        if (this.locked) { world.keys = (world.keys | 0) - 1; world.particles.text(this.x, this.y - 16, '🔑 開鎖！', { color: P.goldL, size: 13 }); }
         this.opened = true; this.dead = true;
         world.particles.ring(this.x, this.y, P.goldL, 16, 90);
         world.openChest(this.x, this.y - 4, this.value || 1);

@@ -258,7 +258,7 @@ export class Enemy {
       drawSprite(frameAt(sp, this.t), this.x, this.y, { ax: sp.ax, ay: sp.ay, flipX: this.facing > 0, alpha: a, scale: sc, squash: { x: 1, y: a } });
       return;
     }
-    if (this.tint && !this.flash) glowWorld(this.x, this.y - this.radius * sc * 0.4, this.radius * 1.6 * sc, this.tint, this.elite ? 0.32 : 0.18);
+    if (this.tint && !this.flash) glowWorld(this.x, this.y - this.radius * sc * 0.4, this.radius * 1.6 * sc, this.tint, this.guardian ? 0.38 + Math.sin(this.t * 3) * 0.1 : this.elite ? 0.32 : 0.18);   // R17/7.2: guardians pulse
     // status feedback glow (D6): slow=ice, burn=ember, poison=toxic, bleed=red
     const sk = this.status.burn ? P.emberL : this.status.poison ? P.toxic : this.status.slow ? P.ice : this.status.bleed ? P.redL : null;
     if (sk) glowWorld(this.x, this.y - this.radius * sc * 0.3, this.radius * 1.5 * sc, sk, 0.3);
@@ -268,5 +268,10 @@ export class Enemy {
     else if (this.tint) { opts.tint = this.tint; opts.tintAmt = 0.22; }
     if (this.charging) { opts.tint = '#ffffff'; opts.tintAmt = 0.4 + Math.sin(this.t * 40) * 0.3; }
     drawSprite(frameAt(sp, this.t), this.x, this.y + hopY, opts);
+    if (this.guardian) {   // R17/7.2: vault guardians wear a golden crown — unmissably elite
+      const csp = getSprite('crown_elite');
+      const bob = Math.sin(this.t * 4) * 1.2;
+      drawSprite(frameAt(csp, this.t), this.x, this.y + hopY - sp.ay * sc - 3 + bob, { ax: csp.ax, ay: csp.ay });
+    }
   }
 }

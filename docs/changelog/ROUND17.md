@@ -69,4 +69,12 @@
   - **6.5 揭示 UI**：`claim()` 改回傳 `{text, icon, name, kindLabel}`；`drawHidden()` 揭示卡（脈衝金框 44S 圖示＋金色名稱＋類別＋說明）＋金環粒子；coop 即時分支與 banner 相容字串/物件兩態。
   - 三個新 icon（`defineIcon`：禁書＋符文／聖光之心／金印鑰孔）。
 - **驗證**（preview）：三內容註冊成功；fresh save 四房 claim → `META.unlocked` 各就各位＋devEgg 旗標、重複 claim 回 null（once-per-save）；`ownsSkin('hunter'/'pyro','devkid')` 皆 true、`char_hunter__devkid` 烘焙 4 幀；codex `addWeapon` 後 200 幀正常開火；寶庫之印裝備 goldMult=1.15、換裝後**精準回退**（JSON 比對相等）；揭示面板截圖（圖示＋名稱＋類別）。
+
+## 批次 B7 — 鑰匙與守護怪（7.1–7.3）
+- **範圍**：`scenes/run.js`、`pickup.js`、`world.js`、`enemy.js`、`art/core.js`、`balance.js`。
+- **條目**：
+  - **7.1 延遲隨機甦醒**：守護怪不再開局即在（玩家 20 秒拿鑰匙的根因）— `guardianPlan` 每隻在 `[GUARDIAN_DELAY_MIN=90, MAX=240]` 秒隨機甦醒，甦醒橫幅「⚔ 寶庫守護怪甦醒了——擊敗牠奪取鑰匙！」＋金環粒子；`cleared` 後不再生成。
+  - **7.2 精英化**：改以 `opts.elite` 正規路徑生成（**修正既有 bug**：原本 spawn 後才設 `elite`，建構子的金 tint／韌性／精英倍率全沒吃到）；`GUARDIAN_HP_SCALE=2.4`/`DMG_SCALE=1.0`（×3.2/×1.5 精英倍率 → 實效 ~7.7×HP、1.5×傷，原 6×/1.3×）；新 `crown_elite` sprite（9×7 雙幀金冠＋微光）懸浮頭頂＋金色脈衝 glow。協作備註：guardian 旗標不入網路位元，但 elite 金 tint 會同步。
+  - **7.3 開鎖確認**：鎖箱碰觸不再自動吞鑰匙 — pickup 改舉 `world.vaultNear`（world 每幀重置），run.js 互動鏈最高優先；頭頂脈衝提示「【E】使用鑰匙開啟寶庫」→ `openVault()` 扣鑰匙、雙金環、橫幅「🔑 寶庫開啟！」；無鑰匙維持「🔒 需要鑰匙」浮字。替代鑰匙來源（機關）本回合範圍外。
+- **驗證**（preview）：開局零守護怪、plan=[199.9s, 113.8s] ∈ [90,240]；快轉後 2 隻甦醒（hp 869、elite、金 tint）；皇冠渲染零錯誤；鑰匙在手碰鎖箱 → `vaultNear` 舉起且**鑰匙未扣**；`openVault` → 開箱＋鑰匙-1＋正確橫幅。
 - **驗證**（preview 驅動，零 console error / `__GAME_ERROR__` null）：slots 畫面截圖無重疊（493×374 小視窗）；衣帽間列身點擊（先前必拋處）`threw:null`；4000 殺統計 nova 引爆率 **24.4%**（目標 25%）；speed=200 玩家逃跑下範圍內金幣 120 幀內收斂吸附（finalDist 0.4）；keys+1 → 橫幅正確、keys−1 不觸發；離場確認框／贊助者三選一／結算左欄截圖確認新版面。

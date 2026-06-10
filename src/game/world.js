@@ -283,6 +283,7 @@ export class World {
   // ---- update --------------------------------------------------------------
   update(dt) {
     this.time += dt;
+    this.vaultNear = null;   // R17/7.3: re-asserted each frame by a touched locked chest (pickup.js)
     // Attack tempo ramps slow -> fast over the run (both sides start sluggish and
     // speed up). Player + enemy fire intervals are divided by these.
     const rt = (this.run && this.run.time) || this.time;

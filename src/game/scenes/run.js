@@ -185,13 +185,9 @@ export const runScene = {
     this.nearHidden = null; this.hiddenPanel = null;
     // #8: a locked vault chest (opened with a key dropped by a room guardian)
     if (map.vault) this.world.addPickup('chest', map.vault.x, map.vault.y, 3, { locked: true });
-    // #8: room guardians — mini-elites (weaker than a mini-boss) that drop a key + chest when slain
-    for (const fr of (map.featureRooms || [])) {
-      const def = Enemies.get('brute') || Enemies.get('slime');
-      if (!def) continue;
-      const g = this.world.spawnEnemy(def, fr.x, fr.y, { hpScale: 6, dmgScale: 1.3, quiet: true });
-      if (g) { g.guardian = true; g.elite = true; g.scale = (g.scale || 1) * 1.4; }
-    }
+    // #8 → R17/7.1: room guardians no longer spawn at 0:00 (players grabbed a key in ~20s) —
+    // each wakes at a random moment in [GUARDIAN_DELAY_MIN, MAX], announced with a banner.
+    this.guardianPlan = (map.featureRooms || []).map((fr) => ({ fr, at: BALANCE.GUARDIAN_DELAY_MIN + rng.next() * (BALANCE.GUARDIAN_DELAY_MAX - BALANCE.GUARDIAN_DELAY_MIN), done: false }));
     this.interactCap = 7; this.nextInteractAt = 16; this.chestRefreshT = 30;     // 原#2: timed refresh
 
     // time-based threat + a rotating roster of only 1-3 active enemy types
@@ -1053,6 +1049,7 @@ export const runScene = {
     this.eventsTick();
     this.updateEvents(dt);
     this.interactablesTick(dt);   // 原#2: refresh map interactables over time
+    this.guardianTick();          // R17/7.1: randomized guardian wake-ups
     this.finalTick(dt);
     this.nearShrine = !!(this.shrinePos && !this.shrineUsed && dist(this.player.x, this.player.y, this.shrinePos.x, this.shrinePos.y) < 20);
     this.nearNpc = null;
@@ -1064,7 +1061,8 @@ export const runScene = {
       if (!h.found && dd < 46) { h.found = true; this.banner = '✦ 發現隱藏房間！'; this.bannerT = 2.0; try { this.world.particles.ring(h.x, h.y, P.shardL, 20, 110); Sfx.play('levelup'); } catch (e) { /* */ } }   // 隱藏: only revealed on approach
       if (h.found && dd < 24) { this.nearHidden = h; break; }
     }
-    if (this.nearShrine && pressed('interact')) { this.useShrine(); }
+    if (this.world.vaultNear && pressed('interact')) { this.openVault(this.world.vaultNear); }   // R17/7.3: key-use confirm beats everything
+    else if (this.nearShrine && pressed('interact')) { this.useShrine(); }
     else if (this.nearNpc && pressed('interact')) { this.useNpc(this.nearNpc); }
     else if (this.nearHidden && pressed('interact')) { this.openHidden(this.nearHidden); }
     else if (this.cleared && pressed('interact')) {   // leave as a win during the Reaper window
@@ -1554,6 +1552,37 @@ export const runScene = {
       if (typeof hp.result === 'object') { try { this.world.particles.ring(this.player.x, this.player.y, P.goldL, 30, 170); } catch (e) { /* */ } }
     } else { this.hiddenPanel = null; }   // a second press closes
   },
+  // R17/7.1: wake each planned guardian at its rolled time (skipped once the level is cleared)
+  guardianTick() {
+    if (!this.guardianPlan) return;
+    for (const g of this.guardianPlan) {
+      if (g.done || this.run.time < g.at) continue;
+      g.done = true;
+      if (this.cleared) continue;
+      const def = Enemies.get('brute') || Enemies.get('slime');
+      if (!def) continue;
+      const e = this.world.spawnEnemy(def, g.fr.x, g.fr.y, { hpScale: BALANCE.GUARDIAN_HP_SCALE, dmgScale: BALANCE.GUARDIAN_DMG_SCALE, elite: true, quiet: true });
+      if (e) { e.guardian = true; e.scale = (e.scale || 1) * 1.25; }
+      this.banner = '⚔ 寶庫守護怪甦醒了——擊敗牠奪取鑰匙！'; this.bannerT = 3.0; Sfx.play('levelup');
+      try { this.world.particles.ring(g.fr.x, g.fr.y, P.goldL, 26, 150); } catch (err) { /* */ }
+    }
+  },
+  // R17/7.3: the vault no longer auto-eats a key on touch — E confirms, with fanfare
+  openVault(pk) {
+    if (!pk || pk.opened || (this.world.keys | 0) <= 0) return;
+    this.world.keys -= 1;
+    pk.opened = true; pk.dead = true;
+    this.world.openChest(pk.x, pk.y - 4, pk.value || 1);
+    this.world.vaultNear = null;
+    this.banner = '🔑 寶庫開啟！'; this.bannerT = 2.4;
+    try { this.world.particles.ring(pk.x, pk.y, P.goldL, 18, 120); this.world.particles.ring(pk.x, pk.y, P.goldL, 30, 170); } catch (e) { /* */ }
+    Sfx.play('levelup');
+  },
+  drawVaultPrompt() {
+    const pk = this.world.vaultNear; if (!pk || this.dead) return;
+    const S = uiScale(); const ps = worldToScreen(pk.x, pk.y - 18);
+    uiText('【E】使用鑰匙開啟寶庫', ps.x, ps.y, { size: 12 * S, align: 'center', color: withAlpha('#ffd479', 0.65 + Math.sin(this.t * 6) * 0.3), weight: '800', shadowColor: withAlpha('#000', 0.8) });
+  },
   drawHiddenRooms() {
     if (!this.hiddenRooms) return; const S = uiScale();
     for (const h of this.hiddenRooms) {
@@ -1604,6 +1633,7 @@ export const runScene = {
     if (this.shrinePos) this.drawShrine();
     this.drawNpcs();
     this.drawHiddenRooms();
+    this.drawVaultPrompt();   // R17/7.3:【E】use-key confirm hint above the locked chest
     this.drawEvents();
     this.drawPickupRange();   // 4.20: V shows the pickup-range ring (world space)
     vignette(0.42);
