@@ -1057,7 +1057,7 @@ export const hubScene = {
       drawSpriteUI(isp.frames[0], c.x + 8 * S, c.y + 8 * S, (30 * S) / isp.w);
       this.clip1(def.name, c.x + 46 * S, c.y + 20 * S, c.w - 92 * S, 13 * S, '#fff', '800');
       for (let i = 0; i < def.maxLevel; i++) uiRect(c.x + c.w - 11 * S - (def.maxLevel - i) * 10 * S, c.y + 13 * S, 7 * S, 6 * S, i < cur ? P.emberL : '#333a55', { radius: 1 });   // 3.1: level pips (was「Lv.x/max」text), matches talents/forge
-      this.wrap(def.desc, c.x + 10 * S, c.y + 42 * S, c.w - 20 * S, 10.5 * S);
+      this.wrap(def.desc, c.x + 10 * S, c.y + 50 * S, c.w - 20 * S, 10.5 * S);   // R17 B16: was 42S — only 4S under the 30S icon, read as glued to icon/name
       const col = st === 'max' ? P.greenL : st === 'gated' ? P.gray3 : st === 'poor' ? P.redL : P.goldL;
       if (st === 'max' || st === 'gated') uiText(st === 'max' ? '已滿級' : '🔒 進度解鎖', c.x + c.w - 10 * S, c.y + c.h - 10 * S, { size: 12 * S, align: 'right', color: col, weight: '800' });
       else goldLabel(c.x + c.w - 10 * S, c.y + c.h - 10 * S, this.hubCost(def.cost(cur), 'facilityPurchases'), { size: 12 * S, align: 'right', color: col, weight: '800' });   // R17/2.1
@@ -1121,7 +1121,9 @@ export const hubScene = {
     for (const r of L.rows) bottom = Math.max(bottom, r.y + r.h + (this.panelScroll || 0));
     this.panelMaxScroll = Math.max(0, bottom - (f.y + f.h - 24 * S));
     const claimable = new Set(claimableRanks(META).map((c) => c.i));
-    const ctx = ctxRaw(); ctx.save(); ctx.beginPath(); ctx.rect(f.x, t0 + 56 * S, f.w, f.h - 96 * S); ctx.clip();
+    // R17 B16: explicit clip bottom — the old `f.h - 96S` height was measured from the rank
+    // header (t0+56S), putting the clip floor 40S PAST the panel and letting rows bleed out.
+    const ctx = ctxRaw(); ctx.save(); ctx.beginPath(); ctx.rect(f.x, t0 + 56 * S, f.w, (f.y + f.h - 24 * S) - (t0 + 56 * S)); ctx.clip();
     for (const r of L.rows) {
       const reached = gp.xp >= r.rk.xp, claimed = META.guild.claimed && META.guild.claimed[r.i], canClaim = claimable.has(r.i);
       uiRect(r.x, r.y, r.w, r.h, withAlpha(reached ? (claimed ? '#1c2c1c' : '#243a5a') : '#1b2138', 0.95), { radius: 6 * S, stroke: canClaim ? P.gold : reached ? P.shardL : P.ink2, lw: canClaim ? 2 : 1 });
