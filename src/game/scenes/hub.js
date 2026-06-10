@@ -76,7 +76,7 @@ export const hubScene = {
     this.dialogue = null;
     this.panelScroll = 0; this.panelMaxScroll = 0;
     this.flash = ''; this.flashT = 0;
-    this.sortPage = 0; this.selBiome = null; this.selDiff = 1; this.selMode = 'normal';   // QA: init sortie mode (was undefined until first draw/click)
+    this.sortPage = 0; this.selBiome = null; this.selDiff = 1;   // R17/4.2: selMode gone — endless is the stepper's final step
     this.forgeSel = null;
     this.heroSprite = skinnedSprite(META, META.selectedCharacter || 'hunter');
     ensureSkinOffers(META);
@@ -618,7 +618,9 @@ export const hubScene = {
   sortieLayout() {
     const f = this.panelFrame(); const S = f.S;
     const chars = Characters.all();
-    const perPage = 6, cols = 3;
+    // R17/4.1: 9 heroes per page (3×3); the bottom hero-info block is gone — each card now
+    // carries its own info (left: sprite+name, right: starting weapon + effect lines).
+    const perPage = 9, cols = 3;
     const pages = Math.max(1, Math.ceil(chars.length / perPage));
     if (this.sortPage >= pages) this.sortPage = pages - 1;
     if (this.sortPage < 0) this.sortPage = 0;
@@ -626,7 +628,6 @@ export const hubScene = {
     const dY = start.y - 44 * S;
     const dPrev = { x: f.x + f.w / 2 - 96 * S, y: dY, w: 30 * S, h: 26 * S };
     const dNext = { x: f.x + f.w / 2 + 66 * S, y: dY, w: 30 * S, h: 26 * S };
-    const modeBtn = { x: f.x + f.w - 24 * S - 96 * S, y: dY, w: 96 * S, h: 26 * S };   // 6.6 無盡 toggle — right-anchored (was a width that could go negative/overflow on narrow panels)
     const lvlY = dY - 44 * S;
     const levels = BIOMES.slice(0, Math.min(BIOMES.length, (META.levels && META.levels.unlocked) || 1));
     const lbW = Math.min(116 * S, (f.w - 48 * S) / Math.max(1, levels.length) - 8 * S);
@@ -636,13 +637,15 @@ export const hubScene = {
     const next = { x: f.x + f.w / 2 + 82 * S, y: pgY, w: 34 * S, h: 22 * S };
     const top = f.y + 58 * S;
     const cw = (f.w - 40 * S - (cols - 1) * 12 * S) / cols;
-    const chh = Math.max(60 * S, Math.min(92 * S, (pgY - 8 * S - top) / 2 - 8 * S));
+    const chh = Math.max(56 * S, Math.min(86 * S, (pgY - 8 * S - top) / 3 - 8 * S));
     const pageChars = chars.slice(this.sortPage * perPage, this.sortPage * perPage + perPage);
     const cards = pageChars.map((c, i) => ({ c, x: f.x + 20 * S + (i % cols) * (cw + 12 * S), y: top + Math.floor(i / cols) * (chh + 8 * S), w: cw, h: chh }));
-    return { f, cards, prev, next, pages, pgY, levels, lvlButtons, lvlY, dPrev, dNext, dY, modeBtn, start };
+    return { f, cards, prev, next, pages, pgY, levels, lvlButtons, lvlY, dPrev, dNext, dY, start };
   },
   curBiome(L) { return this.selBiome || (L.levels.length ? L.levels[L.levels.length - 1].id : BIOMES[0].id); },
   maxDiff(biomeId) { return ((META.levels && META.levels.diff && META.levels.diff[biomeId]) || 0) + 1; },
+  // R17/4.2: 無盡 unlocks PER BIOME — clearing it once (any difficulty incl. 劇情 writes ≥1)
+  biomeCleared(biomeId) { return ((META.levels && META.levels.diff && META.levels.diff[biomeId]) || 0) >= 1; },
   selectChar(c) {
     if (META.unlocked.characters.includes(c.id)) { META.selectedCharacter = c.id; this.heroSprite = skinnedSprite(META, c.id); saveMeta(); Sfx.play('uiClick'); }
     else if (c.unlock.type === 'gold') {
@@ -658,12 +661,20 @@ export const hubScene = {
     if (inside(mx, my, L.prev)) { this.sortPage = Math.max(0, this.sortPage - 1); Sfx.play('uiClick'); return; }
     if (inside(mx, my, L.next)) { this.sortPage = Math.min(L.pages - 1, this.sortPage + 1); Sfx.play('uiClick'); return; }
     for (const lb of L.lvlButtons) if (inside(mx, my, lb)) { this.selBiome = lb.b.id; this.selDiff = 1; Sfx.play('uiClick'); return; }
-    const maxD = this.maxDiff(this.curBiome(L));
-    const endlessUnlocked = ((META.stats && META.stats.clears) || 0) > 0;   // 6.6: 無盡挑戰 unlocks after a first clear
-    if (endlessUnlocked && inside(mx, my, L.modeBtn)) { this.selMode = (this.selMode === 'endless') ? 'normal' : 'endless'; Sfx.play('uiClick'); return; }
+    // R17/4.2: the difficulty stepper IS the mode picker now — 劇情(0) → 1..maxD → 無盡(maxD+1,
+    // only on a biome that's been cleared once). The separate 模式 toggle button is gone.
+    const b0 = this.curBiome(L);
+    const maxD = this.maxDiff(b0);
+    const topD = maxD + (this.biomeCleared(b0) ? 1 : 0);
     if (inside(mx, my, L.dPrev)) { this.selDiff = Math.max(0, this.selDiff - 1); Sfx.play('uiClick'); return; }   // 6.5: 0 = 劇情難度
-    if (inside(mx, my, L.dNext)) { this.selDiff = Math.min(maxD, this.selDiff + 1); Sfx.play('uiClick'); return; }
-    if (inside(mx, my, L.start)) { const b = this.curBiome(L); const d = Math.min(this.maxDiff(b), Math.max(0, this.selDiff)); const mode = (endlessUnlocked && this.selMode === 'endless') ? 'endless' : 'normal'; Sfx.play('portal'); saveMeta(); setScene(refs.run, { run: newRun({ biomeId: b, difficulty: d, mode }) }); }
+    if (inside(mx, my, L.dNext)) { this.selDiff = Math.min(topD, this.selDiff + 1); Sfx.play('uiClick'); return; }
+    if (inside(mx, my, L.start)) {
+      const b = this.curBiome(L); const mD = this.maxDiff(b);
+      const isEndless = this.biomeCleared(b) && this.selDiff > mD;
+      const d = isEndless ? mD : Math.min(mD, Math.max(0, this.selDiff));   // endless runs at the biome's highest unlocked difficulty
+      Sfx.play('portal'); saveMeta();
+      setScene(refs.run, { run: newRun({ biomeId: b, difficulty: d, mode: isEndless ? 'endless' : 'normal' }) });
+    }
   },
 
   // ---- quests (guild tab 0) ------------------------------------------------
@@ -1365,35 +1376,36 @@ export const hubScene = {
     const S = f.S;
     const mx = mouse.x * view.dpr, my = mouse.y * view.dpr;
     const L = this.sortieLayout();
-    // character cards (paged — 滾輪/箭頭翻頁)
+    // R17/4.1: character cards 3×3 — each card is self-contained:
+    // left = sprite + name (+ state), right = starting weapon + effect lines.
     for (const card of L.cards) {
       const c = card.c;
       const unlocked = META.unlocked.characters.includes(c.id);
       const selected = META.selectedCharacter === c.id;
       const hover = inside(mx, my, card);
       uiRect(card.x, card.y, card.w, card.h, withAlpha(selected ? '#243a5a' : unlocked ? '#1b2138' : '#201622', 0.96), { radius: 7 * S, stroke: selected ? P.shardL : hover ? P.gray3 : P.ink2, lw: selected ? 3 : 2 });
-      const sp = getSprite(selected ? (this.heroSprite || c.sprite) : c.sprite); const sc = 2.4 * S;
-      drawSpriteUI(sp.frames[0], card.x + card.w / 2 - sp.w * sc / 2, card.y + 6 * S, sc, { alpha: unlocked ? 1 : 0.3 });
-      uiText(c.name, card.x + card.w / 2, card.y + card.h - 22 * S, { size: 12 * S, align: 'center', color: unlocked ? '#fff' : P.gray3, weight: '800' });
+      const lw2 = card.w * 0.36;
+      const sp = getSprite(selected ? (this.heroSprite || c.sprite) : c.sprite);
+      const sc = Math.min(2.1 * S, (card.h - 36 * S) / sp.h);
+      drawSpriteUI(sp.frames[0], card.x + lw2 / 2 - sp.w * sc / 2, card.y + 5 * S, sc, { alpha: unlocked ? 1 : 0.3 });
+      uiText(c.name, card.x + lw2 / 2, card.y + card.h - 18 * S, { size: 10.5 * S, align: 'center', color: unlocked ? '#fff' : P.gray3, weight: '800' });
       if (!unlocked) {
         const afford = c.unlock.type === 'gold' && META.gold >= c.unlock.cost;
-        if (c.unlock.type === 'gold') goldLabel(card.x + card.w / 2, card.y + card.h - 7 * S, c.unlock.cost, { size: 9 * S, align: 'center', color: afford ? P.goldL : P.gray3, weight: '700', prefix: '🔒 ' });   // R17/2.1
-        else uiText('🔒 成就解鎖', card.x + card.w / 2, card.y + card.h - 7 * S, { size: 9 * S, align: 'center', color: P.gray3, weight: '700' });
-      } else if (selected) uiText('● 已選', card.x + card.w / 2, card.y + card.h - 7 * S, { size: 9 * S, align: 'center', color: P.shardL, weight: '800' });
-    }
-    // hovered (or selected) hero info — ability / description + starting weapon
-    let infoC = Characters.get(META.selectedCharacter);
-    for (const card of L.cards) if (inside(mx, my, card)) { infoC = card.c; break; }
-    if (infoC) {
-      const iy = L.pgY - 56 * S, wpn = Weapons.get(infoC.startWeapon);
-      const ulocked = META.unlocked.characters.includes(infoC.id);
-      uiText('▸ ' + infoC.name + (ulocked ? '' : '（未解鎖）'), f.x + 24 * S, iy, { size: 13 * S, color: P.shardL, weight: '800' });
-      // 3.6: starting weapon on its OWN line below the name (was right-aligned on the same
-      // baseline → long hero names + long weapon names overlapped).
-      uiText('起始武器：' + (wpn ? wpn.name : infoC.startWeapon), f.x + 24 * S, iy + 15 * S, { size: 11 * S, color: P.goldL, weight: '700' });
-      let line = '', yy = iy + 31 * S, lines = 0; const maxw = f.w - 48 * S, size = 11 * S;
-      for (const ch of (infoC.desc || '')) { if (textWidth(line + ch, size, '500') > maxw && line) { uiText(line, f.x + 24 * S, yy, { size, color: P.gray4, weight: '500' }); line = ch; yy += 14 * S; if (++lines >= 2) { line = ''; break; } } else line += ch; }
-      if (line) uiText(line, f.x + 24 * S, yy, { size, color: P.gray4, weight: '500' });
+        if (c.unlock.type === 'gold') goldLabel(card.x + lw2 / 2, card.y + card.h - 6 * S, c.unlock.cost, { size: 8.5 * S, align: 'center', color: afford ? P.goldL : P.gray3, weight: '700', prefix: '🔒 ' });
+        else uiText('🔒 成就解鎖', card.x + lw2 / 2, card.y + card.h - 6 * S, { size: 8.5 * S, align: 'center', color: P.gray3, weight: '700' });
+      } else if (selected) uiText('● 已選', card.x + lw2 / 2, card.y + card.h - 6 * S, { size: 8.5 * S, align: 'center', color: P.shardL, weight: '800' });
+      // right column: starting weapon + up to 2 effect lines (clipped, CJK-safe)
+      const rx = card.x + lw2 + 2 * S, rw = card.w - lw2 - 12 * S;
+      const wpn = Weapons.get(c.startWeapon);
+      this.clip1('起始武器：' + (wpn ? wpn.name : c.startWeapon), rx, card.y + 17 * S, rw, 9.5 * S, unlocked ? P.goldL : P.gray3, '700');
+      const dsz = 8.5 * S; let rest = c.desc || '';
+      for (let li = 0; li < 2 && rest; li++) {
+        let line = '';
+        while (rest && textWidth(line + rest[0], dsz, '500') <= rw) { line += rest[0]; rest = rest.slice(1); }
+        if (!line) break;   // a single glyph wider than rw (degenerate) — bail
+        if (li === 1 && rest) { while (line.length > 1 && textWidth(line + '…', dsz, '500') > rw) line = line.slice(0, -1); line += '…'; rest = ''; }
+        uiText(line, rx, card.y + 32 * S + li * 12 * S, { size: dsz, color: unlocked ? P.gray4 : P.gray2, weight: '500' });
+      }
     }
     const arrow = (r, t, on) => { uiRect(r.x, r.y, r.w, r.h, withAlpha('#1b2138', 0.96), { radius: 5 * S, stroke: on ? P.gray3 : P.ink2, lw: 2 }); uiText(t, r.x + r.w / 2, r.y + r.h / 2 + 1 * S, { size: 14 * S, align: 'center', baseline: 'middle', color: on ? '#fff' : P.gray2, weight: '900' }); };
     arrow(L.prev, '‹', this.sortPage > 0);
@@ -1408,21 +1420,16 @@ export const hubScene = {
       uiText(lb.b.name, lb.x + lb.w / 2, lb.y + lb.h / 2 + 1 * S, { size: 11 * S, align: 'center', baseline: 'middle', color: on ? '#fff' : P.gray4, weight: '700' });
       if (cleared > 0) uiText('✓' + cleared, lb.x + lb.w - 5 * S, lb.y + 10 * S, { size: 8 * S, align: 'right', color: P.greenL, weight: '800' });
     }
-    // difficulty row
+    // difficulty row — R17/4.2: the stepper now ends in 無盡 on a cleared biome (劇情 → 1..max → 無盡)
     const maxD = this.maxDiff(sel);
-    this.selDiff = Math.min(maxD, Math.max(0, this.selDiff == null ? 1 : this.selDiff));   // 6.5: allow 0 (劇情)
+    const topD = maxD + (this.biomeCleared(sel) ? 1 : 0);
+    this.selDiff = Math.min(topD, Math.max(0, this.selDiff == null ? 1 : this.selDiff));   // 6.5: allow 0 (劇情)
     const isStory = this.selDiff <= 0;
+    const isEndless = this.selDiff > maxD;
     uiText('難度', f.x + 24 * S, L.dY + 17 * S, { size: 11 * S, color: P.gray3, weight: '700' });
     arrow(L.dPrev, '−', this.selDiff > 0);
-    arrow(L.dNext, '+', this.selDiff < maxD);
-    uiText(isStory ? '劇情' : ('難度 ' + this.selDiff + (this.selDiff >= maxD ? ' · 最高可玩' : '')), f.x + f.w / 2, L.dY + 17 * S, { size: 13 * S, align: 'center', baseline: 'middle', color: isStory ? P.shardL : P.emberL, weight: '800' });
-    // 6.6: 無盡挑戰 toggle chip (unlocked after a first clear), right of the difficulty row
-    const endlessUnlocked = ((META.stats && META.stats.clears) || 0) > 0;
-    if (endlessUnlocked) {
-      const mb = L.modeBtn, on = this.selMode === 'endless', mh = inside(mx, my, mb);
-      uiRect(mb.x, mb.y, mb.w, mb.h, withAlpha(on ? '#3a2d12' : (mh ? '#243a5a' : '#1b2138'), 0.96), { radius: 6 * S, stroke: on ? P.goldL : P.ink2, lw: on ? 2 : 1 });
-      uiText(on ? '♾ 無盡挑戰' : '模式：普通', mb.x + mb.w / 2, mb.y + mb.h / 2 + 1 * S, { size: 10 * S, align: 'center', baseline: 'middle', color: on ? P.goldL : P.gray3, weight: '700' });
-    } else { this.selMode = 'normal'; }
+    arrow(L.dNext, '+', this.selDiff < topD);
+    uiText(isEndless ? '♾ 無盡挑戰' : isStory ? '劇情' : ('難度 ' + this.selDiff + (this.selDiff >= maxD ? ' · 最高可玩' : '')), f.x + f.w / 2, L.dY + 17 * S, { size: 13 * S, align: 'center', baseline: 'middle', color: isEndless ? P.goldL : isStory ? P.shardL : P.emberL, weight: '800' });
     // 6.4 / 6.5 / 6.6: one-line difficulty / mode explanation (new-player guidance)
     const DIFF_DESC = {
       0: '劇情 · 敵人極弱、掉落豐厚，幾乎必過（不列入排行榜）',
@@ -1432,8 +1439,9 @@ export const hubScene = {
       4: '專家 · 敵更兇猛、遠程更多，容錯極低',
       5: '夢魘 · 極限挑戰，僅為最強的獵手準備',
     };
-    const descTxt = (endlessUnlocked && this.selMode === 'endless') ? '無盡挑戰 · 無時限、首領每 180 秒一波、威脅持續攀升（不列入標準排行榜）' : (DIFF_DESC[this.selDiff] || '');
-    uiText(descTxt, f.x + f.w / 2, L.dY + 33 * S, { size: 10 * S, align: 'center', baseline: 'middle', color: P.gray3 });
+    const descTxt = isEndless ? '無盡挑戰 · 無時限、首領每 180 秒一波、威脅持續攀升（不列入標準排行榜）'
+      : (DIFF_DESC[this.selDiff] || '') + (!this.biomeCleared(sel) ? '' : (this.selDiff >= maxD ? '　·　再按＋進入無盡' : ''));
+    uiText(descTxt, f.x + f.w / 2, L.dY + 33 * S, { size: 10 * S, align: 'center', baseline: 'middle', color: isEndless ? P.goldL : P.gray3 });
     // start
     const hovS = inside(mx, my, L.start);
     uiRect(L.start.x, L.start.y, L.start.w, L.start.h, withAlpha(hovS ? '#2a6a3a' : '#1f5030', 0.98), { radius: 9 * S, stroke: P.greenL, lw: hovS ? 3 : 2 });

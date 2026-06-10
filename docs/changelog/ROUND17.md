@@ -40,4 +40,11 @@
   - **存檔遷移**：`guardShape()` — 舊字串陣列 offers 載入即清空重 roll（不升 SAVE_VERSION）；無效配對過濾。
   - 順手修：hub.js 缺 `uiClipRound` import（隱藏卡頂部金條觸發 ReferenceError — 僅在隱藏款上架時才會炸，靠 1% 強制測試抓到）。
 - **驗證**（preview 全流程模擬點擊）：入口→我的造型→英雄→點列身套用原色（舊崩潰點，零錯誤）→返回×2→商店→購買（確認框→金幣 -800 特賣價、`hunter:bone` 入 ownedSkins）；舊 offers 形狀遷移自動重 roll；`hiddenSkinPrice` 確定性（golem=45000 穩定）；stub Math.random 強制 1% 路徑 → 4 隱藏款金框＋25k/40k/45k/50k 價位、池耗盡回落普通款；倒數計時移入面板內。
+
+## 批次 B4 — 出擊面板 3×3＋無盡末階（4.1–4.2）
+- **範圍**：`scenes/hub.js`（sortieLayout／updateSortie／drawSortie）。
+- **條目**：
+  - **4.1 角色卡改版**：`perPage 6→9`（3×3）；移除底部英雄介紹塊（▸ 名稱／起始武器／敘述）；卡片自帶資訊 — 左 36%＝sprite＋名稱＋狀態（已選／🔒金幣或成就解鎖），右 64%＝「起始武器：…」（金）＋效果敘述 ≤2 行（CJK 逐字斷行＋第二行省略號裁切）；卡高 `max(56S, min(86S, 可用高/3−8S))`。
+  - **4.2 無盡＝難度末階**：移除獨立 `modeBtn`／`selMode`（原全域 `META.stats.clears>0` 解鎖）；新 `biomeCleared(bid)`＝`META.levels.diff[bid] ≥ 1`（**逐關**，玩家定案）；步進域 `0(劇情)…maxDiff(+1 無盡，僅已通關生態)`；選中末階顯示「♾ 無盡挑戰」（金）＋無盡說明、最高難度時提示「再按＋進入無盡」；出擊時 `mode='endless'`、difficulty＝該關最高解鎖難度；切換生態重設 selDiff=1。
+- **驗證**（preview）：3×3 兩頁渲染正常；未通關生態 selDiff=99 → 夾至 1（無無盡階）、已通關生態 → 夾至 maxDiff+1 並顯示 ♾ 金標；模擬點擊出擊 → `run.mode='endless'`、`difficulty=3`（該關最高）、場景切至 run（rAF 節流下需 pump 一幀觀察 — 既有 gotcha）；`grep selMode/modeBtn` 歸零。
 - **驗證**（preview 驅動，零 console error / `__GAME_ERROR__` null）：slots 畫面截圖無重疊（493×374 小視窗）；衣帽間列身點擊（先前必拋處）`threw:null`；4000 殺統計 nova 引爆率 **24.4%**（目標 25%）；speed=200 玩家逃跑下範圍內金幣 120 幀內收斂吸附（finalDist 0.4）；keys+1 → 橫幅正確、keys−1 不觸發；離場確認框／贊助者三選一／結算左欄截圖確認新版面。
