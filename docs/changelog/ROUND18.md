@@ -103,3 +103,13 @@
 **檔案**：新 `content/daily.js`；`content/quests.js`（+WEEKLY_QUESTS/weeklyQuests/weeklyState/claimWeekly/ensureWeekly）；`state.js`（DEFAULT_META `daily`/`weekly`/`room`/`pet`/`npcAff` + `stats.dailyClears` + loadMeta 守衛 + newRun `challengeKey`/`dailyMutators` + bankRun daily 記錄）；`scenes/run.js`（buildWorld 套詞綴 + 8 消費點 + clearLevel 隔離）；`world.js`（volatile 死亡爆炸 + aimMul）；`scenes/hub.js`（sortie daily bar/launchDaily + guild 週常段）；`content/achievements.js`（daily 家族 +3 `[1,7,30]`）。
 
 **驗證**：reload `__GAME_ERROR__` null；`dailyChallenge('20260611')` 同日全等、跨日不同（biome void / hero stormcaller / m_anemic·m_tempo·m_greed）；週常 9 取 3 決定論、weekKey `2026-W24`；實跑 daily run → mode='daily'、healMult 0.25 / goldMult 1.5 / tempoMul 1.15、400 幀 godmode 無錯；`clearLevel` 後 `META.levels` **未變**（隔離成功）、橫幅「每日挑戰完成！」；sortie/guild 面板 render 零錯、daily bar 截圖確認（虛空獵境·雷暴喚使·三詞綴·未挑戰）、weeklyRows=3。reg 計數 characters 21 / enemies 58。
+
+## B1 — 城鎮戶外改版 A：開放地圖 + 戶外 tileset + 建築立面（2026-06-11）
+
+**美術**：新 `src/art/town_outdoor.js`（25 sprites）由 **Fable(繪製) → Opus(Painter-API 驗證)** workflow 產出（22 agents；每塊驗證方法/調色盤/anchor/outline 正確性）並手動整合：戶外地面 7 變體（`town_grass/grass2/flowergrass/dirt/dirt2/plaza/plaza2`）、森林林線牆環（`town_treeline` 16×16 + `town_treeline_top` 16×8）、**六棟建築立面**（`town_fc_church/guild/smith/wardrobe/hall/house` 64×64 底邊錨點）、溪流 + 橋（`town_water` 2 幀 + `town_bridge`）、自然道具（`town_tree/tree2/bush/fence_h/fence_v/bench/flowerbed/fc_stall`）。
+
+**`makeCamp()` 重寫**（`game/world.js`，**完整保留回傳契約 `{tw,th,tiles,floorVar,decor,rooms,tileset}` 與全部 9 個 room id**）：48×39 牆箱 → **60×46 開放草原**。森林林線 2 格邊環、中央暖色石板廣場（橢圓 disc，floorVar 5/6）、放射土徑連到各建築門廊（L 形 2 格寬）；六棟建築＝**VOID footprint（3×3，藏在 64px 立面後不露黑邊）+ 立面 decor（底邊錨點）**，門廊留為可走草地。`tileset.floor` 擴為 7 變體（引擎 `floorSprites=ts.floor.map` 零改動）、`wall='town_treeline'`、`wallTop='town_treeline_top'`（R17 B14 界外暗牆填充自動讀成漸遠森林）。`rooms[id]` 形狀不變（hub.js 只讀 cx/cy）。
+
+**接線**：`main.js` art 區 +1 import（town_floor.js 之後）。hub.js 的 station/NPC 座標讀 `rooms[id].cx/cy` → 隨新錨點自動落到門廊（立面在門廊北側 3 格，VOID 更北 → 站點/NPC 全在可走草地，零 hub 改動）。
+
+**驗證**：reload `__GAME_ERROR__` null；25 sprite 全 baked（church 64×64 / water f2 / tree2 28×36）、零 magenta；`makeCamp()` → 60×46、9 room id 齊全、7 floor 變體、decor 50（<250 cull 上限）；hub 進場 7 station + 10 NPC + hero **全部非 solid**（不卡牆/不卡建築）、每站鄰近偵測命中自身；截圖確認廣場（石板 disc + 放射土徑 + 草花 + 路燈 + 營火）與教堂立面（白色禮拜堂 + 藍尖塔 + 門廊女神像站 + 櫻花樹）。
