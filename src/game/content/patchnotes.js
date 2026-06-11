@@ -2,9 +2,47 @@
 // R17 B13: ONE entry PER ROUND, mirroring docs/changelog/ROUND<N>.md — the title-screen
 // overlay lists versions (one row each); clicking a row opens that version's details.
 // Keep entries concise + player-readable (not dev jargon); newest first.
-export const GAME_VERSION = 'Round 17';
+//
+// R20: the public release line moved to semantic versions at the 1.0 milestone —
+//   V1.0 = Round 18 · V1.5 = Round 19 · V2.0 = Round 20 (rounds 1–17 keep their dev labels).
+// An item may be a plain string (legacy) OR a { h, t } object — `h` renders as a coloured
+// category chip and `t` as the body. In the body, wrap a system/feature name in 《…》 to tint
+// it (soul-teal) and any number / ×N / 90–240 / 21→27 / 96×96 is auto-highlighted in gold.
+export const GAME_VERSION = 'V2.0';
 
 export const PATCH_NOTES = [
+  {
+    v: 'V2.0', title: '末日遺鎮 2.5D 改版 · 全新招式 · 最終六英雄', date: '2026-06',
+    items: [
+      { h: '城鎮立體化', t: '牆面加入《2.5D 立體牆面》與頂蓋，遠景分成 3 層景深（瓦礫牆 → 枯木林 → 暮色天際線），不再是一片平塗的牆；深淵裂隙補上專屬地塊，黑底破圖全數修復。' },
+      { h: '建築與互動煥新', t: '六棟建築門面放大為 96×96，室內互動站放大為 40~56 像素並完美置中；室內走道改為奇數寬，看板、火把、地毯全部對齊中軸。' },
+      { h: '光圈進出', t: '走到建築門口的《發光光圈》即可直接進出，不必再對著大門按鍵（靠近按 E 仍可用）。' },
+      { h: '道路拓寬 · 裝飾碰撞', t: '街道全面加寬，樹木、巨石、噴泉、貨架等大型裝飾物現在會擋路，城鎮更有實體感。' },
+      { h: '局內新事件 ×4', t: '《自爆狂徒》成群衝鋒、《魂晶詭雷》布下十字爆雷、《滾岩魔》沿車道輾壓、《寶藏哥布林》見人就跑（攔下牠有金幣與保底裝備）。' },
+      { h: '首領全新招式', t: '首領不再只會彈幕：《躍起重砸》大範圍砸地、《魂柱囚籠》召出可破壞的水晶柱困住你、再加上《三連衝撞》與《地裂衝擊波》。10 名最終首領各習得 2 招。' },
+      { h: '最終六英雄', t: '角色擴充至 27 名：聖盾騎士、時詠術士、傀儡師、守墓人、星喚少女、劍舞者，各帶專屬起始武器、進化型與鐵砧專屬武器（武器庫 31→43 件、專屬 12→18 件）。' },
+    ],
+  },
+  {
+    v: 'V1.5', title: '末日遺跡城鎮', date: '2026-06',
+    items: [
+      { h: '遺跡城鎮', t: '城鎮改造為《末日遺跡風》：不規則的有機地形、散落的廢墟街區，原本的小溪換成魂能《裂隙》與斷橋，約 200 個廢墟裝飾散布其間。' },
+      { h: '可進入的建築', t: '六棟建築改為《獨立室內地圖》，走到門口即可進入；管理員 NPC 搬入室內，嚮導、孩童、商人、老兵仍留在戶外。' },
+      { h: '宏偉傳送門', t: '出擊傳送門升級為廣場中央的 48×64 巨型《魂能漩渦》，搭配灰燼與餘燼飄散的末日氛圍。' },
+    ],
+  },
+  {
+    v: 'V1.0', title: '終局玩法 · 生態補完 · 回流循環', date: '2026-05',
+    items: [
+      { h: '英雄擴軍', t: '6 名隱藏原型轉為可玩英雄並新增 4 把專屬武器（英雄 15→21、專屬 8→12）。' },
+      { h: '生態補完', t: '後 5 個生態補上專屬的多階段最終首領（10 個生態全數擁有首領），新增 5 種生態專屬魔物與出怪偏好。' },
+      { h: '無盡挑戰深化', t: '《無盡模式》導入 12 種可疊加《詛咒》、里程碑與最佳存活時間，難度層層加碼。' },
+      { h: '每日與週常', t: '《每日挑戰》依日期生成固定生態＋英雄＋3 種變異；《週常懸賞》9 選 3 任務，讓回流玩家每天都有新目標。' },
+      { h: '戶外小鎮', t: '城鎮重建為 60×46 的真實戶外小鎮：草原、森林樹線、石板廣場、跨溪小橋與飄落花瓣。' },
+      { h: '個人小屋 · 寵物', t: '個人小屋可購置 10 款裝飾（金幣去化），並召喚 3 種《迷你寵物》隨身跟隨。' },
+      { h: 'NPC 好感度', t: '與 NPC 每日對話累積好感（1~5 級），可領取金幣、免費裝飾與便利性獎勵，每位 NPC 多 2 組話題。' },
+    ],
+  },
   {
     v: 'Round 17', title: '體驗大修 · 造型商店 · 隱藏密室 · 經濟再平衡', date: '2026-06',
     items: [

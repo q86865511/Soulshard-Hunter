@@ -170,6 +170,45 @@ export const titleScene = {
     lines.forEach((l, i) => uiText(l, x, y + i * (size + 4), { size, color: P.gray4, weight: '500' }));
     return lines.length;
   },
+  // R20: a patch-note body → coloured segments. 《…》 spans tint soul-teal (feature names);
+  // number-ish tokens (12 · ×1.5 · 90–240 · 21→27 · 96×96 · 45%) auto-highlight gold; rest base.
+  noteSegs(body, baseColor) {
+    const out = [];
+    const numRe = /([0-9]+(?:[.,][0-9]+)?(?:\s*[×/／→~–—\-]\s*[0-9]+(?:[.,][0-9]+)?)*\s*(?:px|%|％)?|×\s*[0-9]+(?:\.[0-9]+)?)/g;
+    for (const part of body.split(/(《[^》]*》)/)) {
+      if (!part) continue;
+      if (part[0] === '《') { out.push({ s: part.slice(1, -1), c: P.shardL, w: '700' }); continue; }
+      let last = 0, m;
+      while ((m = numRe.exec(part))) {
+        if (m.index > last) out.push({ s: part.slice(last, m.index), c: baseColor, w: '500' });
+        out.push({ s: m[0], c: P.goldL, w: '800' });
+        last = m.index + m[0].length;
+      }
+      if (last < part.length) out.push({ s: part.slice(last), c: baseColor, w: '500' });
+    }
+    return out;
+  },
+  // R20: wrap coloured segments to maxw (CJK char-level) and draw each line as runs; returns line count.
+  drawRich(segs, x, y, maxw, size, S) {
+    const chars = [];
+    for (const seg of segs) for (const ch of seg.s) chars.push({ ch, c: seg.c, w: seg.w });
+    const lines = []; let line = [], lw = 0;
+    for (const c of chars) {
+      if (c.ch === '\n') { lines.push(line); line = []; lw = 0; continue; }
+      const cw = textWidth(c.ch, size, c.w);
+      if (lw + cw > maxw && line.length) { lines.push(line); line = [c]; lw = cw; }
+      else { line.push(c); lw += cw; }
+    }
+    if (line.length) lines.push(line);
+    const step = size + 4 * S;
+    lines.forEach((ln, i) => {
+      let cx = x, run = '', rc = null, rw = null;
+      const flush = () => { if (run) { uiText(run, cx, y + i * step, { size, color: rc, weight: rw }); cx += textWidth(run, size, rw); run = ''; } };
+      for (const c of ln) { if (c.c !== rc || c.w !== rw) { flush(); rc = c.c; rw = c.w; } run += c.ch; }
+      flush();
+    });
+    return lines.length;
+  },
   // R17 B13: two views — a version LIST (one row per round, mirroring docs/changelog/) and,
   // after clicking a row, that version's DETAIL page (◀ 返回 steps back to the list).
   drawNotes(S) {
@@ -218,7 +257,20 @@ export const titleScene = {
         const dLeft = closeR.x - 8 * S - textWidth(sel.date, 10 * S, '600');
         if (dLeft > x + w / 2 + tw2 / 2 + 6 * S) uiText(sel.date, closeR.x - 8 * S, y + 29 * S, { size: 10 * S, align: 'right', color: P.gray3 });
       }
-      for (const it of sel.items) { const n = this.wrapNote('· ' + it, left + 4 * S, yy, lineW - 8 * S, 12 * S); yy += n * 16 * S + 6 * S; }
+      // R20: rich items — { h, t } draws a coloured category chip + body; a plain string keeps
+      // the legacy look but still gets number/《》 highlighting routed through drawRich.
+      const step = 16 * S;
+      for (const it of sel.items) {
+        if (typeof it === 'string') {
+          const n = this.drawRich(this.noteSegs('· ' + it, P.gray4), left + 4 * S, yy, lineW - 8 * S, 12 * S, S);
+          yy += n * step + 6 * S;
+        } else {
+          uiText('▸ ' + it.h, left + 4 * S, yy, { size: 12.5 * S, color: P.shardL, weight: '800' });
+          yy += 17 * S;
+          const n = this.drawRich(this.noteSegs(it.t || '', P.gray4), left + 16 * S, yy, lineW - 20 * S, 12 * S, S);
+          yy += n * step + 9 * S;
+        }
+      }
     }
     this.notesMax = Math.max(0, (yy + (this.notesScroll || 0)) - (y + 64 * S) - (h - 80 * S));
     ctx.restore();
