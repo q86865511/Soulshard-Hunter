@@ -337,22 +337,47 @@ export function openAuth() {
 // ---- leaderboard modal ----------------------------------------------------
 const fmtTime = (s) => Math.floor((s || 0) / 60) + ':' + String(Math.floor((s || 0) % 60)).padStart(2, '0');
 
+// R18/B8: Asia/Taipei (UTC+8, no DST) date key 'YYYYMMDD' — matches the server's daily key.
+function dailyKey() {
+  const d = new Date(Date.now() + 8 * 3600e3);
+  return `${d.getUTCFullYear()}${String(d.getUTCMonth() + 1).padStart(2, '0')}${String(d.getUTCDate()).padStart(2, '0')}`;
+}
+
 export function openLeaderboard() {
   ensureStyles(); closeModal();
+  // R18/B8: mode dimension — 標準 / 無盡 / 每日.
+  const mode = $('select', {}, [['', '標準'], ['endless', '無盡'], ['daily', '每日']].map(([v, t]) => $('option', { value: v, text: t })));
   const biome = $('select', {}, Object.keys(BIOME_LABELS).map((k) => $('option', { value: k, text: BIOME_LABELS[k] })));
   const diff = $('select', {}, ['', '1', '2', '3', '4', '5'].map((d) => $('option', { value: d, text: d ? '難度 ' + d : '全難度' })));
   const period = $('select', {}, [['', '歷來'], ['week', '本週'], ['day', '今日']].map(([v, t]) => $('option', { value: v, text: t })));
+  const keyLabel = $('div', { class: 'net-keylabel', style: 'display:none;align-self:center;font-size:12px;color:#9aa3c8' });
   const body = $('div', { class: 'net-table' });
   const msg = $('div', { class: 'net-msg' });
 
+  // toggle which filters apply to the active mode (daily is one fixed difficulty + a date)
+  const syncFilters = () => {
+    const m = mode.value;
+    biome.style.display = m === 'daily' ? 'none' : '';
+    diff.style.display = m === 'daily' ? 'none' : '';
+    period.style.display = m === 'daily' ? 'none' : '';
+    keyLabel.style.display = m === 'daily' ? '' : 'none';
+    if (m === 'daily') keyLabel.textContent = '📅 ' + dailyKey() + ' 每日挑戰';
+  };
+
   const load = async () => {
     body.innerHTML = ''; msg.className = 'net-msg'; msg.textContent = '載入中…';
+    syncFilters();
     try {
-      const r = await Net.leaderboard({ biome: biome.value, difficulty: diff.value, period: period.value, limit: 50 });
+      const m = mode.value;
+      const params = { mode: m, limit: 50 };
+      if (m === 'daily') params.key = dailyKey();
+      else { params.biome = biome.value; params.difficulty = diff.value; params.period = period.value; }
+      const r = await Net.leaderboard(params);
       const rows = (r && r.rows) || [];
       msg.textContent = rows.length ? '' : '尚無紀錄 — 成為第一個上榜的獵手！';
+      const stageHdr = (m === 'endless' || m === 'daily') ? '波次' : '層';
       const table = $('table', {}, [
-        $('thead', {}, [$('tr', {}, ['#', '獵手', '分數', '難度', '生態', '層', '擊殺', '時間', ''].map((h) => $('th', { text: h })))]),
+        $('thead', {}, [$('tr', {}, ['#', '獵手', '分數', '難度', '生態', stageHdr, '擊殺', '時間', ''].map((h) => $('th', { text: h })))]),
       ]);
       const tb = $('tbody');
       rows.forEach((row, i) => {
@@ -374,7 +399,7 @@ export function openLeaderboard() {
       msg.textContent = '無法載入排行榜（伺服器未啟動？以訪客模式仍可遊玩）';
     }
   };
-  [biome, diff, period].forEach((s) => s.addEventListener('change', load));
+  [mode, biome, diff, period].forEach((s) => s.addEventListener('change', load));
 
   // guest upload: not logged in but just finished a run → let them post it under a self-name
   let guestSection = null;
@@ -392,7 +417,7 @@ export function openLeaderboard() {
 
   const card = $('div', { class: 'net-card wide' }, [
     $('h2', { text: '🏆 共享排行榜' }),
-    $('div', { class: 'net-filters' }, [biome, diff, period]),
+    $('div', { class: 'net-filters' }, [mode, biome, diff, period, keyLabel]),
     msg, body, guestSection,
     $('div', { class: 'net-row' }, [
       $('button', { class: 'net-ghost', text: '重新整理', onclick: load }),

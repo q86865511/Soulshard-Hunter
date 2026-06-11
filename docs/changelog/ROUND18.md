@@ -73,3 +73,9 @@
 - `/api/leaderboard` 加 `mode` 維度（**預設 'normal'** → 舊榜不變）；daily 再過濾 `challenge_key`（參數 `key` 驗 `^\d{8}$`，預設今天）且忽略 difficulty 過濾；SELECT 補回 `mode, challenge_key` 欄供 UI/測試辨識；DISTINCT-ON 識別式不變 → 各模式天然「每人取最佳」。
 
 **測試**：兩個 fake pool（`smoke.mjs` 內建 + `fakepool.mjs` dev launcher）的 runs INSERT destructure + leaderboard 過濾都教了 `mode`/`challenge_key`（trailing 欄 + 新 WHERE）。新增 11 條 inject（endless 合法 200／endless cleared→422／endless 過快 stage→422／normal stage40 仍 422 回歸／daily 今日 key→200／daily 3 天前 key→422／daily 缺 key→422／預設榜只回 normal／?mode=endless 只回 endless／?mode=daily&key 過濾／空日→0 列）。`server/test/smoke.mjs` 92→**103 passed, 0 failed**；`social.smoke.mjs` **65 passed**。CI push 即部署，全綠才上。
+
+## B8 — 排行榜模式切換 UI（2026-06-11）
+
+`net/ui.js openLeaderboard`：在既有 biome/diff/period select 前加 `mode` select `[標準/無盡/每日]`。選**每日**時隱藏 biome+diff+period、改顯示今日 key 標籤「📅 YYYYMMDD 每日挑戰」（新 client `dailyKey()` UTC+8，與伺服器一致），查詢帶 `mode=daily&key=今日`；選**無盡/每日**時「層」表頭改顯示「波次」語意。標準模式 `mode=''` 被 `api.js leaderboard()` 的 null/空值清理略過 → 伺服器預設 normal（舊行為不變）。訪客上傳區塊不動。
+
+**驗證**：reload `__GAME_ERROR__` null；eval 開啟排行榜 → mode select 三選項齊全；切每日 → biome/diff/period 全隱藏、keyLabel 顯示「📅 20260611 每日挑戰」（=今日）；切無盡/每日 → 查詢 params 含對應 mode；preview 截圖確認 overlay 樣式一致（離線顯示「無法載入」屬預期）。
