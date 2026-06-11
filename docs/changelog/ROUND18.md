@@ -60,3 +60,16 @@
 **5 新雜兵**（敵人 48→**53**，配貧乏生態；新 `content/enemies_biome.js` 手寫 content+art）：`vr_thornling` 荊棘妖精（verdant flyer t1）、`ds_duneburrower` 沙行掘者（desert charger t2）、`sw_mireleech` 沼澤巨蛭（swamp chase t2，hitStatus poison）、`ab_voltjelly` 深淵電水母（abyss flyer t2，hitStatus slow）、`ce_cherubim` 雲端守靈（celestial shooter t1，光彈）。`main.js` +1 import。
 
 **驗證**：reload `__GAME_ERROR__` null、`Enemies.all()` 53→**58**、5 新 sprite 全 baked + gallery 截圖清晰；`rotateTypes` ×300/生態 直方圖（威脅 13）——**所有生態 empty=0**（不空池），同生態占比：充足生態 50–65%（frost 65 / crypt 59 / cavern 54 / desert 53 / verdant 53 / abyss 51 / swamp 50），遠程偏多的 inferno 29 / void 32 / celestial 40（受 D4 遠程壓低與該生態雜兵數少所限，仍為明顯主題色＋專屬 Boss＋生態美術）；外來占比 ≤19%。威脅 1 時 tierCap=1，crypt/desert/inferno/void 無 tier-1 主題雜兵故開局以全域雜兵為主（設計如此，主題隨威脅爬升浮現）。
+
+## B6 — 伺服器 migration（runs.mode / challenge_key）（2026-06-11）
+
+**Schema**（`server/src/db.js`，冪等 ALTER 比照 guest_name migration）：`runs` 加 `mode text NOT NULL DEFAULT 'normal'`（'normal'|'endless'|'daily'）+ `challenge_key text`（daily 的 'YYYYMMDD'，餘 NULL）+ 兩索引（`runs_mode_score_idx`、partial `runs_daily_idx`）。舊資料行吃 DEFAULT 'normal'，舊榜查詢（現預設 `mode='normal'`）**byte-identical**。
+
+**API**（`server/src/server.js`）：
+- `runSchema`：加 `mode: z.enum(['normal','endless','daily']).optional()`、`challenge_key: z.string().regex(/^\d{8}$/).optional().nullable()`；`stage` 上限 50→**99**（normal 仍由 plausibility 把守 20）。
+- `computeScore`：stage clamp 改 mode-aware（endless 99 / 餘 50）；公式不變。
+- `runPlausibility` 分模式：**endless**（不可 cleared/reaper、time ≤ 14400s、stage ≤ min(99, 1+ceil(time/90)+2)）、**daily**（沿用 normal 全部閘 + challenge_key 必須是今天或昨天 Asia/Taipei，否則 'stale or missing challenge key'）、**normal**（一字不動）。新 helper `taipeiDateKey(offsetDays)`（UTC+8 無 DST）。
+- 兩個 INSERT（`/api/runs`、`/api/runs/guest`）補 `mode, challenge_key` 欄（challenge_key 僅 daily 寫入）。
+- `/api/leaderboard` 加 `mode` 維度（**預設 'normal'** → 舊榜不變）；daily 再過濾 `challenge_key`（參數 `key` 驗 `^\d{8}$`，預設今天）且忽略 difficulty 過濾；SELECT 補回 `mode, challenge_key` 欄供 UI/測試辨識；DISTINCT-ON 識別式不變 → 各模式天然「每人取最佳」。
+
+**測試**：兩個 fake pool（`smoke.mjs` 內建 + `fakepool.mjs` dev launcher）的 runs INSERT destructure + leaderboard 過濾都教了 `mode`/`challenge_key`（trailing 欄 + 新 WHERE）。新增 11 條 inject（endless 合法 200／endless cleared→422／endless 過快 stage→422／normal stage40 仍 422 回歸／daily 今日 key→200／daily 3 天前 key→422／daily 缺 key→422／預設榜只回 normal／?mode=endless 只回 endless／?mode=daily&key 過濾／空日→0 列）。`server/test/smoke.mjs` 92→**103 passed, 0 failed**；`social.smoke.mjs` **65 passed**。CI push 即部署，全綠才上。

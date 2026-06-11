@@ -71,11 +71,11 @@ export function makeFakePool() {
       if (s.startsWith('INSERT INTO runs')) {
         let row;
         if (s.includes('guest_name')) {   // guest submission: VALUES(NULL, name, score, ...)
-          const [guest_name, score, stage, kills, character, biome, difficulty, time_s, cleared, reaper, coop_size] = args;
-          row = { id: ++rid, user_id: null, guest_name, score, stage, kills, character, biome, difficulty, time_s, cleared, reaper, coop_size: coop_size || 1, created_at: new Date().toISOString() };
+          const [guest_name, score, stage, kills, character, biome, difficulty, time_s, cleared, reaper, coop_size, mode, challenge_key] = args;
+          row = { id: ++rid, user_id: null, guest_name, score, stage, kills, character, biome, difficulty, time_s, cleared, reaper, coop_size: coop_size || 1, mode: mode || 'normal', challenge_key: challenge_key || null, created_at: new Date().toISOString() };
         } else {
-          const [user_id, score, stage, kills, character, biome, difficulty, time_s, cleared, reaper, coop_size] = args;
-          row = { id: ++rid, user_id, guest_name: null, score, stage, kills, character, biome, difficulty, time_s, cleared, reaper, coop_size: coop_size || 1, created_at: new Date().toISOString() };
+          const [user_id, score, stage, kills, character, biome, difficulty, time_s, cleared, reaper, coop_size, mode, challenge_key] = args;
+          row = { id: ++rid, user_id, guest_name: null, score, stage, kills, character, biome, difficulty, time_s, cleared, reaper, coop_size: coop_size || 1, mode: mode || 'normal', challenge_key: challenge_key || null, created_at: new Date().toISOString() };
         }
         runs.push(row);
         return { rows: [{ id: row.id, score: row.score, created_at: row.created_at }], rowCount: 1 };
@@ -157,6 +157,8 @@ export function makeFakePool() {
         if (s.includes('r.biome = $')) filt.biome = args[ai++];
         if (s.includes('r.difficulty = $')) filt.difficulty = args[ai++];
         if (s.includes('r.character = $')) filt.character = args[ai++];
+        if (s.includes('r.mode = $')) filt.mode = args[ai++];               // R18/B6 (always present)
+        if (s.includes('r.challenge_key = $')) filt.key = args[ai++];       // R18/B6 (daily only)
         const m = s.match(/LIMIT (\d+)/); const limit = m ? Number(m[1]) : 25;
         const ident = (r) => (r.user_id != null ? 'u' + r.user_id : 'g:' + String(r.guest_name || '').toLowerCase());
         const best = new Map();
@@ -165,6 +167,8 @@ export function makeFakePool() {
           if (filt.biome != null && r.biome !== filt.biome) continue;
           if (filt.difficulty != null && Number(r.difficulty) !== Number(filt.difficulty)) continue;
           if (filt.character != null && r.character !== filt.character) continue;
+          if (filt.mode != null && (r.mode || 'normal') !== filt.mode) continue;
+          if (filt.key != null && r.challenge_key !== filt.key) continue;
           const k = ident(r); const cur = best.get(k); if (!cur || r.score > cur.score) best.set(k, r);
         }
         const rows = [...best.values()]

@@ -4,7 +4,7 @@
 process.env.SOULSHARD_NO_LISTEN = '1';
 process.env.JWT_SECRET = 'test-secret';
 process.env.ADMIN_USERS = 'tester';   // make 'tester' an admin for the admin-endpoint tests
-const { buildApp, runPlausibility } = await import('../src/server.js');
+const { buildApp, runPlausibility, taipeiDateKey } = await import('../src/server.js');
 
 // ---- in-memory pool emulating the few queries server.js uses ----
 function makeFakePool() {
@@ -45,12 +45,13 @@ function makeFakePool() {
       }
       if (s.startsWith('INSERT INTO runs')) {
         let row;
+        // R18/B6: …, coop_size, mode, challenge_key are the trailing INSERT columns.
         if (s.includes('guest_name')) {   // guest submission: VALUES(NULL, name, score, ...)
-          const [guest_name, score, stage, kills, character, biome, difficulty, time_s, cleared, reaper] = args;
-          row = { id: ++rid, user_id: null, guest_name, score, stage, kills, character, biome, difficulty, time_s, cleared, reaper, coop_size: 1, created_at: new Date().toISOString() };
+          const [guest_name, score, stage, kills, character, biome, difficulty, time_s, cleared, reaper, coop_size, mode, challenge_key] = args;
+          row = { id: ++rid, user_id: null, guest_name, score, stage, kills, character, biome, difficulty, time_s, cleared, reaper, coop_size: coop_size || 1, mode: mode || 'normal', challenge_key: challenge_key || null, created_at: new Date().toISOString() };
         } else {
-          const [user_id, score, stage, kills, character, biome, difficulty, time_s, cleared, reaper] = args;
-          row = { id: ++rid, user_id, guest_name: null, score, stage, kills, character, biome, difficulty, time_s, cleared, reaper, coop_size: 1, created_at: new Date().toISOString() };
+          const [user_id, score, stage, kills, character, biome, difficulty, time_s, cleared, reaper, coop_size, mode, challenge_key] = args;
+          row = { id: ++rid, user_id, guest_name: null, score, stage, kills, character, biome, difficulty, time_s, cleared, reaper, coop_size: coop_size || 1, mode: mode || 'normal', challenge_key: challenge_key || null, created_at: new Date().toISOString() };
         }
         runs.push(row);
         return { rows: [{ id: row.id, score: row.score, created_at: row.created_at }], rowCount: 1 };
@@ -132,6 +133,8 @@ function makeFakePool() {
         if (s.includes('r.biome = $')) filt.biome = args[ai++];
         if (s.includes('r.difficulty = $')) filt.difficulty = args[ai++];
         if (s.includes('r.character = $')) filt.character = args[ai++];
+        if (s.includes('r.mode = $')) filt.mode = args[ai++];               // R18/B6 (always present)
+        if (s.includes('r.challenge_key = $')) filt.key = args[ai++];       // R18/B6 (daily only)
         const m = s.match(/LIMIT (\d+)/); const limit = m ? Number(m[1]) : 25;
         const ident = (r) => (r.user_id != null ? 'u' + r.user_id : 'g:' + String(r.guest_name || '').toLowerCase());
         const best = new Map();   // identity -> best row (mirror DISTINCT ON best-per-identity)
@@ -140,6 +143,8 @@ function makeFakePool() {
           if (filt.biome != null && r.biome !== filt.biome) continue;
           if (filt.difficulty != null && r.difficulty !== filt.difficulty) continue;
           if (filt.character != null && r.character !== filt.character) continue;
+          if (filt.mode != null && (r.mode || 'normal') !== filt.mode) continue;
+          if (filt.key != null && r.challenge_key !== filt.key) continue;
           const k = ident(r); const cur = best.get(k);
           if (!cur || r.score > cur.score) best.set(k, r);
         }
@@ -234,6 +239,29 @@ const lb = (await J('GET', '/api/leaderboard')).json().rows;
 const guestRow = lb.find((x) => x.username === 'WanderingZ');
 ok(guestRow && guestRow.guest === true, 'guest run appears on the leaderboard, flagged as guest');
 ok(lb.some((x) => x.username === 'tester' && !x.guest), 'registered + guest runs coexist on the board');
+
+// ---- R18/B6: run modes (normal / endless / daily) -------------------------
+const today = taipeiDateKey(0);
+// endless: legal high-stage long run, no clear
+r = await J('POST', '/api/runs', { mode: 'endless', kills: 9000, stage: 40, time_s: 3600, difficulty: 1, cleared: false }, token);
+ok(r.statusCode === 200, 'endless legal upload (stage 40 / 60min) → 200');
+ok((await J('POST', '/api/runs', { mode: 'endless', kills: 10, stage: 5, time_s: 1200, difficulty: 1, cleared: true }, token)).statusCode === 422, 'endless with cleared=true → 422');
+ok((await J('POST', '/api/runs', { mode: 'endless', kills: 10, stage: 60, time_s: 600, difficulty: 1 }, token)).statusCode === 422, 'endless stage 60 @ 10min (too fast) → 422');
+ok((await J('POST', '/api/runs', { mode: 'normal', kills: 10, stage: 40, time_s: 1200, difficulty: 1 }, token)).statusCode === 422, 'normal stage 40 still rejected (regression)');
+// daily: today/yesterday keys accepted, stale rejected, missing rejected
+r = await J('POST', '/api/runs', { mode: 'daily', challenge_key: today, kills: 100, stage: 5, time_s: 1200, difficulty: 3, cleared: true }, token);
+ok(r.statusCode === 200, 'daily run with today key → 200');
+ok((await J('POST', '/api/runs', { mode: 'daily', challenge_key: taipeiDateKey(-3), kills: 10, stage: 5, time_s: 1200, difficulty: 3 }, token)).statusCode === 422, 'daily run with 3-day-old key → 422');
+ok((await J('POST', '/api/runs', { mode: 'daily', kills: 10, stage: 5, time_s: 1200, difficulty: 3 }, token)).statusCode === 422, 'daily run with no key → 422');
+// leaderboard mode dimension
+const endlessScore = 9000 * 12 + 40 * 400 + 3600 + 1 * 600;   // the endless run uploaded above
+const lbNorm = (await J('GET', '/api/leaderboard')).json().rows;
+ok(lbNorm.every((x) => (x.mode || 'normal') === 'normal') && !lbNorm.some((x) => x.score === endlessScore), 'default board returns only normal rows (endless excluded)');
+const lbEnd = (await J('GET', '/api/leaderboard?mode=endless')).json().rows;
+ok(lbEnd.length >= 1 && lbEnd.every((x) => x.mode === 'endless'), '?mode=endless returns only endless rows');
+const lbDay = (await J('GET', `/api/leaderboard?mode=daily&key=${today}`)).json().rows;
+ok(lbDay.length >= 1 && lbDay.every((x) => x.mode === 'daily' && x.challenge_key === today), '?mode=daily&key filters to that day');
+ok((await J('GET', `/api/leaderboard?mode=daily&key=${taipeiDateKey(-5)}`)).json().rows.length === 0, '?mode=daily with an empty day → no rows');
 
 // admin dashboard (ADMIN_USERS=tester; t2/rival is a normal user)
 ok((await J('GET', '/api/me', undefined, token)).json().user.admin === true, '/api/me flags the allowlisted user as admin');
