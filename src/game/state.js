@@ -41,7 +41,7 @@ const DEFAULT_META = () => ({
   unlocked: { abilities: [], equipment: [], weapons: ['wand'], characters: ['hunter'], items: [] },
   loadoutWeapon: 'wand',
   selectedCharacter: 'hunter',
-  stats: { runs: 0, kills: 0, bestFloor: 0, bestStage: 0, bestScore: 0, bestTime: 0, bossKills: 0, reaperKills: 0, miniBossKills: 0, clears: 0, deaths: 0, totalGold: 0, playTime: 0, history: [],
+  stats: { runs: 0, kills: 0, bestFloor: 0, bestStage: 0, bestScore: 0, bestTime: 0, bestEndlessTime: 0, bossKills: 0, reaperKills: 0, miniBossKills: 0, clears: 0, deaths: 0, totalGold: 0, playTime: 0, history: [],
     // round-5: extra lifetime stats for the expanded achievements (task 2)
     charClears: {}, noDmgClears: 0, bestCharLevel: 0, bondsTriggered: 0, forgeUpgrades: 0, npcTalks: 0, hiddenRoomsFound: 0 },
   settings: { master: 0.9, sfx: 0.75, music: 0.5, shake: true, muted: false, keybinds: {}, uiScale: 1 },
@@ -139,7 +139,7 @@ export function loadMeta(slot) {
       }
       if (!Array.isArray(META.bondsSeen)) META.bondsSeen = [];   // round16/8.2: 羈絆圖鑑 ever-seen set
       for (const k of ['charClears']) if (!META.stats[k] || typeof META.stats[k] !== 'object') META.stats[k] = {};
-      for (const k of ['noDmgClears', 'bestCharLevel', 'bondsTriggered', 'forgeUpgrades', 'npcTalks']) if (typeof META.stats[k] !== 'number') META.stats[k] = 0;
+      for (const k of ['noDmgClears', 'bestCharLevel', 'bondsTriggered', 'forgeUpgrades', 'npcTalks', 'bestEndlessTime', 'dailyClears']) if (typeof META.stats[k] !== 'number') META.stats[k] = 0;
       if (typeof META.saveSeq !== 'number') META.saveSeq = 0;
       if (typeof META.stats.playTime !== 'number') META.stats.playTime = 0;
       META.version = SAVE_VERSION;
@@ -321,6 +321,7 @@ export function bankRun(run) {
   META.stats.bestStage = Math.max(META.stats.bestStage || 0, run.stage || run.floor || 1);
   META.stats.bestScore = Math.max(META.stats.bestScore || 0, run.score || 0);
   META.stats.bestTime = Math.max(META.stats.bestTime || 0, Math.floor(run.time || 0));
+  if (run.mode === 'endless') META.stats.bestEndlessTime = Math.max(META.stats.bestEndlessTime || 0, Math.floor(run.time || 0));   // R18/B7
   META.stats.bossKills = (META.stats.bossKills || 0) + (run.bossKills || 0);
   META.stats.reaperKills = (META.stats.reaperKills || 0) + (run.reaperKills || 0);
   META.stats.miniBossKills = (META.stats.miniBossKills || 0) + (run.miniKills || 0);
@@ -362,8 +363,12 @@ export function bankRun(run) {
     character: run.characterId || null,
     biome: run.biomeId || null,
     coop_size: run.coopSize || 1,   // Phase 2: party size for the shared leaderboard
+    mode: run.mode || 'normal',     // R18/B6+B7: endless/daily upload to their own boards
+    challenge_key: run.challengeKey || null,   // R18/B9: daily YYYYMMDD (else null)
   };
-  if ((run.difficulty == null ? 1 : run.difficulty) >= 1 && run.mode !== 'endless') {   // 6.5 劇情 + 6.6 無盡 are excluded from the shared (standard) leaderboard
+  // R18/B7: endless now uploads to its OWN board (mode dimension keeps it off the standard
+  // board). Only story difficulty (D0) stays excluded.
+  if ((run.difficulty == null ? 1 : run.difficulty) >= 1) {
     try { postRunResult(runPayload); } catch (e) { /* ignore */ }                       // logged in → auto-upload
     try { if (!Net.isLoggedIn()) lastGuestRun = runPayload; } catch (e) { /* ignore */ }  // guest → offer a named upload from the leaderboard overlay
   }

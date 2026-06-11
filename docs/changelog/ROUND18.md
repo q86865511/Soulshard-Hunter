@@ -79,3 +79,15 @@
 `net/ui.js openLeaderboard`：在既有 biome/diff/period select 前加 `mode` select `[標準/無盡/每日]`。選**每日**時隱藏 biome+diff+period、改顯示今日 key 標籤「📅 YYYYMMDD 每日挑戰」（新 client `dailyKey()` UTC+8，與伺服器一致），查詢帶 `mode=daily&key=今日`；選**無盡/每日**時「層」表頭改顯示「波次」語意。標準模式 `mode=''` 被 `api.js leaderboard()` 的 null/空值清理略過 → 伺服器預設 normal（舊行為不變）。訪客上傳區塊不動。
 
 **驗證**：reload `__GAME_ERROR__` null；eval 開啟排行榜 → mode select 三選項齊全；切每日 → biome/diff/period 全隱藏、keyLabel 顯示「📅 20260611 每日挑戰」（=今日）；切無盡/每日 → 查詢 params 含對應 mode；preview 截圖確認 overlay 樣式一致（離線顯示「無法載入」屬預期）。
+
+## B7 — 無盡模式深度改造（詛咒 + 里程碑 + 上傳）（2026-06-11）
+
+**詛咒系統**（新 `content/curses.js` 手寫，12 條）：無盡每 `BALANCE.CURSE_INTERVAL`（300s，首次 5:00）暫停式三選一，詛咒與報酬成對生效、**無限疊加**。每張 `apply(s)` 就地改 run 場景——敵側乘法累積器（`curseHpMul/curseDmgMul/curseSpdMul/curseCapAdd/curseBossHpMul`）、玩家一次性 stat（皆為 makeBaseStats 既有欄位）、旗標（`curseBossHeal/curseBossChest/curseDrain`）、或即時經濟（run.gold/shards）。詛咒池：嗜血潮/鐵骨/疾風群/增援/鈍刃/脆甲/賭命/巨王/禁療/失準/重壓/蝕魂。
+
+**接線**（`scenes/run.js`）：`curseChoice` 插入 update() 模態鏈（eventChoice 之後；模態鏈一律 `return` → 暫停期間 level-up 不會雙開）。`openCurseChoice/updateCurseChoice/applyCurse/drawCurseChoice`（複刻 event 卡片、紫紅詛咒皮、詛咒/報酬雙區）。**co-op 防衛**：`if (this.coop) 套用隨機一張; return;`（照 openEventChoice）。消費點：`spawnTick`（hpScale×curseHpMul、dmgScale×curseDmgMul、speedScale=curseSpdMul、cap×(1+curseCapAdd)）、`spawnEndlessBoss`（×curseHpMul×curseBossHpMul / ×curseDmgMul）、`evSurround`、`onBossDead`（脆甲回 30%、巨王額外掉落金幣+魂晶）。`endlessTick(dt)`：詛咒觸發（!boss 時）、蝕魂每 30s 失 5% 當前生命（永不致死）、里程碑。新增 `world.js` 擊殺 +curseGoldPerKill（蝕魂）、`player.heal` 乘 `healMult`（禁療 c_seal，B9 m_anemic 共用）。**零協定改動**——全為 host 端純量。
+
+**里程碑**：`BALANCE.ENDLESS_MILESTONES`[900,1200,1500,1800,2400]s → 橫幅 + 金幣[300,500,800,1200,2000]/魂晶[30,50,80,120,200]。**HUD**：無盡波次列加 `☠×N` 詛咒疊層數。
+
+**持久化 + 上傳**：`state.js` `bestEndlessTime` stat（DEFAULT_META + loadMeta 數值回填）；`bankRun` 在 mode==='endless' 記錄。upload：`run.js` stage 封頂改 `endless ? ENDLESS_STAGE_CAP(99) : THREAT_CEIL`；payload 加 `mode`/`challenge_key`，**解除無盡不上傳的排除**（只剩劇情 D0 排除）。成就 +5：`endless` 家族[600,1200,1800,2400,3600]（`endless_1200` 同時是 g_stormcaller 解鎖讀數）。
+
+**驗證**：reload `__GAME_ERROR__` null；模擬無盡 115000 幀（每幀復活+清模態）→ 時間 1916s、stage **20（>THREAT_CEIL 13，封頂解除）**、4 里程碑觸發（gold 3513/shard 323）、bestEndlessTime 寫入 1916；直接套用全 12 詛咒 → 累積器精確（curseDmgMul 1.38=1.15×1.20、curseHpMul 1.2、curseBossHpMul 1.3…）、玩家 stat 精確（maxHp+40、dash×1.3、crit 夾 0、healMult 0.5、proj+1、pickup+40、def−2）；co-op `openCurseChoice` 自動解決（curseChoice 不開）；詛咒三選一渲染截圖確認（紫紅皮、詛咒紅/報酬綠雙區）；normal 模式累積器恆 ×1 → 手感 byte-identical。

@@ -117,7 +117,7 @@ export class Player {
     }
   }
 
-  heal(a) { this.hp = Math.min(this.stats.maxHp, this.hp + a); }
+  heal(a) { this.hp = Math.min(this.stats.maxHp, this.hp + a * (this.healMult ?? 1)); }   // R18/B7 c_seal + B9 m_anemic scale healing
   addTimedBuff(dur, onStart, onEnd, color = '#fff') { try { onStart?.(this); } catch (e) { /* */ } this.timedBuffs.push({ t: dur, dur, onEnd, color }); }   // dur = initial duration (pickup-log countdown reads t/dur)
 
   // returns true only if the hit actually LANDED (so on-hit status riders respect

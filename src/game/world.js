@@ -317,6 +317,7 @@ export class World {
           if (e.def.deathBlast) this.bombBlast(e);
           this.dropLoot(e);
           this.run.kills = (this.run.kills || 0) + 1;
+          if (this.run.curseGoldPerKill) this.run.gold += this.run.curseGoldPerKill;   // R18/B7 c_soultax
           if (this.player) { this._curSrc = '被動技能'; for (const h of this.player.hooks.kill) h(e, this); this._curSrc = null; }   // 原#16
           if (this.onEnemyKilled) this.onEnemyKilled(e);
           again = true;
