@@ -27,6 +27,7 @@ import './art/town_decor.js';
 import './art/town_personal.js';
 import './art/reaper.js';
 import './game/content/enemies.js';
+import './game/content/enemies_biome.js';  // R18/B4: 5 new biome mobs (hand-written content + art)
 import './game/content/bosses_biome.js';   // R18/B3: 5 new-biome final bosses (hand-written content + art)
 import './game/content/abilities.js';
 import './game/content/items.js';

@@ -14,6 +14,7 @@ import { Enemies, Equipment, Abilities, Weapons, Characters } from '../content/r
 import { equipItem } from '../content/equipment.js';
 import { BONDS, activeBonds, checkBonds, bondProgress, bondAdvancedBy } from '../content/bonds.js';
 import { exclusiveFor } from '../content/exclusives.js';
+import { biomeWeight } from '../content/biome_tags.js';   // R18/B4: biome enemy affinity
 import { BALANCE, weaponMaxLevel } from '../balance.js';
 import { isUnlocked, cheatUnlockAll } from '../content/unlocks.js';
 import { STORY_QUESTS, trackedQuestStates, fmtQuestVal } from '../content/quests.js';
@@ -250,8 +251,9 @@ export const runScene = {
     if (!pool.length) { this.activeTypes = []; this.typeRotT = 24; return; }
     const n = this.threat <= 1 ? 2 + rng.int(0, 1) : 2 + rng.int(0, 2);   // task-11: 2-4 concurrent types for a varied swarm (was 1-3)
     const picks = []; let p = pool.slice();
-    // D4: ranged (shooter) types are far less likely to be picked — favour melee
-    const wt = (x) => (x.ai === 'shooter' ? (x.weight ?? 1) * BALANCE.RANGED_SPAWN_WEIGHT : (x.weight ?? 1));
+    // D4: ranged (shooter) types are far less likely to be picked — favour melee.
+    // R18/B4: biome affinity leans the roster toward the current biome's theme.
+    const wt = (x) => (x.ai === 'shooter' ? (x.weight ?? 1) * BALANCE.RANGED_SPAWN_WEIGHT : (x.weight ?? 1)) * biomeWeight(x, this.run.biomeId);
     for (let i = 0; i < n && p.length; i++) { const d = rng.weighted(p, wt); picks.push(d); p = p.filter((x) => x !== d); }
     this.activeTypes = picks;
     this.typeRotT = 30 + rng.next() * 18;
@@ -617,7 +619,7 @@ export const runScene = {
     let pool = Enemies.upTo(this.tierCapNow()).filter((d) => !d.boss && d.id !== REAPER_ID && (d.ai === 'chase' || d.ai === 'charger' || d.ai === 'wander'));
     if (!pool.length) pool = Enemies.upTo(this.tierCapNow()).filter((d) => !d.boss && d.id !== REAPER_ID);
     if (!pool.length) return;
-    const def = pool[rng.int(0, pool.length - 1)];
+    const def = rng.weighted(pool, (x) => biomeWeight(x, this.run.biomeId));   // R18/B4: 魂牢 chasers lean to the biome too
     const n = BALANCE.SURROUND_COUNT_BASE + Math.floor(this.threat * 0.5);
     const hpScale = BALANCE.SURROUND_HP_MULT * (1 + this.threat * 0.1) * this.diffMul;
     const dmgScale = BALANCE.SURROUND_DMG_MULT * this.diffMul * this.earlyDmgGrace();   // honour the opening softener
