@@ -573,76 +573,159 @@ export function makeArena(tw = 34, th = 22, rngSrc = rng) {
   return { tw, th, tiles, floorVar, decor };
 }
 
-// R18/B1: an OPEN-AIR village for the hub (replaces the 3x3 walled-box layout). A grassy
-// 60x46 field ringed by a forest treeline, a central flagstone plaza, dirt paths radiating to
-// six building FACADES (church / guild / hall / smith / wardrobe / house) whose footprints are
-// solid VOID (so you can't walk through the building) with the porch left as open floor. Returns
-// the SAME contract `{tw,th,tiles,floorVar,decor,rooms,tileset}` + all 9 room ids — hub.js places
-// its stations/NPCs off `rooms[id].cx/cy`, so those follow automatically.
-const CAMP = { tw: 60, th: 46 };
-// id -> tile-centre of the building's PORCH (= room anchor). facade base sits 3 tiles north.
+// R19/B1: an APOCALYPTIC RUIN town for the hub (replaces the R18 open-air village). A 64x48 ashen
+// field whose walkable space is BLOB-CARVED out of solid rubble-wall (so the boundary reads
+// organic/irregular, never a rectangle); scattered, ungridded districts joined by winding jittered
+// dirt paths; an irregular cracked-flagstone plaza disc; a jagged soul-RIFT (VOID) between plaza and
+// garden spanned by a broken-stone bridge; six building FACADES (`ruin_fc_*`) over solid VOID
+// footprints (porch left as open floor) which hub.js turns into door-stations to the 6 INTERIOR maps.
+// Return contract UNCHANGED: `{tw,th,tiles,floorVar,decor,rooms,tileset}` with all 9 room ids — hub.js
+// reads `rooms[id].cx/cy` so stations/NPCs follow automatically.
+const CAMP = { tw: 64, th: 48 };
+// id -> tile-centre PORCH anchor (= room anchor). facade base sits 3 tiles north of the porch.
 const TOWN_BUILDINGS = [
-  { id: 'church', cx: 13, cy: 12, fc: 'town_fc_church' },
-  { id: 'guild', cx: 30, cy: 11, fc: 'town_fc_guild' },
-  { id: 'achievements', cx: 47, cy: 12, fc: 'town_fc_hall' },
-  { id: 'blacksmith', cx: 12, cy: 25, fc: 'town_fc_smith' },
-  { id: 'clothing', cx: 48, cy: 25, fc: 'town_fc_wardrobe' },
-  { id: 'personal', cx: 13, cy: 37, fc: 'town_fc_house' },
+  { id: 'church', cx: 14, cy: 12, fc: 'ruin_fc_church' },        // NW hill
+  { id: 'guild', cx: 46, cy: 14, fc: 'ruin_fc_guild' },          // NE
+  { id: 'achievements', cx: 52, cy: 29, fc: 'ruin_fc_hall' },    // E
+  { id: 'blacksmith', cx: 12, cy: 31, fc: 'ruin_fc_smith' },     // W
+  { id: 'clothing', cx: 45, cy: 41, fc: 'ruin_fc_wardrobe' },    // SE
+  { id: 'personal', cx: 20, cy: 41, fc: 'ruin_fc_house' },       // S
 ];
-const TOWN_AREAS = [   // open-air anchors (no building facade): plaza + two flavour squares
-  { id: 'plaza', cx: 30, cy: 24 },
-  { id: 'garden', cx: 30, cy: 38 },
-  { id: 'market', cx: 47, cy: 37 },
+const TOWN_AREAS = [   // open-air anchors (no building facade): plaza + garden + market
+  { id: 'plaza', cx: 32, cy: 26 },     // centre — grand portal lives here
+  { id: 'garden', cx: 31, cy: 40 },    // S of plaza (across the rift)
+  { id: 'market', cx: 51, cy: 21 },    // NE-of-centre stalls
 ];
 export function makeCamp() {
   const { tw, th } = CAMP;
-  const tiles = new Uint8Array(tw * th);          // FLOOR=0 everywhere by default
+  const tiles = new Uint8Array(tw * th).fill(WALL);   // start solid; carve open space below
   const floorVar = new Uint8Array(tw * th);
+  const inB = (x, y) => x >= 2 && y >= 2 && x < tw - 2 && y < th - 2;   // keep a 2-tile solid border
+  const carve = (x, y) => { if (inB(x, y)) tiles[y * tw + x] = FLOOR; };
   const set = (x, y, v) => { if (x >= 0 && y >= 0 && x < tw && y < th) tiles[y * tw + x] = v; };
   const setVar = (x, y, v) => { if (x >= 0 && y >= 0 && x < tw && y < th && tiles[y * tw + x] === FLOOR) floorVar[y * tw + x] = v; };
-  // grassy base: mostly plain grass, ~10% grass-alt, ~7% flowery
-  for (let y = 0; y < th; y++) for (let x = 0; x < tw; x++) {
-    const r = rng.next(); floorVar[y * tw + x] = r < 0.07 ? 2 : (r < 0.17 ? 1 : 0);
-  }
-  // forest treeline border ring (2 tiles thick)
-  for (let y = 0; y < th; y++) for (let x = 0; x < tw; x++) { if (x < 2 || y < 2 || x >= tw - 2 || y >= th - 2) set(x, y, WALL); }
-  // central plaza — a warm flagstone disc (floorVar 5/6) around the plaza anchor
-  const pc = TOWN_AREAS[0];
-  for (let y = 0; y < th; y++) for (let x = 0; x < tw; x++) {
-    const dx = (x - pc.cx) / 9, dy = (y - pc.cy) / 7;
-    if (dx * dx + dy * dy <= 1) setVar(x, y, rng.next() < 0.18 ? 6 : 5);
-  }
-  // dirt paths from the plaza out to every porch + the two squares (L-routes, 2 tiles wide)
-  const path = (x0, y0, x1, y1) => {
-    let x = x0, y = y0;
-    const stamp = () => { for (const ox of [0, 1]) for (const oy of [0, 1]) setVar(x + ox, y + oy, rng.next() < 0.4 ? 4 : 3); };
-    while (x !== x1) { stamp(); x += x < x1 ? 1 : -1; }
-    while (y !== y1) { stamp(); y += y < y1 ? 1 : -1; }
-    stamp();
+  // overlapping-ellipse "blob" carve: stamps an organic open patch around (cx,cy)
+  const blob = (cx, cy, rx, ry, jit = 0.18) => {
+    for (let y = cy - ry - 1; y <= cy + ry + 1; y++) for (let x = cx - rx - 1; x <= cx + rx + 1; x++) {
+      const dx = (x - cx) / (rx + rng.range(-jit, jit) * rx), dy = (y - cy) / (ry + rng.range(-jit, jit) * ry);
+      if (dx * dx + dy * dy <= 1) carve(x, y);
+    }
   };
-  for (const b of [...TOWN_BUILDINGS, ...TOWN_AREAS.slice(1)]) path(pc.cx, pc.cy, b.cx, b.cy);
+  // 1) carve each district as 2-3 jittered overlapping blobs (irregular outlines, not circles)
+  for (const b of [...TOWN_BUILDINGS, ...TOWN_AREAS]) {
+    blob(b.cx, b.cy, 5, 4);
+    blob(b.cx + rng.int(-2, 2), b.cy + rng.int(-2, 2), 4, 3);
+    blob(b.cx + rng.int(-3, 3), b.cy + rng.int(-3, 3), 3, 3);
+  }
+  // 2) wind a jittered corridor between two points, blob-carving along it (paths feel organic)
+  const corridor = (x0, y0, x1, y1, w = 2) => {
+    let x = x0, y = y0; let guard = 0;
+    while ((x !== x1 || y !== y1) && guard++ < 400) {
+      blob(x, y, w, w, 0.1);
+      const sx = x1 - x, sy = y1 - y;
+      // bias toward the target but jitter the step so the route snakes rather than L-routes
+      const r = rng.next();
+      if (Math.abs(sx) > Math.abs(sy)) { if (r < 0.78 || sy === 0) x += sx > 0 ? 1 : -1; else y += sy > 0 ? 1 : -1; }
+      else { if (r < 0.78 || sx === 0) y += sy > 0 ? 1 : -1; else x += sx > 0 ? 1 : -1; }
+    }
+  };
+  const pc = TOWN_AREAS[0];
+  for (const b of [...TOWN_BUILDINGS, ...TOWN_AREAS.slice(1)]) corridor(pc.cx, pc.cy, b.cx, b.cy, 2);
+  // guarantee a couple cross-links so the layout never reads as a pure hub-and-spoke
+  corridor(TOWN_BUILDINGS[0].cx, TOWN_BUILDINGS[0].cy, TOWN_BUILDINGS[3].cx, TOWN_BUILDINGS[3].cy, 2); // church<->smith (W spine)
+  corridor(TOWN_BUILDINGS[1].cx, TOWN_BUILDINGS[1].cy, TOWN_AREAS[2].cx, TOWN_AREAS[2].cy, 2);          // guild<->market (NE)
 
-  // R18/B2: a creek between the plaza and the garden — VOID water (a real barrier) spanned by a
-  // wooden bridge on the garden path. cols 23-37 x rows 31-32; the bridge (cols 29-31) is carved
-  // back to walkable dirt. Players can also detour around the creek's ends, so it never hard-gates.
-  const creek = [];   // collected VOID water tiles → water decor
-  const bridge = [];  // bridge tiles → bridge decor
-  for (let yy = 31; yy <= 32; yy++) for (let xx = 23; xx <= 37; xx++) {
-    if (xx >= 29 && xx <= 31) { set(xx, yy, FLOOR); setVar(xx, yy, 3); bridge.push([xx, yy]); }   // bridge deck (dirt-matched)
-    else { set(xx, yy, VOID); creek.push([xx, yy]); }
+  // 3) ground texturing — ashen grass base over all FLOOR (variants 0/1/2)
+  for (let y = 0; y < th; y++) for (let x = 0; x < tw; x++) {
+    if (tiles[y * tw + x] === FLOOR) { const r = rng.next(); floorVar[y * tw + x] = r < 0.10 ? 2 : (r < 0.24 ? 1 : 0); }
+  }
+  // irregular cracked-flagstone plaza disc (variants 5/6) around the plaza anchor, r≈8 w/ jitter
+  for (let y = pc.cy - 9; y <= pc.cy + 9; y++) for (let x = pc.cx - 10; x <= pc.cx + 10; x++) {
+    const dx = (x - pc.cx) / (8 + Math.sin((x + y) * 0.7) * 1.3), dy = (y - pc.cy) / (7 + Math.cos(x * 0.6) * 1.1);
+    if (dx * dx + dy * dy <= 1) setVar(x, y, rng.next() < 0.22 ? 6 : 5);
+  }
+  // re-lay cracked path variants (3/4) along the carved corridors (overwrites grass only on FLOOR)
+  const repath = (x0, y0, x1, y1) => {
+    let x = x0, y = y0, guard = 0;
+    while ((x !== x1 || y !== y1) && guard++ < 400) {
+      for (const ox of [-1, 0, 1]) for (const oy of [-1, 0, 1]) setVar(x + ox, y + oy, rng.next() < 0.4 ? 4 : 3);
+      const sx = x1 - x, sy = y1 - y, r = rng.next();
+      if (Math.abs(sx) > Math.abs(sy)) { if (r < 0.78 || sy === 0) x += sx > 0 ? 1 : -1; else y += sy > 0 ? 1 : -1; }
+      else { if (r < 0.78 || sx === 0) y += sy > 0 ? 1 : -1; else x += sx > 0 ? 1 : -1; }
+    }
+  };
+  for (const b of [...TOWN_BUILDINGS, ...TOWN_AREAS.slice(1)]) repath(pc.cx, pc.cy, b.cx, b.cy);
+
+  // 4) the soul-RIFT: a jagged VOID crack between plaza and garden (~12 tiles wide), spanned by a
+  // 3-tile broken-stone bridge on the plaza->garden line. The rift sits BELOW the plaza disc; the
+  // path corridor already carved open ground on both sides, and detours around the ends keep it
+  // from hard-gating. We only convert FLOOR->VOID so we never punch a hole through solid border.
+  const rift = [];   // VOID rift tiles -> ruin_rift anim decor
+  const bridge = []; // walkable bridge deck tiles -> ruin_bridge decor
+  const riftRow0 = 33, riftRow1 = 34;                 // two-row jagged chasm
+  const bridgeCol0 = pc.cx - 1, bridgeCol1 = pc.cx + 1; // 3-tile deck on the garden path
+  for (let yy = riftRow0; yy <= riftRow1; yy++) for (let xx = pc.cx - 7; xx <= pc.cx + 7; xx++) {
+    if (xx >= bridgeCol0 && xx <= bridgeCol1) { set(xx, yy, FLOOR); setVar(xx, yy, 3); bridge.push([xx, yy]); continue; }
+    // jitter the chasm edges so it reads as a jagged crack, not a straight ditch
+    const edge = yy === riftRow0 ? rng.chance(0.22) : rng.chance(0.22);
+    if (edge) continue;
+    if (tiles[yy * tw + xx] === FLOOR) { set(xx, yy, VOID); rift.push([xx, yy]); }
   }
 
   const D = [];   // background decor (non-interactive); interactive stations live in the hub
-  for (const [xx, yy] of creek) D.push({ sprite: 'town_water', x: xx * TS, y: yy * TS, phase: (xx + yy) % 2 });   // tile-aligned animated water
-  for (const [xx, yy] of bridge) D.push({ sprite: 'town_bridge', x: xx * TS, y: yy * TS, phase: 0 });
-  // building footprints: a solid VOID block (4 tiles tall x 5 wide) behind each facade base,
-  // with the facade decor anchored at the base (front) so the porch row stays walkable floor.
+  for (const [xx, yy] of rift) D.push({ sprite: 'ruin_rift', x: xx * TS, y: yy * TS, phase: (xx + yy) % 2 });
+  for (const [xx, yy] of bridge) D.push({ sprite: 'ruin_bridge', x: xx * TS, y: yy * TS, phase: 0 });
+
+  // 5) building footprints: a solid VOID block behind each facade base (porch row stays FLOOR),
+  // with the ruined facade decor anchored 3 tiles N of the porch (base-centre anchor [0.5,1]).
   for (const b of TOWN_BUILDINGS) {
-    // VOID kept 3-wide x 3-tall so it stays fully hidden behind the 64px facade (no black slivers);
-    // the facade's eaves overhang onto grass, which reads as the building sitting on the field.
     for (let yy = b.cy - 6; yy <= b.cy - 4; yy++) for (let xx = b.cx - 1; xx <= b.cx + 1; xx++) set(xx, yy, VOID);
+    carve(b.cx, b.cy);          // ensure the porch tile itself is walkable
+    setVar(b.cx, b.cy, 3);      // porch reads as cracked path
     D.push({ sprite: b.fc, x: (b.cx + 0.5) * TS, y: (b.cy - 3) * TS, phase: 0 });
   }
+
+  // 6) CONNECTIVITY GUARANTEE — the blob/corridor carve + rift + VOID footprints can occasionally
+  // sever a district. Flood FLOOR from the plaza; for any unreached anchor, re-carve a 2-wide direct
+  // corridor to it. To never re-open the rift wall, a re-carve that crosses the rift rows is routed
+  // through the bridge column first (down to a safe row, across to the anchor's column, then down).
+  const floodFrom = (sx, sy) => {
+    const seen = new Uint8Array(tw * th); const q = [sx + sy * tw]; seen[sx + sy * tw] = 1;
+    while (q.length) { const i = q.pop(); const x = i % tw, y = (i / tw) | 0;
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const nx = x + dx, ny = y + dy;
+        if (nx < 0 || ny < 0 || nx >= tw || ny >= th) continue; const ni = ny * tw + nx;
+        if (seen[ni] || tiles[ni] !== FLOOR) continue; seen[ni] = 1; q.push(ni); } }
+    return seen;
+  };
+  const recarveSeg = (x0, y0, x1, y1) => {   // 2-wide straight carve, FLOOR (skips VOID-footprint? no: re-open) — but never crosses rift rows except via bridge cols
+    let x = x0, y = y0, guard = 0;
+    const step = () => { for (const ox of [0, 1]) for (const oy of [0, 1]) { carve(x + ox, y + oy); setVar(x + ox, y + oy, rng.next() < 0.4 ? 4 : 3); } };
+    while ((x !== x1 || y !== y1) && guard++ < 300) { step(); if (x !== x1) x += x < x1 ? 1 : -1; else if (y !== y1) y += y < y1 ? 1 : -1; }
+    step();
+  };
+  const inRiftSpan = (yy) => yy >= riftRow0 - 1 && yy <= riftRow1 + 1;
+  for (const b of [...TOWN_BUILDINGS, ...TOWN_AREAS.slice(1)]) {
+    const seen = floodFrom(pc.cx, pc.cy);
+    if (seen[b.cy * tw + b.cx]) continue;
+    // route: if the target is across the rift from the plaza, go via the bridge column.
+    const acrossRift = (pc.cy <= riftRow0) !== (b.cy <= riftRow0);
+    if (acrossRift) {
+      recarveSeg(pc.cx, pc.cy, pc.cx, riftRow1 + 2);   // down the bridge column past the rift
+      recarveSeg(pc.cx, riftRow1 + 2, b.cx, riftRow1 + 2);
+      recarveSeg(b.cx, riftRow1 + 2, b.cx, b.cy);
+    } else {
+      // L-route that avoids stepping onto rift rows away from the bridge
+      const midY = inRiftSpan(b.cy) ? b.cy : (inRiftSpan(pc.cy) ? pc.cy : pc.cy);
+      recarveSeg(pc.cx, pc.cy, b.cx, pc.cy);
+      recarveSeg(b.cx, pc.cy, b.cx, b.cy);
+    }
+    // keep the porch/footprint VOID intact (recarve may have opened a footprint tile)
+    for (const bb of TOWN_BUILDINGS) for (let yy = bb.cy - 6; yy <= bb.cy - 4; yy++) for (let xx = bb.cx - 1; xx <= bb.cx + 1; xx++) set(xx, yy, VOID);
+    // re-cut any rift tile the detour may have re-floored, EXCEPT the bridge columns (which the
+    // across-rift route runs straight down — that column stays walkable as the intended crossing).
+    for (const [rx, ry] of rift) if (tiles[ry * tw + rx] === FLOOR && (rx < bridgeCol0 || rx > bridgeCol1)) set(rx, ry, VOID);
+  }
+
   // room anchors — SAME shape as before (hub.js reads cx/cy; x0..y1 kept for safety)
   const rooms = {};
   for (const b of [...TOWN_BUILDINGS, ...TOWN_AREAS]) {
@@ -650,22 +733,245 @@ export function makeCamp() {
       x0: (b.cx - 6) * TS, y0: (b.cy - 6) * TS, x1: (b.cx + 7) * TS, y1: (b.cy + 7) * TS };
   }
   const R = rooms;
-  const put = (sprite, rm, dx, dy, phase = 0) => D.push({ sprite, x: rm.cx + dx * TS, y: rm.cy + dy * TS, phase });
-  // plaza dressing — lamps at the corners + a campfire glow
-  put('hub_lamp', R.plaza, -6, 4, 0); put('hub_lamp', R.plaza, 6, 4, 1); put('hub_lamp', R.plaza, -6, -4, 1); put('hub_lamp', R.plaza, 6, -4, 0);
-  put('campfire', R.plaza, 0, 6);
-  // garden — a well + flowerbeds + a bench
-  put('hub_well', R.garden, 0, 1); put('town_flowerbed', R.garden, -4, 2); put('town_flowerbed', R.garden, 4, 2); put('town_bench', R.garden, -5, -1);
-  // market — two stalls + barrels
-  put('town_fc_stall', R.market, -3, -1); put('town_fc_stall', R.market, 3, 0); put('town_barrel', R.market, 5, 2); put('town_barrel', R.market, 6, 2.5);
-  // scatter trees + bushes around the field edges (kept well clear of porches; decor < 250)
-  const treeSpots = [
-    [6, 6], [9, 20], [7, 31], [6, 41], [20, 5], [40, 5], [53, 7], [54, 20], [53, 32], [54, 41], [22, 42], [38, 42], [18, 30], [42, 30], [21, 33], [39, 33],
-  ];
-  for (const [tx, ty] of treeSpots) { if (tiles[ty * tw + tx] === FLOOR) D.push({ sprite: rng.next() < 0.4 ? 'town_tree2' : 'town_tree', x: (tx + 0.5) * TS, y: (ty + 0.9) * TS, phase: 0 }); }
-  for (const [tx, ty] of [[10, 14], [50, 14], [10, 33], [50, 33], [26, 6], [34, 40], [24, 18]]) { if (tiles[ty * tw + tx] === FLOOR) D.push({ sprite: 'town_bush', x: (tx + 0.5) * TS, y: (ty + 0.9) * TS, phase: 0 }); }
-  // fences framing the garden + market squares
-  for (let i = -4; i <= 4; i++) { put('town_fence_h', R.garden, i, 5); }
-  const tileset = { floor: ['town_grass', 'town_grass2', 'town_flowergrass', 'town_dirt', 'town_dirt2', 'town_plaza', 'town_plaza2'], wall: 'town_treeline', wallTop: 'town_treeline_top' };
+  // decor helper: place at a tile offset from a room anchor, ONLY if the tile under it is FLOOR
+  const put = (sprite, rm, dx, dy, phase = 0) => {
+    const tx = Math.floor((rm.cx + dx * TS) / TS), ty = Math.floor((rm.cy + dy * TS) / TS);
+    if (tiles[ty * tw + tx] === FLOOR) D.push({ sprite, x: rm.cx + dx * TS, y: rm.cy + dy * TS, phase });
+  };
+  // raw tile-coord decor with FLOOR guard
+  const putT = (sprite, tx, ty, ox = 0.5, oy = 0.9, phase = 0) => {
+    if (tx >= 0 && ty >= 0 && tx < tw && ty < th && tiles[ty * tw + tx] === FLOOR) D.push({ sprite, x: (tx + ox) * TS, y: (ty + oy) * TS, phase });
+  };
+
+  // --- plaza dressing: SYMMETRIC around the portal spot (= plaza centre). hub.js drops the grand
+  // portal at plaza centre, so keep ~3 tiles around it decor-free. A pillar ring + flanking bonfire
+  // & lamp pairs frame it, all mirror-symmetric in x. ---
+  put('ruin_pillar', R.plaza, -6, -5); put('ruin_pillar', R.plaza, 6, -5);
+  put('ruin_pillar_broken', R.plaza, -7, 0); put('ruin_pillar_broken', R.plaza, 7, 0);
+  put('ruin_pillar', R.plaza, -6, 5); put('ruin_pillar', R.plaza, 6, 5);
+  put('ruin_bonfire', R.plaza, -4, 6, 0); put('ruin_bonfire', R.plaza, 4, 6, 1);   // flanking the portal foot
+  put('ruin_lamp', R.plaza, -8, -3, 0); put('ruin_lamp', R.plaza, 8, -3, 1);
+  put('ruin_crystal', R.plaza, -5, -6, 0); put('ruin_crystal', R.plaza, 5, -6, 1);
+
+  // --- garden: cracked goddess statue centred + symmetric crystals/graves + a crumbled fountain ---
+  put('ruin_statue', R.garden, 0, -1);
+  put('ruin_fountain', R.garden, 0, 4, 0);
+  put('ruin_crystal', R.garden, -4, 1, 0); put('ruin_crystal', R.garden, 4, 1, 1);
+  put('ruin_deadtree', R.garden, -6, -2); put('ruin_deadtree', R.garden, 6, -2);
+  for (let i = -4; i <= 4; i += 2) put('ruin_fence', R.garden, i, 5);
+
+  // --- market: broken stalls + carts + barrels, soul-lit well ---
+  put('town_fc_stall', R.market, -3, -1); put('town_fc_stall', R.market, 3, -1);
+  put('ruin_cart', R.market, 0, 3); put('ruin_well', R.market, -5, 2);
+  put('town_barrel', R.market, 5, 1); put('town_barrel', R.market, 6, 2); put('town_barrel', R.market, 5, 3);
+  put('ruin_lamp', R.market, -5, -3, 0); put('ruin_lamp', R.market, 5, -3, 1);
+
+  // --- church surrounds: a leaning-gravestone cluster + a free-standing broken arch over the path ---
+  put('ruin_grave', R.church, -3, 4); put('ruin_grave', R.church, -2, 5); put('ruin_grave', R.church, -4, 5);
+  put('ruin_grave', R.church, 3, 4); put('ruin_grave', R.church, 4, 5);
+  put('ruin_arch', R.church, 0, 6);
+  put('ruin_torchpost', R.church, -2, 1, 0); put('ruin_torchpost', R.church, 2, 1, 1);
+
+  // --- smith / clothing / personal porch torches (symmetric flanking the doors) ---
+  for (const bid of ['blacksmith', 'clothing', 'personal', 'guild', 'achievements']) {
+    put('ruin_torchpost', R[bid], -2, 1, 0); put('ruin_torchpost', R[bid], 2, 1, 1);
+  }
+  // a broken arch framing the path mouth into the achievements hall (east) and guild (north)
+  put('ruin_arch', R.achievements, -6, 0); put('ruin_arch', R.guild, 0, 5);
+
+  // --- scatter ruin props across the open field (seeded by tile coords; FLOOR-guarded by putT) ---
+  const scatterTrees = [[6, 6], [8, 20], [7, 24], [6, 38], [9, 44], [24, 5], [40, 6], [58, 8], [59, 22], [58, 35], [57, 44], [26, 44], [38, 44], [16, 28], [40, 30], [24, 22], [44, 24]];
+  for (const [tx, ty] of scatterTrees) putT(rng.chance(0.45) ? 'ruin_deadtree2' : 'ruin_deadtree', tx, ty);
+  const scatterBoulders = [[10, 16], [54, 16], [11, 36], [54, 38], [28, 8], [36, 44], [22, 18], [42, 18], [18, 24], [46, 32]];
+  for (const [tx, ty] of scatterBoulders) putT(rng.chance(0.5) ? 'ruin_boulder2' : 'ruin_boulder', tx, ty, 0.5, 0.8);
+  const scatterRubble = [[20, 8], [44, 10], [10, 22], [52, 24], [16, 38], [40, 38], [30, 12], [34, 18], [22, 30], [48, 18], [14, 18], [50, 12], [26, 36], [42, 34]];
+  for (const [tx, ty] of scatterRubble) putT(rng.chance(0.5) ? 'ruin_rubble2' : 'ruin_rubble', tx, ty, 0.5, 0.7);
+  const scatterCrystals = [[18, 14], [48, 30], [12, 26], [38, 12], [28, 44], [54, 28], [22, 36]];
+  for (const [tx, ty] of scatterCrystals) putT('ruin_crystal', tx, ty, 0.5, 0.85, (tx + ty) % 2);
+  const scatterFence = [[14, 16], [15, 16], [16, 16], [48, 16], [49, 16], [50, 16], [10, 38], [11, 38], [50, 36], [51, 36]];
+  for (const [tx, ty] of scatterFence) putT('ruin_fence', tx, ty, 0.5, 0.8);
+  const scatterPillar = [[26, 14], [38, 30], [16, 34], [46, 28], [30, 8]];
+  for (const [tx, ty] of scatterPillar) putT(rng.chance(0.5) ? 'ruin_pillar' : 'ruin_pillar_broken', tx, ty, 0.5, 0.85);
+  // a few banners + a survivor bonfire on the field for life signs
+  putT('ruin_banner', 24, 10, 0.5, 0.85, 0); putT('ruin_banner', 40, 22, 0.5, 0.85, 1);
+  putT('ruin_bonfire', 18, 22, 0.5, 0.85, 0); putT('ruin_bonfire', 46, 36, 0.5, 0.85, 2);
+
+  // R19/B1 fix: top up the field to the spec density (~180-240 props). The fixed scatter coords above
+  // realistically land only ~120-140 props (many sit on uncarved field/border and get FLOOR-skipped),
+  // so seeded-fill the remaining FLOOR tiles with small ruin props, FLOOR-guarded + min-spaced, while
+  // keeping porches / plaza-centre / the spawn / the rift clear.
+  const SMALL_PROPS = ['ruin_rubble', 'ruin_rubble2', 'ruin_crystal', 'ruin_fence', 'ruin_deadtree', 'ruin_boulder', 'ruin_boulder2'];
+  const reservedFill = (tx, ty) => {
+    if (Math.abs(tx - pc.cx) <= 3 && Math.abs(ty - pc.cy) <= 3) return true;   // plaza-centre portal + spawn ring
+    if (ty >= riftRow0 - 1 && ty <= riftRow1 + 1) return true;                 // along the rift
+    for (const b of TOWN_BUILDINGS) if (Math.abs(tx - b.cx) <= 2 && ty >= b.cy - 6 && ty <= b.cy + 1) return true;  // porches/footprints
+    return false;
+  };
+  const occupied = new Set(D.map((d) => (Math.floor(d.y / TS)) * tw + Math.floor(d.x / TS)));
+  const nearDecor = (tx, ty) => {   // min-spacing: reject if any existing decor is within 1 tile (8-neighbourhood)
+    for (let oy = -1; oy <= 1; oy++) for (let ox = -1; ox <= 1; ox++) if (occupied.has((ty + oy) * tw + (tx + ox))) return true;
+    return false;
+  };
+  const FILL_TARGET = 200;
+  // deterministic FLOOR-tile order (seeded jitter so it doesn't read as a raster sweep), gated by chance
+  const cells = [];
+  for (let y = 2; y < th - 2; y++) for (let x = 2; x < tw - 2; x++) if (tiles[y * tw + x] === FLOOR) cells.push(y * tw + x);
+  for (let i = cells.length - 1; i > 0; i--) { const j = rng.int(0, i); const t = cells[i]; cells[i] = cells[j]; cells[j] = t; }
+  for (const ci of cells) {
+    if (D.length >= FILL_TARGET) break;
+    const tx = ci % tw, ty = (ci / tw) | 0;
+    if (reservedFill(tx, ty) || nearDecor(tx, ty)) continue;
+    if (!rng.chance(0.7)) continue;   // leave breathing room (not every eligible tile)
+    const sp = SMALL_PROPS[rng.int(0, SMALL_PROPS.length - 1)];
+    D.push({ sprite: sp, x: (tx + 0.5) * TS, y: (ty + 0.85) * TS, phase: (tx + ty) % 3 });
+    occupied.add(ci);
+  }
+
+  const tileset = { floor: ['ruin_grass', 'ruin_grass2', 'ruin_ashgrass', 'ruin_path', 'ruin_path2', 'ruin_plaza', 'ruin_plaza2'], wall: 'ruin_wallline', wallTop: 'ruin_wallline_top' };
+  return { tw, th, tiles, floorVar, decor: D, rooms, tileset };
+}
+
+// R19/B2: the 6 building INTERIOR maps. Same return contract as makeCamp. Each is a NON-rectangular
+// stone/wood room carved from solid WALL, with a 2-tile south doorway = the EXIT back to town.
+// `rooms = { [id]: <station-anchor centre>, exit: <just inside the doorway> }` (both in PIXELS, same
+// fields as makeCamp's anchors). Station spot (top-centre) is kept decor-clear — hub.js drops the
+// building's interactive station there; SYMMETRIC reuse-sprite decor + torchpost pairs flank it.
+export function makeInterior(id) {
+  // per-building footprint + non-rect carve mask (returns true where FLOOR)
+  const SPEC = {
+    church:       { tw: 20, th: 18 },
+    guild:        { tw: 22, th: 16 },
+    blacksmith:   { tw: 18, th: 14 },
+    clothing:     { tw: 18, th: 14 },
+    achievements: { tw: 24, th: 14 },
+    personal:     { tw: 16, th: 12 },   // 16 wide so the gold-sink decor offsets (dx -6..+6) fit inside
+  }[id] || { tw: 18, th: 14 };
+  const { tw, th } = SPEC;
+  const tiles = new Uint8Array(tw * th).fill(WALL);
+  const floorVar = new Uint8Array(tw * th);
+  const carve = (x, y) => { if (x >= 1 && y >= 1 && x < tw - 1 && y < th - 1) tiles[y * tw + x] = FLOOR; };
+  const setVar = (x, y, v) => { if (x >= 0 && y >= 0 && x < tw && y < th && tiles[y * tw + x] === FLOOR) floorVar[y * tw + x] = v; };
+  const fillRect = (x0, y0, x1, y1) => { for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) carve(x, y); };
+  const cx = tw >> 1;   // doorway / symmetry axis column
+
+  // --- carve the NON-rectangular shape per building ---
+  if (id === 'church') {
+    // cross-shaped nave: a long central nave + transept arms
+    fillRect(cx - 3, 1, cx + 3, th - 2);            // nave (vertical)
+    fillRect(2, 6, tw - 3, 10);                      // transept (horizontal arms)
+  } else if (id === 'guild') {
+    // L-shaped hall
+    fillRect(1, 1, tw - 2, th - 6);                  // main hall (top, full width)
+    fillRect(1, th - 6, cx + 3, th - 2);             // leg jutting south-west
+  } else if (id === 'blacksmith') {
+    // main room + a forge alcove jutting off the right wall
+    fillRect(1, 2, tw - 4, th - 2);                  // main room
+    fillRect(tw - 5, 4, tw - 2, th - 5);             // forge alcove (east bay)
+  } else if (id === 'clothing') {
+    // main room + a fitting bay jutting north
+    fillRect(2, 3, tw - 3, th - 2);                  // main room
+    fillRect(cx - 2, 1, cx + 2, 3);                  // display bay (north)
+  } else if (id === 'achievements') {
+    // long gallery (full-height) + two symmetric side niches bumping out the north wall
+    fillRect(3, 2, tw - 4, th - 2);                  // central gallery (connects station row 2 -> exit)
+    fillRect(2, 4, tw - 3, th - 4);                  // widen the mid-section to the side walls
+    fillRect(4, 1, 7, 3); fillRect(tw - 8, 1, tw - 5, 3);   // two north niches (non-rect bumps)
+  } else { // personal — cosy small room, clipped corners
+    fillRect(1, 1, tw - 2, th - 2);
+    // clip the four corners so it isn't a plain box
+    tiles[1 * tw + 1] = WALL; tiles[1 * tw + (tw - 2)] = WALL;
+    tiles[(th - 2) * tw + 1] = WALL; tiles[(th - 2) * tw + (tw - 2)] = WALL;
+  }
+
+  // --- south doorway = the EXIT (2-tile gap), centred on the symmetry axis ---
+  const doorY = th - 1;             // bottom border row
+  carve(cx, th - 2); carve(cx - 1, th - 2);   // ensure floor just inside the gap
+  tiles[doorY * tw + cx] = FLOOR; tiles[doorY * tw + (cx - 1)] = FLOOR;  // the doorway gap itself
+  setVar(cx, doorY, 0); setVar(cx - 1, doorY, 0);
+
+  // --- floor texturing: wood/stone base + a carpet runner up the centre (per building) ---
+  const usesWood = id === 'guild' || id === 'clothing' || id === 'personal';
+  for (let y = 0; y < th; y++) for (let x = 0; x < tw; x++) {
+    if (tiles[y * tw + x] !== FLOOR) continue;
+    const base = usesWood ? (rng.chance(0.18) ? 1 : 0) : (rng.chance(0.18) ? 3 : 2);   // 0/1 wood, 2/3 stone
+    floorVar[y * tw + x] = base;
+  }
+  // carpet runner (variants 4/5) up the central axis for church/clothing/achievements/personal
+  if (id === 'church' || id === 'clothing' || id === 'achievements' || id === 'personal') {
+    for (let y = 2; y <= th - 2; y++) { setVar(cx, y, rng.chance(0.3) ? 5 : 4); setVar(cx - 1, y, rng.chance(0.3) ? 5 : 4); }
+  }
+
+  // --- anchors ---
+  const stationRow = 2;             // station sits top-centre
+  const rooms = {
+    [id]: { col: 0, row: 0, cx: (cx + 0.5) * TS, cy: (stationRow + 0.5) * TS,
+      x0: (cx - 6) * TS, y0: 0, x1: (cx + 7) * TS, y1: (stationRow + 7) * TS },
+    exit: { col: 0, row: 0, cx: (cx - 0.5) * TS, cy: (th - 2 + 0.5) * TS,
+      x0: (cx - 6) * TS, y0: (th - 8) * TS, x1: (cx + 6) * TS, y1: th * TS },
+  };
+  // make sure station + exit tiles are FLOOR (carve mask might have clipped the very top-centre)
+  carve(cx, stationRow); carve(cx - 1, stationRow); carve(cx + 1, stationRow);
+
+  const D = [];
+  // reserved tiles hub.js needs clear: the station triplet (top-centre) + the exit/doorway pair.
+  const reserved = new Set([
+    (stationRow) * tw + cx, (stationRow) * tw + (cx - 1), (stationRow) * tw + (cx + 1),
+    (th - 2) * tw + cx, (th - 2) * tw + (cx - 1), (th - 1) * tw + cx, (th - 1) * tw + (cx - 1),
+  ]);
+  // FLOOR-guarded tile-offset decor relative to a column/row pair (never on a reserved tile)
+  const putXY = (sprite, tx, ty, ox = 0.5, oy = 0.85, phase = 0) => {
+    if (tx >= 0 && ty >= 0 && tx < tw && ty < th && tiles[ty * tw + tx] === FLOOR && !reserved.has(ty * tw + tx)) D.push({ sprite, x: (tx + ox) * TS, y: (ty + oy) * TS, phase });
+  };
+  // torchpost pairs flank the station (top) and the exit (bottom) — symmetric in x
+  // (station sprite draws at col cx+0.5 → flanks cx-3/cx+3; door axis is col edge cx → flanks cx-3/cx+2)
+  putXY('ruin_torchpost', cx - 3, stationRow + 1, 0.5, 0.85, 0); putXY('ruin_torchpost', cx + 3, stationRow + 1, 0.5, 0.85, 1);
+  putXY('ruin_torchpost', cx - 3, th - 3, 0.5, 0.85, 1); putXY('ruin_torchpost', cx + 2, th - 3, 0.5, 0.85, 0);
+
+  // --- per-building SYMMETRIC reuse-sprite dressing (anchored to columns, mirrored in x).
+  // R19 polish: the building's identity prop (goddess/board/furnace/mannequin/shelf/bed) is the
+  // INTERACTIVE station hub.js places at rooms[id] — never duplicated here as background decor.
+  const midRow = Math.floor(th / 2);
+  if (id === 'church') {
+    putXY('town_candles', cx - 2, stationRow + 1, 0.5, 0.85, 0); putXY('town_candles', cx + 1, stationRow + 1, 0.5, 0.85, 1);
+    putXY('town_stained', 3, 6); putXY('town_stained', tw - 4, 6);
+    putXY('town_stained', 3, 9); putXY('town_stained', tw - 4, 9);
+    putXY('town_arch', 2, midRow); putXY('town_arch', tw - 3, midRow);
+    putXY('town_pew', 4, 8); putXY('town_pew', tw - 5, 8);                                  // transept benches
+    for (const ry of [11, 13]) { putXY('town_pew', cx - 3, ry); putXY('town_pew', cx + 1, ry); }   // nave rows
+    putXY('town_candles', cx - 3, th - 3, 0.5, 0.85, 1); putXY('town_candles', cx + 2, th - 3, 0.5, 0.85, 0);
+  } else if (id === 'guild') {
+    putXY('town_desk', cx - 3, stationRow + 2, 0.5, 0.9); putXY('town_desk', cx + 3, stationRow + 2, 0.5, 0.9);   // twin reception desks
+    putXY('town_lantern', 3, 2, 0.5, 0.85, 0); putXY('town_lantern', tw - 4, 2, 0.5, 0.85, 1);
+    putXY('town_lantern', 3, midRow, 0.5, 0.85, 1); putXY('town_lantern', tw - 4, midRow, 0.5, 0.85, 0);
+    putXY('town_bench', cx - 5, 6); putXY('town_bench', cx + 4, 6);                          // waiting benches
+    putXY('ruin_banner', 5, 1, 0.5, 0.9, 0); putXY('ruin_banner', tw - 6, 1, 0.5, 0.9, 1);   // tattered guild colours
+    putXY('town_crate', 3, th - 3); putXY('town_crate', 4, th - 4); putXY('town_barrel', 3, th - 5);
+    putXY('town_crate', tw - 3, 8); putXY('town_barrel', tw - 3, 9);                          // stores by the east wall
+  } else if (id === 'blacksmith') {
+    putXY('town_anvil', cx, stationRow + 2, 0.5, 0.9);
+    putXY('town_weaponrack', tw - 3, 5); putXY('town_grindstone', tw - 3, 8);                // forge-alcove kit
+    putXY('town_weaponrack', 2, 5); putXY('town_weaponrack', 2, 8);
+    putXY('town_crate', 5, th - 3); putXY('town_crate', tw - 6, th - 3);
+    putXY('town_barrel', 2, th - 3); putXY('town_barrel', 3, th - 4);
+  } else if (id === 'clothing') {
+    putXY('town_mannequin', cx - 2, 2, 0.5, 0.9); putXY('town_mannequin', cx + 2, 2, 0.5, 0.9);   // display trio with the station
+    putXY('town_rack', 4, 6); putXY('town_rack', tw - 5, 6);
+    putXY('town_rack', 4, 9); putXY('town_rack', tw - 5, 9);
+    putXY('town_mirror', 3, th - 4); putXY('town_mirror', tw - 4, th - 4);
+    putXY('town_lantern', 5, 4, 0.5, 0.85, 0); putXY('town_lantern', tw - 6, 4, 0.5, 0.85, 1);
+  } else if (id === 'achievements') {
+    putXY('town_trophyshelf', 5, 2, 0.5, 0.9); putXY('town_trophyshelf', tw - 6, 2, 0.5, 0.9);    // niche shelves
+    for (const rx of [5, 9, tw - 11, tw - 7]) { putXY('town_pillar', rx, 4); putXY('town_pillar', rx, 10); }   // colonnade
+    putXY('town_banner_gold', 3, 5); putXY('town_banner_gold', tw - 5, 5);
+    putXY('town_banner_gold', 3, 9); putXY('town_banner_gold', tw - 5, 9);
+  } else { // personal — the bed IS the interactive station; dress a cosy room around it
+    putXY('town_rug', cx, 6, 0.0, 0.6);
+    putXY('town_bookshelf', 2, 3); putXY('town_plant', tw - 3, 3);
+    putXY('town_chest2', tw - 3, th - 3); putXY('town_lamp2', 2, th - 4, 0.5, 0.85, 0);
+    putXY('town_barrel', 2, th - 3); putXY('town_plant', 2, 6);
+    // NOTE: hub.injectRoomDecor() adds the gold-sink decor on top (anchored mid-room, FLOOR-guarded).
+  }
+
+  const tileset = { floor: ['int_wood', 'int_wood2', 'int_stone', 'int_stone2', 'int_carpet', 'int_carpet2'], wall: 'int_wall', wallTop: 'int_wall_top' };
   return { tw, th, tiles, floorVar, decor: D, rooms, tileset };
 }

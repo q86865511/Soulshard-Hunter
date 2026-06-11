@@ -2,7 +2,7 @@
 // (talents), guild (quests + rank), blacksmith (forge + facilities), clothing store
 // (skins), achievement hall and your personal room, each populated with NPCs you can
 // talk to. Interact with a building (or its keeper NPC) to open its panel, then sortie.
-import { World, makeCamp, TS } from '../world.js';
+import { World, makeCamp, makeInterior, TS } from '../world.js';
 import { refs } from './refs.js';
 import { setScene } from '../scene.js';
 import { newRun, META, saveMeta, WEAPONS } from '../state.js';
@@ -42,11 +42,32 @@ import { cheatUnlockAll } from '../content/unlocks.js';
 import { gate, facilityGate, gateProgress } from '../content/town_gates.js';   // R17/9.1 mixed progression gates
 
 const inside = (mx, my, r) => mx >= r.x && mx <= r.x + r.w && my >= r.y && my <= r.y + r.h;
-// NPC placement offsets within their room (tiles from room centre)
+// R19: outdoor anchors are scattered, so NPCs that stay in town (guide/child=plaza, merchant=market,
+// oldvet=garden) keep their tile-offsets here. Keeper NPCs live INSIDE their building interior now and
+// use NPC_POS_INT (offsets from the interior station anchor) instead.
 const NPC_POS = {
-  priest: [-1, 3.5], guildmaster: [-3.5, 1], receptionist: [4, 3], blacksmith: [-3, 3.5],
-  tailor: [-1.5, -1], curator: [0.5, 3.5], guide: [-4, 3], merchant: [0, 0.5], oldvet: [0, -1.5], child: [4, 4],
+  guide: [-4, 3], merchant: [0, 0.5], oldvet: [0, -1.5], child: [4, 4],
 };
+// R19: keeper placement INSIDE the interior — symmetric, near (but clear of) the station anchor
+const NPC_POS_INT = {
+  priest: [-2, 4], guildmaster: [-3, 3], receptionist: [3, 3], blacksmith: [-3, 3],
+  tailor: [2, 3], curator: [-3, 4],
+};
+// R19: which building INTERIOR each keeper lives in (its `room`/`station`→panel mapping is in npcs.js).
+// The interior area id matches these (church/guild/blacksmith/clothing/achievements). personal has no keeper.
+const KEEPER_AREA = { priest: 'church', guildmaster: 'guild', receptionist: 'guild', blacksmith: 'blacksmith', tailor: 'clothing', curator: 'achievements' };
+// R19: NPCs that stay OUTSIDE in the town exterior
+const TOWN_NPC_IDS = new Set(['guide', 'child', 'merchant', 'oldvet']);
+// R19: the 6 building interior areas (door target -> panel + station identity)
+const BUILDINGS = {
+  church: { panel: 'talents', sprite: 'town_goddess', label: '女神像 · 天賦', color: P.shardL, name: '教堂', enterLabel: '進入 教堂' },
+  guild: { panel: 'guild', sprite: 'town_board', label: '任務板 · 公會', color: P.goldL, name: '冒險者公會', enterLabel: '進入 公會' },
+  blacksmith: { panel: 'smith', sprite: 'town_furnace', label: '鍛造爐 · 鐵匠鋪', color: P.emberL, name: '鐵匠鋪', enterLabel: '進入 鐵匠鋪' },
+  clothing: { panel: 'wardrobe', sprite: 'town_mannequin', label: '衣帽店', color: P.purpleL, name: '衣帽店', enterLabel: '進入 衣帽店' },
+  achievements: { panel: 'achievements', sprite: 'town_trophyshelf', label: '成就殿堂', color: P.gold, name: '成就殿堂', enterLabel: '進入 成就殿堂' },
+  personal: { panel: 'personal', sprite: 'town_bed', label: '個人小屋', color: P.greenL, name: '個人小屋', enterLabel: '進入 小屋' },
+};
+const AREA_TITLE = { town: '魂 晶 遺 鎮', church: '教 堂', guild: '冒 險 者 公 會', blacksmith: '鐵 匠 鋪', clothing: '衣 帽 店', achievements: '成 就 殿 堂', personal: '個 人 小 屋' };
 // task-6: a distinct colour per room so each region reads as its own space (not one flat hall)
 const ROOM_THEME = {
   church: P.shardL, guild: P.goldL, blacksmith: P.emberL, clothing: P.purpleL,
@@ -56,25 +77,8 @@ const ROOM_THEME = {
 export const hubScene = {
   enter() {
     this.world = new World({});
-    const camp = makeCamp();
-    this.world.loadMap(camp);
-    const R = this.rooms = camp.rooms;
-    const plaza = R.plaza;
-    this.hero = { x: plaza.cx, y: plaza.cy + 22, vx: 0, vy: 0, facing: 1, radius: 5, walkT: 0, moving: false };
-    camera.x = camera.targetX = plaza.cx; camera.y = camera.targetY = plaza.cy;
-    // interactive buildings (open a panel on E)
-    this.stations = [
-      { id: 'sortie', panel: 'sortie', sprite: 'portal', label: '出擊傳送門', color: P.manaL, x: plaza.cx, y: plaza.cy - 10 },
-      { id: 'church', panel: 'talents', sprite: 'town_goddess', label: '女神像 · 天賦', color: P.shardL, x: R.church.cx, y: R.church.cy - 10 },
-      { id: 'guild', panel: 'guild', sprite: 'town_board', label: '任務板 · 公會', color: P.goldL, x: R.guild.cx + 1.5 * TS, y: R.guild.cy - 11 },
-      { id: 'smith', panel: 'smith', sprite: 'town_furnace', label: '鍛造爐 · 鐵匠鋪', color: P.emberL, x: R.blacksmith.cx + 1.5 * TS, y: R.blacksmith.cy - 9 },
-      { id: 'wardrobe', panel: 'wardrobe', sprite: 'town_mannequin', label: '衣帽店', color: P.purpleL, x: R.clothing.cx + 1.5 * TS, y: R.clothing.cy - 9 },
-      { id: 'achievements', panel: 'achievements', sprite: 'town_trophyshelf', label: '成就殿堂', color: P.gold, x: R.achievements.cx, y: R.achievements.cy - 9 },
-      { id: 'personal', panel: 'personal', sprite: 'town_bed', label: '個人小屋', color: P.greenL, x: R.personal.cx + 3 * TS, y: R.personal.cy - 1 * TS },
-    ];
-    // NPCs (open a dialogue on E; keeper NPCs route to their panel)
-    this.npcs = NPCS.map((n) => { const rm = R[n.room] || plaza, o = NPC_POS[n.id] || [0, 2]; return { def: n, x: rm.cx + o[0] * TS, y: rm.cy + o[1] * TS, facing: o[0] < 0 ? 1 : -1, t: (n.id.length % 6) }; });
-
+    this.maps = {};                 // R19: lazy per-area map cache (town + 6 interiors); rebuilt only on first visit
+    this.area = 'town';
     this.panel = null; this.tab = 0; this.near = null; this.t = 0;
     this.escMenu = false;
     this.dialogue = null;
@@ -86,9 +90,72 @@ export const hubScene = {
     ensureSkinOffers(META);
     ensureWeekly(META);   // R18/B9: re-snapshot weekly bounty base on ISO-week rollover
     this.petState = { x: null, y: null, t: 0, bob: 0 };   // R18/B10 cosmetic pet follower
-    this.injectRoomDecor();   // R18/B10: place owned personal-room decorations into the world
+    this.loadArea('town');          // R19: build the exterior (default spawn = plaza)
     Music.start('hub');
     if (!META.tutorialDone) setTimeout(() => this.triggerTutorial(), 1000);   // 6.1 first-visit town guide
+  },
+
+  // R19: get-or-build the map for an area id ('town' or a building interior id). Cached on this.maps
+  // so props don't re-roll between visits (town layout is non-deterministic per makeCamp()).
+  areaMap(areaId) {
+    if (!this.maps[areaId]) this.maps[areaId] = (areaId === 'town') ? makeCamp() : makeInterior(areaId);
+    return this.maps[areaId];
+  },
+  // R19: load an area into the world, place the hero, snap the camera, rebuild stations/NPCs.
+  loadArea(areaId, spawnPos) {
+    const map = this.areaMap(areaId);
+    this.area = areaId;
+    this.world.loadMap(map);
+    const R = this.rooms = map.rooms;
+    // spawn position: explicit > sensible default per area
+    let sp = spawnPos;
+    if (!sp) {
+      if (areaId === 'town') sp = { x: R.plaza.cx, y: R.plaza.cy + 22 };
+      else sp = { x: R.exit.cx, y: R.exit.cy - TS };   // interior: just above the exit doorway
+    }
+    if (!this.hero) this.hero = { x: sp.x, y: sp.y, vx: 0, vy: 0, facing: 1, radius: 5, walkT: 0, moving: false };
+    else { this.hero.x = sp.x; this.hero.y = sp.y; this.hero.vx = 0; this.hero.vy = 0; }
+    camera.x = camera.targetX = this.hero.x; camera.y = camera.targetY = this.hero.y - 6;
+    this.stations = this.buildStations(areaId, R);
+    this.npcs = this.buildNpcs(areaId, R);
+    this.near = null; this.nearKind = null;
+    if (this.petState) this.petState.x = null;   // pet re-spawns next to the hero in the new area
+    this.injectRoomDecor();   // R18/B10: only acts in the personal interior now (FLOOR-guarded)
+  },
+  // R19: stations for the active area. TOWN = grand portal (panel) + 6 door-stations at porches.
+  // INTERIOR = the building's panel station (top-centre) + an exit door-station at rooms.exit.
+  buildStations(areaId, R) {
+    if (areaId === 'town') {
+      const plaza = R.plaza;
+      const list = [{ id: 'sortie', panel: 'sortie', sprite: 'portal_grand', label: '出擊傳送門', color: P.manaL, x: plaza.cx, y: plaza.cy }];
+      for (const bid in BUILDINGS) {
+        const b = BUILDINGS[bid], rm = R[bid]; if (!rm) continue;
+        list.push({ id: 'door_' + bid, kind: 'door', target: bid, label: b.enterLabel, color: b.color, x: rm.cx, y: rm.cy });
+      }
+      return list;
+    }
+    // interior: panel station + exit door
+    const b = BUILDINGS[areaId] || {};
+    const rm = R[areaId] || R.exit;
+    return [
+      { id: areaId, panel: b.panel, sprite: b.sprite, label: b.label, color: b.color, x: rm.cx, y: rm.cy + 0.4 * TS },
+      { id: 'exit', kind: 'door', target: 'town', label: '離開', color: P.gray3, x: R.exit.cx, y: R.exit.cy },
+    ];
+  },
+  // R19: NPCs for the active area. TOWN = guide/child/merchant/oldvet at their outdoor anchors.
+  // INTERIOR = the keeper(s) for that building, placed symmetric near the station anchor.
+  buildNpcs(areaId, R) {
+    if (areaId === 'town') {
+      return NPCS.filter((n) => TOWN_NPC_IDS.has(n.id)).map((n) => {
+        const rm = R[n.room] || R.plaza, o = NPC_POS[n.id] || [0, 2];
+        return { def: n, x: rm.cx + o[0] * TS, y: rm.cy + o[1] * TS, facing: o[0] < 0 ? 1 : -1, t: (n.id.length % 6) };
+      });
+    }
+    const anchor = R[areaId] || R.exit;
+    return NPCS.filter((n) => KEEPER_AREA[n.id] === areaId).map((n) => {
+      const o = NPC_POS_INT[n.id] || [0, 3];
+      return { def: n, x: anchor.cx + o[0] * TS, y: anchor.cy + o[1] * TS, facing: o[0] < 0 ? 1 : -1, t: (n.id.length % 6) };
+    });
   },
 
   // ---- update --------------------------------------------------------------
@@ -129,32 +196,56 @@ export const hubScene = {
       for (const s of this.stations) { const ss = worldToScreen(s.x, s.y - 10); if (dist(mx, my, ss.x, ss.y) < 46 * view.dpr) { act = s; this.nearKind = 'station'; } }
       for (const n of this.npcs) { const ss = worldToScreen(n.x, n.y - 10); if (dist(mx, my, ss.x, ss.y) < 40 * view.dpr) { act = n; this.nearKind = 'npc'; } }
     }
-    // panel hotkeys
-    if (pressed('slot1')) act = this.stations.find((s) => s.id === 'church');
-    if (pressed('slot2')) act = this.stations.find((s) => s.id === 'smith');
-    if (pressed('slot3')) act = this.stations.find((s) => s.id === 'achievements');
-    if (pressed('slot4')) act = this.stations.find((s) => s.id === 'guild');
-    if (pressed('space')) act = this.stations.find((s) => s.id === 'sortie');
+    // R19: panel hotkeys now open panels directly from anywhere (no station lookup needed)
+    if (pressed('slot1')) { this.openPanel('talents'); return; }
+    if (pressed('slot2')) { this.openPanel('smith'); return; }
+    if (pressed('slot3')) { this.openPanel('achievements'); return; }
+    if (pressed('slot4')) { this.openPanel('guild'); return; }
+    if (pressed('space')) { this.openPanel('sortie'); return; }
     if (!act) return;
     if (act.def) this.openDialogue(act);          // an NPC
-    else this.openPanel(act.panel);               // a building
+    else if (act.kind === 'door') this.enterDoor(act);   // R19: a door → switch area
+    else this.openPanel(act.panel);               // a building station → panel
   },
 
-  // R18/B2: light ambient particles for the open-air town — blossom petals drifting across
-  // the visible field + a few fireflies hovering over the garden. Spawned near the camera so
-  // they're always on-screen; capped by the particle system's own ring buffer.
+  // R19: walk through a door. Entering a building spawns at its exit; returning to town spawns at
+  // that building's porch anchor (a touch below it so the hero stands in front of the facade door).
+  enterDoor(door) {
+    Sfx.play('uiClick');
+    let spawn = null;
+    if (door.target !== 'town') {
+      // spawn just inside the building's exit doorway (set inside loadArea's default)
+    } else if (this.area !== 'town') {
+      // returning from a building → stand at its porch in the town
+      const townMap = this.areaMap('town'), rm = townMap.rooms[this.area];
+      if (rm) spawn = { x: rm.cx, y: rm.cy + 8 };
+    }
+    this.loadArea(door.target, spawn);
+  },
+
+  // R19: apocalyptic-town ambience. TOWN → drifting ash flakes + ember motes (grey + ember-orange,
+  // slow fall) replacing the R18 sakura petals, with an occasional soul-wisp twinkle by the garden.
+  // INTERIORS → just a few sparse warm dust motes. Spawned near the camera so they're always on-screen.
   ambientFx(dt) {
     this.ambT = (this.ambT || 0) - dt;
     if (this.ambT > 0) return;
-    this.ambT = 0.18;
     const pr = this.world.particles, vw = view.W / camera.zoom, vh = view.H / camera.zoom;
-    // a blossom petal entering from the top of the view, drifting down + sideways
-    const px = camera.x + (Math.random() - 0.5) * vw, py = camera.y - vh / 2 - 8;
-    pr.spawn({ x: px, y: py, vx: 8 + Math.random() * 10, vy: 14 + Math.random() * 10, life: 4.5, size: 2, color: Math.random() < 0.5 ? P.sakura : P.sakuraL, grav: 4, drag: 0.995, glow: false, fade: true });
-    // occasional firefly twinkle near the garden well
-    if (Math.random() < 0.5 && this.rooms.garden) {
-      const g = this.rooms.garden;
-      pr.spawn({ x: g.cx + (Math.random() - 0.5) * 90, y: g.cy + (Math.random() - 0.5) * 70, vx: (Math.random() - 0.5) * 12, vy: -6 - Math.random() * 8, life: 1.6, size: 1.5, color: P.holyL, glow: true });
+    if (this.area === 'town') {
+      this.ambT = 0.16;
+      // an ash flake or ember mote entering from the top of the view, drifting slowly down + sideways
+      const px = camera.x + (Math.random() - 0.5) * vw, py = camera.y - vh / 2 - 8;
+      const ember = Math.random() < 0.4;
+      pr.spawn({ x: px, y: py, vx: (Math.random() - 0.5) * 8, vy: 8 + Math.random() * 8, life: 5.5, size: ember ? 1.5 : 2, color: ember ? P.emberL : '#9aa', grav: ember ? -2 : 3, drag: 0.992, glow: ember, fade: true });
+      // occasional soul-wisp twinkle near the garden (guard exists for the active town map)
+      if (Math.random() < 0.4 && this.rooms && this.rooms.garden) {
+        const g = this.rooms.garden;
+        pr.spawn({ x: g.cx + (Math.random() - 0.5) * 90, y: g.cy + (Math.random() - 0.5) * 70, vx: (Math.random() - 0.5) * 10, vy: -6 - Math.random() * 8, life: 1.6, size: 1.5, color: P.shardL, glow: true });
+      }
+    } else {
+      // interior: sparse warm dust motes drifting through the torch-lit gloom
+      this.ambT = 0.5;
+      const px = camera.x + (Math.random() - 0.5) * vw, py = camera.y + (Math.random() - 0.5) * vh;
+      pr.spawn({ x: px, y: py, vx: (Math.random() - 0.5) * 4, vy: 2 + Math.random() * 3, life: 4, size: 1, color: P.emberL, grav: 1, drag: 0.99, glow: true, fade: true });
     }
   },
 
@@ -503,10 +594,18 @@ export const hubScene = {
     return names.map((name, i) => ({ name, i, x: x0 + i * (w + gap), y, w, h }));
   },
   // ---- R18/B10 個人小屋裝飾 + 迷你寵物 ----
-  injectRoomDecor() {   // (re)place owned decorations into the world (called on enter + after a buy)
+  injectRoomDecor() {   // (re)place owned decorations into the world (called on loadArea + after a buy)
     if (!this.world || !this.rooms) return;
     this.world.decor = (this.world.decor || []).filter((d) => !d._room);
-    for (const dd of placedDecor(META, this.rooms.personal)) { dd._room = true; this.world.decor.push(dd); }
+    // R19: the personal room is its own interior area now — only inject the gold-sink decor there
+    if (this.area !== 'personal' || !this.rooms.personal) return;
+    // R19: the gold-sink offsets (dx -6..+6, dy -2..+4) were authored around the old room CENTRE —
+    // anchor them mid-room (row 5.5 of the 16×12 interior), not at the top-centre station anchor.
+    const anchor = { cx: this.rooms.personal.cx, cy: 5.5 * TS };
+    for (const dd of placedDecor(META, anchor)) {
+      const tx = Math.floor(dd.x / TS), ty = Math.floor(dd.y / TS);
+      if (this.world.inBounds(tx, ty) && this.world.tileAt(tx, ty) === 0 /* FLOOR */) { dd._room = true; this.world.decor.push(dd); }
+    }
   },
   roomTabLayout(f) {
     const S = f.S, top = this.bodyTop(f) + 6 * S, cols = 2, cw = (f.w - 48 * S - 12 * S) / cols, chh = 38 * S, gap = 8 * S;
@@ -952,20 +1051,27 @@ export const hubScene = {
   render() {
     const S = uiScale();
     this.world.draw();
-    // task-6: a gentle themed wash per room so each region reads as its own space.
-    // Kept subtle (low-alpha rect + a broad soft glow) so the polished flagstone shows
-    // through as ambient lighting rather than a flat colour slab over a grid.
-    for (const id in this.rooms) {
-      const rm = this.rooms[id]; const col = ROOM_THEME[id]; if (!col) continue;
-      const a = worldToScreen(rm.x0 + TS, rm.y0 + TS), b = worldToScreen(rm.x1 - TS, rm.y1 - TS);
-      uiRect(a.x, a.y, b.x - a.x, b.y - a.y, withAlpha(col, 0.05));
-      glowWorld(rm.cx, rm.cy, 130, col, 0.05);
+    // R19 ROOM_THEME wash. In TOWN: a gentle themed wash only over the open districts (plaza/garden/
+    // market) so each open-air area reads distinctly. In an INTERIOR: one full-room warm wash of that
+    // building's theme colour. Kept subtle so the floor art shows through as ambient lighting.
+    if (this.area === 'town') {
+      for (const id of ['plaza', 'garden', 'market']) {
+        const rm = this.rooms[id]; const col = ROOM_THEME[id]; if (!rm || !col) continue;
+        glowWorld(rm.cx, rm.cy, 130, col, 0.05);
+      }
+    } else {
+      const col = ROOM_THEME[this.area];
+      if (col && this.world) { glowWorld(this.hero.x, this.hero.y, 220, col, 0.06); uiRect(0, 0, view.W, view.H, withAlpha(col, 0.04)); }
     }
     // stations + hero + npcs
     for (const s of this.stations) {
+      // R19: a door-station has no sprite — the facade door IS the visual; just a soft warm glow
+      // (brighter when the hero is near) so the player reads "enterable".
+      if (s.kind === 'door') { glowWorld(s.x, s.y - 6, 18, s.color, 0.08 + (this.near === s ? 0.18 : 0)); continue; }
       const sp = getSprite(s.sprite);
-      const bob = s.id === 'sortie' ? Math.sin(this.t * 2) : 0;
-      glowWorld(s.x, s.y - 8, 16, s.color, 0.14 + (this.near === s ? 0.16 : 0));
+      const bob = s.id === 'sortie' ? Math.sin(this.t * 2) * 1.5 : 0;
+      const portalGlow = s.id === 'sortie' ? 0.26 : 0.14;   // R19: the grand portal is the centrepiece — strong glow
+      glowWorld(s.x, s.y - 8, s.id === 'sortie' ? 28 : 16, s.color, portalGlow + (this.near === s ? 0.16 : 0));
       drawShadow(s.x, s.y, sp.w * 0.3);
       drawSprite(frameAt(sp, this.t), s.x, s.y + bob, { ax: sp.ax, ay: sp.ay });
     }
@@ -984,9 +1090,16 @@ export const hubScene = {
     }
     // labels
     for (const s of this.stations) {
-      const sp = getSprite(s.sprite); const ss = worldToScreen(s.x, s.y - sp.h - 6);
+      // R19: door-stations have no sprite — anchor their label above the door anchor itself
+      const labelH = s.kind === 'door' ? 22 : (getSprite(s.sprite).h + 6);
+      const ss = worldToScreen(s.x, s.y - labelH);
       uiText(s.label, ss.x, ss.y, { size: 12 * S, align: 'center', color: s.color, weight: '800' });
-      if (this.near === s) { const sp2 = worldToScreen(s.x, s.y + 8); uiText('【E】進入', sp2.x, sp2.y, { size: 12 * S, align: 'center', color: withAlpha('#fff', 0.6 + Math.sin(this.t * 6) * 0.3), weight: '800' }); }
+      if (this.near === s) {
+        const sp2 = worldToScreen(s.x, s.y + 8);
+        // R19: doors prompt 進入 (town→building) / 離開 (building→town); panel stations prompt 進入
+        const prompt = s.kind === 'door' ? (s.target === 'town' ? '【E】離開' : '【E】進入') : '【E】互動';
+        uiText(prompt, sp2.x, sp2.y, { size: 12 * S, align: 'center', color: withAlpha('#fff', 0.6 + Math.sin(this.t * 6) * 0.3), weight: '800' });
+      }
     }
     for (const n of this.npcs) {
       const sp = getSprite(n.def.sprite); const ss = worldToScreen(n.x, n.y - sp.h - 4);
@@ -1000,12 +1113,15 @@ export const hubScene = {
     this.world.particles.drawText();
     vignette(0.45);
 
-    // top bar
-    uiText('魂 晶 之 鎮', view.W / 2, 28 * S, { size: 20 * S, align: 'center', color: '#fff', weight: '900' });
+    // top bar — R19: title reflects the active area (town vs. the building you're inside)
+    uiText(AREA_TITLE[this.area] || AREA_TITLE.town, view.W / 2, 28 * S, { size: 20 * S, align: 'center', color: '#fff', weight: '900' });
     const csp = getSprite('coin');
     drawSpriteUI(csp.frames[0], view.W - 110 * S, 12 * S, 2.2 * S);
     uiText(String(META.gold), view.W - 84 * S, 30 * S, { size: 18 * S, color: P.goldL, weight: '800' });
-    uiText('1 教堂　2 鐵匠　3 成就　4 公會　空白 出擊　靠近 NPC 或建築按【E】互動　Esc 設定', view.W / 2, view.H - 16 * S, { size: 12 * S, align: 'center', color: P.gray3 });
+    const footer = this.area === 'town'
+      ? '1 教堂　2 鐵匠　3 成就　4 公會　空白 出擊　靠近大門按【E】進出建築　Esc 設定'
+      : '靠近站點或 NPC 按【E】互動　·　靠近大門按【E】離開　·　1 教堂 2 鐵匠 3 成就 4 公會 空白 出擊　Esc 設定';
+    uiText(footer, view.W / 2, view.H - 16 * S, { size: 12 * S, align: 'center', color: P.gray3 });
     if (this.flashT > 0) uiText(this.flash, view.W / 2, view.H * 0.78, { size: 18 * S, align: 'center', color: withAlpha(P.goldL, Math.min(1, this.flashT)), weight: '800' });
     if (!this.panel && !this.dialogue) this.drawQuestTracker();
 
