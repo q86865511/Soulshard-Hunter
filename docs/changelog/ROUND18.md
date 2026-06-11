@@ -139,3 +139,16 @@
 **獎勵**（升級自動發放 + hub toast；純金幣 + QoL，零戰力）：Lv2 150 金 · Lv3 400 金 · Lv4 800 金 + **免費贈一件對應 B10 裝飾**（每 NPC 固定一件，吃 `grantDecor`：小米→小妖玩偶、老潘→黃金王座、薇拉→水晶吊燈…）· Lv5 1500 金 + **QoL 旗標**。3 個 Lv5 QoL 特典走 `META.flags`（避免跨模組 import 循環）：**老潘**`qolBank`→銀行額度 +200（`bank.js bankLimit`）、**薇拉**`qolWardrobe`→造型重抽半價（`skinshop rerollCost`）、**小鈴**`qolWeekly`→週常獎勵 +10%（`claimWeekly`；spec 的「免費重抽」以等價且自含的 +10% 取代，降風險）。成就 +3（`bond_npc` 摯友家族，以最高好感等級計 `[2,4,5]`）。
 
 **驗證**：reload `__GAME_ERROR__` null；同日對同一 NPC 二次對話只 +1；強制 child pts=13 後對話 → Lv4、+800 金、獲贈 rd_impdoll（childDecor=true）、affMaxLevel=4；achTotal **219**（+5 B7 +1 roster +2 B10 +3 B11 +3 B9 等＝符合 spec）。
+
+## B12 — 整合 QA + 文件（2026-06-11）
+
+**多模型 QA workflow**（`r18-qa`，模型分工如設計：**Sonnet 掃描 / Opus 對抗驗證**）：5 維度 Sonnet（Explore agent）掃描（save-compat / daily-curse 消費點 / hub-UI 命中測試 / imports-refs / sprite-refs）→ 每筆 finding 由 Opus 逐一讀碼對抗驗證（預設 real=false，需指出確切行）。7 候選 → **6 確認真**，全數修正：
+- **(中) m_fog `dailyFog` 旗標只設不讀**：render 的 `vignette(0.42)` 改 `vignette(this.dailyFog ? 0.62 : 0.42)`，補上「暗角加深」效果。
+- **(中) m_frenzy `dailyBossDropMul` 只套小王**：`clearLevel`（最終 Boss 通關金）與 `onReaperDead`（死神金/魂晶）原未乘——改為以**加量**方式套用（`×1` 時與非每日**位元相同**，>1 時翻倍）。驗證：base 790→1580、reaper 1200→2400。
+- **(中) `drawRoomTab` clip 上緣 vs `updateRoomTab` cull 上緣差 6S**：捲動時頂端薄片可見卻不可點——cull 對齊 `L.top - 6*S`。
+- **(低) `npcAffLevel` import 未使用**：改為實裝——城鎮 NPC 名牌下方顯示「❤ Lv{n}」好感徽章（完成 B11 視覺意圖）。
+- **(低) `drawBondCodex` 設了 `panelMaxScroll` 卻沒畫捲軸**（R16 既有小疵）：補 `this.drawScrollbar(f)`。
+
+**回歸驗證**：reload `__GAME_ERROR__` null；**舊檔 round-trip**（pre-R18 version-1 存檔載入 → gold/levels 保留、daily/weekly/room/pet/npcAff/dailyClears 全回填、零錯）；**normal run 全累積器中性**（curse/daily 旗標恆 ×1 / false / 0 → 單人手感 byte-identical）；`coopRoundTrip` 綠（2 人、snapshot 流動）；daily 全程 pump 結算（META.daily best/plays 寫入）；sortie/guild/personal 三面板 × uiScale 0.6/1.0/1.5 render 零錯；QA 六修正逐一驗證。
+
+**文件**：CLAUDE.md 計數更新（英雄 15→**21**、敵人 48→**58**、專屬武器 8→**12**、成就 205→**219**、最終 Boss **10/10 生態專屬**）＋ R18 摘要段；`docs/ROUND18_SPEC.md` 狀態翻為 ✅。**ROUND18 全數完成。**

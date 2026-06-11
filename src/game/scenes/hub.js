@@ -520,7 +520,7 @@ export const hubScene = {
     if (!mouse.justDown) return;
     const L = this.roomTabLayout(this.panelFrame()); const bot = L.f.y + L.f.h - 24 * L.f.S;
     for (const c of L.cards) {
-      if (c.y + c.h < L.top || c.y > bot) continue;
+      if (c.y + c.h < L.top - 6 * L.f.S || c.y > bot) continue;   // QA B12: match the draw clip (L.top - 6S) so the top sliver stays clickable
       if (inside(mx, my, c)) {
         if (decorOwned(META, c.d.id)) { this.feedback('已擁有 ' + c.d.name); return; }
         if (decorLocked(META, c.d)) { this.feedback('🔒 尚未解鎖'); return; }
@@ -530,7 +530,7 @@ export const hubScene = {
       }
     }
     for (const pt of L.pets) {
-      if (pt.y + pt.h < L.top || pt.y > bot) continue;
+      if (pt.y + pt.h < L.top - 6 * L.f.S || pt.y > bot) continue;   // QA B12: align with the draw clip
       if (inside(mx, my, pt)) {
         if (!petUnlocked(META, pt.p)) { this.feedback('🔒 ' + pt.p.hint); return; }
         META.pet = (META.pet === pt.p.id) ? null : pt.p.id; saveMeta(); Sfx.play('uiClick');
@@ -992,6 +992,8 @@ export const hubScene = {
       const sp = getSprite(n.def.sprite); const ss = worldToScreen(n.x, n.y - sp.h - 4);
       const isNew = !(META.npc && META.npc.met && META.npc.met[n.def.id]);
       uiText(n.def.name, ss.x, ss.y, { size: 11 * S, align: 'center', color: n.def.color, weight: '800' });
+      const aff = npcAffLevel(META, n.def.id);   // R18/B11: persistent affinity badge under the name (QA B12 wired the helper)
+      if (aff > 0) uiText('❤ Lv' + aff, ss.x, ss.y + 12 * S, { size: 9 * S, align: 'center', color: P.redL, weight: '800' });
       if (isNew) this.drawNewBadge(ss.x, ss.y - 24 * S, S);   // 2.3: 「新」徽章 — 黃圈白驚嘆號於名字正上方（上移避免壓到名字）
       if (this.near === n) { const sp2 = worldToScreen(n.x, n.y + 8); uiText('【E】交談', sp2.x, sp2.y, { size: 11 * S, align: 'center', color: withAlpha('#fff', 0.6 + Math.sin(this.t * 6) * 0.3), weight: '800' }); }
     }
@@ -1576,6 +1578,7 @@ export const hubScene = {
       y += h;
     }
     ctx.restore();
+    this.drawScrollbar(f);   // QA B12: bond codex set panelMaxScroll but never drew the scrollbar
   },
 
   // ---- sortie (出擊): pick hero / biome / difficulty, then launch ----------

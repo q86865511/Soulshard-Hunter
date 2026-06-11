@@ -620,6 +620,7 @@ export const runScene = {
       if (idx >= 0) META.levels.unlocked = Math.max(META.levels.unlocked || 1, Math.min(BIOMES.length, idx + 2));
     }
     this.run.gold += 220 + (this.run.difficulty || 1) * 160 + this.threat * 18;
+    if (this.dailyBossDropMul > 1) this.run.gold += Math.round((220 + (this.run.difficulty || 1) * 160 + this.threat * 18) * (this.dailyBossDropMul - 1));   // R18/B9 m_frenzy: final-boss clear loot doubled (QA B12)
     saveMeta();   // persist the unlock at once, so leaving/dying after this keeps it
     this.reaperAt = this.run.time + BALANCE.REAPER_DELAY;
     if (this.player) this.player.invuln = Math.max(this.player.invuln || 0, BALANCE.REAPER_GRACE);   // 10.9: brief grace so a boss death-blast / lingering AoE can't false-trigger game over right as you win
@@ -644,8 +645,8 @@ export const runScene = {
     this.boss = false; this.reaperRef = null; this.reaperSlain = true;
     this.run.bossKills = (this.run.bossKills || 0) + 1;
     this.run.reaperKills = (this.run.reaperKills || 0) + 1;
-    this.run.gold += 600 + (this.run.difficulty || 1) * 200;
-    this.run.shards += 30;
+    this.run.gold += Math.round((600 + (this.run.difficulty || 1) * 200) * (this.dailyBossDropMul || 1));   // R18/B9 m_frenzy: Reaper loot doubled (QA B12; ×1 in non-daily)
+    this.run.shards += Math.round(30 * (this.dailyBossDropMul || 1));
     this.banner = '★ 死神已被斬殺！傳說自此誕生'; this.bannerT = 4.0;
     this.finishRun(true);
   },
@@ -1758,7 +1759,7 @@ export const runScene = {
     this.drawVaultPrompt();   // R17/7.3:【E】use-key confirm hint above the locked chest
     this.drawEvents();
     this.drawPickupRange();   // 4.20: V shows the pickup-range ring (world space)
-    vignette(0.42);
+    vignette(this.dailyFog ? 0.62 : 0.42);   // R18/B9 m_fog: 暗角加深 (QA B12 — flag was set but unread)
     drawLowHpWarning(this.player, this.t);
     this.world.particles.drawText();
     drawHud(this.run, this.player);
