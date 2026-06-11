@@ -15,6 +15,7 @@ import { equipItem } from '../content/equipment.js';
 import { BONDS, activeBonds, checkBonds, bondProgress, bondAdvancedBy } from '../content/bonds.js';
 import { exclusiveFor } from '../content/exclusives.js';
 import { biomeWeight } from '../content/biome_tags.js';   // R18/B4: biome enemy affinity
+import { CURSES } from '../content/curses.js';   // R18/B7: endless curse choices
 import { BALANCE, weaponMaxLevel } from '../balance.js';
 import { isUnlocked, cheatUnlockAll } from '../content/unlocks.js';
 import { STORY_QUESTS, trackedQuestStates, fmtQuestVal } from '../content/quests.js';
@@ -218,6 +219,12 @@ export const runScene = {
     this.storyMode = D <= 0;   // 6.5 劇情難度
     this.endless = this.run.mode === 'endless';   // 6.6 無盡挑戰
     this.endlessWave = 0;
+    // R18/B7: endless curse accumulators (consumed at the spawn paths). curses[] = chosen ids.
+    this.curses = []; this.curseChoice = null; this.nextCurseAt = BALANCE.CURSE_INTERVAL;
+    this.curseHpMul = 1; this.curseDmgMul = 1; this.curseSpdMul = 1; this.curseCapAdd = 0; this.curseBossHpMul = 1;
+    this.curseBossHeal = 0; this.curseBossChest = false; this.curseDrain = false; this.curseDrainTimer = 30;
+    this.run.curseGoldPerKill = 0;
+    this.milestoneIdx = 0;   // next ENDLESS_MILESTONES index
     this.diffMul = this.storyMode ? BALANCE.STORY_DIFF_MUL : (1 + (D - 1) * 0.35);
     if (this.storyMode) {   // weak enemies + generous loot, almost unloseable
       this.run.dropQuality = (this.run.dropQuality || 0) + BALANCE.STORY_DROP_QUALITY;
@@ -384,6 +391,10 @@ export const runScene = {
     this.run.miniKills = (this.run.miniKills || 0) + 1;
     this.banner = '擊敗小王！'; this.bannerT = 2.6; addShake(6);
     this.world.addPickup('heart', this.player.x, this.player.y, 30);
+    // R18/B7 endless curses (fire on every boss-wave kill)
+    if (this.curseBossHeal > 0 && this.player) this.player.heal(this.player.maxHp * this.curseBossHeal);   // c_brittle
+    if (this.curseBossChest) { this.world.addPickup('gold', this.player.x + 24, this.player.y, 120); this.world.addPickup('shard', this.player.x - 24, this.player.y, 15); }   // c_tyrant: extra loot
+
     Music.setMode('run');
     this.openEventChoice();   // 原#3: mini-boss drops a 3-of-N event choice
   },
@@ -439,6 +450,66 @@ export const runScene = {
     });
   },
 
+  // ---- R18/B7: endless curses (every CURSE_INTERVAL, a paused 3-of-12 pick) ----------
+  openCurseChoice() {
+    const pool = CURSES.slice(), pick = [];
+    for (let i = 0; i < 3 && pool.length; i++) pick.push(pool.splice(rng.int(0, pool.length - 1), 1)[0]);
+    // co-op can't pause the shared world → host auto-resolves (mirrors openEventChoice)
+    if (this.coop) { if (pick.length) this.applyCurse(pick[rng.int(0, pick.length - 1)]); else this.nextCurseAt += BALANCE.CURSE_INTERVAL; return; }
+    if (pick.length) this.curseChoice = pick; else this.nextCurseAt += BALANCE.CURSE_INTERVAL;
+  },
+  updateCurseChoice() {
+    const rects = this.eventCardRects(); const mx = mouse.x * view.dpr, my = mouse.y * view.dpr;
+    let pick = -1;
+    rects.forEach((r, i) => { if (mouse.justDown && inside(mx, my, r)) pick = i; });
+    if (pressed('slot1')) pick = 0; if (pressed('slot2')) pick = 1; if (pressed('slot3')) pick = 2;
+    if (pick >= 0 && pick < this.curseChoice.length) this.applyCurse(this.curseChoice[pick]);
+  },
+  applyCurse(c) {
+    try { c.apply(this); } catch (e) { /* */ }
+    this.curses.push(c.id);
+    this.curseChoice = null;
+    this.nextCurseAt += BALANCE.CURSE_INTERVAL;
+    this.banner = '☠ 詛咒纏身 · ' + c.name + ' — ' + c.reward; this.bannerT = 3.0;
+    this.world.particles.ring(this.player.x, this.player.y, c.color || P.magenta, 26, 150); Sfx.play('levelup');
+  },
+  drawCurseChoice() {
+    const S = uiScale(); const rects = this.eventCardRects();
+    uiRect(0, 0, view.W, view.H, withAlpha('#180a14', 0.84));
+    uiText('☠ 無盡詛咒 · 三選一（詛咒與報酬一同生效）', view.W / 2, rects[0].y - 30 * S, { size: 24 * S, align: 'center', color: P.magentaL, weight: '900' });
+    uiText('（點擊卡片或按 1 / 2 / 3 · 已疊加 ' + this.curses.length + ' 層）', view.W / 2, rects[0].y - 8 * S, { size: 12 * S, align: 'center', color: P.gray3 });
+    const mx = mouse.x * view.dpr, my = mouse.y * view.dpr;
+    rects.forEach((r, i) => {
+      const c = this.curseChoice[i]; const hov = inside(mx, my, r); const oy = hov ? -8 * S : 0; const ac = c.color || P.magentaL;
+      uiRect(r.x, r.y + oy, r.w, r.h, withAlpha('#2a1326', 0.98), { radius: 9 * S, stroke: hov ? ac : withAlpha(ac, 0.5), lw: hov ? 3 : 2 });
+      uiClipRound(r.x, r.y + oy, r.w, r.h, 9 * S, () => uiRect(r.x, r.y + oy, r.w, 5 * S, ac));
+      uiText('☠', r.x + r.w / 2, r.y + oy + 54 * S, { size: 40 * S, align: 'center', color: ac, weight: '900' });
+      uiText(c.name, r.x + r.w / 2, r.y + oy + 92 * S, { size: 19 * S, align: 'center', color: '#fff', weight: '900' });
+      uiText('詛咒', r.x + r.w / 2, r.y + oy + 120 * S, { size: 11 * S, align: 'center', color: P.redL, weight: '800' });
+      this.wrapText(c.curse, r.x + r.w / 2, r.y + oy + 136 * S, r.w - 24 * S, 12.5 * S, withAlpha(P.redL, 0.95));
+      uiText('報酬', r.x + r.w / 2, r.y + oy + 172 * S, { size: 11 * S, align: 'center', color: P.toxic, weight: '800' });
+      this.wrapText(c.reward, r.x + r.w / 2, r.y + oy + 188 * S, r.w - 24 * S, 12.5 * S, withAlpha(P.toxic, 0.95));
+      uiText(String(i + 1), r.x + 11 * S, r.y + oy + 22 * S, { size: 14 * S, color: withAlpha('#fff', 0.45), weight: '900' });
+    });
+  },
+  // endless-only per-frame tick: curse trigger, soul-tax drain, milestone rewards
+  endlessTick(dt) {
+    if (!this.endless) return;
+    const t = this.run.time;
+    if (t >= this.nextCurseAt && !this.boss && !this.curseChoice) this.openCurseChoice();
+    if (this.curseDrain) {
+      this.curseDrainTimer -= dt;
+      if (this.curseDrainTimer <= 0) { this.curseDrainTimer += 30; if (this.player && !this.player.dead) this.player.hp = Math.max(1, this.player.hp - this.player.hp * 0.05); }   // 蝕魂: never lethal
+    }
+    if (this.milestoneIdx < BALANCE.ENDLESS_MILESTONES.length && t >= BALANCE.ENDLESS_MILESTONES[this.milestoneIdx]) {
+      const g = BALANCE.ENDLESS_MILESTONE_GOLD[this.milestoneIdx] || 0, sh = BALANCE.ENDLESS_MILESTONE_SHARD[this.milestoneIdx] || 0;
+      this.run.gold += g; this.run.shards += sh;
+      const mins = Math.floor(BALANCE.ENDLESS_MILESTONES[this.milestoneIdx] / 60);
+      this.banner = `★ 無盡里程碑 ${mins} 分鐘！+${g} 金幣 · +${sh} 魂晶`; this.bannerT = 3.2; Sfx.play('levelup');
+      this.milestoneIdx++;
+    }
+  },
+
   // ---- timed challenge mini-quests (原#3) ----------------------------------
   grantLevelUps(n) { this.levelQueue += n; },
   allWeaponsLevelUp() { for (const inst of this.player.weapons) if (!inst.def.evolved) this.player.levelWeapon(inst, this.world); },
@@ -491,8 +562,8 @@ export const runScene = {
     let bs = Enemies.filter((d) => d.boss && d.id !== REAPER_ID);
     if (!bs.length) return;
     const def = bs[rng.int(0, bs.length - 1)];
-    const hpScale = (4 + this.threat * 0.6) * this.diffMul;
-    const dmgScale = (1.4 + this.threat * 0.10) * this.diffMul;
+    const hpScale = (4 + this.threat * 0.6) * this.diffMul * this.curseHpMul * this.curseBossHpMul;   // R18/B7 c_ironhide + c_tyrant
+    const dmgScale = (1.4 + this.threat * 0.10) * this.diffMul * this.curseDmgMul;
     let bx = this.player.x, by = this.player.y, tries = 0;
     do { const a = rng.next() * TAU; bx = clamp(this.player.x + Math.cos(a) * 220, TS * 2, this.world.pxW - TS * 2); by = clamp(this.player.y + Math.sin(a) * 220, TS * 2, this.world.pxH - TS * 2); tries++; } while (this.world.solidAt(bx, by) && tries < 12);
     this.bossRef = this.world.spawnEnemy(def, bx, by, { hpScale, dmgScale, quiet: true });
@@ -621,8 +692,8 @@ export const runScene = {
     if (!pool.length) return;
     const def = rng.weighted(pool, (x) => biomeWeight(x, this.run.biomeId));   // R18/B4: 魂牢 chasers lean to the biome too
     const n = BALANCE.SURROUND_COUNT_BASE + Math.floor(this.threat * 0.5);
-    const hpScale = BALANCE.SURROUND_HP_MULT * (1 + this.threat * 0.1) * this.diffMul;
-    const dmgScale = BALANCE.SURROUND_DMG_MULT * this.diffMul * this.earlyDmgGrace();   // honour the opening softener
+    const hpScale = BALANCE.SURROUND_HP_MULT * (1 + this.threat * 0.1) * this.diffMul * this.curseHpMul;   // R18/B7
+    const dmgScale = BALANCE.SURROUND_DMG_MULT * this.diffMul * this.earlyDmgGrace() * this.curseDmgMul;   // honour the opening softener
     const cx = this.player.x, cy = this.player.y;
     const ring = [];
     for (let i = 0; i < n; i++) {
@@ -739,19 +810,20 @@ export const runScene = {
     // level up before the swarm overwhelms it (the late game still gets dense).
     // 原#3 + sim easing: soften the opening so a fresh build can get going
     const grace = t < BALANCE.EARLY_GRACE ? 0.45 + 0.55 * (t / BALANCE.EARLY_GRACE) : 1;
-    const cap = Math.round(Math.min(BALANCE.SPAWN_CAP_MAX, (BALANCE.SPAWN_CAP_BASE + this.threat * BALANCE.SPAWN_CAP_PER_THREAT + Math.floor(t * 0.11)) * grace));
+    // R18/B7: c_legion lifts the on-screen cap (still clamped to SPAWN_CAP_MAX headroom).
+    const cap = Math.round(Math.min(BALANCE.SPAWN_CAP_MAX * (1 + this.curseCapAdd), (BALANCE.SPAWN_CAP_BASE + this.threat * BALANCE.SPAWN_CAP_PER_THREAT + Math.floor(t * 0.11)) * grace * (1 + this.curseCapAdd)));
     if (this.spawnTimer <= 0 && this.world.enemies.length < cap && this.activeTypes.length) {
       const group = 2 + Math.floor((this.threat / 1.5) * grace);   // task-11: bigger spawn groups → swarm pressure
       // enemy hp/dmg grow with threat + time but the growth is CAPPED (no infinite pile-up);
-      // difficulty multiplies on top of the capped growth.
+      // difficulty multiplies on top of the capped growth. R18/B7 curses stack on top.
       const tc = Math.min(t, 1200);
       const dmgGrace = t < BALANCE.EARLY_GRACE ? BALANCE.EARLY_DMG_GRACE + (1 - BALANCE.EARLY_DMG_GRACE) * (t / BALANCE.EARLY_GRACE) : 1;
-      const hpScale = (1 + Math.min(4.4, (this.threat - 1) * 0.15 + tc * 0.0028)) * this.diffMul;
-      const dmgScale = (1 + Math.min(3.0, (this.threat - 1) * 0.10 + tc * 0.0022)) * this.diffMul * dmgGrace;  // bal: late trash keeps scaling (was min 2.2 / 0.08 / 0.0018)
+      const hpScale = (1 + Math.min(4.4, (this.threat - 1) * 0.15 + tc * 0.0028)) * this.diffMul * this.curseHpMul;
+      const dmgScale = (1 + Math.min(3.0, (this.threat - 1) * 0.10 + tc * 0.0022)) * this.diffMul * dmgGrace * this.curseDmgMul;  // bal: late trash keeps scaling (was min 2.2 / 0.08 / 0.0018)
       for (let i = 0; i < group; i++) {
         const def = this.pickSpawnType();
         const elite = this.threat >= 3 && rng.chance(0.03 + t * 0.0003);
-        this.world.spawnRing(def, { hpScale, dmgScale, elite });
+        this.world.spawnRing(def, { hpScale, dmgScale, elite, speedScale: this.curseSpdMul });
       }
       this.spawnTimer = Math.max(BALANCE.SPAWN_INTERVAL_MIN, (BALANCE.SPAWN_INTERVAL_BASE - this.threat * 0.06 - t * 0.004) / grace);
     }
@@ -1008,6 +1080,7 @@ export const runScene = {
     if (this.choice) { this.updateChoice(); return; }
     if (this.equipChoice) { this.updateEquipChoice(); return; }   // B1 equip menu pauses the field
     if (this.eventChoice) { this.updateEventChoice(); return; }   // 原#3 mini-boss event pauses the field
+    if (this.curseChoice) { this.updateCurseChoice(); return; }   // R18/B7 endless curse pauses the field (before the level-up open below)
     if (this.coop) {
       // online co-op can't freeze the SHARED world: Esc opens a non-blocking leave menu,
       // Tab build-review / minimap are view-only overlays, the in-run shop is disabled.
@@ -1036,7 +1109,7 @@ export const runScene = {
     this.threat = 1 + Math.floor(this.run.time / BALANCE.THREAT_PERIOD);   // ~1 -> 13 over the 20-min level
     // report-cap stage at the threat ceiling (threat keeps climbing past 20:00 during the Reaper window;
     // an uncapped stage would trip the server's anti-cheat plausibility gate on legit clear+reaper runs)
-    this.run.stage = Math.min(this.threat, BALANCE.THREAT_CEIL); this.run.floor = this.threat;   // keep loot/score scaling alive
+    this.run.stage = Math.min(this.threat, this.endless ? BALANCE.ENDLESS_STAGE_CAP : BALANCE.THREAT_CEIL); this.run.floor = this.threat;   // R18/B7: endless reports up to 99
     this.world.threat = this.threat;   // hazards read this to scale (capped)
     // screen shake stays gentle by default, swelling only when near death
     const hpFrac = this.player.maxHp ? this.player.hp / this.player.maxHp : 1;
@@ -1055,6 +1128,7 @@ export const runScene = {
     if (this.story) { this.story.t -= dt; if (!pressed('space')) this.story.armed = true; if (this.story.t <= 0) this.story = null; else if (this.story.armed && pressed('space')) this.story = null; }
 
     if (this.challenge) this.updateChallenge(dt);   // 原#3 timed challenge
+    this.endlessTick(dt);   // R18/B7: curse trigger + soul-tax drain + milestones (endless only)
     this.spawnTick(dt);
     this.miniBossTick();
     this.eventsTick();
@@ -1682,6 +1756,7 @@ export const runScene = {
     if (this.choice) { if (this.peekBuild) this.drawChoicePeekBuild(); else this.drawChoice(); }   // 4.19: TAB peek
     else if (this.equipChoice) this.drawEquipChoice();
     if (this.eventChoice) this.drawEventChoice();
+    if (this.curseChoice) this.drawCurseChoice();   // R18/B7
     if (this.coop) this.drawCoopTags();
     if (this.coop && this.coopPick && !this.coopMenu) this.drawCoopPick();
     if (this.dead) { if (this.won) this.drawWon(); else this.drawDeath(); }
@@ -1831,7 +1906,8 @@ export const runScene = {
     if (this.endless) {   // 6.6: wave count + next-boss countdown (no clear/Reaper)
       const wv = this.endlessWave + 1, nextAt = (this.endlessWave + 1) * BALANCE.ENDLESS_BOSS_INTERVAL;
       const r = Math.max(0, nextAt - this.run.time), mm = Math.floor(r / 60), ss = Math.floor(r % 60);
-      label = `第 ${wv} 波　·　距首領 ${mm}:${ss.toString().padStart(2, '0')}`; hot = this.boss;
+      label = `第 ${wv} 波　·　距首領 ${mm}:${ss.toString().padStart(2, '0')}` + (this.curses.length ? `　·　☠×${this.curses.length}` : '');   // R18/B7 curse stack
+      hot = this.boss;
     }
     else if (this.reaperRef && !this.reaperRef.dead) { label = '☠ 死神戰'; hot = true; }
     else if (this.cleared) { const rem = Math.max(0, Math.ceil(this.reaperAt - this.run.time)); label = this.reaperSpawned ? '☠ 死神戰' : `通關！死神 ${rem}s　·　按 E 離場`; hot = true; }

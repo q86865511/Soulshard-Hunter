@@ -74,6 +74,7 @@ function maxCharClears(s) { const c = s && s.charClears; if (!c) return 0; let m
 const FAMILIES = [
   ...fam('kills', '殺戮', (g) => `累計擊殺 ${g} 名敵人`, (s) => s.kills || 0, [100, 250, 1000, 2000, 3500, 5000, 7500, 10000, 15000, 25000, 50000, 100000]),
   ...fam('survive', '倖存', (g) => `單局存活 ${fmtTime(g)}`, (s) => s.bestTime || 0, [60, 120, 180, 300, 450, 600, 900, 1200]),
+  ...fam('endless', '無盡', (g) => `無盡模式存活 ${fmtTime(g)}`, (s) => s.bestEndlessTime || 0, [600, 1200, 1800, 2400, 3600]),   // R18/B7 (+5; endless_1200 also gates g_stormcaller)
   ...fam('threat', '深淵', (g) => `達到威脅 ${g} 級`, (s) => s.bestStage || 0, [2, 3, 4, 6, 8, 10, 12, 13]),
   ...fam('boss', '屠王', (g) => `累計擊敗 ${g} 名首領`, (s) => s.bossKills || 0, [3, 5, 25, 50, 100, 200]),
   ...fam('gold', '斂財', (g) => `金庫累計 ${g} 金幣`, (s) => s.totalGold || 0, [1000, 5000, 10000, 25000, 50000, 100000, 250000, 500000]),
