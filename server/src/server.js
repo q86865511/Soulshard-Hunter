@@ -46,9 +46,16 @@ async function requireAdmin(req, reply) {
 }
 
 // Server-authoritative score — mirrors run.js finishRun(), with per-field caps.
+// R18/B6: Asia/Taipei (UTC+8, no DST) date key 'YYYYMMDD'; offsetDays shifts by whole days.
+export function taipeiDateKey(offsetDays = 0) {
+  const d = new Date(Date.now() + 8 * 3600e3 + offsetDays * 86400e3);
+  return `${d.getUTCFullYear()}${String(d.getUTCMonth() + 1).padStart(2, '0')}${String(d.getUTCDate()).padStart(2, '0')}`;
+}
+
 export function computeScore(c) {
   const kills = clampInt(c.kills, 0, 100000);
-  const stage = clampInt(c.stage, 0, 50);
+  // R18/B6: endless runs legitimately climb past the normal stage ceiling.
+  const stage = clampInt(c.stage, 0, c.mode === 'endless' ? 99 : 50);
   const time = clampInt(c.time_s, 0, 36000);          // 10h hard ceiling
   const diff = clampInt(c.difficulty, 1, 5);
   const reaper = !!c.reaper;
@@ -67,10 +74,30 @@ export function computeScore(c) {
 //     index. The client now report-caps it at the ceiling, but threat keeps climbing
 //     while the player lingers on the Reaper past 20:00, so allow headroom (20) to avoid
 //     false-rejecting legitimate clear+reaper runs from older/unpatched clients.
-const ANTICHEAT = { KILL_BASE: 80, MAX_KPS: 30, MIN_CLEAR_TIME: 1000, MAX_STAGE: 20 };
+const ANTICHEAT = { KILL_BASE: 80, MAX_KPS: 30, MIN_CLEAR_TIME: 1000, MAX_STAGE: 20, ENDLESS_MAX_TIME: 14400, ENDLESS_MAX_STAGE: 99 };
 export function runPlausibility(c) {
   const party = clampInt(c.coop_size || 1, 1, 3);
+  const mode = c.mode || 'normal';
+  // kills gate applies to every mode.
   if (c.kills > ANTICHEAT.KILL_BASE + c.time_s * ANTICHEAT.MAX_KPS * party) return 'kills implausible for elapsed time';
+  if (mode === 'endless') {
+    // R18/B6: endless has no biome boss → can never clear or trigger the Reaper; threat climbs
+    // ~1 level / THREAT_PERIOD(99s) — allow 90s/level + 2 headroom; hard 4h time ceiling.
+    if (c.cleared || c.reaper) return 'endless run cannot clear or spawn reaper';
+    if (c.time_s > ANTICHEAT.ENDLESS_MAX_TIME) return 'endless time exceeds 4h ceiling';
+    if (c.stage > Math.min(ANTICHEAT.ENDLESS_MAX_STAGE, 1 + Math.ceil(c.time_s / 90) + 2)) return 'endless stage implausible for elapsed time';
+    return null;
+  }
+  if (mode === 'daily') {
+    // daily uses the normal-mode gates …
+    if (c.stage > ANTICHEAT.MAX_STAGE) return 'stage out of plausible range';
+    if (c.cleared && c.time_s < ANTICHEAT.MIN_CLEAR_TIME) return 'cleared flag with too little elapsed time';
+    if (c.reaper && !c.cleared) return 'reaper flag without a clear';
+    // … plus the challenge key must be today's or yesterday's (Asia/Taipei).
+    if (c.challenge_key !== taipeiDateKey(0) && c.challenge_key !== taipeiDateKey(-1)) return 'stale or missing challenge key';
+    return null;
+  }
+  // normal — unchanged
   if (c.stage > ANTICHEAT.MAX_STAGE) return 'stage out of plausible range';
   if (c.cleared && c.time_s < ANTICHEAT.MIN_CLEAR_TIME) return 'cleared flag with too little elapsed time';
   if (c.reaper && !c.cleared) return 'reaper flag without a clear';
@@ -109,7 +136,7 @@ function zodMsg(err) {
 const saveSchema = z.object({ meta: z.record(z.any()), saveVersion: z.number().int().nonnegative() });
 const runSchema = z.object({
   kills: z.number().int().nonnegative().max(100000),
-  stage: z.number().int().nonnegative().max(50),
+  stage: z.number().int().nonnegative().max(99),          // R18/B6: endless climbs past 50 (normal still gated to 20 by plausibility)
   time_s: z.number().int().nonnegative().max(36000),
   difficulty: z.number().int().min(1).max(5),
   cleared: z.boolean().optional(),
@@ -117,6 +144,8 @@ const runSchema = z.object({
   character: z.string().max(40).optional().nullable(),
   biome: z.string().max(40).optional().nullable(),
   coop_size: z.number().int().min(1).max(3).optional(),   // Phase 2 co-op party size
+  mode: z.enum(['normal', 'endless', 'daily']).optional(),          // R18/B6: defaults to 'normal'
+  challenge_key: z.string().regex(/^\d{8}$/).optional().nullable(), // R18/B6: daily YYYYMMDD
 });
 // round16/7.1: player feedback (no login required; JWT, if present, attaches user_id)
 const feedbackSchema = z.object({
@@ -201,9 +230,9 @@ export async function buildApp(pool, { logger = false, rateMax = 120 } = {}) {
     if (bad) return reply.code(422).send({ error: 'implausible run rejected', detail: bad });   // anti-cheat: fabricated components
     const score = computeScore(c);
     const r = await pool.query(
-      `INSERT INTO runs(user_id, score, stage, kills, character, biome, difficulty, time_s, cleared, reaper, coop_size)
-       VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id, score, created_at`,
-      [req.user.uid, score, c.stage, c.kills, c.character || null, c.biome || null, c.difficulty, c.time_s, !!c.cleared, !!c.reaper, c.coop_size || 1]);
+      `INSERT INTO runs(user_id, score, stage, kills, character, biome, difficulty, time_s, cleared, reaper, coop_size, mode, challenge_key)
+       VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING id, score, created_at`,
+      [req.user.uid, score, c.stage, c.kills, c.character || null, c.biome || null, c.difficulty, c.time_s, !!c.cleared, !!c.reaper, c.coop_size || 1, c.mode || 'normal', c.mode === 'daily' ? (c.challenge_key || null) : null]);
     return { ok: true, run: r.rows[0] };
   });
 
@@ -222,18 +251,23 @@ export async function buildApp(pool, { logger = false, rateMax = 120 } = {}) {
     realtime.touchGuest(req.ip, name);   // surface this not-logged-in player in the admin console (bannable by IP)
     const score = computeScore(c);
     const r = await pool.query(
-      `INSERT INTO runs(user_id, guest_name, score, stage, kills, character, biome, difficulty, time_s, cleared, reaper, coop_size)
-       VALUES(NULL,$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id, score, created_at`,
-      [name, score, c.stage, c.kills, c.character || null, c.biome || null, c.difficulty, c.time_s, !!c.cleared, !!c.reaper, c.coop_size || 1]);
+      `INSERT INTO runs(user_id, guest_name, score, stage, kills, character, biome, difficulty, time_s, cleared, reaper, coop_size, mode, challenge_key)
+       VALUES(NULL,$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING id, score, created_at`,
+      [name, score, c.stage, c.kills, c.character || null, c.biome || null, c.difficulty, c.time_s, !!c.cleared, !!c.reaper, c.coop_size || 1, c.mode || 'normal', c.mode === 'daily' ? (c.challenge_key || null) : null]);
     return { ok: true, run: r.rows[0] };
   });
 
   app.get('/api/leaderboard', async (req) => {
     const q = req.query || {};
     const where = []; const args = [];
+    // R18/B6: mode dimension — defaults to 'normal' so the legacy board is byte-identical.
+    const mode = ['normal', 'endless', 'daily'].includes(q.mode) ? q.mode : 'normal';
     if (q.biome) { args.push(String(q.biome).slice(0, 40)); where.push(`r.biome = $${args.length}`); }
-    if (q.difficulty) { args.push(clampInt(q.difficulty, 1, 5)); where.push(`r.difficulty = $${args.length}`); }
+    // daily is one fixed difficulty (3) → ignore any difficulty filter for it.
+    if (q.difficulty && mode !== 'daily') { args.push(clampInt(q.difficulty, 1, 5)); where.push(`r.difficulty = $${args.length}`); }
     if (q.character) { args.push(String(q.character).slice(0, 40)); where.push(`r.character = $${args.length}`); }
+    args.push(mode); where.push(`r.mode = $${args.length}`);
+    if (mode === 'daily') { const key = /^\d{8}$/.test(q.key) ? q.key : taipeiDateKey(0); args.push(key); where.push(`r.challenge_key = $${args.length}`); }
     if (q.period === 'week') where.push(`r.created_at >= now() - interval '7 days'`);
     else if (q.period === 'day') where.push(`r.created_at >= now() - interval '1 day'`);
     const limit = clampInt(q.limit || 25, 1, 100);
@@ -243,9 +277,9 @@ export async function buildApp(pool, { logger = false, rateMax = 120 } = {}) {
     // registered player AND each guest name keeps only their single best row (no dupe flooding).
     const idExpr = `COALESCE(u.id::text, 'g:' || lower(r.guest_name))`;
     const sql = `
-      SELECT t.username, t.guest, t.score, t.stage, t.kills, t.character, t.biome, t.difficulty, t.time_s, t.cleared, t.reaper, t.coop_size, t.created_at FROM (
+      SELECT t.username, t.guest, t.score, t.stage, t.kills, t.character, t.biome, t.difficulty, t.time_s, t.cleared, t.reaper, t.coop_size, t.mode, t.challenge_key, t.created_at FROM (
         SELECT DISTINCT ON (${idExpr}) COALESCE(u.username, r.guest_name) AS username, (u.id IS NULL) AS guest,
-               r.score, r.stage, r.kills, r.character, r.biome, r.difficulty, r.time_s, r.cleared, r.reaper, r.coop_size, r.created_at
+               r.score, r.stage, r.kills, r.character, r.biome, r.difficulty, r.time_s, r.cleared, r.reaper, r.coop_size, r.mode, r.challenge_key, r.created_at
         FROM runs r LEFT JOIN users u ON u.id = r.user_id
         WHERE (u.id IS NOT NULL OR r.guest_name IS NOT NULL)${where.length ? ' AND ' + where.join(' AND ') : ''}
         ORDER BY ${idExpr}, r.score DESC

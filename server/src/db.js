@@ -48,10 +48,16 @@ export async function initSchema(p = pool) {
       created_at  timestamptz DEFAULT now()
     );
     ALTER TABLE runs ADD COLUMN IF NOT EXISTS guest_name text;     -- migrate existing deployments
+    -- R18/B6: run mode (standard / endless / daily). Existing rows take the DEFAULT 'normal'
+    -- so old leaderboard queries (which now default to mode='normal') stay byte-identical.
+    ALTER TABLE runs ADD COLUMN IF NOT EXISTS mode          text NOT NULL DEFAULT 'normal';   -- 'normal' | 'endless' | 'daily'
+    ALTER TABLE runs ADD COLUMN IF NOT EXISTS challenge_key text;                              -- 'YYYYMMDD' for daily, else NULL
 
     CREATE INDEX IF NOT EXISTS runs_score_idx       ON runs (score DESC);
     CREATE INDEX IF NOT EXISTS runs_biome_diff_idx  ON runs (biome, difficulty, score DESC);
     CREATE INDEX IF NOT EXISTS runs_user_idx        ON runs (user_id, score DESC);
+    CREATE INDEX IF NOT EXISTS runs_mode_score_idx  ON runs (mode, score DESC);
+    CREATE INDEX IF NOT EXISTS runs_daily_idx       ON runs (challenge_key, score DESC) WHERE challenge_key IS NOT NULL;
 
     -- Friend graph (Phase 2 social layer). One directed row per edge:
     --   (user_id -> friend_id, 'pending')  = user_id sent a request to friend_id
