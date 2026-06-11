@@ -34,3 +34,21 @@
 **剷除 stale gen 檔**：刪除本機 untracked 的 `content/gen/gen_characters.js`（舊 kit，會在 characters.js 之後載入並靜默覆蓋新註冊——只在本機發生，部署正常更難察覺）＋從 `gen/index.js` PACKS 移除 `"gen_characters"`。roster 成就家族補 `[21]` 階（+1 成就）。
 
 **驗證**：reload 後 `__GAME_ERROR__` null；`__DBG.reg()` 角色 15→**21**；6 個 `char_g_*` sprite 全 baked（非兜帽 fallback，出擊面板 3×3 第 2 頁截圖確認身體各異）；4 把新專屬 `Equipment.get` 全 reg:true、`exclusiveFor` 映射正確（g_arcanist→x_arcrift）；身體經 HERO_MAP 映射至 berserker/mage/scout/valkyrie/necromancer/stormpriest。
+
+## B3 — 5 個新生態系專屬最終 Boss（2026-06-11）
+
+新 `content/bosses_biome.js`（手寫 content + 共置程序美術，**非 gen/**）：verdant/desert/swamp/abyss/celestial 五個 R9 生態各得專屬多階段最終 Boss，補滿 `run.js FINAL_BOSS` 10/10 生態（先前這 5 個走 `spawnFinalBoss()` 隨機 fallback）。
+
+| 生態 | id | 名稱 | ai | 招牌 |
+|---|---|---|---|---|
+| verdant | `b3_thornking` | 百木之王·荊棘攝政 | charger | 衝撞（range 160）+ 接觸流血（chance 0.4） |
+| desert | `b3_sandpharaoh` | 流沙法老·安卡之影 | shooter | 寬扇砂彈（burst 10/spread 0.5/`b3_sandbolt`）+ 緩速；金幣偏高 440 |
+| swamp | `b3_bogmaw` | 腐沼之喉·巨蟾母 | shooter | 高拋慢速毒涎（projSpeed 72/projLife 5/`b3_bogspit`）+ 中毒 |
+| abyss | `b3_leviathan` | 深淵利維坦 | charger | 高速貫場衝鋒（range 220）+ knockbackResist 0.85 |
+| celestial | `b3_seraphjudge` | 墮天審判·熾羽座天使 | shooter | 聖羽飛鏢（burst 12/`b3_holyfeather`）+ 暈眩（chance 0.25） |
+
+全部 `boss:true`（enemy.js 自動 66%/33% 三階段徑向彈幕 + 召喚）、`weight:0`（不進雜兵/小王池抽選）、tier 4、數值以 g_plagueheart（hp 2200/dmg 24/scale 2.6）為基準微調（hp 2300–2700）。`hitStatus:{type,chance}` 同時涵蓋接觸（charger）與彈幕（shooter，經 enemy.js `statusOnHit`）——**零協定改動**，純量隨敵人數值流到 co-op guest。charger boss 的階段彈幕沿用引擎 `radialBurst`（硬編 `bolt_enemy` 但以 boss `tint` 上色，自動得主題色），故僅 shooter 需專屬彈幕精靈。附帶效益：新 Boss 自動加入其他生態小王池與無盡 Boss 池（零程式）。
+
+**美術製程**：5 隻 ~40px 4 幀 boss body + 3 顆專屬彈幕 + 5 顆 icon 由 **22-agent 等級的 Fable workflow**（`tools/_wf_b3_bosses.mjs`：5 Fable 平行繪製 → 5 Opus 對抗驗證每塊美術的 palette/Painter/anchor/outline 正確性）產出，`tools/_b3_integrate.mjs` splice 進 `__B3_ART__` 標記區。敵人總數仍 48（boss `weight:0` 不計入雜兵；含 boss 的 `Enemies.all()` 為 53）。
+
+**驗證**：reload `__GAME_ERROR__` null；`Enemies.all()` 48→**53**（5 新 boss boss:true/tier:4/weight:0）；verdant 局 `spawnFinalBoss()` 生成 `b3_thornking`、強制掉血觸發 phase 1→2、`radialBurst` 噴出 42 projectiles；5 隻 body sprite 全 4 幀正確尺寸、gallery 截圖每隻清晰可辨概念、3 顆彈幕精靈清楚、零 magenta fallback。`main.js` content 區 +1 import（enemies.js 之後）。
