@@ -9,7 +9,8 @@ import { newRun, META, saveMeta, WEAPONS } from '../state.js';
 import { Talents, Facilities, Characters, Weapons } from '../content/registry.js';
 import { TALENT_BRANCHES } from '../content/talents.js';
 import { ACHIEVEMENTS, achievementProgress } from '../content/achievements.js';
-import { STORY_QUESTS, chapterState, claimChapter, guildQuests, trackQuest, claimQuest, trackedQuestState, fmtQuestVal, questUnlocked, questLockedBy, isQuestTracked, trackedCount, MAX_TRACKED } from '../content/quests.js';
+import { STORY_QUESTS, chapterState, claimChapter, guildQuests, trackQuest, claimQuest, trackedQuestState, fmtQuestVal, questUnlocked, questLockedBy, isQuestTracked, trackedCount, MAX_TRACKED, weeklyQuests, weeklyState, claimWeekly, ensureWeekly } from '../content/quests.js';
+import { dailyChallenge, mutatorById, dateKey } from '../content/daily.js';   // R18/B9 每日挑戰
 import { drawAchievementToasts } from '../hud.js';
 import { SKINS, skinnedSprite, skinSpriteName, ownsSkin } from '../content/characters.js';
 import { GUILD_RANKS, guildProgress, claimableRanks, claimGuildRank } from '../content/guild.js';
@@ -81,6 +82,7 @@ export const hubScene = {
     this.forgeSel = null;
     this.heroSprite = skinnedSprite(META, META.selectedCharacter || 'hunter');
     ensureSkinOffers(META);
+    ensureWeekly(META);   // R18/B9: re-snapshot weekly bounty base on ISO-week rollover
     Music.start('hub');
     if (!META.tutorialDone) setTimeout(() => this.triggerTutorial(), 1000);   // 6.1 first-visit town guide
   },
@@ -664,14 +666,22 @@ export const hubScene = {
     const pgY = lvlY - 34 * S;
     const prev = { x: f.x + f.w / 2 - 116 * S, y: pgY, w: 34 * S, h: 22 * S };
     const next = { x: f.x + f.w / 2 + 82 * S, y: pgY, w: 34 * S, h: 22 * S };
-    const top = f.y + 58 * S;
+    const dailyBar = { x: f.x + 20 * S, y: f.y + 52 * S, w: f.w - 40 * S, h: 28 * S };   // R18/B9 每日挑戰 entry
+    const top = f.y + 88 * S;
     const cw = (f.w - 40 * S - (cols - 1) * 12 * S) / cols;
     // R17 B15: NO hard floor — at high uiScale a 56S floor pushed the grid over the page/level
     // rows. Tight space instead switches the cards into a compact mode (drawSortie reads card.h).
     const chh = Math.max(34 * S, Math.min(86 * S, (pgY - 8 * S - top) / 3 - 8 * S));
     const pageChars = chars.slice(this.sortPage * perPage, this.sortPage * perPage + perPage);
     const cards = pageChars.map((c, i) => ({ c, x: f.x + 20 * S + (i % cols) * (cw + 12 * S), y: top + Math.floor(i / cols) * (chh + 8 * S), w: cw, h: chh }));
-    return { f, cards, prev, next, pages, pgY, levels, lvlButtons, lvlY, dPrev, dNext, dY, start };
+    return { f, cards, prev, next, pages, pgY, levels, lvlButtons, lvlY, dPrev, dNext, dY, start, dailyBar };
+  },
+  // R18/B9: launch today's daily challenge — a closed showcase run (borrowed biome+hero,
+  // fixed difficulty 3, deterministic mutators). No unlocks are written (clearLevel/hub guard).
+  launchDaily() {
+    const dc = dailyChallenge();
+    Sfx.play('portal'); saveMeta();
+    setScene(refs.run, { run: newRun({ biomeId: dc.biomeId, characterId: dc.characterId, difficulty: 3, mode: 'daily', challengeKey: dc.key, dailyMutators: dc.mutators }) });
   },
   curBiome(L) { return this.selBiome || (L.levels.length ? L.levels[L.levels.length - 1].id : BIOMES[0].id); },
   maxDiff(biomeId) { return ((META.levels && META.levels.diff && META.levels.diff[biomeId]) || 0) + 1; },
@@ -688,6 +698,7 @@ export const hubScene = {
     const L = this.sortieLayout();
     if (mouse.wheel) this.sortPage = Math.max(0, Math.min(L.pages - 1, this.sortPage + (mouse.wheel > 0 ? 1 : -1)));
     if (!mouse.justDown) return;
+    if (inside(mx, my, L.dailyBar)) { this.launchDaily(); return; }   // R18/B9 每日挑戰
     for (const card of L.cards) if (inside(mx, my, card)) { this.selectChar(card.c); return; }
     if (inside(mx, my, L.prev)) { this.sortPage = Math.max(0, this.sortPage - 1); Sfx.play('uiClick'); return; }
     if (inside(mx, my, L.next)) { this.sortPage = Math.min(L.pages - 1, this.sortPage + 1); Sfx.play('uiClick'); return; }
@@ -714,10 +725,16 @@ export const hubScene = {
     const mainClaim = { x: f.x + 24 * S, y: t0 + 58 * S, w: 150 * S, h: 30 * S };
     const mainTrack = { x: f.x + 182 * S, y: t0 + 58 * S, w: 112 * S, h: 30 * S };
     const list = guildQuests(META).slice(0, 6);
-    const rowH = 38 * S, top = t0 + 134 * S;
+    const rowH = 38 * S, gap = 6 * S, scroll = this.panelScroll || 0;
+    // R18/B9: weekly bounties ride at the top of the same scroll region (header + 3 rows),
+    // then a「一般懸賞」sub-header and the regular tracked bounties below.
+    const weeklies = weeklyQuests(META);
+    const wTop = t0 + 134 * S + 22 * S;   // +22 leaves room for the「本週懸賞」label
+    const weeklyRows = weeklies.map((q, i) => { const y = wTop + i * (rowH + gap) - scroll; return { q, y, h: rowH, weekly: true, claim: { x: f.x + f.w - 104 * S, y: y + 6 * S, w: 84 * S, h: 26 * S } }; });
+    const top = wTop + weeklies.length * (rowH + gap) + 30 * S;   // +30 for the「一般懸賞」label
     // R17 UI-sweep: rows scroll (at uiScale 1.5 rows 4-6 painted 145px past the panel bottom)
-    const rows = list.map((q, i) => { const y = top + i * (rowH + 6 * S) - (this.panelScroll || 0); return { q, y, h: rowH, track: { x: f.x + f.w - 196 * S, y: y + 6 * S, w: 84 * S, h: 26 * S }, claim: { x: f.x + f.w - 104 * S, y: y + 6 * S, w: 84 * S, h: 26 * S } }; });
-    return { f, mainClaim, mainTrack, rows, t0, top, clipTop: top - 8 * S };
+    const rows = list.map((q, i) => { const y = top + i * (rowH + gap) - scroll; return { q, y, h: rowH, track: { x: f.x + f.w - 196 * S, y: y + 6 * S, w: 84 * S, h: 26 * S }, claim: { x: f.x + f.w - 104 * S, y: y + 6 * S, w: 84 * S, h: 26 * S } }; });
+    return { f, mainClaim, mainTrack, rows, weeklyRows, wTop, t0, top, clipTop: t0 + 134 * S - 4 * S };
   },
   updateQuests(mx, my) {
     if (!mouse.justDown) return;
@@ -725,6 +742,10 @@ export const hubScene = {
     const cur = chapterState(META, META.questIndex || 0);
     if (cur && cur.done && inside(mx, my, L.mainClaim)) { const q = claimChapter(META); if (q) { saveMeta(); this.feedback('完成 ' + q.title); } return; }
     if (inside(mx, my, L.mainTrack)) { const res = trackQuest(META, 'story'); Sfx.play('uiClick'); if (res === 'full') { this.feedback('最多同時追蹤 ' + MAX_TRACKED + ' 個任務'); } else { saveMeta(); this.feedback(res === 'added' ? '追蹤主線' : '取消追蹤主線'); } return; }
+    for (const r of L.weeklyRows) {   // R18/B9 weekly claim
+      if (r.y + r.h < L.clipTop || r.y > L.f.y + L.f.h - 24 * L.f.S) continue;
+      if (inside(mx, my, r.claim)) { if (claimWeekly(META, r.q.id)) { saveMeta(); this.feedback('領取週常：' + r.q.title); } else this.feedback('尚未達成或已領取'); return; }
+    }
     for (const r of L.rows) {
       if (r.y + r.h < L.clipTop || r.y > L.f.y + L.f.h - 24 * L.f.S) continue;   // R17 UI-sweep: scrolled-out rows aren't clickable
       const lockedBy = questLockedBy(META, r.q);   // 5.5: locked rows hide their buttons; clicking the row hints the prerequisite
@@ -1107,14 +1128,29 @@ export const hubScene = {
       uiRect(L.mainTrack.x, L.mainTrack.y, L.mainTrack.w, L.mainTrack.h, withAlpha(trk || th ? '#243a5a' : '#1b2138', 0.96), { radius: 7 * S, stroke: trk ? P.shardL : P.ink2, lw: trk ? 3 : 2 });
       uiText(trk ? '✓ 追蹤中' : '＋ 追蹤主線', L.mainTrack.x + L.mainTrack.w / 2, L.mainTrack.y + L.mainTrack.h / 2 + 1 * S, { size: 11 * S, align: 'center', baseline: 'middle', color: trk ? P.shardL : '#fff', weight: '800' });
     } else uiText('主線已全數完成 — 你已成為魂晶之主。', f.x + 24 * S, t0 + 40 * S, { size: 13 * S, color: P.goldL, weight: '800' });
-    uiText('懸賞委託（可同時追蹤 · 已追蹤 ' + trackedCount(META) + '/' + MAX_TRACKED + '）', f.x + 24 * S, t0 + 118 * S, { size: 12 * S, color: P.shardL, weight: '800' });
-    if (!L.rows.length) uiText('目前沒有可接的委託（達成條件可解鎖隱藏委託）', f.x + 24 * S, t0 + 140 * S, { size: 11 * S, color: P.gray3 });
+    uiText('委託（本週懸賞 + 一般懸賞 · 可同時追蹤 ' + trackedCount(META) + '/' + MAX_TRACKED + '）', f.x + 24 * S, t0 + 118 * S, { size: 12 * S, color: P.shardL, weight: '800' });
     // R17 UI-sweep: clip + scroll the bounty rows (mirrors the B16 guild-rank fix — at high
     // uiScale rows 4-6 painted straight over the town, 145px past the panel bottom).
     let qBottom = L.top;
     for (const r of L.rows) qBottom = Math.max(qBottom, r.y + r.h + (this.panelScroll || 0));
+    for (const r of L.weeklyRows) qBottom = Math.max(qBottom, r.y + r.h + (this.panelScroll || 0));
     this.panelMaxScroll = Math.max(0, qBottom - (f.y + f.h - 24 * S));
     const ctxQ = ctxRaw(); ctxQ.save(); ctxQ.beginPath(); ctxQ.rect(f.x, L.clipTop, f.w, (f.y + f.h - 24 * S) - L.clipTop); ctxQ.clip();
+    // ── R18/B9 weekly bounties ──
+    uiText('📅 本週懸賞', f.x + 24 * S, L.wTop - 6 * S - (this.panelScroll || 0), { size: 12 * S, color: P.goldL, weight: '800' });
+    for (const r of L.weeklyRows) {
+      const st = weeklyState(META, r.q), done = st.done && !st.claimed;
+      uiRect(f.x + 24 * S, r.y, f.w - 48 * S, r.h, withAlpha(st.claimed ? '#16221a' : '#2a2410', 0.95), { radius: 6 * S, stroke: st.claimed ? P.greenD : P.goldL, lw: 1 });
+      uiText(r.q.title, f.x + 34 * S, r.y + 15 * S, { size: 12 * S, color: st.claimed ? P.gray3 : P.holyL, weight: '800' });
+      uiText(r.q.desc + '（' + Math.floor(st.prog) + '/' + r.q.goal + '）', f.x + 34 * S, r.y + 30 * S, { size: 10 * S, color: st.done ? P.greenL : P.gray4 });
+      const cH = inside(mx, my, r.claim);
+      uiRect(r.claim.x, r.claim.y, r.claim.w, r.claim.h, withAlpha(st.claimed ? '#1d2a20' : done ? (cH ? '#2a6a3a' : '#1f5030') : '#2a2030', 0.96), { radius: 5 * S, stroke: st.claimed ? P.greenD : done ? P.greenL : P.gray1, lw: 1 });
+      if (st.claimed) uiText('✓ 已領', r.claim.x + r.claim.w / 2, r.claim.y + r.claim.h / 2 + 1 * S, { size: 10 * S, align: 'center', baseline: 'middle', color: P.greenL, weight: '700' });
+      else if (done) goldLabel(r.claim.x + r.claim.w / 2, r.claim.y + r.claim.h / 2 + 1 * S, r.q.reward, { size: 10 * S, align: 'center', baseline: 'middle', color: '#fff', weight: '700', prefix: '領 ' });
+      else uiText('進行中', r.claim.x + r.claim.w / 2, r.claim.y + r.claim.h / 2 + 1 * S, { size: 10 * S, align: 'center', baseline: 'middle', color: P.gray3, weight: '700' });
+    }
+    uiText('一般懸賞', f.x + 24 * S, L.top - 12 * S - (this.panelScroll || 0), { size: 12 * S, color: P.shardL, weight: '800' });
+    if (!L.rows.length) uiText('目前沒有可接的委託（達成條件可解鎖隱藏委託）', f.x + 34 * S, L.top + 8 * S - (this.panelScroll || 0), { size: 11 * S, color: P.gray3 });
     for (const r of L.rows) {
       const q = r.q, p = Math.min(q.goal, q.prog(META.stats || {})), done = p >= q.goal;
       const trk = isQuestTracked(META, q.id), hidden = q.id[0] === 'h';
@@ -1445,6 +1481,18 @@ export const hubScene = {
     const S = f.S;
     const mx = mouse.x * view.dpr, my = mouse.y * view.dpr;
     const L = this.sortieLayout();
+    // R18/B9: 每日挑戰 entry bar — borrowed biome+hero+mutators, click to launch directly.
+    {
+      const dc = dailyChallenge(); const db = L.dailyBar; const dhov = inside(mx, my, db);
+      const bn = (BIOMES.find((b) => b.id === dc.biomeId) || {}).name || dc.biomeId;
+      const hn = (Characters.get(dc.characterId) || {}).name || dc.characterId;
+      const mutNames = dc.mutators.map((id) => (mutatorById(id) || {}).name || id).join('·');
+      uiRect(db.x, db.y, db.w, db.h, withAlpha(dhov ? '#3a2f12' : '#28220e', 0.96), { radius: 7 * S, stroke: P.goldL, lw: dhov ? 3 : 2 });
+      uiText('📅 每日挑戰', db.x + 12 * S, db.y + db.h / 2, { size: 12 * S, align: 'left', baseline: 'middle', color: P.goldL, weight: '800' });
+      uiText(bn + ' · ' + hn + ' · ' + mutNames, db.x + 120 * S, db.y + db.h / 2, { size: 9 * S, align: 'left', baseline: 'middle', color: P.holyL, weight: '700' });
+      const best = (META.daily && META.daily.key === dc.key) ? (META.daily.best || 0) : 0;
+      uiText(best > 0 ? '最佳 ' + best : '未挑戰', db.x + db.w - 12 * S, db.y + db.h / 2, { size: 10 * S, align: 'right', baseline: 'middle', color: P.gold, weight: '800' });
+    }
     // R17/4.1: character cards 3×3 — each card is self-contained:
     // left = sprite + name (+ state), right = starting weapon + effect lines.
     for (const card of L.cards) {

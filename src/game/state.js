@@ -43,7 +43,7 @@ const DEFAULT_META = () => ({
   selectedCharacter: 'hunter',
   stats: { runs: 0, kills: 0, bestFloor: 0, bestStage: 0, bestScore: 0, bestTime: 0, bestEndlessTime: 0, bossKills: 0, reaperKills: 0, miniBossKills: 0, clears: 0, deaths: 0, totalGold: 0, playTime: 0, history: [],
     // round-5: extra lifetime stats for the expanded achievements (task 2)
-    charClears: {}, noDmgClears: 0, bestCharLevel: 0, bondsTriggered: 0, forgeUpgrades: 0, npcTalks: 0, hiddenRoomsFound: 0 },
+    charClears: {}, noDmgClears: 0, bestCharLevel: 0, bondsTriggered: 0, forgeUpgrades: 0, npcTalks: 0, hiddenRoomsFound: 0, dailyClears: 0 },
   settings: { master: 0.9, sfx: 0.75, music: 0.5, shake: true, muted: false, keybinds: {}, uiScale: 1 },
   achievements: [],      // unlocked achievement ids
   questIndex: 0,         // current story-quest chapter
@@ -63,6 +63,11 @@ const DEFAULT_META = () => ({
   npc: { met: {} },                      // 5-1 npc id -> true once talked to (for "new" markers / story gating)
   hidden: { claimed: {} },               // #6 hidden-room rewards claimed (save-permanent, once each)
   bondsSeen: [],                         // round16/8.2: ids of 羈絆 ever triggered (for the 羈絆圖鑑 highlight)
+  daily: { key: '', best: 0, plays: 0 }, // R18/B9 每日挑戰：今日 key + 個人最佳分數 + 遊玩次數
+  weekly: { key: '', base: {}, claims: {} }, // R18/B9 週常懸賞：ISO 週 key + 終身統計快照 + 已領取
+  room: { decor: {} },                   // R18/B10 個人小屋裝飾：decorId -> true
+  pet: null,                             // R18/B10 出戰的迷你寵物 id（純裝飾）
+  npcAff: {},                            // R18/B11 NPC 好感：npcId -> { pts, lastDay }
   flags: {},
 });
 
@@ -138,6 +143,18 @@ export function loadMeta(slot) {
         if (hc.egg) { META.flags = META.flags || {}; if (!META.flags.devEgg) META.flags.devEgg = true; }
       }
       if (!Array.isArray(META.bondsSeen)) META.bondsSeen = [];   // round16/8.2: 羈絆圖鑑 ever-seen set
+      // R18/B9 每日/週常 + B10 小屋裝飾/寵物 + B11 NPC 好感 — guard nested shapes for old saves
+      if (!META.daily || typeof META.daily !== 'object') META.daily = { key: '', best: 0, plays: 0 };
+      for (const k of ['best', 'plays']) if (typeof META.daily[k] !== 'number') META.daily[k] = 0;
+      if (typeof META.daily.key !== 'string') META.daily.key = '';
+      if (!META.weekly || typeof META.weekly !== 'object') META.weekly = { key: '', base: {}, claims: {} };
+      if (typeof META.weekly.key !== 'string') META.weekly.key = '';
+      if (!META.weekly.base || typeof META.weekly.base !== 'object') META.weekly.base = {};
+      if (!META.weekly.claims || typeof META.weekly.claims !== 'object') META.weekly.claims = {};
+      if (!META.room || typeof META.room !== 'object') META.room = { decor: {} };
+      if (!META.room.decor || typeof META.room.decor !== 'object') META.room.decor = {};
+      if (typeof META.pet !== 'string' && META.pet !== null) META.pet = null;
+      if (!META.npcAff || typeof META.npcAff !== 'object') META.npcAff = {};
       for (const k of ['charClears']) if (!META.stats[k] || typeof META.stats[k] !== 'object') META.stats[k] = {};
       for (const k of ['noDmgClears', 'bestCharLevel', 'bondsTriggered', 'forgeUpgrades', 'npcTalks', 'bestEndlessTime', 'dailyClears']) if (typeof META.stats[k] !== 'number') META.stats[k] = 0;
       if (typeof META.saveSeq !== 'number') META.saveSeq = 0;
@@ -275,6 +292,8 @@ export function newRun(opts = {}) {
     floor: 1, stage: 1, depth: 1, time: 0,
     biomeId: opts.biomeId || null, difficulty: (opts.difficulty == null ? 1 : opts.difficulty), cleared: false,   // 6.5: difficulty 0 = 劇情 (don't let `||` coerce 0→1)
     mode: opts.mode || 'normal',   // 6.6: 'endless' = 無盡挑戰 (no 20-min cap, no Reaper, boss waves)
+    challengeKey: opts.challengeKey || null,     // R18/B9 daily YYYYMMDD (uploads to the daily board)
+    dailyMutators: opts.dailyMutators || null,   // R18/B9 chosen mutator ids (applied once in buildWorld)
     gold: 0, goldEarned: 0, shards: 0,
     level: 1, xp: 0, xpNext: 20, kills: 0, score: 0, bossKills: 0,
     stats: makeBaseStats(),
@@ -322,6 +341,13 @@ export function bankRun(run) {
   META.stats.bestScore = Math.max(META.stats.bestScore || 0, run.score || 0);
   META.stats.bestTime = Math.max(META.stats.bestTime || 0, Math.floor(run.time || 0));
   if (run.mode === 'endless') META.stats.bestEndlessTime = Math.max(META.stats.bestEndlessTime || 0, Math.floor(run.time || 0));   // R18/B7
+  if (run.mode === 'daily') {   // R18/B9: track today's best score + plays + lifetime clears (best score uploaded)
+    META.daily = META.daily || { key: '', best: 0, plays: 0 };
+    if (META.daily.key !== run.challengeKey) { META.daily.key = run.challengeKey; META.daily.best = 0; META.daily.plays = 0; }
+    META.daily.plays = (META.daily.plays || 0) + 1;
+    META.daily.best = Math.max(META.daily.best || 0, run.score || 0);
+    if (run.cleared) META.stats.dailyClears = (META.stats.dailyClears || 0) + 1;
+  }
   META.stats.bossKills = (META.stats.bossKills || 0) + (run.bossKills || 0);
   META.stats.reaperKills = (META.stats.reaperKills || 0) + (run.reaperKills || 0);
   META.stats.miniBossKills = (META.stats.miniBossKills || 0) + (run.miniKills || 0);

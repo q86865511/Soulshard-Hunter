@@ -16,6 +16,7 @@ import { BONDS, activeBonds, checkBonds, bondProgress, bondAdvancedBy } from '..
 import { exclusiveFor } from '../content/exclusives.js';
 import { biomeWeight } from '../content/biome_tags.js';   // R18/B4: biome enemy affinity
 import { CURSES } from '../content/curses.js';   // R18/B7: endless curse choices
+import { applyDailyMutators } from '../content/daily.js';   // R18/B9: daily-challenge mutators
 import { BALANCE, weaponMaxLevel } from '../balance.js';
 import { isUnlocked, cheatUnlockAll } from '../content/unlocks.js';
 import { STORY_QUESTS, trackedQuestStates, fmtQuestVal } from '../content/quests.js';
@@ -225,6 +226,12 @@ export const runScene = {
     this.curseBossHeal = 0; this.curseBossChest = false; this.curseDrain = false; this.curseDrainTimer = 30;
     this.run.curseGoldPerKill = 0;
     this.milestoneIdx = 0;   // next ENDLESS_MILESTONES index
+    // R18/B9 daily-challenge mutators: neutral defaults (consumed at the spawn/price/tempo paths),
+    // then applied once for mode==='daily'. Most mutators reuse the B7 curse accumulators above.
+    this.dailyEliteMul = 1; this.dailyTwinBoss = false; this.dailyVolatile = 0; this.dailyShopMul = 1;
+    this.dailyBossDmgMul = 1; this.dailyBossDropMul = 1; this.dailyTempoMul = 1; this.dailyFog = false;
+    this.world.aimMul = 1;
+    if (this.run.mode === 'daily') { try { applyDailyMutators(this); } catch (e) { console.warn('daily mutators', e); } }
     this.diffMul = this.storyMode ? BALANCE.STORY_DIFF_MUL : (1 + (D - 1) * 0.35);
     if (this.storyMode) {   // weak enemies + generous loot, almost unloseable
       this.run.dropQuality = (this.run.dropQuality || 0) + BALANCE.STORY_DROP_QUALITY;
@@ -377,10 +384,15 @@ export const runScene = {
     const def = pool[rng.int(0, pool.length - 1)];
     this.usedMiniBosses.push(def.id);
     const hpScale = (2 + this.threat * 0.4) * this.diffMul;     // tougher each time, but below the final boss
-    const dmgScale = (1.2 + this.threat * 0.10) * this.diffMul;  // bal: boss bite escalates with threat (was 0.05 → late bosses were sponges)
+    const dmgScale = (1.2 + this.threat * 0.10) * this.diffMul * this.dailyBossDmgMul;  // bal: boss bite escalates with threat (R18/B9 m_frenzy ×dmg)
     let bx = this.player.x, by = this.player.y, tries = 0;
     do { const a = rng.next() * TAU; bx = clamp(this.player.x + Math.cos(a) * 170, TS * 2, this.world.pxW - TS * 2); by = clamp(this.player.y + Math.sin(a) * 170, TS * 2, this.world.pxH - TS * 2); tries++; } while (this.world.solidAt(bx, by) && tries < 10);
     this.bossRef = this.world.spawnEnemy(def, bx, by, { hpScale, dmgScale, quiet: true });
+    if (this.dailyTwinBoss) {   // R18/B9 m_twin: a second mini-boss of the same kind escorts it
+      let tx = this.player.x, ty = this.player.y, tr = 0;
+      do { const a = rng.next() * TAU; tx = clamp(this.player.x + Math.cos(a) * 200, TS * 2, this.world.pxW - TS * 2); ty = clamp(this.player.y + Math.sin(a) * 200, TS * 2, this.world.pxH - TS * 2); tr++; } while (this.world.solidAt(tx, ty) && tr < 10);
+      this.world.spawnEnemy(def, tx, ty, { hpScale: hpScale * 0.85, dmgScale, quiet: true });
+    }
     this.boss = true; this.bossDead = false;
     this.banner = `小王 ${this.miniIdx}／${BALANCE.MINIBOSS_TIMES.length}：${def.name || 'BOSS'} 現身！`; this.bannerT = 3.0;
     addShake(8); Sfx.play('boss'); Music.setMode('miniboss');
@@ -394,6 +406,7 @@ export const runScene = {
     // R18/B7 endless curses (fire on every boss-wave kill)
     if (this.curseBossHeal > 0 && this.player) this.player.heal(this.player.maxHp * this.curseBossHeal);   // c_brittle
     if (this.curseBossChest) { this.world.addPickup('gold', this.player.x + 24, this.player.y, 120); this.world.addPickup('shard', this.player.x - 24, this.player.y, 15); }   // c_tyrant: extra loot
+    if (this.dailyBossDropMul > 1) { this.world.addPickup('gold', this.player.x + 18, this.player.y - 12, Math.round(90 * (this.dailyBossDropMul - 1))); this.world.addPickup('shard', this.player.x - 18, this.player.y - 12, Math.round(12 * (this.dailyBossDropMul - 1))); }   // R18/B9 m_frenzy: doubled boss loot
 
     Music.setMode('run');
     this.openEventChoice();   // 原#3: mini-boss drops a 3-of-N event choice
@@ -576,7 +589,7 @@ export const runScene = {
     if (!def) { let bs = Enemies.filter((d) => d.boss && d.id !== REAPER_ID && !this.usedMiniBosses.includes(d.id)); if (!bs.length) bs = Enemies.filter((d) => d.boss && d.id !== REAPER_ID); def = bs.length ? bs[rng.int(0, bs.length - 1)] : null; }
     if (!def) { this.clearLevel(); return; }
     const hpScale = (4 + this.threat * 0.6) * this.diffMul;
-    const dmgScale = (1.4 + this.threat * 0.10) * this.diffMul;  // bal: final boss escalates with threat (was 0.05)
+    const dmgScale = (1.4 + this.threat * 0.10) * this.diffMul * this.dailyBossDmgMul;  // bal: final boss escalates with threat (R18/B9 m_frenzy ×dmg)
     let bx = this.player.x, by = this.player.y, tries = 0;
     do { const a = rng.next() * TAU; bx = clamp(this.player.x + Math.cos(a) * 200, TS * 2, this.world.pxW - TS * 2); by = clamp(this.player.y + Math.sin(a) * 200, TS * 2, this.world.pxH - TS * 2); tries++; } while (this.world.solidAt(bx, by) && tries < 12);
     this.finalBossRef = this.world.spawnEnemy(def, bx, by, { hpScale, dmgScale, quiet: true });
@@ -596,15 +609,19 @@ export const runScene = {
     this.cleared = true; this.run.cleared = true;
     const bid = this.run.biomeId || BIOMES[0].id;
     const idx = BIOMES.findIndex((b) => b.id === bid);
-    META.levels = META.levels || { unlocked: 1, diff: {} };
-    META.levels.diff = META.levels.diff || {};
-    META.levels.diff[bid] = Math.max(META.levels.diff[bid] || 0, this.run.difficulty || 1);
-    if (idx >= 0) META.levels.unlocked = Math.max(META.levels.unlocked || 1, Math.min(BIOMES.length, idx + 2));
+    // R18/B9: a daily run is a closed showcase — it borrows a hero + biome and must NOT write
+    // biome/difficulty unlocks (the hero isn't written to META.unlocked either; see hub launch).
+    if (this.run.mode !== 'daily') {
+      META.levels = META.levels || { unlocked: 1, diff: {} };
+      META.levels.diff = META.levels.diff || {};
+      META.levels.diff[bid] = Math.max(META.levels.diff[bid] || 0, this.run.difficulty || 1);
+      if (idx >= 0) META.levels.unlocked = Math.max(META.levels.unlocked || 1, Math.min(BIOMES.length, idx + 2));
+    }
     this.run.gold += 220 + (this.run.difficulty || 1) * 160 + this.threat * 18;
     saveMeta();   // persist the unlock at once, so leaving/dying after this keeps it
     this.reaperAt = this.run.time + BALANCE.REAPER_DELAY;
     if (this.player) this.player.invuln = Math.max(this.player.invuln || 0, BALANCE.REAPER_GRACE);   // 10.9: brief grace so a boss death-blast / lingering AoE can't false-trigger game over right as you win
-    this.banner = '關卡通關！死神將在 ' + BALANCE.REAPER_DELAY + ' 秒後降臨 — 按 E 離場，或留下迎戰'; this.bannerT = 5.0;
+    this.banner = (this.run.mode === 'daily' ? '每日挑戰完成！死神將在 ' : '關卡通關！死神將在 ') + BALANCE.REAPER_DELAY + ' 秒後降臨 — 按 E 離場，或留下迎戰'; this.bannerT = 5.0;
     this.world.addPickup('heart', this.player.x, this.player.y, 60);
     addShake(8); Sfx.play('levelup'); Music.setMode('run');
   },
@@ -822,8 +839,8 @@ export const runScene = {
       const dmgScale = (1 + Math.min(3.0, (this.threat - 1) * 0.10 + tc * 0.0022)) * this.diffMul * dmgGrace * this.curseDmgMul;  // bal: late trash keeps scaling (was min 2.2 / 0.08 / 0.0018)
       for (let i = 0; i < group; i++) {
         const def = this.pickSpawnType();
-        const elite = this.threat >= 3 && rng.chance(0.03 + t * 0.0003);
-        this.world.spawnRing(def, { hpScale, dmgScale, elite, speedScale: this.curseSpdMul });
+        const elite = this.threat >= 3 && rng.chance((0.03 + t * 0.0003) * this.dailyEliteMul);   // R18/B9 m_elite
+        this.world.spawnRing(def, { hpScale, dmgScale, elite, speedScale: this.curseSpdMul, volatile: this.dailyVolatile });   // R18/B9 m_volatile
       }
       this.spawnTimer = Math.max(BALANCE.SPAWN_INTERVAL_MIN, (BALANCE.SPAWN_INTERVAL_BASE - this.threat * 0.06 - t * 0.004) / grace);
     }
@@ -1115,6 +1132,7 @@ export const runScene = {
     const hpFrac = this.player.maxHp ? this.player.hp / this.player.maxHp : 1;
     setShakeScale(hpFrac < 0.25 ? 1.0 : 0.42);
     this.world.update(dt);
+    if (this.dailyTempoMul !== 1) { this.world.playerTempo *= this.dailyTempoMul; this.world.enemyTempo *= this.dailyTempoMul; }   // R18/B9 m_tempo: faster attack cadence (world recomputes tempo each tick)
     // R17/1.4: a key pickup was just small floating text and easy to miss — surface it as a banner.
     // Increase-only detection: opening the vault DECREMENTS world.keys and must not retrigger.
     const wk = this.world.keys | 0;
@@ -1544,8 +1562,8 @@ export const runScene = {
     }
     return { S, x, y, w, h, close, gearBuyCard, anvilBuyCard, choiceCards, gearX, anvilX, colW, top };
   },
-  anvilPrice() { return Math.round(BALANCE.ANVIL_BASE_PRICE * Math.pow(BALANCE.ANVIL_PRICE_GROWTH, this.anvilBuys || 0)); },
-  gearPrice() { return Math.round(BALANCE.GEAR_ANVIL_BASE_PRICE * Math.pow(BALANCE.GEAR_ANVIL_GROWTH, this.gearBuys || 0)); },
+  anvilPrice() { return Math.round(BALANCE.ANVIL_BASE_PRICE * Math.pow(BALANCE.ANVIL_PRICE_GROWTH, this.anvilBuys || 0) * (this.dailyShopMul || 1)); },   // R18/B9 m_tax
+  gearPrice() { return Math.round(BALANCE.GEAR_ANVIL_BASE_PRICE * Math.pow(BALANCE.GEAR_ANVIL_GROWTH, this.gearBuys || 0) * (this.dailyShopMul || 1)); },   // R18/B9 m_tax
   updateShopPanel() {
     const mx = mouse.x * view.dpr, my = mouse.y * view.dpr;
     const L = this.shopLayout();

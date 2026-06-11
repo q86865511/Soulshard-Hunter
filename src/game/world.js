@@ -149,6 +149,7 @@ export class World {
     const def = typeof defOrId === 'string' ? Enemies.get(defOrId) : defOrId;
     if (!def) { console.warn('unknown enemy', defOrId); return null; }
     const e = new Enemy(def, x, y, this, opts);
+    if (opts.volatile && Math.random() < opts.volatile) e.deathBlast = { r: 34, dmg: Math.round((e.damage || 10) * 1.2), color: P.laser };   // R18/B9 m_volatile: per-instance death explosion
     this.enemies.push(e);
     if (!opts.quiet) this.particles.ring(x, y, def.tint || P.purpleL, 8, 50);
     return e;
@@ -314,7 +315,7 @@ export class World {
           e.processed = true;
           this.particles.death(e.x, e.y, e.def.bloodColor || P.green);
           Sfx.play('kill');
-          if (e.def.deathBlast) this.bombBlast(e);
+          if (e.deathBlast || e.def.deathBlast) this.bombBlast(e);
           this.dropLoot(e);
           this.run.kills = (this.run.kills || 0) + 1;
           if (this.run.curseGoldPerKill) this.run.gold += this.run.curseGoldPerKill;   // R18/B7 c_soultax
@@ -390,7 +391,7 @@ export class World {
 
   // an enemy with def.deathBlast detonates when it dies, hurting the PLAYER too
   bombBlast(e) {
-    const b = e.def.deathBlast || {};
+    const b = e.deathBlast || e.def.deathBlast || {};
     const r = b.r || 42, dmg = b.dmg || Math.round((e.damage || 10) * 1.6), color = b.color || P.ember;
     this.spawnExplosion(e.x, e.y, r, color, dmg * 0.7, { knockback: 90 });   // visual + hurt other enemies
     this.eachPlayer((p) => { if (!p.dead && dist(p.x, p.y, e.x, e.y) < r + p.radius) p.takeDamage(dmg, Math.atan2(p.y - e.y, p.x - e.x), this); });
@@ -444,7 +445,7 @@ export class World {
     return best;
   }
   // 原#5: weapon auto-target — closest foe within AIM_RANGE, skipping any behind a wall.
-  aimTarget(x, y) { return this.nearestEnemy(x, y, BALANCE.AIM_RANGE, { los: BALANCE.AIM_LOS }); }
+  aimTarget(x, y) { return this.nearestEnemy(x, y, BALANCE.AIM_RANGE * (this.aimMul || 1), { los: BALANCE.AIM_LOS }); }   // R18/B9 m_fog shrinks aim range
 
   // ---- trap terrain --------------------------------------------------------
   updateHazards(dt) {
