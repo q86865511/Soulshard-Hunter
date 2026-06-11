@@ -17,6 +17,7 @@ import { exclusiveFor } from '../content/exclusives.js';
 import { biomeWeight } from '../content/biome_tags.js';   // R18/B4: biome enemy affinity
 import { CURSES } from '../content/curses.js';   // R18/B7: endless curse choices
 import { applyDailyMutators } from '../content/daily.js';   // R18/B9: daily-challenge mutators
+import { petById, updatePetFollow } from '../content/pets.js';   // R18/B10: cosmetic pet follower
 import { BALANCE, weaponMaxLevel } from '../balance.js';
 import { isUnlocked, cheatUnlockAll } from '../content/unlocks.js';
 import { STORY_QUESTS, trackedQuestStates, fmtQuestVal } from '../content/quests.js';
@@ -231,6 +232,7 @@ export const runScene = {
     this.dailyEliteMul = 1; this.dailyTwinBoss = false; this.dailyVolatile = 0; this.dailyShopMul = 1;
     this.dailyBossDmgMul = 1; this.dailyBossDropMul = 1; this.dailyTempoMul = 1; this.dailyFog = false;
     this.world.aimMul = 1;
+    this.petId = META.pet || null; this.petState = { x: null, y: null, t: 0, bob: 0 };   // R18/B10 cosmetic pet (local player only)
     if (this.run.mode === 'daily') { try { applyDailyMutators(this); } catch (e) { console.warn('daily mutators', e); } }
     this.diffMul = this.storyMode ? BALANCE.STORY_DIFF_MUL : (1 + (D - 1) * 0.35);
     if (this.storyMode) {   // weak enemies + generous loot, almost unloseable
@@ -1133,6 +1135,7 @@ export const runScene = {
     setShakeScale(hpFrac < 0.25 ? 1.0 : 0.42);
     this.world.update(dt);
     if (this.dailyTempoMul !== 1) { this.world.playerTempo *= this.dailyTempoMul; this.world.enemyTempo *= this.dailyTempoMul; }   // R18/B9 m_tempo: faster attack cadence (world recomputes tempo each tick)
+    if (this.petId && this.player && !this.player.dead) updatePetFollow(this.petState, this.player.x, this.player.y, this.player.facing, dt);   // R18/B10 pet trails the local player
     // R17/1.4: a key pickup was just small floating text and easy to miss — surface it as a banner.
     // Increase-only detection: opening the vault DECREMENTS world.keys and must not retrigger.
     const wk = this.world.keys | 0;
@@ -1745,6 +1748,10 @@ export const runScene = {
 
   render() {
     this.world.draw();
+    if (this.petId && this.petState && this.petState.x != null && this.player && !this.player.dead) {   // R18/B10 cosmetic pet (local only)
+      const pp = petById(this.petId), psp = pp && getSprite(pp.sprite);
+      if (psp && !psp.missing) { drawShadow(this.petState.x, this.petState.y, 4); drawSprite(frameAt(psp, this.petState.t), this.petState.x, this.petState.y + (this.petState.bob || 0), { ax: psp.ax, ay: psp.ay, flipX: (this.player.facing || 1) < 0 }); }
+    }
     if (this.shrinePos) this.drawShrine();
     this.drawNpcs();
     this.drawHiddenRooms();

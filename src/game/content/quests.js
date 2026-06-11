@@ -95,8 +95,9 @@ export function claimWeekly(meta, id) {
   const st = weeklyState(meta, q);
   if (!st.done || st.claimed) return false;
   meta.weekly.claims[id] = weekKey();
-  meta.gold += q.reward;
-  addGuildXp(meta, q.reward / 3);
+  const reward = Math.round(q.reward * ((meta.flags && meta.flags.qolWeekly) ? 1.1 : 1));   // R18/B11: 小鈴 Lv5 好感週常 +10%
+  meta.gold += reward;
+  addGuildXp(meta, reward / 3);
   return true;
 }
 

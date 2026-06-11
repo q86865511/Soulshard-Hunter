@@ -121,3 +121,21 @@
 **氛圍粒子**（`scenes/hub.js ambientFx`）：每 0.18s 在鏡頭上緣灑一片飄落櫻花瓣（P.sakura/sakuraL，慢速 drag 0.995 + 微重力，斜向飄落）+ 花園井邊偶發螢火（P.holyL glow 上飄）。沿用 `world.particles` ring-buffer 自動上限。每房間 hub 色調（R5b `ROOM_THEME`）錨點未變、自動沿用。
 
 **驗證**：reload `__GAME_ERROR__` null；溪流 tile VOID（24,31/36,32）、橋 tile 可走（30,31/30,32）；60 tick 跑 ambientFx → 10 粒子、零錯；decor 81（<250）；station/NPC 仍全非 solid；截圖確認溪流（藍水帶 + 木橋橫跨 + 路徑連續 + 飄落花瓣）。
+
+## B10 — 個人小屋裝飾 + 迷你寵物（2026-06-11）
+
+**美術**：新 `src/art/town_pets_decor.js`（13 sprites）由 **Fable(繪製) → Opus(驗證)** workflow（22 agents；首跑遇 session limit 後重跑成功）：10 件裝飾（rd_planter/rug/painting/fireplace/bookwall/trophycase/chandelier/aquarium/impdoll/throne）+ 3 隻 2 幀寵物（pet_slime/ghostcat/imp）。
+
+**裝飾**（新 `content/room_decor.js`）：10 件後期金幣沉沒（600–8888 金，合計 ~24k），買一次永久、固定槽位佈置在個人小屋院落（`placedDecor` 注入 `world.decor`，hub 進場 + 購買當下即時注入）。小妖玩偶需 `flags.devEgg`。個人小屋面板新增第三分頁「裝飾·寵物」（格狀購買，走既有 `ask()` 確認；捲動）。
+
+**寵物**（新 `content/pets.js`）：3 隻純裝飾跟隨（史萊姆寶寶=擊殺 10000／幽靈小貓=通關全 10 生態／小小妖=devEgg）。`updatePetFollow` 臨界阻尼 lerp 至主人身後 18px + 上下浮動；城鎮（hub）與局內（run）都跟，**僅本地玩家渲染**（snapshot/協定零改動，記為已知限制）。`state.js` `META.room.decor`/`META.pet` 預設 + 守衛（B9 同批已加）。成就 +2（pet_owner 解鎖首寵／deco_master 佈置 8 件）。
+
+**驗證**：reload `__GAME_ERROR__` null；13 sprite 全 baked、零 missing；買黃金王座 → gold 20000→11112、owned、placedDecor=1；裝備寵物後城鎮截圖確認跟隨於身後（petX 502 < heroX 524）；裝飾分頁截圖（2 欄格 + 寵物列 + ✓已佈置）。
+
+## B11 — NPC 好感度（2026-06-11）
+
+**模型**（`content/npcs.js`）：`META.npcAff[id]={pts,lastDay}`；每 NPC **每本地日首次對話 +1 pt**（`talkAffinity`，`dateKey` 去重）；等級門檻 1/3/7/14/25。`npcScript` 依 `t.aff ≤ 等級` 過濾話題——10 位 NPC 各 +2 條好感話題（aff:2 / aff:4，存檔感知動態行）。
+
+**獎勵**（升級自動發放 + hub toast；純金幣 + QoL，零戰力）：Lv2 150 金 · Lv3 400 金 · Lv4 800 金 + **免費贈一件對應 B10 裝飾**（每 NPC 固定一件，吃 `grantDecor`：小米→小妖玩偶、老潘→黃金王座、薇拉→水晶吊燈…）· Lv5 1500 金 + **QoL 旗標**。3 個 Lv5 QoL 特典走 `META.flags`（避免跨模組 import 循環）：**老潘**`qolBank`→銀行額度 +200（`bank.js bankLimit`）、**薇拉**`qolWardrobe`→造型重抽半價（`skinshop rerollCost`）、**小鈴**`qolWeekly`→週常獎勵 +10%（`claimWeekly`；spec 的「免費重抽」以等價且自含的 +10% 取代，降風險）。成就 +3（`bond_npc` 摯友家族，以最高好感等級計 `[2,4,5]`）。
+
+**驗證**：reload `__GAME_ERROR__` null；同日對同一 NPC 二次對話只 +1；強制 child pts=13 後對話 → Lv4、+800 金、獲贈 rd_impdoll（childDecor=true）、affMaxLevel=4；achTotal **219**（+5 B7 +1 roster +2 B10 +3 B11 +3 B9 等＝符合 spec）。

@@ -20,6 +20,7 @@ import './art/lobby.js';
 // round-5 town art (multi-room hub: NPCs + room decor)
 import './art/town_floor.js';   // polished hub flooring + walls (replaces the dungeon grid)
 import './art/town_outdoor.js';   // R18/B1+B2: outdoor-town tileset + building facades + nature props
+import './art/town_pets_decor.js';   // R18/B10: personal-room decorations + mini-pet sprites
 import './art/town_npcs_a.js';
 import './art/town_npcs_b.js';
 import './art/town_church.js';
