@@ -91,3 +91,64 @@
 **持久化 + 上傳**：`state.js` `bestEndlessTime` stat（DEFAULT_META + loadMeta 數值回填）；`bankRun` 在 mode==='endless' 記錄。upload：`run.js` stage 封頂改 `endless ? ENDLESS_STAGE_CAP(99) : THREAT_CEIL`；payload 加 `mode`/`challenge_key`，**解除無盡不上傳的排除**（只剩劇情 D0 排除）。成就 +5：`endless` 家族[600,1200,1800,2400,3600]（`endless_1200` 同時是 g_stormcaller 解鎖讀數）。
 
 **驗證**：reload `__GAME_ERROR__` null；模擬無盡 115000 幀（每幀復活+清模態）→ 時間 1916s、stage **20（>THREAT_CEIL 13，封頂解除）**、4 里程碑觸發（gold 3513/shard 323）、bestEndlessTime 寫入 1916；直接套用全 12 詛咒 → 累積器精確（curseDmgMul 1.38=1.15×1.20、curseHpMul 1.2、curseBossHpMul 1.3…）、玩家 stat 精確（maxHp+40、dash×1.3、crit 夾 0、healMult 0.5、proj+1、pickup+40、def−2）；co-op `openCurseChoice` 自動解決（curseChoice 不開）；詛咒三選一渲染截圖確認（紫紅皮、詛咒紅/報酬綠雙區）；normal 模式累積器恆 ×1 → 手感 byte-identical。
+
+## B9 — 每日挑戰 + 週常懸賞（2026-06-11）
+
+**每日挑戰**（新 `content/daily.js` 手寫）：`dateKey()`（本地 YYYYMMDD）→ `xmur3` hash → `makeRng` 決定論挑出 **1 生態（10 選 1、無視解鎖）+ 1 英雄（全名單暫借）+ 3 詞綴（洗牌、依 group 去重）**。地圖/掉落刻意維持非決定論（不把種子穿進 maps.js → 零 co-op 風險）。固定難度 3 上傳 `{mode:'daily', challenge_key}`（公平同條件）；**不限次、取最佳**（伺服器 DISTINCT-ON 天然支援）。**進度隔離**：`clearLevel` 在 `mode==='daily'` 時跳過 `META.levels` 解鎖寫入（橫幅改「每日挑戰完成！」）、暫借英雄不寫 `META.unlocked`；`bankRun` 記 `META.daily={key,best,plays}` + `stats.dailyClears`。**入口**：出擊面板頂部金邊「📅 每日挑戰」列（顯示今日生態/英雄/詞綴 + 個人最佳），點擊直接開局（`hubScene.launchDaily`）。
+
+**12 詞綴**（`DAILY_MUTATORS`，`apply(s)` 與 B7 詛咒**共用場景累積器**，buildWorld 套一次）：m_swift 敵速+20%（curseSpdMul）· m_anemic 治療×0.25（player.healMult）· m_twin 雙生小王（dailyTwinBoss → spawnMiniBoss 生第二隻）· m_greed 金幣+50%（goldMult）· m_glass 造成/受到傷害+30%（damageMult+curseDmgMul）· m_horde 上限+40%/敵血−15%（curseCapAdd+curseHpMul）· m_elite 精英×3（dailyEliteMul，spawnTick elite 機率）· m_fog 瞄準−30%/暗角（world.aimMul，`aimTarget` 讀）· m_tempo 攻速+15%（dailyTempoMul，world.update 後乘 playerTempo/enemyTempo）· m_volatile 12% 雜兵死亡爆炸（spawnEnemy 設 `e.deathBlast` 實例欄，world 死亡檢查改讀 `e.deathBlast||e.def.deathBlast`）· m_tax 商店+50%/金幣+80%（dailyShopMul，anvil/gearPrice）· m_frenzy Boss傷害+25%/掉落翻倍（dailyBossDmgMul × 各 boss spawn dmgScale、dailyBossDropMul × onBossDead 掉落）。**零協定改動**（全 host 端純量/玩家 stat）。
+
+**週常懸賞**（`content/quests.js`）：`weekKey()`（ISO 週，Thursday-anchored）；`WEEKLY_QUESTS` 池 **9 取 3**（`makeRng(hash('weekly:'+weekKey))`）。**進度＝終身統計差值**：`META.weekly={key, base:{kills,clears,miniBossKills,totalGold,bossKills}, claims:{}}`——hub 進場 `ensureWeekly()` 在跨週時以當前統計重拍快照 + 清空 claims；`prog = stats[k] − base[k]`。任務獎勵 250–500 金 + 公會聲望（`addGuildXp(reward/3)`）。公會委託面板的捲動清單頂部插入「📅 本週懸賞」段（3 行 claim）+「一般懸賞」子標題，沿用既有 clip/scroll。（週常**不**進 HUD 追蹤——避免跨週 prune 複雜度，刻意 scope 取捨。）
+
+**檔案**：新 `content/daily.js`；`content/quests.js`（+WEEKLY_QUESTS/weeklyQuests/weeklyState/claimWeekly/ensureWeekly）；`state.js`（DEFAULT_META `daily`/`weekly`/`room`/`pet`/`npcAff` + `stats.dailyClears` + loadMeta 守衛 + newRun `challengeKey`/`dailyMutators` + bankRun daily 記錄）；`scenes/run.js`（buildWorld 套詞綴 + 8 消費點 + clearLevel 隔離）；`world.js`（volatile 死亡爆炸 + aimMul）；`scenes/hub.js`（sortie daily bar/launchDaily + guild 週常段）；`content/achievements.js`（daily 家族 +3 `[1,7,30]`）。
+
+**驗證**：reload `__GAME_ERROR__` null；`dailyChallenge('20260611')` 同日全等、跨日不同（biome void / hero stormcaller / m_anemic·m_tempo·m_greed）；週常 9 取 3 決定論、weekKey `2026-W24`；實跑 daily run → mode='daily'、healMult 0.25 / goldMult 1.5 / tempoMul 1.15、400 幀 godmode 無錯；`clearLevel` 後 `META.levels` **未變**（隔離成功）、橫幅「每日挑戰完成！」；sortie/guild 面板 render 零錯、daily bar 截圖確認（虛空獵境·雷暴喚使·三詞綴·未挑戰）、weeklyRows=3。reg 計數 characters 21 / enemies 58。
+
+## B1 — 城鎮戶外改版 A：開放地圖 + 戶外 tileset + 建築立面（2026-06-11）
+
+**美術**：新 `src/art/town_outdoor.js`（25 sprites）由 **Fable(繪製) → Opus(Painter-API 驗證)** workflow 產出（22 agents；每塊驗證方法/調色盤/anchor/outline 正確性）並手動整合：戶外地面 7 變體（`town_grass/grass2/flowergrass/dirt/dirt2/plaza/plaza2`）、森林林線牆環（`town_treeline` 16×16 + `town_treeline_top` 16×8）、**六棟建築立面**（`town_fc_church/guild/smith/wardrobe/hall/house` 64×64 底邊錨點）、溪流 + 橋（`town_water` 2 幀 + `town_bridge`）、自然道具（`town_tree/tree2/bush/fence_h/fence_v/bench/flowerbed/fc_stall`）。
+
+**`makeCamp()` 重寫**（`game/world.js`，**完整保留回傳契約 `{tw,th,tiles,floorVar,decor,rooms,tileset}` 與全部 9 個 room id**）：48×39 牆箱 → **60×46 開放草原**。森林林線 2 格邊環、中央暖色石板廣場（橢圓 disc，floorVar 5/6）、放射土徑連到各建築門廊（L 形 2 格寬）；六棟建築＝**VOID footprint（3×3，藏在 64px 立面後不露黑邊）+ 立面 decor（底邊錨點）**，門廊留為可走草地。`tileset.floor` 擴為 7 變體（引擎 `floorSprites=ts.floor.map` 零改動）、`wall='town_treeline'`、`wallTop='town_treeline_top'`（R17 B14 界外暗牆填充自動讀成漸遠森林）。`rooms[id]` 形狀不變（hub.js 只讀 cx/cy）。
+
+**接線**：`main.js` art 區 +1 import（town_floor.js 之後）。hub.js 的 station/NPC 座標讀 `rooms[id].cx/cy` → 隨新錨點自動落到門廊（立面在門廊北側 3 格，VOID 更北 → 站點/NPC 全在可走草地，零 hub 改動）。
+
+**驗證**：reload `__GAME_ERROR__` null；25 sprite 全 baked（church 64×64 / water f2 / tree2 28×36）、零 magenta；`makeCamp()` → 60×46、9 room id 齊全、7 floor 變體、decor 50（<250 cull 上限）；hub 進場 7 station + 10 NPC + hero **全部非 solid**（不卡牆/不卡建築）、每站鄰近偵測命中自身；截圖確認廣場（石板 disc + 放射土徑 + 草花 + 路燈 + 營火）與教堂立面（白色禮拜堂 + 藍尖塔 + 門廊女神像站 + 櫻花樹）。
+
+## B2 — 城鎮戶外改版 B：水景 / 自然 / 氛圍（2026-06-11）
+
+**溪流 + 橋**（`game/world.js makeCamp`）：廣場與花園之間一道溪流（cols 23–37 × rows 31–32 = **VOID 真障礙** + 逐格 `town_water` 2 幀動畫 decor），花園路上一座 `town_bridge` 木橋（cols 29–31 碾回可走 dirt）跨河；溪流兩端可繞行 → **不硬性封路**（spec fallback 精神）。**自然散佈**：更多 `town_tree/tree2`（櫻花/闊葉，沿林線與田野）、`town_bush`、花園 `town_flowerbed`/`town_bench`/`hub_well`、市集 `town_fc_stall`×2、`town_fence_h` 圍欄。
+
+**氛圍粒子**（`scenes/hub.js ambientFx`）：每 0.18s 在鏡頭上緣灑一片飄落櫻花瓣（P.sakura/sakuraL，慢速 drag 0.995 + 微重力，斜向飄落）+ 花園井邊偶發螢火（P.holyL glow 上飄）。沿用 `world.particles` ring-buffer 自動上限。每房間 hub 色調（R5b `ROOM_THEME`）錨點未變、自動沿用。
+
+**驗證**：reload `__GAME_ERROR__` null；溪流 tile VOID（24,31/36,32）、橋 tile 可走（30,31/30,32）；60 tick 跑 ambientFx → 10 粒子、零錯；decor 81（<250）；station/NPC 仍全非 solid；截圖確認溪流（藍水帶 + 木橋橫跨 + 路徑連續 + 飄落花瓣）。
+
+## B10 — 個人小屋裝飾 + 迷你寵物（2026-06-11）
+
+**美術**：新 `src/art/town_pets_decor.js`（13 sprites）由 **Fable(繪製) → Opus(驗證)** workflow（22 agents；首跑遇 session limit 後重跑成功）：10 件裝飾（rd_planter/rug/painting/fireplace/bookwall/trophycase/chandelier/aquarium/impdoll/throne）+ 3 隻 2 幀寵物（pet_slime/ghostcat/imp）。
+
+**裝飾**（新 `content/room_decor.js`）：10 件後期金幣沉沒（600–8888 金，合計 ~24k），買一次永久、固定槽位佈置在個人小屋院落（`placedDecor` 注入 `world.decor`，hub 進場 + 購買當下即時注入）。小妖玩偶需 `flags.devEgg`。個人小屋面板新增第三分頁「裝飾·寵物」（格狀購買，走既有 `ask()` 確認；捲動）。
+
+**寵物**（新 `content/pets.js`）：3 隻純裝飾跟隨（史萊姆寶寶=擊殺 10000／幽靈小貓=通關全 10 生態／小小妖=devEgg）。`updatePetFollow` 臨界阻尼 lerp 至主人身後 18px + 上下浮動；城鎮（hub）與局內（run）都跟，**僅本地玩家渲染**（snapshot/協定零改動，記為已知限制）。`state.js` `META.room.decor`/`META.pet` 預設 + 守衛（B9 同批已加）。成就 +2（pet_owner 解鎖首寵／deco_master 佈置 8 件）。
+
+**驗證**：reload `__GAME_ERROR__` null；13 sprite 全 baked、零 missing；買黃金王座 → gold 20000→11112、owned、placedDecor=1；裝備寵物後城鎮截圖確認跟隨於身後（petX 502 < heroX 524）；裝飾分頁截圖（2 欄格 + 寵物列 + ✓已佈置）。
+
+## B11 — NPC 好感度（2026-06-11）
+
+**模型**（`content/npcs.js`）：`META.npcAff[id]={pts,lastDay}`；每 NPC **每本地日首次對話 +1 pt**（`talkAffinity`，`dateKey` 去重）；等級門檻 1/3/7/14/25。`npcScript` 依 `t.aff ≤ 等級` 過濾話題——10 位 NPC 各 +2 條好感話題（aff:2 / aff:4，存檔感知動態行）。
+
+**獎勵**（升級自動發放 + hub toast；純金幣 + QoL，零戰力）：Lv2 150 金 · Lv3 400 金 · Lv4 800 金 + **免費贈一件對應 B10 裝飾**（每 NPC 固定一件，吃 `grantDecor`：小米→小妖玩偶、老潘→黃金王座、薇拉→水晶吊燈…）· Lv5 1500 金 + **QoL 旗標**。3 個 Lv5 QoL 特典走 `META.flags`（避免跨模組 import 循環）：**老潘**`qolBank`→銀行額度 +200（`bank.js bankLimit`）、**薇拉**`qolWardrobe`→造型重抽半價（`skinshop rerollCost`）、**小鈴**`qolWeekly`→週常獎勵 +10%（`claimWeekly`；spec 的「免費重抽」以等價且自含的 +10% 取代，降風險）。成就 +3（`bond_npc` 摯友家族，以最高好感等級計 `[2,4,5]`）。
+
+**驗證**：reload `__GAME_ERROR__` null；同日對同一 NPC 二次對話只 +1；強制 child pts=13 後對話 → Lv4、+800 金、獲贈 rd_impdoll（childDecor=true）、affMaxLevel=4；achTotal **219**（+5 B7 +1 roster +2 B10 +3 B11 +3 B9 等＝符合 spec）。
+
+## B12 — 整合 QA + 文件（2026-06-11）
+
+**多模型 QA workflow**（`r18-qa`，模型分工如設計：**Sonnet 掃描 / Opus 對抗驗證**）：5 維度 Sonnet（Explore agent）掃描（save-compat / daily-curse 消費點 / hub-UI 命中測試 / imports-refs / sprite-refs）→ 每筆 finding 由 Opus 逐一讀碼對抗驗證（預設 real=false，需指出確切行）。7 候選 → **6 確認真**，全數修正：
+- **(中) m_fog `dailyFog` 旗標只設不讀**：render 的 `vignette(0.42)` 改 `vignette(this.dailyFog ? 0.62 : 0.42)`，補上「暗角加深」效果。
+- **(中) m_frenzy `dailyBossDropMul` 只套小王**：`clearLevel`（最終 Boss 通關金）與 `onReaperDead`（死神金/魂晶）原未乘——改為以**加量**方式套用（`×1` 時與非每日**位元相同**，>1 時翻倍）。驗證：base 790→1580、reaper 1200→2400。
+- **(中) `drawRoomTab` clip 上緣 vs `updateRoomTab` cull 上緣差 6S**：捲動時頂端薄片可見卻不可點——cull 對齊 `L.top - 6*S`。
+- **(低) `npcAffLevel` import 未使用**：改為實裝——城鎮 NPC 名牌下方顯示「❤ Lv{n}」好感徽章（完成 B11 視覺意圖）。
+- **(低) `drawBondCodex` 設了 `panelMaxScroll` 卻沒畫捲軸**（R16 既有小疵）：補 `this.drawScrollbar(f)`。
+
+**回歸驗證**：reload `__GAME_ERROR__` null；**舊檔 round-trip**（pre-R18 version-1 存檔載入 → gold/levels 保留、daily/weekly/room/pet/npcAff/dailyClears 全回填、零錯）；**normal run 全累積器中性**（curse/daily 旗標恆 ×1 / false / 0 → 單人手感 byte-identical）；`coopRoundTrip` 綠（2 人、snapshot 流動）；daily 全程 pump 結算（META.daily best/plays 寫入）；sortie/guild/personal 三面板 × uiScale 0.6/1.0/1.5 render 零錯；QA 六修正逐一驗證。
+
+**文件**：CLAUDE.md 計數更新（英雄 15→**21**、敵人 48→**58**、專屬武器 8→**12**、成就 205→**219**、最終 Boss **10/10 生態專屬**）＋ R18 摘要段；`docs/ROUND18_SPEC.md` 狀態翻為 ✅。**ROUND18 全數完成。**

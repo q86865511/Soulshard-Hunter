@@ -9,15 +9,18 @@ import { newRun, META, saveMeta, WEAPONS } from '../state.js';
 import { Talents, Facilities, Characters, Weapons } from '../content/registry.js';
 import { TALENT_BRANCHES } from '../content/talents.js';
 import { ACHIEVEMENTS, achievementProgress } from '../content/achievements.js';
-import { STORY_QUESTS, chapterState, claimChapter, guildQuests, trackQuest, claimQuest, trackedQuestState, fmtQuestVal, questUnlocked, questLockedBy, isQuestTracked, trackedCount, MAX_TRACKED } from '../content/quests.js';
+import { STORY_QUESTS, chapterState, claimChapter, guildQuests, trackQuest, claimQuest, trackedQuestState, fmtQuestVal, questUnlocked, questLockedBy, isQuestTracked, trackedCount, MAX_TRACKED, weeklyQuests, weeklyState, claimWeekly, ensureWeekly } from '../content/quests.js';
+import { dailyChallenge, mutatorById, dateKey } from '../content/daily.js';   // R18/B9 每日挑戰
+import { ROOM_DECOR, decorOwned, decorLocked, buyDecor, decorById, placedDecor } from '../content/room_decor.js';   // R18/B10 小屋裝飾
+import { PETS, petById, petUnlocked, updatePetFollow } from '../content/pets.js';   // R18/B10 迷你寵物
 import { drawAchievementToasts } from '../hud.js';
 import { SKINS, skinnedSprite, skinSpriteName, ownsSkin } from '../content/characters.js';
 import { GUILD_RANKS, guildProgress, claimableRanks, claimGuildRank } from '../content/guild.js';
 import { FORGE_EFFECTS, forgeEffect, FORGE_MAX_LEVEL, FORGE_MAX_EFFECTS, forgeLevelCost, forgeEffectCost, forgeLevelCostBase, forgeEffectCostBase, forgeOf, forgeableWeapons, buyForgeLevel, buyForgeEffect, forgeSummary } from '../content/forge.js';
 import { BALANCE } from '../balance.js';   // round16/9.3 dynamic-pricing growth
 import { bankLimit, bankState, bankBorrow, BANK_INTEREST, BANK_MIN } from '../content/bank.js';   // round16/7.2 魂晶銀行
-import { ensureSkinOffers, skinPrice, skinTier, ensureSale, rerollSkinShop, skinShopCountdown, skinPoolDry, SKINSHOP_REROLL_COST } from '../content/skinshop.js';   // R16/3.8 → R17/3.2 8-slot pair shop
-import { NPCS, npcScript, markMet } from '../content/npcs.js';
+import { ensureSkinOffers, skinPrice, skinTier, ensureSale, rerollSkinShop, rerollCost, skinShopCountdown, skinPoolDry, SKINSHOP_REROLL_COST } from '../content/skinshop.js';   // R16/3.8 → R17/3.2 8-slot pair shop
+import { NPCS, npcScript, markMet, talkAffinity, npcAffLevel } from '../content/npcs.js';   // R18/B11 好感度
 import { BONDS } from '../content/bonds.js';
 import { BIOMES } from '../../art/biomes.js';
 import {
@@ -81,6 +84,9 @@ export const hubScene = {
     this.forgeSel = null;
     this.heroSprite = skinnedSprite(META, META.selectedCharacter || 'hunter');
     ensureSkinOffers(META);
+    ensureWeekly(META);   // R18/B9: re-snapshot weekly bounty base on ISO-week rollover
+    this.petState = { x: null, y: null, t: 0, bob: 0 };   // R18/B10 cosmetic pet follower
+    this.injectRoomDecor();   // R18/B10: place owned personal-room decorations into the world
     Music.start('hub');
     if (!META.tutorialDone) setTimeout(() => this.triggerTutorial(), 1000);   // 6.1 first-visit town guide
   },
@@ -107,6 +113,8 @@ export const hubScene = {
     this.world.moveActor(h, h.vx * dt, h.vy * dt);
     if (h.moving) h.walkT += dt;
     camera.targetX = h.x; camera.targetY = h.y - 6;
+    if (META.pet) updatePetFollow(this.petState, h.x, h.y, h.facing, dt);   // R18/B10 pet trails the hero
+    this.ambientFx(dt);   // R18/B2: drifting petals over the field + fireflies by the garden
     this.world.particles.update(dt);
 
     // nearest interactable (station building OR npc)
@@ -130,6 +138,24 @@ export const hubScene = {
     if (!act) return;
     if (act.def) this.openDialogue(act);          // an NPC
     else this.openPanel(act.panel);               // a building
+  },
+
+  // R18/B2: light ambient particles for the open-air town — blossom petals drifting across
+  // the visible field + a few fireflies hovering over the garden. Spawned near the camera so
+  // they're always on-screen; capped by the particle system's own ring buffer.
+  ambientFx(dt) {
+    this.ambT = (this.ambT || 0) - dt;
+    if (this.ambT > 0) return;
+    this.ambT = 0.18;
+    const pr = this.world.particles, vw = view.W / camera.zoom, vh = view.H / camera.zoom;
+    // a blossom petal entering from the top of the view, drifting down + sideways
+    const px = camera.x + (Math.random() - 0.5) * vw, py = camera.y - vh / 2 - 8;
+    pr.spawn({ x: px, y: py, vx: 8 + Math.random() * 10, vy: 14 + Math.random() * 10, life: 4.5, size: 2, color: Math.random() < 0.5 ? P.sakura : P.sakuraL, grav: 4, drag: 0.995, glow: false, fade: true });
+    // occasional firefly twinkle near the garden well
+    if (Math.random() < 0.5 && this.rooms.garden) {
+      const g = this.rooms.garden;
+      pr.spawn({ x: g.cx + (Math.random() - 0.5) * 90, y: g.cy + (Math.random() - 0.5) * 70, vx: (Math.random() - 0.5) * 12, vy: -6 - Math.random() * 8, life: 1.6, size: 1.5, color: P.holyL, glow: true });
+    }
   },
 
   // ---- town Esc menu (round-15): a small option menu first; each option opens its page ----
@@ -258,6 +284,14 @@ export const hubScene = {
   openDialogue(npc) {
     const def = npc.def;
     if (markMet(META, def.id)) saveMeta();
+    const rw = talkAffinity(META, def.id);   // R18/B11: +1 affinity per local day; returns reward on a level-up
+    if (rw) {
+      saveMeta();
+      let msg = '❤ ' + def.name + ' 好感 Lv' + rw.level + '！+' + rw.gold + ' 金幣';
+      if (rw.decor) { const dd = decorById(rw.decor); msg += '，獲贈「' + (dd ? dd.name : '裝飾') + '」'; this.injectRoomDecor(); }
+      if (rw.qol) msg += '（解鎖專屬優待）';
+      this.feedback(msg);
+    }
     this.dialogue = { npc: def, sprite: def.sprite, lines: npcScript(def, META), page: 0 };
     Sfx.play('uiClick');
   },
@@ -382,6 +416,7 @@ export const hubScene = {
     else if (this.panel === 'guild') { this.tab === 0 ? this.updateQuests(mx, my) : this.updateGuildRank(mx, my); }
     else if (this.panel === 'personal') {
       if (mouse.justDown) for (const tb of this.personalTabRects(this.panelFrame())) if (inside(mx, my, tb)) { if (this.personalTab !== tb.i) this.panelScroll = 0; this.personalTab = tb.i; Sfx.play('uiClick'); return; }
+      if ((this.personalTab || 0) === 2) this.updateRoomTab(mx, my);   // R18/B10 裝飾·寵物
     }
     else if (this.panel === 'bank') this.updateBank(mx, my);   // 7.2 魂晶銀行
   },
@@ -463,9 +498,74 @@ export const hubScene = {
     uiText('− / ＋ 或點擊金條調整金額　·　Esc 關閉', f.x + f.w / 2, f.y + f.h - 14 * S, { size: 11 * S, align: 'center', color: P.gray3 });
   },
   personalTabRects(f) {
-    const S = f.S, w = 96 * S, h = 24 * S, gap = 8 * S, tw = w * 2 + gap;
+    const S = f.S, w = 92 * S, h = 24 * S, gap = 7 * S, names = ['生涯戰績', '羈絆圖鑑', '裝飾·寵物'], tw = w * names.length + gap * (names.length - 1);
     const x0 = f.x + f.w / 2 - tw / 2, y = f.y + 13 * S;
-    return ['生涯戰績', '羈絆圖鑑'].map((name, i) => ({ name, i, x: x0 + i * (w + gap), y, w, h }));
+    return names.map((name, i) => ({ name, i, x: x0 + i * (w + gap), y, w, h }));
+  },
+  // ---- R18/B10 個人小屋裝飾 + 迷你寵物 ----
+  injectRoomDecor() {   // (re)place owned decorations into the world (called on enter + after a buy)
+    if (!this.world || !this.rooms) return;
+    this.world.decor = (this.world.decor || []).filter((d) => !d._room);
+    for (const dd of placedDecor(META, this.rooms.personal)) { dd._room = true; this.world.decor.push(dd); }
+  },
+  roomTabLayout(f) {
+    const S = f.S, top = this.bodyTop(f) + 6 * S, cols = 2, cw = (f.w - 48 * S - 12 * S) / cols, chh = 38 * S, gap = 8 * S;
+    const cards = ROOM_DECOR.map((d, i) => ({ d, x: f.x + 24 * S + (i % cols) * (cw + 12 * S), y: top + Math.floor(i / cols) * (chh + gap) - (this.panelScroll || 0), w: cw, h: chh }));
+    const petTop = top + Math.ceil(ROOM_DECOR.length / cols) * (chh + gap) + 30 * S - (this.panelScroll || 0);
+    const pw = (f.w - 48 * S - 16 * S) / 3;
+    const pets = PETS.map((p, i) => ({ p, x: f.x + 24 * S + i * (pw + 8 * S), y: petTop, w: pw, h: 38 * S }));
+    return { f, cards, pets, top, petTop };
+  },
+  updateRoomTab(mx, my) {
+    if (!mouse.justDown) return;
+    const L = this.roomTabLayout(this.panelFrame()); const bot = L.f.y + L.f.h - 24 * L.f.S;
+    for (const c of L.cards) {
+      if (c.y + c.h < L.top - 6 * L.f.S || c.y > bot) continue;   // QA B12: match the draw clip (L.top - 6S) so the top sliver stays clickable
+      if (inside(mx, my, c)) {
+        if (decorOwned(META, c.d.id)) { this.feedback('已擁有 ' + c.d.name); return; }
+        if (decorLocked(META, c.d)) { this.feedback('🔒 尚未解鎖'); return; }
+        if (META.gold < c.d.price) { this.feedback('金幣不足'); return; }
+        this.ask('購買裝飾「' + c.d.name + '」？', goldStr(c.d.price), () => { if (buyDecor(META, c.d.id)) { saveMeta(); this.injectRoomDecor(); this.feedback('已佈置 ' + c.d.name); } });
+        return;
+      }
+    }
+    for (const pt of L.pets) {
+      if (pt.y + pt.h < L.top - 6 * L.f.S || pt.y > bot) continue;   // QA B12: align with the draw clip
+      if (inside(mx, my, pt)) {
+        if (!petUnlocked(META, pt.p)) { this.feedback('🔒 ' + pt.p.hint); return; }
+        META.pet = (META.pet === pt.p.id) ? null : pt.p.id; saveMeta(); Sfx.play('uiClick');
+        this.feedback(META.pet ? ('出戰寵物：' + pt.p.name) : '已收起寵物');
+        return;
+      }
+    }
+  },
+  drawRoomTab(f) {
+    const S = f.S, mx = mouse.x * view.dpr, my = mouse.y * view.dpr; const L = this.roomTabLayout(f);
+    let bottom = L.top;
+    for (const c of L.cards) bottom = Math.max(bottom, c.y + c.h + (this.panelScroll || 0));
+    for (const pt of L.pets) bottom = Math.max(bottom, pt.y + pt.h + (this.panelScroll || 0));
+    this.panelMaxScroll = Math.max(0, bottom + 12 * S - (f.y + f.h - 24 * S));
+    const ctx = ctxRaw(); ctx.save(); ctx.beginPath(); ctx.rect(f.x, L.top - 6 * S, f.w, (f.y + f.h - 24 * S) - (L.top - 6 * S)); ctx.clip();
+    for (const c of L.cards) {
+      if (c.y + c.h < L.top - 6 * S || c.y > f.y + f.h) continue;
+      const owned = decorOwned(META, c.d.id), locked = decorLocked(META, c.d), hov = inside(mx, my, c);
+      uiRect(c.x, c.y, c.w, c.h, withAlpha(owned ? '#16221a' : locked ? '#1a1622' : (hov ? '#243a5a' : '#1b2138'), 0.95), { radius: 6 * S, stroke: owned ? P.greenD : locked ? P.purpleD : (hov ? P.shardL : P.ink2), lw: 1 });
+      const sp = getSprite(c.d.sprite); if (sp && !sp.missing) { const sc = Math.min(2 * S, (c.h - 8 * S) / sp.h); drawSpriteUI(sp.frames[0], c.x + 6 * S, c.y + c.h - sp.h * sc - 3 * S, sc, { alpha: owned ? 1 : 0.85 }); }
+      uiText(c.d.name, c.x + 44 * S, c.y + 15 * S, { size: 12 * S, color: owned ? P.greenL : '#fff', weight: '800' });
+      if (owned) uiText('✓ 已佈置', c.x + 44 * S, c.y + 30 * S, { size: 10 * S, color: P.greenL, weight: '700' });
+      else if (locked) uiText('🔒 需開發者彩蛋', c.x + 44 * S, c.y + 30 * S, { size: 10 * S, color: P.purpleL, weight: '700' });
+      else goldLabel(c.x + 44 * S, c.y + 30 * S, c.d.price, { size: 11 * S, align: 'left', color: META.gold >= c.d.price ? P.goldL : P.gray3, weight: '800' });
+    }
+    uiText('🐾 出戰寵物（純裝飾，點擊出戰／收起）', f.x + 24 * S, L.petTop - 12 * S, { size: 12 * S, color: P.shardL, weight: '800' });
+    for (const pt of L.pets) {
+      const unlocked = petUnlocked(META, pt.p), on = META.pet === pt.p.id, hov = inside(mx, my, pt);
+      uiRect(pt.x, pt.y, pt.w, pt.h, withAlpha(on ? '#243a5a' : (hov ? '#1f2542' : '#1b2138'), 0.95), { radius: 6 * S, stroke: on ? P.shardL : unlocked ? P.gray3 : P.ink2, lw: on ? 2 : 1 });
+      const sp = getSprite(pt.p.sprite); if (sp && !sp.missing) { const sc = Math.min(1.8 * S, (pt.h - 6 * S) / sp.h); drawSpriteUI(sp.frames[0], pt.x + 5 * S, pt.y + pt.h - sp.h * sc - 3 * S, sc, { alpha: unlocked ? 1 : 0.3 }); }
+      uiText(pt.p.name, pt.x + pt.w / 2 + 6 * S, pt.y + 14 * S, { size: 11 * S, align: 'center', color: unlocked ? '#fff' : P.gray3, weight: '800' });
+      uiText(unlocked ? (on ? '● 出戰中' : '可出戰') : ('🔒 ' + pt.p.hint), pt.x + pt.w / 2 + 6 * S, pt.y + 29 * S, { size: 8.5 * S, align: 'center', color: on ? P.shardL : P.gray3, weight: '700' });
+    }
+    ctx.restore();
+    this.drawScrollbar(f);
   },
   tabRects(f) {
     const S = f.S; const tabs = this.panel === 'smith' ? ['鍛造', '營地設施'] : ['任務委託', '公會等級'];
@@ -664,14 +764,22 @@ export const hubScene = {
     const pgY = lvlY - 34 * S;
     const prev = { x: f.x + f.w / 2 - 116 * S, y: pgY, w: 34 * S, h: 22 * S };
     const next = { x: f.x + f.w / 2 + 82 * S, y: pgY, w: 34 * S, h: 22 * S };
-    const top = f.y + 58 * S;
+    const dailyBar = { x: f.x + 20 * S, y: f.y + 52 * S, w: f.w - 40 * S, h: 28 * S };   // R18/B9 每日挑戰 entry
+    const top = f.y + 88 * S;
     const cw = (f.w - 40 * S - (cols - 1) * 12 * S) / cols;
     // R17 B15: NO hard floor — at high uiScale a 56S floor pushed the grid over the page/level
     // rows. Tight space instead switches the cards into a compact mode (drawSortie reads card.h).
     const chh = Math.max(34 * S, Math.min(86 * S, (pgY - 8 * S - top) / 3 - 8 * S));
     const pageChars = chars.slice(this.sortPage * perPage, this.sortPage * perPage + perPage);
     const cards = pageChars.map((c, i) => ({ c, x: f.x + 20 * S + (i % cols) * (cw + 12 * S), y: top + Math.floor(i / cols) * (chh + 8 * S), w: cw, h: chh }));
-    return { f, cards, prev, next, pages, pgY, levels, lvlButtons, lvlY, dPrev, dNext, dY, start };
+    return { f, cards, prev, next, pages, pgY, levels, lvlButtons, lvlY, dPrev, dNext, dY, start, dailyBar };
+  },
+  // R18/B9: launch today's daily challenge — a closed showcase run (borrowed biome+hero,
+  // fixed difficulty 3, deterministic mutators). No unlocks are written (clearLevel/hub guard).
+  launchDaily() {
+    const dc = dailyChallenge();
+    Sfx.play('portal'); saveMeta();
+    setScene(refs.run, { run: newRun({ biomeId: dc.biomeId, characterId: dc.characterId, difficulty: 3, mode: 'daily', challengeKey: dc.key, dailyMutators: dc.mutators }) });
   },
   curBiome(L) { return this.selBiome || (L.levels.length ? L.levels[L.levels.length - 1].id : BIOMES[0].id); },
   maxDiff(biomeId) { return ((META.levels && META.levels.diff && META.levels.diff[biomeId]) || 0) + 1; },
@@ -688,6 +796,7 @@ export const hubScene = {
     const L = this.sortieLayout();
     if (mouse.wheel) this.sortPage = Math.max(0, Math.min(L.pages - 1, this.sortPage + (mouse.wheel > 0 ? 1 : -1)));
     if (!mouse.justDown) return;
+    if (inside(mx, my, L.dailyBar)) { this.launchDaily(); return; }   // R18/B9 每日挑戰
     for (const card of L.cards) if (inside(mx, my, card)) { this.selectChar(card.c); return; }
     if (inside(mx, my, L.prev)) { this.sortPage = Math.max(0, this.sortPage - 1); Sfx.play('uiClick'); return; }
     if (inside(mx, my, L.next)) { this.sortPage = Math.min(L.pages - 1, this.sortPage + 1); Sfx.play('uiClick'); return; }
@@ -714,10 +823,16 @@ export const hubScene = {
     const mainClaim = { x: f.x + 24 * S, y: t0 + 58 * S, w: 150 * S, h: 30 * S };
     const mainTrack = { x: f.x + 182 * S, y: t0 + 58 * S, w: 112 * S, h: 30 * S };
     const list = guildQuests(META).slice(0, 6);
-    const rowH = 38 * S, top = t0 + 134 * S;
+    const rowH = 38 * S, gap = 6 * S, scroll = this.panelScroll || 0;
+    // R18/B9: weekly bounties ride at the top of the same scroll region (header + 3 rows),
+    // then a「一般懸賞」sub-header and the regular tracked bounties below.
+    const weeklies = weeklyQuests(META);
+    const wTop = t0 + 134 * S + 22 * S;   // +22 leaves room for the「本週懸賞」label
+    const weeklyRows = weeklies.map((q, i) => { const y = wTop + i * (rowH + gap) - scroll; return { q, y, h: rowH, weekly: true, claim: { x: f.x + f.w - 104 * S, y: y + 6 * S, w: 84 * S, h: 26 * S } }; });
+    const top = wTop + weeklies.length * (rowH + gap) + 30 * S;   // +30 for the「一般懸賞」label
     // R17 UI-sweep: rows scroll (at uiScale 1.5 rows 4-6 painted 145px past the panel bottom)
-    const rows = list.map((q, i) => { const y = top + i * (rowH + 6 * S) - (this.panelScroll || 0); return { q, y, h: rowH, track: { x: f.x + f.w - 196 * S, y: y + 6 * S, w: 84 * S, h: 26 * S }, claim: { x: f.x + f.w - 104 * S, y: y + 6 * S, w: 84 * S, h: 26 * S } }; });
-    return { f, mainClaim, mainTrack, rows, t0, top, clipTop: top - 8 * S };
+    const rows = list.map((q, i) => { const y = top + i * (rowH + gap) - scroll; return { q, y, h: rowH, track: { x: f.x + f.w - 196 * S, y: y + 6 * S, w: 84 * S, h: 26 * S }, claim: { x: f.x + f.w - 104 * S, y: y + 6 * S, w: 84 * S, h: 26 * S } }; });
+    return { f, mainClaim, mainTrack, rows, weeklyRows, wTop, t0, top, clipTop: t0 + 134 * S - 4 * S };
   },
   updateQuests(mx, my) {
     if (!mouse.justDown) return;
@@ -725,6 +840,10 @@ export const hubScene = {
     const cur = chapterState(META, META.questIndex || 0);
     if (cur && cur.done && inside(mx, my, L.mainClaim)) { const q = claimChapter(META); if (q) { saveMeta(); this.feedback('完成 ' + q.title); } return; }
     if (inside(mx, my, L.mainTrack)) { const res = trackQuest(META, 'story'); Sfx.play('uiClick'); if (res === 'full') { this.feedback('最多同時追蹤 ' + MAX_TRACKED + ' 個任務'); } else { saveMeta(); this.feedback(res === 'added' ? '追蹤主線' : '取消追蹤主線'); } return; }
+    for (const r of L.weeklyRows) {   // R18/B9 weekly claim
+      if (r.y + r.h < L.clipTop || r.y > L.f.y + L.f.h - 24 * L.f.S) continue;
+      if (inside(mx, my, r.claim)) { if (claimWeekly(META, r.q.id)) { saveMeta(); this.feedback('領取週常：' + r.q.title); } else this.feedback('尚未達成或已領取'); return; }
+    }
     for (const r of L.rows) {
       if (r.y + r.h < L.clipTop || r.y > L.f.y + L.f.h - 24 * L.f.S) continue;   // R17 UI-sweep: scrolled-out rows aren't clickable
       const lockedBy = questLockedBy(META, r.q);   // 5.5: locked rows hide their buttons; clicking the row hints the prerequisite
@@ -807,9 +926,9 @@ export const hubScene = {
     const L = this.skinShopLayout(this.panelFrame());
     if (inside(mx, my, L.back)) { this.wardrobeView = null; this.panelScroll = 0; Sfx.play('uiClick'); return; }
     if (!skinPoolDry(META) && inside(mx, my, L.reroll)) {   // R17 QA: pool exhausted — button is hidden, ignore the click
-      this.ask('重新進貨？', goldStr(SKINSHOP_REROLL_COST) + '　·　立即更換 8 款上架造型', () => {
+      this.ask('重新進貨？', goldStr(rerollCost(META)) + '　·　立即更換 8 款上架造型', () => {
         if (rerollSkinShop(META)) { saveMeta(); this.feedback('已重新進貨'); }
-        else this.feedback((META.gold || 0) < SKINSHOP_REROLL_COST ? '金幣不足' : '未進到新貨，金幣已退還');
+        else this.feedback((META.gold || 0) < rerollCost(META) ? '金幣不足' : '未進到新貨，金幣已退還');
       });
       return;
     }
@@ -859,6 +978,10 @@ export const hubScene = {
     const h = this.hero; const psp = getSprite(this.heroSprite || 'player');
     drawShadow(h.x, h.y, h.radius + 1.5);
     drawSprite(h.moving ? frameAt(psp, h.walkT) : frameAt(psp, this.t * 0.4), h.x, h.y, { ax: psp.ax, ay: psp.ay, flipX: h.facing < 0 });
+    if (META.pet && this.petState && this.petState.x != null) {   // R18/B10 cosmetic pet follower
+      const pp = petById(META.pet), psp2 = pp && getSprite(pp.sprite);
+      if (psp2 && !psp2.missing) { drawShadow(this.petState.x, this.petState.y, 4); drawSprite(frameAt(psp2, this.petState.t), this.petState.x, this.petState.y + (this.petState.bob || 0), { ax: psp2.ax, ay: psp2.ay, flipX: h.facing < 0 }); }
+    }
     // labels
     for (const s of this.stations) {
       const sp = getSprite(s.sprite); const ss = worldToScreen(s.x, s.y - sp.h - 6);
@@ -869,6 +992,8 @@ export const hubScene = {
       const sp = getSprite(n.def.sprite); const ss = worldToScreen(n.x, n.y - sp.h - 4);
       const isNew = !(META.npc && META.npc.met && META.npc.met[n.def.id]);
       uiText(n.def.name, ss.x, ss.y, { size: 11 * S, align: 'center', color: n.def.color, weight: '800' });
+      const aff = npcAffLevel(META, n.def.id);   // R18/B11: persistent affinity badge under the name (QA B12 wired the helper)
+      if (aff > 0) uiText('❤ Lv' + aff, ss.x, ss.y + 12 * S, { size: 9 * S, align: 'center', color: P.redL, weight: '800' });
       if (isNew) this.drawNewBadge(ss.x, ss.y - 24 * S, S);   // 2.3: 「新」徽章 — 黃圈白驚嘆號於名字正上方（上移避免壓到名字）
       if (this.near === n) { const sp2 = worldToScreen(n.x, n.y + 8); uiText('【E】交談', sp2.x, sp2.y, { size: 11 * S, align: 'center', color: withAlpha('#fff', 0.6 + Math.sin(this.t * 6) * 0.3), weight: '800' }); }
     }
@@ -1107,14 +1232,29 @@ export const hubScene = {
       uiRect(L.mainTrack.x, L.mainTrack.y, L.mainTrack.w, L.mainTrack.h, withAlpha(trk || th ? '#243a5a' : '#1b2138', 0.96), { radius: 7 * S, stroke: trk ? P.shardL : P.ink2, lw: trk ? 3 : 2 });
       uiText(trk ? '✓ 追蹤中' : '＋ 追蹤主線', L.mainTrack.x + L.mainTrack.w / 2, L.mainTrack.y + L.mainTrack.h / 2 + 1 * S, { size: 11 * S, align: 'center', baseline: 'middle', color: trk ? P.shardL : '#fff', weight: '800' });
     } else uiText('主線已全數完成 — 你已成為魂晶之主。', f.x + 24 * S, t0 + 40 * S, { size: 13 * S, color: P.goldL, weight: '800' });
-    uiText('懸賞委託（可同時追蹤 · 已追蹤 ' + trackedCount(META) + '/' + MAX_TRACKED + '）', f.x + 24 * S, t0 + 118 * S, { size: 12 * S, color: P.shardL, weight: '800' });
-    if (!L.rows.length) uiText('目前沒有可接的委託（達成條件可解鎖隱藏委託）', f.x + 24 * S, t0 + 140 * S, { size: 11 * S, color: P.gray3 });
+    uiText('委託（本週懸賞 + 一般懸賞 · 可同時追蹤 ' + trackedCount(META) + '/' + MAX_TRACKED + '）', f.x + 24 * S, t0 + 118 * S, { size: 12 * S, color: P.shardL, weight: '800' });
     // R17 UI-sweep: clip + scroll the bounty rows (mirrors the B16 guild-rank fix — at high
     // uiScale rows 4-6 painted straight over the town, 145px past the panel bottom).
     let qBottom = L.top;
     for (const r of L.rows) qBottom = Math.max(qBottom, r.y + r.h + (this.panelScroll || 0));
+    for (const r of L.weeklyRows) qBottom = Math.max(qBottom, r.y + r.h + (this.panelScroll || 0));
     this.panelMaxScroll = Math.max(0, qBottom - (f.y + f.h - 24 * S));
     const ctxQ = ctxRaw(); ctxQ.save(); ctxQ.beginPath(); ctxQ.rect(f.x, L.clipTop, f.w, (f.y + f.h - 24 * S) - L.clipTop); ctxQ.clip();
+    // ── R18/B9 weekly bounties ──
+    uiText('📅 本週懸賞', f.x + 24 * S, L.wTop - 6 * S - (this.panelScroll || 0), { size: 12 * S, color: P.goldL, weight: '800' });
+    for (const r of L.weeklyRows) {
+      const st = weeklyState(META, r.q), done = st.done && !st.claimed;
+      uiRect(f.x + 24 * S, r.y, f.w - 48 * S, r.h, withAlpha(st.claimed ? '#16221a' : '#2a2410', 0.95), { radius: 6 * S, stroke: st.claimed ? P.greenD : P.goldL, lw: 1 });
+      uiText(r.q.title, f.x + 34 * S, r.y + 15 * S, { size: 12 * S, color: st.claimed ? P.gray3 : P.holyL, weight: '800' });
+      uiText(r.q.desc + '（' + Math.floor(st.prog) + '/' + r.q.goal + '）', f.x + 34 * S, r.y + 30 * S, { size: 10 * S, color: st.done ? P.greenL : P.gray4 });
+      const cH = inside(mx, my, r.claim);
+      uiRect(r.claim.x, r.claim.y, r.claim.w, r.claim.h, withAlpha(st.claimed ? '#1d2a20' : done ? (cH ? '#2a6a3a' : '#1f5030') : '#2a2030', 0.96), { radius: 5 * S, stroke: st.claimed ? P.greenD : done ? P.greenL : P.gray1, lw: 1 });
+      if (st.claimed) uiText('✓ 已領', r.claim.x + r.claim.w / 2, r.claim.y + r.claim.h / 2 + 1 * S, { size: 10 * S, align: 'center', baseline: 'middle', color: P.greenL, weight: '700' });
+      else if (done) goldLabel(r.claim.x + r.claim.w / 2, r.claim.y + r.claim.h / 2 + 1 * S, r.q.reward, { size: 10 * S, align: 'center', baseline: 'middle', color: '#fff', weight: '700', prefix: '領 ' });
+      else uiText('進行中', r.claim.x + r.claim.w / 2, r.claim.y + r.claim.h / 2 + 1 * S, { size: 10 * S, align: 'center', baseline: 'middle', color: P.gray3, weight: '700' });
+    }
+    uiText('一般懸賞', f.x + 24 * S, L.top - 12 * S - (this.panelScroll || 0), { size: 12 * S, color: P.shardL, weight: '800' });
+    if (!L.rows.length) uiText('目前沒有可接的委託（達成條件可解鎖隱藏委託）', f.x + 34 * S, L.top + 8 * S - (this.panelScroll || 0), { size: 11 * S, color: P.gray3 });
     for (const r of L.rows) {
       const q = r.q, p = Math.min(q.goal, q.prog(META.stats || {})), done = p >= q.goal;
       const trk = isQuestTracked(META, q.id), hidden = q.id[0] === 'h';
@@ -1264,7 +1404,7 @@ export const hubScene = {
       uiText('↻ 下次免費進貨 ' + mm + ':' + String(ss2).padStart(2, '0'), L.reroll.x - 12 * S, L.reroll.y + L.reroll.h / 2 + 1 * S, { size: 10.5 * S, align: 'right', baseline: 'middle', color: P.gray3, weight: '700' });
       const rh = inside(mx, my, L.reroll);
       uiRect(L.reroll.x, L.reroll.y, L.reroll.w, L.reroll.h, withAlpha(rh ? '#3a5a2a' : '#26401c', 0.96), { radius: 6 * S, stroke: P.greenL, lw: 1.5 });
-      goldLabel(L.reroll.x + L.reroll.w / 2, L.reroll.y + L.reroll.h / 2 + 1 * S, SKINSHOP_REROLL_COST, { size: 11 * S, align: 'center', baseline: 'middle', color: '#fff', weight: '800', prefix: '↺ 重新進貨 ' });
+      goldLabel(L.reroll.x + L.reroll.w / 2, L.reroll.y + L.reroll.h / 2 + 1 * S, rerollCost(META), { size: 11 * S, align: 'center', baseline: 'middle', color: '#fff', weight: '800', prefix: '↺ 重新進貨 ' });
     }
     if (!L.cards.length) {
       uiText(dry ? '已蒐集所有上架造型！' : '本輪沒有進到新貨——重新進貨試試手氣', f.x + f.w / 2, f.y + f.h / 2, { size: 16 * S, align: 'center', baseline: 'middle', color: P.goldL, weight: '900' });
@@ -1361,6 +1501,7 @@ export const hubScene = {
       uiText(tb.name, tb.x + tb.w / 2, tb.y + tb.h / 2 + 1 * S, { size: 12 * S, align: 'center', baseline: 'middle', color: on ? '#fff' : P.gray3, weight: '800' });
     }
     if ((this.personalTab || 0) === 1) { this.drawBondCodex(f); return; }
+    if ((this.personalTab || 0) === 2) { this.drawRoomTab(f); return; }   // R18/B10
     this.panelMaxScroll = 0;
     const s = META.stats || {}; const cid = META.selectedCharacter || 'hunter'; const ch = Characters.get(cid);
     // displayed hero
@@ -1437,6 +1578,7 @@ export const hubScene = {
       y += h;
     }
     ctx.restore();
+    this.drawScrollbar(f);   // QA B12: bond codex set panelMaxScroll but never drew the scrollbar
   },
 
   // ---- sortie (出擊): pick hero / biome / difficulty, then launch ----------
@@ -1445,6 +1587,18 @@ export const hubScene = {
     const S = f.S;
     const mx = mouse.x * view.dpr, my = mouse.y * view.dpr;
     const L = this.sortieLayout();
+    // R18/B9: 每日挑戰 entry bar — borrowed biome+hero+mutators, click to launch directly.
+    {
+      const dc = dailyChallenge(); const db = L.dailyBar; const dhov = inside(mx, my, db);
+      const bn = (BIOMES.find((b) => b.id === dc.biomeId) || {}).name || dc.biomeId;
+      const hn = (Characters.get(dc.characterId) || {}).name || dc.characterId;
+      const mutNames = dc.mutators.map((id) => (mutatorById(id) || {}).name || id).join('·');
+      uiRect(db.x, db.y, db.w, db.h, withAlpha(dhov ? '#3a2f12' : '#28220e', 0.96), { radius: 7 * S, stroke: P.goldL, lw: dhov ? 3 : 2 });
+      uiText('📅 每日挑戰', db.x + 12 * S, db.y + db.h / 2, { size: 12 * S, align: 'left', baseline: 'middle', color: P.goldL, weight: '800' });
+      uiText(bn + ' · ' + hn + ' · ' + mutNames, db.x + 120 * S, db.y + db.h / 2, { size: 9 * S, align: 'left', baseline: 'middle', color: P.holyL, weight: '700' });
+      const best = (META.daily && META.daily.key === dc.key) ? (META.daily.best || 0) : 0;
+      uiText(best > 0 ? '最佳 ' + best : '未挑戰', db.x + db.w - 12 * S, db.y + db.h / 2, { size: 10 * S, align: 'right', baseline: 'middle', color: P.gold, weight: '800' });
+    }
     // R17/4.1: character cards 3×3 — each card is self-contained:
     // left = sprite + name (+ state), right = starting weapon + effect lines.
     for (const card of L.cards) {

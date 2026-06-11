@@ -149,6 +149,7 @@ export class World {
     const def = typeof defOrId === 'string' ? Enemies.get(defOrId) : defOrId;
     if (!def) { console.warn('unknown enemy', defOrId); return null; }
     const e = new Enemy(def, x, y, this, opts);
+    if (opts.volatile && Math.random() < opts.volatile) e.deathBlast = { r: 34, dmg: Math.round((e.damage || 10) * 1.2), color: P.laser };   // R18/B9 m_volatile: per-instance death explosion
     this.enemies.push(e);
     if (!opts.quiet) this.particles.ring(x, y, def.tint || P.purpleL, 8, 50);
     return e;
@@ -314,7 +315,7 @@ export class World {
           e.processed = true;
           this.particles.death(e.x, e.y, e.def.bloodColor || P.green);
           Sfx.play('kill');
-          if (e.def.deathBlast) this.bombBlast(e);
+          if (e.deathBlast || e.def.deathBlast) this.bombBlast(e);
           this.dropLoot(e);
           this.run.kills = (this.run.kills || 0) + 1;
           if (this.run.curseGoldPerKill) this.run.gold += this.run.curseGoldPerKill;   // R18/B7 c_soultax
@@ -390,7 +391,7 @@ export class World {
 
   // an enemy with def.deathBlast detonates when it dies, hurting the PLAYER too
   bombBlast(e) {
-    const b = e.def.deathBlast || {};
+    const b = e.deathBlast || e.def.deathBlast || {};
     const r = b.r || 42, dmg = b.dmg || Math.round((e.damage || 10) * 1.6), color = b.color || P.ember;
     this.spawnExplosion(e.x, e.y, r, color, dmg * 0.7, { knockback: 90 });   // visual + hurt other enemies
     this.eachPlayer((p) => { if (!p.dead && dist(p.x, p.y, e.x, e.y) < r + p.radius) p.takeDamage(dmg, Math.atan2(p.y - e.y, p.x - e.x), this); });
@@ -444,7 +445,7 @@ export class World {
     return best;
   }
   // 原#5: weapon auto-target — closest foe within AIM_RANGE, skipping any behind a wall.
-  aimTarget(x, y) { return this.nearestEnemy(x, y, BALANCE.AIM_RANGE, { los: BALANCE.AIM_LOS }); }
+  aimTarget(x, y) { return this.nearestEnemy(x, y, BALANCE.AIM_RANGE * (this.aimMul || 1), { los: BALANCE.AIM_LOS }); }   // R18/B9 m_fog shrinks aim range
 
   // ---- trap terrain --------------------------------------------------------
   updateHazards(dt) {
@@ -572,84 +573,99 @@ export function makeArena(tw = 34, th = 22, rngSrc = rng) {
   return { tw, th, tiles, floorVar, decor };
 }
 
-// 5: a multi-room TOWN for the hub — a 3x3 grid of walled rooms joined by doorways,
-// with a central plaza. Returns `rooms` (named pixel anchors) so the hub scene can place
-// its interactive stations + NPCs. Six themed rooms (church / guild / clothing / smith /
-// achievement hall / personal) ring the plaza; two corners are flavour (garden / market).
-const CAMP = { tw: 48, th: 39, cw: 16, ch: 13 };           // grid: 3 cols x 3 rows
-// room id at each [col][row]
-const CAMP_GRID = [
-  ['church', 'blacksmith', 'personal'],   // col 0  (rows 0,1,2)
-  ['guild', 'plaza', 'garden'],           // col 1
-  ['clothing', 'achievements', 'market'], // col 2
+// R18/B1: an OPEN-AIR village for the hub (replaces the 3x3 walled-box layout). A grassy
+// 60x46 field ringed by a forest treeline, a central flagstone plaza, dirt paths radiating to
+// six building FACADES (church / guild / hall / smith / wardrobe / house) whose footprints are
+// solid VOID (so you can't walk through the building) with the porch left as open floor. Returns
+// the SAME contract `{tw,th,tiles,floorVar,decor,rooms,tileset}` + all 9 room ids — hub.js places
+// its stations/NPCs off `rooms[id].cx/cy`, so those follow automatically.
+const CAMP = { tw: 60, th: 46 };
+// id -> tile-centre of the building's PORCH (= room anchor). facade base sits 3 tiles north.
+const TOWN_BUILDINGS = [
+  { id: 'church', cx: 13, cy: 12, fc: 'town_fc_church' },
+  { id: 'guild', cx: 30, cy: 11, fc: 'town_fc_guild' },
+  { id: 'achievements', cx: 47, cy: 12, fc: 'town_fc_hall' },
+  { id: 'blacksmith', cx: 12, cy: 25, fc: 'town_fc_smith' },
+  { id: 'clothing', cx: 48, cy: 25, fc: 'town_fc_wardrobe' },
+  { id: 'personal', cx: 13, cy: 37, fc: 'town_fc_house' },
+];
+const TOWN_AREAS = [   // open-air anchors (no building facade): plaza + two flavour squares
+  { id: 'plaza', cx: 30, cy: 24 },
+  { id: 'garden', cx: 30, cy: 38 },
+  { id: 'market', cx: 47, cy: 37 },
 ];
 export function makeCamp() {
-  const { tw, th, cw, ch } = CAMP;
-  const tiles = new Uint8Array(tw * th);
+  const { tw, th } = CAMP;
+  const tiles = new Uint8Array(tw * th);          // FLOOR=0 everywhere by default
   const floorVar = new Uint8Array(tw * th);
   const set = (x, y, v) => { if (x >= 0 && y >= 0 && x < tw && y < th) tiles[y * tw + x] = v; };
+  const setVar = (x, y, v) => { if (x >= 0 && y >= 0 && x < tw && y < th && tiles[y * tw + x] === FLOOR) floorVar[y * tw + x] = v; };
+  // grassy base: mostly plain grass, ~10% grass-alt, ~7% flowery
   for (let y = 0; y < th; y++) for (let x = 0; x < tw; x++) {
-    const border = x === 0 || y === 0 || x === tw - 1 || y === th - 1;
-    tiles[y * tw + x] = border ? WALL : FLOOR;
-    floorVar[y * tw + x] = rng.next() < 0.10 ? (rng.next() < 0.5 ? 1 : 2) : 0;
+    const r = rng.next(); floorVar[y * tw + x] = r < 0.07 ? 2 : (r < 0.17 ? 1 : 0);
   }
-  // interior partition walls between the 3x3 cells
-  for (const bx of [cw, cw * 2]) for (let y = 1; y < th - 1; y++) set(bx, y, WALL);
-  for (const by of [ch, ch * 2]) for (let x = 1; x < tw - 1; x++) set(x, by, WALL);
-  // punch 4-tile doorways so the plaza connects to every room (and rooms to neighbours)
-  const doorV = (bx, yc) => { for (let y = yc - 1; y <= yc + 2; y++) set(bx, y, FLOOR); };
-  const doorH = (by, xc) => { for (let x = xc - 1; x <= xc + 2; x++) set(x, by, FLOOR); };
-  doorV(cw, 6); doorV(cw, 19); doorV(cw, 32);          // left column wall openings
-  doorV(cw * 2, 6); doorV(cw * 2, 19); doorV(cw * 2, 32); // right column wall openings
-  doorH(ch, 8); doorH(ch, 24); doorH(ch, 40);          // top row wall openings
-  doorH(ch * 2, 8); doorH(ch * 2, 24); doorH(ch * 2, 40); // bottom row wall openings
+  // forest treeline border ring (2 tiles thick)
+  for (let y = 0; y < th; y++) for (let x = 0; x < tw; x++) { if (x < 2 || y < 2 || x >= tw - 2 || y >= th - 2) set(x, y, WALL); }
+  // central plaza — a warm flagstone disc (floorVar 5/6) around the plaza anchor
+  const pc = TOWN_AREAS[0];
+  for (let y = 0; y < th; y++) for (let x = 0; x < tw; x++) {
+    const dx = (x - pc.cx) / 9, dy = (y - pc.cy) / 7;
+    if (dx * dx + dy * dy <= 1) setVar(x, y, rng.next() < 0.18 ? 6 : 5);
+  }
+  // dirt paths from the plaza out to every porch + the two squares (L-routes, 2 tiles wide)
+  const path = (x0, y0, x1, y1) => {
+    let x = x0, y = y0;
+    const stamp = () => { for (const ox of [0, 1]) for (const oy of [0, 1]) setVar(x + ox, y + oy, rng.next() < 0.4 ? 4 : 3); };
+    while (x !== x1) { stamp(); x += x < x1 ? 1 : -1; }
+    while (y !== y1) { stamp(); y += y < y1 ? 1 : -1; }
+    stamp();
+  };
+  for (const b of [...TOWN_BUILDINGS, ...TOWN_AREAS.slice(1)]) path(pc.cx, pc.cy, b.cx, b.cy);
 
-  // room pixel anchors
+  // R18/B2: a creek between the plaza and the garden — VOID water (a real barrier) spanned by a
+  // wooden bridge on the garden path. cols 23-37 x rows 31-32; the bridge (cols 29-31) is carved
+  // back to walkable dirt. Players can also detour around the creek's ends, so it never hard-gates.
+  const creek = [];   // collected VOID water tiles → water decor
+  const bridge = [];  // bridge tiles → bridge decor
+  for (let yy = 31; yy <= 32; yy++) for (let xx = 23; xx <= 37; xx++) {
+    if (xx >= 29 && xx <= 31) { set(xx, yy, FLOOR); setVar(xx, yy, 3); bridge.push([xx, yy]); }   // bridge deck (dirt-matched)
+    else { set(xx, yy, VOID); creek.push([xx, yy]); }
+  }
+
+  const D = [];   // background decor (non-interactive); interactive stations live in the hub
+  for (const [xx, yy] of creek) D.push({ sprite: 'town_water', x: xx * TS, y: yy * TS, phase: (xx + yy) % 2 });   // tile-aligned animated water
+  for (const [xx, yy] of bridge) D.push({ sprite: 'town_bridge', x: xx * TS, y: yy * TS, phase: 0 });
+  // building footprints: a solid VOID block (4 tiles tall x 5 wide) behind each facade base,
+  // with the facade decor anchored at the base (front) so the porch row stays walkable floor.
+  for (const b of TOWN_BUILDINGS) {
+    // VOID kept 3-wide x 3-tall so it stays fully hidden behind the 64px facade (no black slivers);
+    // the facade's eaves overhang onto grass, which reads as the building sitting on the field.
+    for (let yy = b.cy - 6; yy <= b.cy - 4; yy++) for (let xx = b.cx - 1; xx <= b.cx + 1; xx++) set(xx, yy, VOID);
+    D.push({ sprite: b.fc, x: (b.cx + 0.5) * TS, y: (b.cy - 3) * TS, phase: 0 });
+  }
+  // room anchors — SAME shape as before (hub.js reads cx/cy; x0..y1 kept for safety)
   const rooms = {};
-  for (let c = 0; c < 3; c++) for (let r = 0; r < 3; r++) {
-    const id = CAMP_GRID[c][r];
-    rooms[id] = { col: c, row: r, cx: (c * cw + cw / 2) * TS, cy: (r * ch + ch / 2) * TS,
-      x0: c * cw * TS, y0: r * ch * TS, x1: (c + 1) * cw * TS, y1: (r + 1) * ch * TS };
+  for (const b of [...TOWN_BUILDINGS, ...TOWN_AREAS]) {
+    rooms[b.id] = { col: 0, row: 0, cx: (b.cx + 0.5) * TS, cy: (b.cy + 0.5) * TS,
+      x0: (b.cx - 6) * TS, y0: (b.cy - 6) * TS, x1: (b.cx + 7) * TS, y1: (b.cy + 7) * TS };
   }
   const R = rooms;
-  const D = [];   // background decor (non-interactive); interactive stations live in the hub
-  const at = (rm, dx, dy) => ({ x: rm.cx + dx * TS, y: rm.cy + dy * TS });
-  const put = (sprite, rm, dx, dy, phase = 0) => { const p = at(rm, dx, dy); D.push({ sprite, x: p.x, y: p.y, phase }); };
-  // CHURCH — pews, stained glass on the back wall, candles, framing pillars
-  put('town_stained', R.church, -3, -4); put('town_stained', R.church, 3, -4);
-  put('town_pew', R.church, -2.5, 1); put('town_pew', R.church, 2.5, 1); put('town_pew', R.church, -2.5, 3); put('town_pew', R.church, 2.5, 3);
-  put('town_candles', R.church, -5, -1); put('town_candles', R.church, 5, -1);
-  put('town_pillar', R.church, -6, 2); put('town_pillar', R.church, 6, 2);
-  // GUILD — counter, banners, barrel
-  put('hub_banner', R.guild, -3, -4.2); put('hub_banner', R.guild, 3, -4.2);
-  put('town_desk', R.guild, 3.5, 1.5); put('town_barrel', R.guild, -5, 3);
-  // CLOTHING — racks + a mirror
-  put('town_rack', R.clothing, -3.5, 1); put('town_rack', R.clothing, 3.2, 2.5); put('town_mirror', R.clothing, 5, -1.5);
-  // BLACKSMITH — anvil, grindstone, weapon rack
-  put('town_anvil', R.blacksmith, 3.5, 1.5); put('town_grindstone', R.blacksmith, -4.5, 2); put('town_weaponrack', R.blacksmith, 5, -2.5);
-  // ACHIEVEMENT HALL — banners + pillars
-  put('town_banner_gold', R.achievements, -5, -4); put('town_banner_gold', R.achievements, 5, -4);
-  put('town_pillar', R.achievements, -6, 2); put('town_pillar', R.achievements, 6, 2);
-  // PERSONAL — bookshelf, rug, plant (the bed is the interactive station)
-  put('town_rug', R.personal, 0, 2.5); put('town_bookshelf', R.personal, -5, -2); put('town_plant', R.personal, 5, 1);
-  // GARDEN (flavour) — well, plants, campfire
-  put('hub_well', R.garden, 0, 1); put('town_plant', R.garden, -4, -2); put('town_plant', R.garden, 4, 2); put('campfire', R.garden, 4, -3);
-  // MARKET (flavour) — stalls + barrels
-  put('hub_house', R.market, -3, -2); put('town_barrel', R.market, 3, 2); put('town_barrel', R.market, 4.5, 2.5);
-  // PLAZA — lamps at the corners, torches, a banner
-  put('hub_lamp', R.plaza, -5, 3, 0); put('hub_lamp', R.plaza, 5, 3, 1); put('hub_lamp', R.plaza, -5, -3, 1); put('hub_lamp', R.plaza, 5, -3, 0);
-  // proper GATEWAYS: two stone gateposts flank each 4-tile plaza doorway. The bases sit ONE
-  // tile INSIDE the plaza (on floor, not on the partition-wall line) so the posts read as
-  // standing on the ground beside each opening — not "built on the wall". (Plaza = cols 16-32 /
-  // rows 13-26, walls on 16/32 & 13/26; interior floor cols 17-31 / rows 14-25. N/S openings =
-  // cols 23-26 → flank cols 22.5/27.5 on floor rows 14.5/25.5; W/E openings = rows 18-21 → flank
-  // rows 17.5/22.5 on floor cols 17.5/31.5.)
-  const gates = [
-    [22.5, 14.5], [27.5, 14.5], [22.5, 25.5], [27.5, 25.5],   // N (→guild) + S (→garden)
-    [17.5, 17.5], [17.5, 22.5], [31.5, 17.5], [31.5, 22.5],   // W (→blacksmith) + E (→achievements)
+  const put = (sprite, rm, dx, dy, phase = 0) => D.push({ sprite, x: rm.cx + dx * TS, y: rm.cy + dy * TS, phase });
+  // plaza dressing — lamps at the corners + a campfire glow
+  put('hub_lamp', R.plaza, -6, 4, 0); put('hub_lamp', R.plaza, 6, 4, 1); put('hub_lamp', R.plaza, -6, -4, 1); put('hub_lamp', R.plaza, 6, -4, 0);
+  put('campfire', R.plaza, 0, 6);
+  // garden — a well + flowerbeds + a bench
+  put('hub_well', R.garden, 0, 1); put('town_flowerbed', R.garden, -4, 2); put('town_flowerbed', R.garden, 4, 2); put('town_bench', R.garden, -5, -1);
+  // market — two stalls + barrels
+  put('town_fc_stall', R.market, -3, -1); put('town_fc_stall', R.market, 3, 0); put('town_barrel', R.market, 5, 2); put('town_barrel', R.market, 6, 2.5);
+  // scatter trees + bushes around the field edges (kept well clear of porches; decor < 250)
+  const treeSpots = [
+    [6, 6], [9, 20], [7, 31], [6, 41], [20, 5], [40, 5], [53, 7], [54, 20], [53, 32], [54, 41], [22, 42], [38, 42], [18, 30], [42, 30], [21, 33], [39, 33],
   ];
-  for (const [gx, gy] of gates) D.push({ sprite: 'town_gatepost', x: gx * TS, y: gy * TS, phase: 0 });
-  // polished town tileset (soft flagstone joints) instead of the dungeon's dark grid
-  const tileset = { floor: ['town_floor', 'town_floor2', 'town_floor3'], wall: 'town_wall', wallTop: 'town_wall_top' };
+  for (const [tx, ty] of treeSpots) { if (tiles[ty * tw + tx] === FLOOR) D.push({ sprite: rng.next() < 0.4 ? 'town_tree2' : 'town_tree', x: (tx + 0.5) * TS, y: (ty + 0.9) * TS, phase: 0 }); }
+  for (const [tx, ty] of [[10, 14], [50, 14], [10, 33], [50, 33], [26, 6], [34, 40], [24, 18]]) { if (tiles[ty * tw + tx] === FLOOR) D.push({ sprite: 'town_bush', x: (tx + 0.5) * TS, y: (ty + 0.9) * TS, phase: 0 }); }
+  // fences framing the garden + market squares
+  for (let i = -4; i <= 4; i++) { put('town_fence_h', R.garden, i, 5); }
+  const tileset = { floor: ['town_grass', 'town_grass2', 'town_flowergrass', 'town_dirt', 'town_dirt2', 'town_plaza', 'town_plaza2'], wall: 'town_treeline', wallTop: 'town_treeline_top' };
   return { tw, th, tiles, floorVar, decor: D, rooms, tileset };
 }

@@ -45,6 +45,61 @@ export const HIDDEN_QUESTS = [
 ];
 
 import { addGuildXp } from './guild.js';
+import { weekKey, hashSeed } from './daily.js';
+import { makeRng } from '../../engine/math.js';
+
+// ── R18/B9 週常懸賞 (weekly bounties) ───────────────────────────────────────
+// 9-quest pool, 3 chosen deterministically per ISO week. Progress = the DELTA of a
+// lifetime stat since the week's snapshot (META.weekly.base), so each quest measures
+// "this week" without per-event bookkeeping. Rewards: gold + guild reputation.
+export const WEEKLY_QUESTS = [
+  { id: 'w_kills', title: '週常 · 掃蕩', desc: '本週擊殺 800 名敵人', stat: 'kills', goal: 800, reward: 300 },
+  { id: 'w_clears', title: '週常 · 連捷', desc: '本週通關 2 場', stat: 'clears', goal: 2, reward: 350 },
+  { id: 'w_mini', title: '週常 · 屠王', desc: '本週擊殺 6 隻小王', stat: 'miniBossKills', goal: 6, reward: 300 },
+  { id: 'w_gold', title: '週常 · 淘金', desc: '本週賺取 3000 金幣', stat: 'totalGold', goal: 3000, reward: 250 },
+  { id: 'w_boss', title: '週常 · 獵首', desc: '本週擊敗 10 名首領', stat: 'bossKills', goal: 10, reward: 320 },
+  { id: 'w_kills2', title: '週常 · 血洗', desc: '本週擊殺 2000 名敵人', stat: 'kills', goal: 2000, reward: 450 },
+  { id: 'w_clears2', title: '週常 · 征途', desc: '本週通關 4 場', stat: 'clears', goal: 4, reward: 500 },
+  { id: 'w_gold2', title: '週常 · 富甲', desc: '本週賺取 8000 金幣', stat: 'totalGold', goal: 8000, reward: 450 },
+  { id: 'w_boss2', title: '週常 · 弒群', desc: '本週擊敗 20 名首領', stat: 'bossKills', goal: 20, reward: 500 },
+];
+const WEEKLY_STATS = ['kills', 'clears', 'miniBossKills', 'totalGold', 'bossKills'];
+function snapshotWeekly(meta) {
+  const s = meta.stats || {}; const base = {};
+  for (const k of WEEKLY_STATS) base[k] = s[k] || 0;
+  return base;
+}
+// Re-snapshot (and clear claims) when the ISO week rolls over. Call on hub enter + bankRun.
+export function ensureWeekly(meta) {
+  const k = weekKey();
+  if (!meta.weekly || typeof meta.weekly !== 'object') meta.weekly = { key: '', base: {}, claims: {} };
+  if (meta.weekly.key !== k) { meta.weekly = { key: k, base: snapshotWeekly(meta), claims: {} }; }
+  if (!meta.weekly.base || typeof meta.weekly.base !== 'object') meta.weekly.base = snapshotWeekly(meta);
+  if (!meta.weekly.claims || typeof meta.weekly.claims !== 'object') meta.weekly.claims = {};
+  return meta.weekly;
+}
+// The 3 weekly quests active this week (deterministic per week key).
+export function weeklyQuests(meta) {
+  ensureWeekly(meta);
+  const rng = makeRng(hashSeed('weekly:' + weekKey()));
+  return rng.shuffle(WEEKLY_QUESTS.slice()).slice(0, 3);
+}
+export function weeklyState(meta, q) {
+  const w = ensureWeekly(meta);
+  const cur = (meta.stats && meta.stats[q.stat]) || 0;
+  const prog = Math.max(0, Math.min(q.goal, cur - (w.base[q.stat] || 0)));
+  return { q, prog, goal: q.goal, done: prog >= q.goal, claimed: !!w.claims[q.id] };
+}
+export function claimWeekly(meta, id) {
+  const q = WEEKLY_QUESTS.find((x) => x.id === id); if (!q) return false;
+  const st = weeklyState(meta, q);
+  if (!st.done || st.claimed) return false;
+  meta.weekly.claims[id] = weekKey();
+  const reward = Math.round(q.reward * ((meta.flags && meta.flags.qolWeekly) ? 1.1 : 1));   // R18/B11: 小鈴 Lv5 好感週常 +10%
+  meta.gold += reward;
+  addGuildXp(meta, reward / 3);
+  return true;
+}
 
 export function chapterState(meta, i) {
   const q = STORY_QUESTS[i];

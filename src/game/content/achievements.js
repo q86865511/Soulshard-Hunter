@@ -8,6 +8,9 @@
 //           reward?(meta), rewardLabel? }
 import { BIOMES } from '../../art/biomes.js';
 import { SKINS } from './characters.js';   // 3.10-B: hidden-skin collection goals
+import { decorCount } from './room_decor.js';   // R18/B10
+import { PETS, petUnlocked } from './pets.js';   // R18/B10
+import { npcAffMaxLevel } from './npcs.js';   // R18/B11
 
 // reward helper: idempotently unlock a content id of a given kind
 const U = (kind, id) => (meta) => {
@@ -75,6 +78,7 @@ const FAMILIES = [
   ...fam('kills', '殺戮', (g) => `累計擊殺 ${g} 名敵人`, (s) => s.kills || 0, [100, 250, 1000, 2000, 3500, 5000, 7500, 10000, 15000, 25000, 50000, 100000]),
   ...fam('survive', '倖存', (g) => `單局存活 ${fmtTime(g)}`, (s) => s.bestTime || 0, [60, 120, 180, 300, 450, 600, 900, 1200]),
   ...fam('endless', '無盡', (g) => `無盡模式存活 ${fmtTime(g)}`, (s) => s.bestEndlessTime || 0, [600, 1200, 1800, 2400, 3600]),   // R18/B7 (+5; endless_1200 also gates g_stormcaller)
+  ...fam('daily', '每日', (g) => `累計完成每日挑戰 ${g} 次`, (s) => s.dailyClears || 0, [1, 7, 30]),   // R18/B9 (+3)
   ...fam('threat', '深淵', (g) => `達到威脅 ${g} 級`, (s) => s.bestStage || 0, [2, 3, 4, 6, 8, 10, 12, 13]),
   ...fam('boss', '屠王', (g) => `累計擊敗 ${g} 名首領`, (s) => s.bossKills || 0, [3, 5, 25, 50, 100, 200]),
   ...fam('gold', '斂財', (g) => `金庫累計 ${g} 金幣`, (s) => s.totalGold || 0, [1000, 5000, 10000, 25000, 50000, 100000, 250000, 500000]),
@@ -144,7 +148,13 @@ const SKIN16 = [
   { id: 'skin_hidden1', name: '異界之姿', desc: '擁有任一隱藏全身造型', check: (s, m) => ownsHiddenN(m) >= 1, prog: (s, m) => [Math.min(ownsHiddenN(m), 1), 1], reward: U('items', 'g_swift_draught'), rewardLabel: '道具「疾風靈藥」' },
   { id: 'skin_hidden_all', name: '？？？', realName: '形態大師', desc: '集齊全部隱藏全身造型', hidden: true, check: (s, m) => HIDDEN_SKIN_IDS.length > 0 && ownsHiddenN(m) >= HIDDEN_SKIN_IDS.length, prog: (s, m) => [ownsHiddenN(m), HIDDEN_SKIN_IDS.length] },
 ];
-export const ACHIEVEMENTS = [...REWARDS, ...FAMILIES, ...R5_FAMILIES, ...R5B, ...SKIN16, ...BIOME_ACH, ...HIDDEN];
+// ---- round-18: home decor / pets (B10) + NPC affinity (B11) — cosmetic / QoL goals ----
+const R18 = [
+  { id: 'pet_owner', name: '寵物夥伴', desc: '解鎖第一隻迷你寵物', check: (s, m) => PETS.some((p) => petUnlocked(m, p)), prog: (s, m) => [Math.min(1, PETS.filter((p) => petUnlocked(m, p)).length), 1] },
+  { id: 'deco_master', name: '居家佈置', desc: '佈置 8 件個人小屋裝飾', check: (s, m) => decorCount(m) >= 8, prog: (s, m) => [decorCount(m), 8] },
+  ...fam('bond_npc', '摯友', (g) => `與城鎮居民好感達 Lv${g}`, (s, m) => npcAffMaxLevel(m), [2, 4, 5]),   // B11 +3
+];
+export const ACHIEVEMENTS = [...REWARDS, ...FAMILIES, ...R5_FAMILIES, ...R5B, ...SKIN16, ...BIOME_ACH, ...HIDDEN, ...R18];
 
 // Re-apply rewards for already-earned achievements (idempotent) so unlocks survive
 // across updates / older saves.
