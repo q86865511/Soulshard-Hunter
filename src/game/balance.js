@@ -94,6 +94,10 @@ export const BALANCE = {
   RANGED_SPAWN_WEIGHT: 0.4,                   // ranged enemies far less likely to spawn
   MAX_ENEMY_BURST: 3,                         // cap non-boss shooter burst (D5 bullet density)
 
+  // ---- R18/B4 biome enemy affinity (swarm pool leans toward the biome theme) ----
+  BIOME_AFFINITY_BOOST: 5.5,                  // x weight for enemies tagged to the current biome
+  BIOME_FOREIGN_DAMP: 0.2,                    // x weight for enemies tagged to OTHER biomes (never 0 → pool never empties)
+
   // ---- surround 魂牢 (D2 / 原#5; task-4 rework) -------------------------
   // A ring of monsters CLOSES IN on the player. You aren't held until the whole
   // ring is dead — you break out by carving a gap (kill SURROUND_BREACH_KILLS) OR

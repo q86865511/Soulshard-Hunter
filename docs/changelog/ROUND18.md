@@ -52,3 +52,11 @@
 **美術製程**：5 隻 ~40px 4 幀 boss body + 3 顆專屬彈幕 + 5 顆 icon 由 **22-agent 等級的 Fable workflow**（`tools/_wf_b3_bosses.mjs`：5 Fable 平行繪製 → 5 Opus 對抗驗證每塊美術的 palette/Painter/anchor/outline 正確性）產出，`tools/_b3_integrate.mjs` splice 進 `__B3_ART__` 標記區。敵人總數仍 48（boss `weight:0` 不計入雜兵；含 boss 的 `Enemies.all()` 為 53）。
 
 **驗證**：reload `__GAME_ERROR__` null；`Enemies.all()` 48→**53**（5 新 boss boss:true/tier:4/weight:0）；verdant 局 `spawnFinalBoss()` 生成 `b3_thornking`、強制掉血觸發 phase 1→2、`radialBurst` 噴出 42 projectiles；5 隻 body sprite 全 4 幀正確尺寸、gallery 截圖每隻清晰可辨概念、3 顆彈幕精靈清楚、零 magenta fallback。`main.js` content 區 +1 import（enemies.js 之後）。
+
+## B4 — 生態系敵群偏好 + 5 新雜兵（2026-06-11）
+
+**生態敵群偏好**：新 `content/biome_tags.js`（`ENEMY_BIOMES` 把 28/39 雜兵貼上 1+ 生態標籤，可多生態；`biomeWeight(def,biomeId)` helper）。`run.js rotateTypes` 的權重函式與 `evSurround` 的選怪改用 `rng.weighted(..., biomeWeight)` 乘上生態係數（與 D4 遠程壓低係數並存），讀 `this.run.biomeId`。`balance.js`：`BIOME_AFFINITY_BOOST 5.5`（同生態 ×5.5）、`BIOME_FOREIGN_DAMP 0.2`（外來 ×0.2，**永不為 0 → 池不空**）；史萊姆/蝙蝠/鬼火/石像 + 全 `s_*/s2_*` 特殊怪維持無標籤全域 ×1。**零協定改動**（純 host 端選池）。跨標範例：木乃伊系 `g_skeleton/bonearcher/ghoul` 同掛 crypt+desert；冷水系 `g_iciclewisp/glacierslime` 掛 frost+abyss；天空系 `g_frostbat/snowraven` 掛 frost+celestial。
+
+**5 新雜兵**（敵人 48→**53**，配貧乏生態；新 `content/enemies_biome.js` 手寫 content+art）：`vr_thornling` 荊棘妖精（verdant flyer t1）、`ds_duneburrower` 沙行掘者（desert charger t2）、`sw_mireleech` 沼澤巨蛭（swamp chase t2，hitStatus poison）、`ab_voltjelly` 深淵電水母（abyss flyer t2，hitStatus slow）、`ce_cherubim` 雲端守靈（celestial shooter t1，光彈）。`main.js` +1 import。
+
+**驗證**：reload `__GAME_ERROR__` null、`Enemies.all()` 53→**58**、5 新 sprite 全 baked + gallery 截圖清晰；`rotateTypes` ×300/生態 直方圖（威脅 13）——**所有生態 empty=0**（不空池），同生態占比：充足生態 50–65%（frost 65 / crypt 59 / cavern 54 / desert 53 / verdant 53 / abyss 51 / swamp 50），遠程偏多的 inferno 29 / void 32 / celestial 40（受 D4 遠程壓低與該生態雜兵數少所限，仍為明顯主題色＋專屬 Boss＋生態美術）；外來占比 ≤19%。威脅 1 時 tierCap=1，crypt/desert/inferno/void 無 tier-1 主題雜兵故開局以全域雜兵為主（設計如此，主題隨威脅爬升浮現）。
