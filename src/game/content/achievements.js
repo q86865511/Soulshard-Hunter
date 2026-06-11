@@ -84,7 +84,7 @@ const FAMILIES = [
   ...fam('mini', '獵王', (g) => `累計擊殺小王 ${g} 隻`, (s) => s.miniBossKills || 0, [3, 10, 30, 60, 120]),
   ...fam('fall', '不屈', (g) => `累計倒下 ${g} 次仍不放棄`, (s) => s.deaths || 0, [5, 25, 75, 150]),
   ...fam('open', '開拓', (g) => `解鎖 ${g} 個關卡`, (s, m) => (m && m.levels && m.levels.unlocked) || 1, [2, 3, 4, 5]),
-  ...fam('roster', '群英', (g) => `解鎖 ${g} 名角色`, (s, m) => ((m && m.unlocked && m.unlocked.characters) || []).length, [3, 6, 10, 14, 17]),
+  ...fam('roster', '群英', (g) => `解鎖 ${g} 名角色`, (s, m) => ((m && m.unlocked && m.unlocked.characters) || []).length, [3, 6, 10, 14, 17, 21]),
   ...fam('armory', '軍火', (g) => `解鎖 ${g} 把武器`, (s, m) => ((m && m.unlocked && m.unlocked.weapons) || []).length, [5, 10, 16, 24]),
   ...fam('codex', '博識', (g) => `解鎖 ${g} 個被動`, (s, m) => ((m && m.unlocked && m.unlocked.abilities) || []).length, [10, 20, 35, 45]),
   ...fam('wardrobe', '蒐藏', (g) => `解鎖 ${g} 件裝備`, (s, m) => ((m && m.unlocked && m.unlocked.equipment) || []).length, [8, 16, 24, 32]),
