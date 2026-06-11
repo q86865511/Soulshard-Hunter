@@ -85,7 +85,10 @@ const BATTLE_HINTS = [
   { t: 33, text: '按【M】查看放大地圖，按【Tab】查看目前配裝。' },
   { t: 45, text: '升級時時間暫停，從三個選項中挑選強化。' },
 ];
-const FINAL_BOSS = { crypt: 'g_plagueheart', cavern: 'g_stormtyrant', frost: 'b2_glacierseer', inferno: 'b2_emberlord', void: 'b2_voidweaver' };
+// R18/B3: the 5 R9 biomes (verdant/desert/swamp/abyss/celestial) now have dedicated
+// multi-phase final bosses (content/bosses_biome.js) — no longer the random fallback.
+const FINAL_BOSS = { crypt: 'g_plagueheart', cavern: 'g_stormtyrant', frost: 'b2_glacierseer', inferno: 'b2_emberlord', void: 'b2_voidweaver',
+  verdant: 'b3_thornking', desert: 'b3_sandpharaoh', swamp: 'b3_bogmaw', abyss: 'b3_leviathan', celestial: 'b3_seraphjudge' };
 const REAPER_ID = 'reaper';
 // task-4: cardinal probes (px) used to detect the player backing into a wall during 魂牢
 const SURROUND_PROBES = [[14, 0], [-14, 0], [0, 14], [0, -14]];
