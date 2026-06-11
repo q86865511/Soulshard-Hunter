@@ -113,3 +113,11 @@
 **接線**：`main.js` art 區 +1 import（town_floor.js 之後）。hub.js 的 station/NPC 座標讀 `rooms[id].cx/cy` → 隨新錨點自動落到門廊（立面在門廊北側 3 格，VOID 更北 → 站點/NPC 全在可走草地，零 hub 改動）。
 
 **驗證**：reload `__GAME_ERROR__` null；25 sprite 全 baked（church 64×64 / water f2 / tree2 28×36）、零 magenta；`makeCamp()` → 60×46、9 room id 齊全、7 floor 變體、decor 50（<250 cull 上限）；hub 進場 7 station + 10 NPC + hero **全部非 solid**（不卡牆/不卡建築）、每站鄰近偵測命中自身；截圖確認廣場（石板 disc + 放射土徑 + 草花 + 路燈 + 營火）與教堂立面（白色禮拜堂 + 藍尖塔 + 門廊女神像站 + 櫻花樹）。
+
+## B2 — 城鎮戶外改版 B：水景 / 自然 / 氛圍（2026-06-11）
+
+**溪流 + 橋**（`game/world.js makeCamp`）：廣場與花園之間一道溪流（cols 23–37 × rows 31–32 = **VOID 真障礙** + 逐格 `town_water` 2 幀動畫 decor），花園路上一座 `town_bridge` 木橋（cols 29–31 碾回可走 dirt）跨河；溪流兩端可繞行 → **不硬性封路**（spec fallback 精神）。**自然散佈**：更多 `town_tree/tree2`（櫻花/闊葉，沿林線與田野）、`town_bush`、花園 `town_flowerbed`/`town_bench`/`hub_well`、市集 `town_fc_stall`×2、`town_fence_h` 圍欄。
+
+**氛圍粒子**（`scenes/hub.js ambientFx`）：每 0.18s 在鏡頭上緣灑一片飄落櫻花瓣（P.sakura/sakuraL，慢速 drag 0.995 + 微重力，斜向飄落）+ 花園井邊偶發螢火（P.holyL glow 上飄）。沿用 `world.particles` ring-buffer 自動上限。每房間 hub 色調（R5b `ROOM_THEME`）錨點未變、自動沿用。
+
+**驗證**：reload `__GAME_ERROR__` null；溪流 tile VOID（24,31/36,32）、橋 tile 可走（30,31/30,32）；60 tick 跑 ambientFx → 10 粒子、零錯；decor 81（<250）；station/NPC 仍全非 solid；截圖確認溪流（藍水帶 + 木橋橫跨 + 路徑連續 + 飄落花瓣）。

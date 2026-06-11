@@ -109,6 +109,7 @@ export const hubScene = {
     this.world.moveActor(h, h.vx * dt, h.vy * dt);
     if (h.moving) h.walkT += dt;
     camera.targetX = h.x; camera.targetY = h.y - 6;
+    this.ambientFx(dt);   // R18/B2: drifting petals over the field + fireflies by the garden
     this.world.particles.update(dt);
 
     // nearest interactable (station building OR npc)
@@ -132,6 +133,24 @@ export const hubScene = {
     if (!act) return;
     if (act.def) this.openDialogue(act);          // an NPC
     else this.openPanel(act.panel);               // a building
+  },
+
+  // R18/B2: light ambient particles for the open-air town — blossom petals drifting across
+  // the visible field + a few fireflies hovering over the garden. Spawned near the camera so
+  // they're always on-screen; capped by the particle system's own ring buffer.
+  ambientFx(dt) {
+    this.ambT = (this.ambT || 0) - dt;
+    if (this.ambT > 0) return;
+    this.ambT = 0.18;
+    const pr = this.world.particles, vw = view.W / camera.zoom, vh = view.H / camera.zoom;
+    // a blossom petal entering from the top of the view, drifting down + sideways
+    const px = camera.x + (Math.random() - 0.5) * vw, py = camera.y - vh / 2 - 8;
+    pr.spawn({ x: px, y: py, vx: 8 + Math.random() * 10, vy: 14 + Math.random() * 10, life: 4.5, size: 2, color: Math.random() < 0.5 ? P.sakura : P.sakuraL, grav: 4, drag: 0.995, glow: false, fade: true });
+    // occasional firefly twinkle near the garden well
+    if (Math.random() < 0.5 && this.rooms.garden) {
+      const g = this.rooms.garden;
+      pr.spawn({ x: g.cx + (Math.random() - 0.5) * 90, y: g.cy + (Math.random() - 0.5) * 70, vx: (Math.random() - 0.5) * 12, vy: -6 - Math.random() * 8, life: 1.6, size: 1.5, color: P.holyL, glow: true });
+    }
   },
 
   // ---- town Esc menu (round-15): a small option menu first; each option opens its page ----

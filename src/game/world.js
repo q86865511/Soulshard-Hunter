@@ -622,7 +622,19 @@ export function makeCamp() {
   };
   for (const b of [...TOWN_BUILDINGS, ...TOWN_AREAS.slice(1)]) path(pc.cx, pc.cy, b.cx, b.cy);
 
+  // R18/B2: a creek between the plaza and the garden — VOID water (a real barrier) spanned by a
+  // wooden bridge on the garden path. cols 23-37 x rows 31-32; the bridge (cols 29-31) is carved
+  // back to walkable dirt. Players can also detour around the creek's ends, so it never hard-gates.
+  const creek = [];   // collected VOID water tiles → water decor
+  const bridge = [];  // bridge tiles → bridge decor
+  for (let yy = 31; yy <= 32; yy++) for (let xx = 23; xx <= 37; xx++) {
+    if (xx >= 29 && xx <= 31) { set(xx, yy, FLOOR); setVar(xx, yy, 3); bridge.push([xx, yy]); }   // bridge deck (dirt-matched)
+    else { set(xx, yy, VOID); creek.push([xx, yy]); }
+  }
+
   const D = [];   // background decor (non-interactive); interactive stations live in the hub
+  for (const [xx, yy] of creek) D.push({ sprite: 'town_water', x: xx * TS, y: yy * TS, phase: (xx + yy) % 2 });   // tile-aligned animated water
+  for (const [xx, yy] of bridge) D.push({ sprite: 'town_bridge', x: xx * TS, y: yy * TS, phase: 0 });
   // building footprints: a solid VOID block (4 tiles tall x 5 wide) behind each facade base,
   // with the facade decor anchored at the base (front) so the porch row stays walkable floor.
   for (const b of TOWN_BUILDINGS) {
@@ -648,7 +660,7 @@ export function makeCamp() {
   put('town_fc_stall', R.market, -3, -1); put('town_fc_stall', R.market, 3, 0); put('town_barrel', R.market, 5, 2); put('town_barrel', R.market, 6, 2.5);
   // scatter trees + bushes around the field edges (kept well clear of porches; decor < 250)
   const treeSpots = [
-    [6, 6], [9, 20], [7, 31], [6, 41], [20, 5], [40, 5], [53, 7], [54, 20], [53, 32], [54, 41], [22, 42], [38, 42], [30, 31], [18, 30], [42, 30],
+    [6, 6], [9, 20], [7, 31], [6, 41], [20, 5], [40, 5], [53, 7], [54, 20], [53, 32], [54, 41], [22, 42], [38, 42], [18, 30], [42, 30], [21, 33], [39, 33],
   ];
   for (const [tx, ty] of treeSpots) { if (tiles[ty * tw + tx] === FLOOR) D.push({ sprite: rng.next() < 0.4 ? 'town_tree2' : 'town_tree', x: (tx + 0.5) * TS, y: (ty + 0.9) * TS, phase: 0 }); }
   for (const [tx, ty] of [[10, 14], [50, 14], [10, 33], [50, 33], [26, 6], [34, 40], [24, 18]]) { if (tiles[ty * tw + tx] === FLOOR) D.push({ sprite: 'town_bush', x: (tx + 0.5) * TS, y: (ty + 0.9) * TS, phase: 0 }); }
