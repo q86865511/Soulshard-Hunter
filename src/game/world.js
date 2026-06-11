@@ -83,12 +83,71 @@ export class World {
     this.biome = map.biome || null;
     this.pxW = this.tw * TS; this.pxH = this.th * TS;
     this.hazards = (map.hazards || []).map((h) => ({ ...h, tick: Math.random() * 1.0, on: !(HAZ[h.kind] && HAZ[h.kind].periodic) }));
+    // R20/B2: opt-in town extras — all null on the 10 run biomes (no behavioral change there).
+    this.triggers = map.triggers || [];            // [{tx,ty,target}] — consumed by hub.js (B3)
+    this.block = null;                             // Uint8Array of player-only decor collision (solid props)
+    this.wallDepth = null;                         // Uint8Array depth 0..2 for the banded-wall fill
+    this._buildWallDepth();
+    this._buildBlockGrid();
+  }
+
+  // R20/B2: multi-source BFS — depth = min #WALL-steps from any FLOOR tile, clamped 0..2.
+  // FLOOR/VOID stay 0. Only built when the tileset opts in via `wallBands` (town); skipped on runs.
+  _buildWallDepth() {
+    const ts = this.tileset;
+    if (!ts || !ts.wallBands) return;
+    const tw = this.tw, th = this.th, n = tw * th;
+    const depth = new Uint8Array(n);   // default 0 (FLOOR/VOID and band-0 walls)
+    const seen = new Uint8Array(n);
+    let frontier = [];
+    for (let i = 0; i < n; i++) if (this.tiles[i] === FLOOR) { seen[i] = 1; frontier.push(i); }   // sources
+    let d = 0;
+    while (frontier.length && d < 2) {
+      d++;
+      const next = [];
+      for (const i of frontier) {
+        const x = i % tw, y = (i / tw) | 0;
+        for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+          const nx = x + dx, ny = y + dy;
+          if (nx < 0 || ny < 0 || nx >= tw || ny >= th) continue;
+          const ni = ny * tw + nx;
+          if (seen[ni] || this.tiles[ni] !== WALL) continue;   // only spread across WALL tiles
+          seen[ni] = 1; depth[ni] = d; next.push(ni);
+        }
+      }
+      frontier = next;
+    }
+    // remaining unseen WALL tiles are deep interior → clamp to band 2
+    for (let i = 0; i < n; i++) if (this.tiles[i] === WALL && !seen[i]) depth[i] = 2;
+    this.wallDepth = depth;
+  }
+
+  // R20/B2: player-only solid grid from decor entries flagged `solid` (1 = anchor tile,
+  // 2 = anchor + one tile left & right). Anchor tile = floor(x/TS),floor(y/TS) (feet pixel).
+  // No solid decor → this.block stays null → zero change for runs/co-op (enemies phase walls anyway).
+  _buildBlockGrid() {
+    const tw = this.tw, th = this.th;
+    let block = null;
+    for (const d of this.decor) {
+      if (!d.solid) continue;
+      const tx = Math.floor(d.x / TS), ty = Math.floor(d.y / TS);
+      if (tx < 0 || ty < 0 || tx >= tw || ty >= th) continue;
+      if (!block) block = new Uint8Array(tw * th);
+      block[ty * tw + tx] = 1;
+      if (d.solid === 2) {
+        if (tx - 1 >= 0) block[ty * tw + (tx - 1)] = 1;
+        if (tx + 1 < tw) block[ty * tw + (tx + 1)] = 1;
+      }
+    }
+    this.block = block;
   }
 
   // ---- tile helpers --------------------------------------------------------
   inBounds(tx, ty) { return tx >= 0 && ty >= 0 && tx < this.tw && ty < this.th; }
   tileAt(tx, ty) { return this.inBounds(tx, ty) ? this.tiles[ty * this.tw + tx] : WALL; }
-  solidTile(tx, ty) { return this.tileAt(tx, ty) !== FLOOR; }
+  // R20/B2: solid if the tile isn't FLOOR, OR a solid decor prop blocks it (player-only — enemies
+  // use phaseWalls in moveActor so they're unaffected). this.block is null off-town → unchanged.
+  solidTile(tx, ty) { return this.tileAt(tx, ty) !== FLOOR || !!(this.block && this.inBounds(tx, ty) && this.block[ty * this.tw + tx]); }
   solidAt(wx, wy) { return this.solidTile(Math.floor(wx / TS), Math.floor(wy / TS)); }
 
   lineClear(x0, y0, x1, y1) {
@@ -493,31 +552,69 @@ export class World {
     const y0 = clamp(ry0, 0, this.th - 1);
     const y1 = clamp(ry1, 0, this.th - 1);
     const ts = this.tileset;
+    const tw = this.tw;
     const floorSprites = ts.floor.map((n) => getSprite(n));
     const wallSp = getSprite(ts.wall);
     const topSp = getSprite(ts.wallTop);
-    // R17 B14: the void beyond the map edge used to render pure black — fill the visible
-    // out-of-bounds band with dimmed biome wall tiles (cheap per-tile hash varies the alpha
-    // slightly so it reads as receding rock/masonry, not a flat slab). Town + runs alike.
+    // R20/B2 opt-in town extras (all undefined on the 10 run biomes → original path below).
+    const bands = ts.wallBands ? ts.wallBands.map((band) => band.map((n) => getSprite(n))) : null;
+    const faceSp = ts.wallFace ? getSprite(ts.wallFace) : null;
+    const face2Sp = ts.wallFace2 ? getSprite(ts.wallFace2) : faceSp;
+    const capSp = ts.wallCap ? getSprite(ts.wallCap) : null;
+    const voidSp = ts.voidTile ? getSprite(ts.voidTile) : null;
+    const hash5 = (tx, ty) => (((tx * 73856093) ^ (ty * 19349663)) >>> 0) % 5;
+    // pick the band/variant sprite for a WALL tile (banded fill or plain ts.wall)
+    const wallSprite = (tx, ty) => {
+      if (!bands) return wallSp.frames[0];
+      const d = (this.wallDepth ? this.wallDepth[ty * tw + tx] : 0) | 0;
+      const arr = bands[Math.min(d, bands.length - 1)];
+      return arr[hash5(tx, ty) % arr.length].frames[0];
+    };
+    // R17 B14 / R20 B2: the void beyond the map edge used to render pure black. Fill the visible
+    // out-of-bounds band with dimmed wall tiles (when banded, use band-2 receding cliff/skyline so it
+    // reads as far rock fading with distance past the edge). Town + runs alike.
     if (rx0 < 0 || ry0 < 0 || rx1 >= this.tw || ry1 >= this.th) {
+      const oobBand = bands ? bands[Math.min(2, bands.length - 1)] : null;
       for (let ty = ry0; ty <= ry1; ty++) for (let tx = rx0; tx <= rx1; tx++) {
         if (tx >= 0 && tx < this.tw && ty >= 0 && ty < this.th) continue;
-        const hsh = (((tx * 73856093) ^ (ty * 19349663)) >>> 0) % 5;
-        drawSprite(wallSp.frames[0], tx * TS, ty * TS, { ax: 0, ay: 0, alpha: 0.30 + hsh * 0.025 });
+        const hsh = hash5(tx, ty);
+        let alpha = 0.30 + hsh * 0.025;
+        let fr = wallSp.frames[0];
+        if (oobBand) {
+          fr = oobBand[hsh % oobBand.length].frames[0];
+          // additional fade with distance past the nearest edge
+          const dpx = Math.max(0, -tx, tx - (this.tw - 1)), dpy = Math.max(0, -ty, ty - (this.th - 1));
+          const distPast = Math.max(dpx, dpy);
+          alpha = (0.55 + (hsh % 3) * 0.06) * Math.max(0.4, 1 - distPast * 0.12);
+        }
+        drawSprite(fr, tx * TS, ty * TS, { ax: 0, ay: 0, alpha });
       }
     }
-    // floors
+    // floors (+ void base when opted-in: VOID used to draw NOTHING → black leak; now a near-black abyss tile)
     for (let ty = y0; ty <= y1; ty++) for (let tx = x0; tx <= x1; tx++) {
-      if (this.tileAt(tx, ty) === FLOOR) {
+      const t = this.tileAt(tx, ty);
+      if (t === FLOOR) {
         const v = this.floorVar[ty * this.tw + tx] || 0;
         drawSprite(floorSprites[v].frames[0], tx * TS, ty * TS, { ax: 0, ay: 0 });
+      } else if (t === VOID && voidSp) {
+        drawSprite(voidSp.frames[0], tx * TS, ty * TS, { ax: 0, ay: 0 });
       }
     }
     // walls + front faces
     for (let ty = y0; ty <= y1; ty++) for (let tx = x0; tx <= x1; tx++) {
-      if (this.tileAt(tx, ty) === WALL) {
-        drawSprite(wallSp.frames[0], tx * TS, ty * TS, { ax: 0, ay: 0 });
-        if (this.tileAt(tx, ty + 1) === FLOOR) drawSprite(topSp.frames[0], tx * TS, (ty + 1) * TS, { ax: 0, ay: 0 });
+      if (this.tileAt(tx, ty) !== WALL) continue;
+      drawSprite(wallSprite(tx, ty), tx * TS, ty * TS, { ax: 0, ay: 0 });
+      const southFloor = this.tileAt(tx, ty + 1) === FLOOR;
+      // R20/B2: a 16x24 2.5D front FACE on south-edge walls (band-0 only — bands 1/2 are pure fill).
+      // Face bottom aligns with the wall tile's bottom edge: y = (ty+1)*TS - 24. Cap (16x8) above it.
+      const isBand0 = !this.wallDepth || (this.wallDepth[ty * tw + tx] | 0) === 0;
+      if (faceSp && southFloor && isBand0) {
+        const fr = (hash5(tx, ty) & 1) ? face2Sp : faceSp;
+        drawSprite(fr.frames[0], tx * TS, (ty + 1) * TS - 24, { ax: 0, ay: 0 });
+        if (capSp) drawSprite(capSp.frames[0], tx * TS, (ty + 1) * TS - 32, { ax: 0, ay: 0 });
+      } else if (!faceSp && southFloor) {
+        // original path: redundant skirt drawn on the floor tile below
+        drawSprite(topSp.frames[0], tx * TS, (ty + 1) * TS, { ax: 0, ay: 0 });
       }
     }
   }
@@ -581,20 +678,22 @@ export function makeArena(tw = 34, th = 22, rngSrc = rng) {
 // footprints (porch left as open floor) which hub.js turns into door-stations to the 6 INTERIOR maps.
 // Return contract UNCHANGED: `{tw,th,tiles,floorVar,decor,rooms,tileset}` with all 9 room ids — hub.js
 // reads `rooms[id].cx/cy` so stations/NPCs follow automatically.
-const CAMP = { tw: 64, th: 48 };
-// id -> tile-centre PORCH anchor (= room anchor). facade base sits 3 tiles north of the porch.
+// R20/B2: grown 64x48 -> 72x54 so the bigger ruin_fc2_* facades + wider streets breathe.
+// Anchors re-spread ~proportionally (x*72/64, y*54/48) then nudged off the edges.
+const CAMP = { tw: 72, th: 54 };
+// id -> tile-centre PORCH anchor (= room anchor). facade base sits ~3 tiles north of the porch.
 const TOWN_BUILDINGS = [
-  { id: 'church', cx: 14, cy: 12, fc: 'ruin_fc_church' },        // NW hill
-  { id: 'guild', cx: 46, cy: 14, fc: 'ruin_fc_guild' },          // NE
-  { id: 'achievements', cx: 52, cy: 29, fc: 'ruin_fc_hall' },    // E
-  { id: 'blacksmith', cx: 12, cy: 31, fc: 'ruin_fc_smith' },     // W
-  { id: 'clothing', cx: 45, cy: 41, fc: 'ruin_fc_wardrobe' },    // SE
-  { id: 'personal', cx: 20, cy: 41, fc: 'ruin_fc_house' },       // S
+  { id: 'church', cx: 16, cy: 13, fc: 'ruin_fc2_church' },        // NW hill
+  { id: 'guild', cx: 52, cy: 15, fc: 'ruin_fc2_guild' },          // NE
+  { id: 'achievements', cx: 58, cy: 33, fc: 'ruin_fc2_hall' },    // E
+  { id: 'blacksmith', cx: 14, cy: 35, fc: 'ruin_fc2_smith' },     // W
+  { id: 'clothing', cx: 50, cy: 46, fc: 'ruin_fc2_wardrobe' },    // SE
+  { id: 'personal', cx: 23, cy: 46, fc: 'ruin_fc2_house' },       // S
 ];
 const TOWN_AREAS = [   // open-air anchors (no building facade): plaza + garden + market
-  { id: 'plaza', cx: 32, cy: 26 },     // centre — grand portal lives here
-  { id: 'garden', cx: 31, cy: 40 },    // S of plaza (across the rift)
-  { id: 'market', cx: 51, cy: 21 },    // NE-of-centre stalls
+  { id: 'plaza', cx: 36, cy: 29 },     // centre — grand portal lives here
+  { id: 'garden', cx: 35, cy: 45 },    // S of plaza (across the rift)
+  { id: 'market', cx: 57, cy: 24 },    // NE-of-centre stalls
 ];
 export function makeCamp() {
   const { tw, th } = CAMP;
@@ -618,7 +717,8 @@ export function makeCamp() {
     blob(b.cx + rng.int(-3, 3), b.cy + rng.int(-3, 3), 3, 3);
   }
   // 2) wind a jittered corridor between two points, blob-carving along it (paths feel organic)
-  const corridor = (x0, y0, x1, y1, w = 2) => {
+  // R20/B2: carve width 2 -> 3 so streets are visibly wider.
+  const corridor = (x0, y0, x1, y1, w = 3) => {
     let x = x0, y = y0; let guard = 0;
     while ((x !== x1 || y !== y1) && guard++ < 400) {
       blob(x, y, w, w, 0.1);
@@ -630,10 +730,10 @@ export function makeCamp() {
     }
   };
   const pc = TOWN_AREAS[0];
-  for (const b of [...TOWN_BUILDINGS, ...TOWN_AREAS.slice(1)]) corridor(pc.cx, pc.cy, b.cx, b.cy, 2);
+  for (const b of [...TOWN_BUILDINGS, ...TOWN_AREAS.slice(1)]) corridor(pc.cx, pc.cy, b.cx, b.cy, 3);
   // guarantee a couple cross-links so the layout never reads as a pure hub-and-spoke
-  corridor(TOWN_BUILDINGS[0].cx, TOWN_BUILDINGS[0].cy, TOWN_BUILDINGS[3].cx, TOWN_BUILDINGS[3].cy, 2); // church<->smith (W spine)
-  corridor(TOWN_BUILDINGS[1].cx, TOWN_BUILDINGS[1].cy, TOWN_AREAS[2].cx, TOWN_AREAS[2].cy, 2);          // guild<->market (NE)
+  corridor(TOWN_BUILDINGS[0].cx, TOWN_BUILDINGS[0].cy, TOWN_BUILDINGS[3].cx, TOWN_BUILDINGS[3].cy, 3); // church<->smith (W spine)
+  corridor(TOWN_BUILDINGS[1].cx, TOWN_BUILDINGS[1].cy, TOWN_AREAS[2].cx, TOWN_AREAS[2].cy, 3);          // guild<->market (NE)
 
   // 3) ground texturing — ashen grass base over all FLOOR (variants 0/1/2)
   for (let y = 0; y < th; y++) for (let x = 0; x < tw; x++) {
@@ -645,10 +745,16 @@ export function makeCamp() {
     if (dx * dx + dy * dy <= 1) setVar(x, y, rng.next() < 0.22 ? 6 : 5);
   }
   // re-lay cracked path variants (3/4) along the carved corridors (overwrites grass only on FLOOR)
+  // R20/B2: widened to a 5-tile cross-stamp (centre ±2; the outermost ±2 ring at reduced probability)
+  // so streets read as wide cracked avenues matching the 3-wide carve.
   const repath = (x0, y0, x1, y1) => {
     let x = x0, y = y0, guard = 0;
     while ((x !== x1 || y !== y1) && guard++ < 400) {
-      for (const ox of [-1, 0, 1]) for (const oy of [-1, 0, 1]) setVar(x + ox, y + oy, rng.next() < 0.4 ? 4 : 3);
+      for (const ox of [-2, -1, 0, 1, 2]) for (const oy of [-2, -1, 0, 1, 2]) {
+        const outer = Math.abs(ox) === 2 || Math.abs(oy) === 2;
+        if (outer && rng.next() > 0.45) continue;   // ragged path edges
+        setVar(x + ox, y + oy, rng.next() < 0.4 ? 4 : 3);
+      }
       const sx = x1 - x, sy = y1 - y, r = rng.next();
       if (Math.abs(sx) > Math.abs(sy)) { if (r < 0.78 || sy === 0) x += sx > 0 ? 1 : -1; else y += sy > 0 ? 1 : -1; }
       else { if (r < 0.78 || sx === 0) y += sy > 0 ? 1 : -1; else x += sx > 0 ? 1 : -1; }
@@ -678,11 +784,17 @@ export function makeCamp() {
 
   // 5) building footprints: a solid VOID block behind each facade base (porch row stays FLOOR),
   // with the ruined facade decor anchored 3 tiles N of the porch (base-centre anchor [0.5,1]).
+  // R20/B2: ruin_fc2_* facades are 96px (6 tiles) — footprint widened 3x3 -> 5x4 (cols cx±2,
+  // rows cy-7..cy-4) and the whole door approach (cx±1 × cy-3..cy) is force-carved so the art's
+  // centred doorway always lines up with walkable ground + the B3 step-in trigger tile.
+  const triggers = [];
   for (const b of TOWN_BUILDINGS) {
-    for (let yy = b.cy - 6; yy <= b.cy - 4; yy++) for (let xx = b.cx - 1; xx <= b.cx + 1; xx++) set(xx, yy, VOID);
-    carve(b.cx, b.cy);          // ensure the porch tile itself is walkable
-    setVar(b.cx, b.cy, 3);      // porch reads as cracked path
+    for (let yy = b.cy - 7; yy <= b.cy - 4; yy++) for (let xx = b.cx - 2; xx <= b.cx + 2; xx++) set(xx, yy, VOID);
+    for (let yy = b.cy - 3; yy <= b.cy; yy++) for (let xx = b.cx - 1; xx <= b.cx + 1; xx++) { carve(xx, yy); setVar(xx, yy, 3); }
     D.push({ sprite: b.fc, x: (b.cx + 0.5) * TS, y: (b.cy - 3) * TS, phase: 0 });
+    // B3 walk-in door trigger: a glowing circle decal one tile in front of the facade door
+    triggers.push({ tx: b.cx, ty: b.cy - 1, target: b.id });
+    D.push({ sprite: 'ruin_doorglow', x: b.cx * TS, y: (b.cy - 1) * TS, phase: (b.cx + b.cy) % 3 });
   }
 
   // 6) CONNECTIVITY GUARANTEE — the blob/corridor carve + rift + VOID footprints can occasionally
@@ -720,7 +832,7 @@ export function makeCamp() {
       recarveSeg(b.cx, pc.cy, b.cx, b.cy);
     }
     // keep the porch/footprint VOID intact (recarve may have opened a footprint tile)
-    for (const bb of TOWN_BUILDINGS) for (let yy = bb.cy - 6; yy <= bb.cy - 4; yy++) for (let xx = bb.cx - 1; xx <= bb.cx + 1; xx++) set(xx, yy, VOID);
+    for (const bb of TOWN_BUILDINGS) for (let yy = bb.cy - 7; yy <= bb.cy - 4; yy++) for (let xx = bb.cx - 2; xx <= bb.cx + 2; xx++) set(xx, yy, VOID);
     // re-cut any rift tile the detour may have re-floored, EXCEPT the bridge columns (which the
     // across-rift route runs straight down — that column stays walkable as the intended crossing).
     for (const [rx, ry] of rift) if (tiles[ry * tw + rx] === FLOOR && (rx < bridgeCol0 || rx > bridgeCol1)) set(rx, ry, VOID);
@@ -804,7 +916,7 @@ export function makeCamp() {
   const reservedFill = (tx, ty) => {
     if (Math.abs(tx - pc.cx) <= 3 && Math.abs(ty - pc.cy) <= 3) return true;   // plaza-centre portal + spawn ring
     if (ty >= riftRow0 - 1 && ty <= riftRow1 + 1) return true;                 // along the rift
-    for (const b of TOWN_BUILDINGS) if (Math.abs(tx - b.cx) <= 2 && ty >= b.cy - 6 && ty <= b.cy + 1) return true;  // porches/footprints
+    for (const b of TOWN_BUILDINGS) if (Math.abs(tx - b.cx) <= 3 && ty >= b.cy - 7 && ty <= b.cy + 1) return true;  // porches/footprints/door approaches (R20: wider fc2)
     return false;
   };
   const occupied = new Set(D.map((d) => (Math.floor(d.y / TS)) * tw + Math.floor(d.x / TS)));
@@ -827,8 +939,60 @@ export function makeCamp() {
     occupied.add(ci);
   }
 
-  const tileset = { floor: ['ruin_grass', 'ruin_grass2', 'ruin_ashgrass', 'ruin_path', 'ruin_path2', 'ruin_plaza', 'ruin_plaza2'], wall: 'ruin_wallline', wallTop: 'ruin_wallline_top' };
-  return { tw, th, tiles, floorVar, decor: D, rooms, tileset };
+  // R20/B2 (player problem 7): big props get player-only collision. solid:1 = anchor tile,
+  // solid:2 = anchor + one tile each side. Small clutter (rubble/crystal/banners/lamps/torchposts)
+  // stays walkable; thin door-flanking torchposts MUST stay clear so they never gate a porch.
+  const SOLID_PROPS = {
+    ruin_deadtree: 1, ruin_deadtree2: 1, ruin_boulder: 1, ruin_boulder2: 2,
+    ruin_pillar: 1, ruin_pillar_broken: 1, ruin_statue: 2, ruin_fountain: 2,
+    ruin_well: 2, ruin_cart: 2, town_fc_stall: 2, ruin_bonfire: 1, ruin_fence: 1,
+  };
+  for (const d of D) if (SOLID_PROPS[d.sprite]) d.solid = SOLID_PROPS[d.sprite];
+  // never let a solid prop sit on (or beside, for solid:2) the portal ring, the spawn,
+  // a porch / door approach, or a trigger tile
+  const protect = new Set();
+  const prot = (tx, ty, r) => { for (let oy = -r; oy <= r; oy++) for (let ox = -r; ox <= r; ox++) protect.add((ty + oy) * tw + (tx + ox)); };
+  prot(pc.cx, pc.cy, 3);                                  // grand portal + spawn ring
+  for (const b of TOWN_BUILDINGS) { prot(b.cx, b.cy, 1); prot(b.cx, b.cy - 1, 1); prot(b.cx, b.cy - 2, 1); prot(b.cx, b.cy - 3, 1); }
+  for (const g of triggers) prot(g.tx, g.ty, 1);
+  for (const d of D) {
+    if (!d.solid) continue;
+    const tx = Math.floor(d.x / TS), ty = Math.floor(d.y / TS);
+    if (protect.has(ty * tw + tx) || (d.solid === 2 && (protect.has(ty * tw + tx - 1) || protect.has(ty * tw + tx + 1)))) d.solid = 0;
+  }
+  // connectivity self-check WITH the block grid: if a solid prop seals any anchor away from
+  // the plaza, demote (un-solid) the blocking prop nearest the unreached anchor and retry.
+  // The prop keeps drawing — only its collision is dropped.
+  const anchorPts = [...TOWN_BUILDINGS, ...TOWN_AREAS].map((b) => [b.cx, b.cy]);
+  for (let guard = 0; guard < 24; guard++) {
+    const blk = new Uint8Array(tw * th);
+    for (const d of D) if (d.solid) {
+      const tx = Math.floor(d.x / TS), ty = Math.floor(d.y / TS);
+      blk[ty * tw + tx] = 1;
+      if (d.solid === 2) { if (tx > 0) blk[ty * tw + tx - 1] = 1; if (tx < tw - 1) blk[ty * tw + tx + 1] = 1; }
+    }
+    const seen = new Uint8Array(tw * th); const q = [pc.cy * tw + pc.cx]; seen[q[0]] = 1;
+    while (q.length) { const i = q.pop(); const x = i % tw, y = (i / tw) | 0;
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const nx = x + dx, ny = y + dy;
+        if (nx < 0 || ny < 0 || nx >= tw || ny >= th) continue; const ni = ny * tw + nx;
+        if (seen[ni] || tiles[ni] !== FLOOR || blk[ni]) continue; seen[ni] = 1; q.push(ni); } }
+    const missing = anchorPts.find(([ax, ay]) => !seen[ay * tw + ax]);
+    if (!missing) break;
+    let best = null, bd = Infinity;
+    for (const d of D) if (d.solid) { const dd = (d.x / TS - missing[0]) ** 2 + (d.y / TS - missing[1]) ** 2; if (dd < bd) { bd = dd; best = d; } }
+    if (!best) break;
+    best.solid = 0;
+  }
+
+  // R20/B2: opt-in 2.5D + banded-fill + void tileset extras (drawTiles only uses them when present)
+  const tileset = {
+    floor: ['ruin_grass', 'ruin_grass2', 'ruin_ashgrass', 'ruin_path', 'ruin_path2', 'ruin_plaza', 'ruin_plaza2'],
+    wall: 'ruin_wallline', wallTop: 'ruin_wallline_top',
+    wallFace: 'ruin_wall_face', wallFace2: 'ruin_wall_face2', wallCap: 'ruin_wall_cap',
+    voidTile: 'ruin_void',
+    wallBands: [['ruin_wallline'], ['ruin_wall_trees', 'ruin_wall_trees2'], ['ruin_wall_skyline', 'ruin_wall_cliff']],
+  };
+  return { tw, th, tiles, floorVar, decor: D, rooms, tileset, triggers };
 }
 
 // R19/B2: the 6 building INTERIOR maps. Same return contract as makeCamp. Each is a NON-rectangular
@@ -838,14 +1002,17 @@ export function makeCamp() {
 // building's interactive station there; SYMMETRIC reuse-sprite decor + torchpost pairs flank it.
 export function makeInterior(id) {
   // per-building footprint + non-rect carve mask (returns true where FLOOR)
+  // R20/B2 (player problem 1): widths are now ODD so `cx = tw>>1` is the TRUE centre column —
+  // the station, carpet runner, doorway and every mirrored decor pair centre perfectly
+  // (even widths made centred props sit half a tile off the axis).
   const SPEC = {
-    church:       { tw: 20, th: 18 },
-    guild:        { tw: 22, th: 16 },
-    blacksmith:   { tw: 18, th: 14 },
-    clothing:     { tw: 18, th: 14 },
-    achievements: { tw: 24, th: 14 },
-    personal:     { tw: 16, th: 12 },   // 16 wide so the gold-sink decor offsets (dx -6..+6) fit inside
-  }[id] || { tw: 18, th: 14 };
+    church:       { tw: 21, th: 18 },
+    guild:        { tw: 23, th: 16 },
+    blacksmith:   { tw: 19, th: 14 },
+    clothing:     { tw: 19, th: 14 },
+    achievements: { tw: 25, th: 14 },
+    personal:     { tw: 17, th: 13 },   // wide enough that the gold-sink decor offsets (dx -6..+6) fit inside
+  }[id] || { tw: 19, th: 14 };
   const { tw, th } = SPEC;
   const tiles = new Uint8Array(tw * th).fill(WALL);
   const floorVar = new Uint8Array(tw * th);
@@ -883,11 +1050,13 @@ export function makeInterior(id) {
     tiles[(th - 2) * tw + 1] = WALL; tiles[(th - 2) * tw + (tw - 2)] = WALL;
   }
 
-  // --- south doorway = the EXIT (2-tile gap), centred on the symmetry axis ---
+  // --- south doorway = the EXIT, now a 3-tile gap PERFECTLY centred on cx (R20/B2) ---
   const doorY = th - 1;             // bottom border row
-  carve(cx, th - 2); carve(cx - 1, th - 2);   // ensure floor just inside the gap
-  tiles[doorY * tw + cx] = FLOOR; tiles[doorY * tw + (cx - 1)] = FLOOR;  // the doorway gap itself
-  setVar(cx, doorY, 0); setVar(cx - 1, doorY, 0);
+  for (const dx of [-1, 0, 1]) {
+    carve(cx + dx, th - 2);                      // floor just inside the gap
+    tiles[doorY * tw + (cx + dx)] = FLOOR;       // the doorway gap itself
+    setVar(cx + dx, doorY, 0);
+  }
 
   // --- floor texturing: wood/stone base + a carpet runner up the centre (per building) ---
   const usesWood = id === 'guild' || id === 'clothing' || id === 'personal';
@@ -896,82 +1065,129 @@ export function makeInterior(id) {
     const base = usesWood ? (rng.chance(0.18) ? 1 : 0) : (rng.chance(0.18) ? 3 : 2);   // 0/1 wood, 2/3 stone
     floorVar[y * tw + x] = base;
   }
-  // carpet runner (variants 4/5) up the central axis for church/clothing/achievements/personal
+  // carpet runner (variants 4/5) up the TRUE central axis (R20/B2: single centred column;
+  // the church gets a grander 3-wide runner befitting the nave)
   if (id === 'church' || id === 'clothing' || id === 'achievements' || id === 'personal') {
-    for (let y = 2; y <= th - 2; y++) { setVar(cx, y, rng.chance(0.3) ? 5 : 4); setVar(cx - 1, y, rng.chance(0.3) ? 5 : 4); }
+    const span = id === 'church' ? [-1, 0, 1] : [0];
+    for (let y = 2; y <= th - 2; y++) for (const dx of span) setVar(cx + dx, y, rng.chance(0.3) ? 5 : 4);
   }
 
   // --- anchors ---
-  const stationRow = 2;             // station sits top-centre
+  // R20/B2: stationRow 2 -> 3 — the new ruin_st_* centrepieces are 44-56px tall and need the
+  // extra headroom (they rise over the back wall like an altar). Both anchors sit on the TRUE
+  // centre (cx + 0.5)*TS now that widths are odd.
+  const stationRow = 3;
   const rooms = {
     [id]: { col: 0, row: 0, cx: (cx + 0.5) * TS, cy: (stationRow + 0.5) * TS,
       x0: (cx - 6) * TS, y0: 0, x1: (cx + 7) * TS, y1: (stationRow + 7) * TS },
-    exit: { col: 0, row: 0, cx: (cx - 0.5) * TS, cy: (th - 2 + 0.5) * TS,
+    exit: { col: 0, row: 0, cx: (cx + 0.5) * TS, cy: (th - 2 + 0.5) * TS,
       x0: (cx - 6) * TS, y0: (th - 8) * TS, x1: (cx + 6) * TS, y1: th * TS },
   };
   // make sure station + exit tiles are FLOOR (carve mask might have clipped the very top-centre)
   carve(cx, stationRow); carve(cx - 1, stationRow); carve(cx + 1, stationRow);
 
   const D = [];
-  // reserved tiles hub.js needs clear: the station triplet (top-centre) + the exit/doorway pair.
+  // reserved tiles hub.js needs clear: the station triplet + the 3-wide exit/doorway columns.
   const reserved = new Set([
     (stationRow) * tw + cx, (stationRow) * tw + (cx - 1), (stationRow) * tw + (cx + 1),
-    (th - 2) * tw + cx, (th - 2) * tw + (cx - 1), (th - 1) * tw + cx, (th - 1) * tw + (cx - 1),
+    (th - 2) * tw + cx, (th - 2) * tw + (cx - 1), (th - 2) * tw + (cx + 1),
+    (th - 1) * tw + cx, (th - 1) * tw + (cx - 1), (th - 1) * tw + (cx + 1),
   ]);
+  // B3 walk-out trigger: glowing circle on the inside-door tile (spawn point is one row above it)
+  const triggers = [{ tx: cx, ty: th - 2, target: 'town' }];
+  D.push({ sprite: 'ruin_doorglow', x: cx * TS, y: (th - 2) * TS, phase: 1 });
   // FLOOR-guarded tile-offset decor relative to a column/row pair (never on a reserved tile)
   const putXY = (sprite, tx, ty, ox = 0.5, oy = 0.85, phase = 0) => {
     if (tx >= 0 && ty >= 0 && tx < tw && ty < th && tiles[ty * tw + tx] === FLOOR && !reserved.has(ty * tw + tx)) D.push({ sprite, x: (tx + ox) * TS, y: (ty + oy) * TS, phase });
   };
-  // torchpost pairs flank the station (top) and the exit (bottom) — symmetric in x
-  // (station sprite draws at col cx+0.5 → flanks cx-3/cx+3; door axis is col edge cx → flanks cx-3/cx+2)
+  // torchpost pairs flank the station (top) and the exit (bottom) — R20/B2: with the odd width
+  // both pairs are now TRUE mirror pairs about the centre column (was cx-3/cx+2 at the door)
   putXY('ruin_torchpost', cx - 3, stationRow + 1, 0.5, 0.85, 0); putXY('ruin_torchpost', cx + 3, stationRow + 1, 0.5, 0.85, 1);
-  putXY('ruin_torchpost', cx - 3, th - 3, 0.5, 0.85, 1); putXY('ruin_torchpost', cx + 2, th - 3, 0.5, 0.85, 0);
+  putXY('ruin_torchpost', cx - 3, th - 3, 0.5, 0.85, 1); putXY('ruin_torchpost', cx + 3, th - 3, 0.5, 0.85, 0);
 
   // --- per-building SYMMETRIC reuse-sprite dressing (anchored to columns, mirrored in x).
   // R19 polish: the building's identity prop (goddess/board/furnace/mannequin/shelf/bed) is the
   // INTERACTIVE station hub.js places at rooms[id] — never duplicated here as background decor.
+  // R20/B2: dressing swapped to the ruin-flavoured rint_* set (same sizes/anchors as the old
+  // clean town_* props, so positions carry 1:1) and every pair re-audited to mirror about cx.
   const midRow = Math.floor(th / 2);
   if (id === 'church') {
-    putXY('town_candles', cx - 2, stationRow + 1, 0.5, 0.85, 0); putXY('town_candles', cx + 1, stationRow + 1, 0.5, 0.85, 1);
-    putXY('town_stained', 3, 6); putXY('town_stained', tw - 4, 6);
-    putXY('town_stained', 3, 9); putXY('town_stained', tw - 4, 9);
-    putXY('town_arch', 2, midRow); putXY('town_arch', tw - 3, midRow);
-    putXY('town_pew', 4, 8); putXY('town_pew', tw - 5, 8);                                  // transept benches
-    for (const ry of [11, 13]) { putXY('town_pew', cx - 3, ry); putXY('town_pew', cx + 1, ry); }   // nave rows
-    putXY('town_candles', cx - 3, th - 3, 0.5, 0.85, 1); putXY('town_candles', cx + 2, th - 3, 0.5, 0.85, 0);
+    putXY('rint_candles', cx - 2, stationRow + 1, 0.5, 0.85, 0); putXY('rint_candles', cx + 2, stationRow + 1, 0.5, 0.85, 1);
+    putXY('rint_stained', 3, 6); putXY('rint_stained', tw - 4, 6);
+    putXY('rint_stained', 3, 9); putXY('rint_stained', tw - 4, 9);
+    putXY('rint_arch', 2, midRow); putXY('rint_arch', tw - 3, midRow);
+    putXY('rint_pew', 4, 8); putXY('rint_pew', tw - 5, 8);                                  // transept benches
+    for (const ry of [11, 13]) { putXY('rint_pew', cx - 3, ry); putXY('rint_pew', cx + 3, ry); }   // nave rows flanking the runner
+    putXY('rint_candles', cx - 3, th - 4, 0.5, 0.85, 1); putXY('rint_candles', cx + 3, th - 4, 0.5, 0.85, 0);
   } else if (id === 'guild') {
-    putXY('town_desk', cx - 3, stationRow + 2, 0.5, 0.9); putXY('town_desk', cx + 3, stationRow + 2, 0.5, 0.9);   // twin reception desks
-    putXY('town_lantern', 3, 2, 0.5, 0.85, 0); putXY('town_lantern', tw - 4, 2, 0.5, 0.85, 1);
-    putXY('town_lantern', 3, midRow, 0.5, 0.85, 1); putXY('town_lantern', tw - 4, midRow, 0.5, 0.85, 0);
-    putXY('town_bench', cx - 5, 6); putXY('town_bench', cx + 4, 6);                          // waiting benches
+    putXY('rint_desk', cx - 3, stationRow + 2, 0.5, 0.9); putXY('rint_desk', cx + 3, stationRow + 2, 0.5, 0.9);   // twin reception desks
+    putXY('rint_lantern', 3, 2, 0.5, 0.85, 0); putXY('rint_lantern', tw - 4, 2, 0.5, 0.85, 1);
+    putXY('rint_lantern', 3, midRow, 0.5, 0.85, 1); putXY('rint_lantern', tw - 4, midRow, 0.5, 0.85, 0);
+    putXY('rint_bench', cx - 5, 6); putXY('rint_bench', cx + 5, 6);                          // waiting benches
     putXY('ruin_banner', 5, 1, 0.5, 0.9, 0); putXY('ruin_banner', tw - 6, 1, 0.5, 0.9, 1);   // tattered guild colours
-    putXY('town_crate', 3, th - 3); putXY('town_crate', 4, th - 4); putXY('town_barrel', 3, th - 5);
-    putXY('town_crate', tw - 3, 8); putXY('town_barrel', tw - 3, 9);                          // stores by the east wall
+    putXY('rint_crate', 3, th - 3); putXY('rint_crate', 4, th - 4); putXY('rint_barrel', 3, th - 5);
+    putXY('rint_crate', tw - 3, 8); putXY('rint_barrel', tw - 3, 9);                          // stores by the east wall
   } else if (id === 'blacksmith') {
-    putXY('town_anvil', cx, stationRow + 2, 0.5, 0.9);
-    putXY('town_weaponrack', tw - 3, 5); putXY('town_grindstone', tw - 3, 8);                // forge-alcove kit
-    putXY('town_weaponrack', 2, 5); putXY('town_weaponrack', 2, 8);
-    putXY('town_crate', 5, th - 3); putXY('town_crate', tw - 6, th - 3);
-    putXY('town_barrel', 2, th - 3); putXY('town_barrel', 3, th - 4);
+    putXY('rint_weaponrack', tw - 3, 5); putXY('rint_grindstone', tw - 3, 8);                // forge-alcove kit
+    putXY('rint_weaponrack', 2, 5); putXY('rint_weaponrack', 2, 8);
+    putXY('rint_crate', 5, th - 3); putXY('rint_crate', tw - 6, th - 3);
+    putXY('rint_barrel', 2, th - 3); putXY('rint_barrel', 3, th - 4);
   } else if (id === 'clothing') {
-    putXY('town_mannequin', cx - 2, 2, 0.5, 0.9); putXY('town_mannequin', cx + 2, 2, 0.5, 0.9);   // display trio with the station
-    putXY('town_rack', 4, 6); putXY('town_rack', tw - 5, 6);
-    putXY('town_rack', 4, 9); putXY('town_rack', tw - 5, 9);
-    putXY('town_mirror', 3, th - 4); putXY('town_mirror', tw - 4, th - 4);
-    putXY('town_lantern', 5, 4, 0.5, 0.85, 0); putXY('town_lantern', tw - 6, 4, 0.5, 0.85, 1);
+    putXY('rint_mannequin', cx - 3, stationRow, 0.5, 0.9); putXY('rint_mannequin', cx + 3, stationRow, 0.5, 0.9);   // display trio with the big station
+    putXY('rint_rack', 4, 6); putXY('rint_rack', tw - 5, 6);
+    putXY('rint_rack', 4, 9); putXY('rint_rack', tw - 5, 9);
+    putXY('rint_mirror', 3, th - 4); putXY('rint_mirror', tw - 4, th - 4);
+    putXY('rint_lantern', 5, 4, 0.5, 0.85, 0); putXY('rint_lantern', tw - 6, 4, 0.5, 0.85, 1);
   } else if (id === 'achievements') {
-    putXY('town_trophyshelf', 5, 2, 0.5, 0.9); putXY('town_trophyshelf', tw - 6, 2, 0.5, 0.9);    // niche shelves
-    for (const rx of [5, 9, tw - 11, tw - 7]) { putXY('town_pillar', rx, 4); putXY('town_pillar', rx, 10); }   // colonnade
-    putXY('town_banner_gold', 3, 5); putXY('town_banner_gold', tw - 5, 5);
-    putXY('town_banner_gold', 3, 9); putXY('town_banner_gold', tw - 5, 9);
+    putXY('rint_trophyshelf', 5, 2, 0.5, 0.9); putXY('rint_trophyshelf', tw - 6, 2, 0.5, 0.9);    // niche shelves
+    for (const rx of [5, 9, tw - 10, tw - 6]) { putXY('rint_pillar', rx, 4); putXY('rint_pillar', rx, 10); }   // colonnade (mirror pairs 5↔tw-6, 9↔tw-10)
+    putXY('rint_banner_gold', 3, 5); putXY('rint_banner_gold', tw - 4, 5);
+    putXY('rint_banner_gold', 3, 9); putXY('rint_banner_gold', tw - 4, 9);
   } else { // personal — the bed IS the interactive station; dress a cosy room around it
-    putXY('town_rug', cx, 6, 0.0, 0.6);
-    putXY('town_bookshelf', 2, 3); putXY('town_plant', tw - 3, 3);
-    putXY('town_chest2', tw - 3, th - 3); putXY('town_lamp2', 2, th - 4, 0.5, 0.85, 0);
-    putXY('town_barrel', 2, th - 3); putXY('town_plant', 2, 6);
+    putXY('rint_rug', cx, 6, 0.5, 0.6);
+    putXY('rint_bookshelf', 2, 3); putXY('rint_plant', tw - 3, 3);
+    putXY('rint_chest2', tw - 3, th - 3); putXY('rint_lamp2', 2, th - 4, 0.5, 0.85, 0);
+    putXY('rint_barrel', 2, th - 3); putXY('rint_plant', 2, 6);
     // NOTE: hub.injectRoomDecor() adds the gold-sink decor on top (anchored mid-room, FLOOR-guarded).
   }
 
-  const tileset = { floor: ['int_wood', 'int_wood2', 'int_stone', 'int_stone2', 'int_carpet', 'int_carpet2'], wall: 'int_wall', wallTop: 'int_wall_top' };
-  return { tw, th, tiles, floorVar, decor: D, rooms, tileset };
+  // R20/B2 (player problem 7): furniture you shouldn't walk through gets player-only collision
+  // (same demote-on-disconnect safety as makeCamp: station↔exit must stay reachable).
+  const SOLID_INT = {
+    rint_pew: 1, rint_desk: 2, rint_bench: 1, rint_rack: 2, rint_mirror: 1, rint_weaponrack: 1,
+    rint_grindstone: 1, rint_trophyshelf: 2, rint_bookshelf: 1, rint_crate: 1, rint_barrel: 1,
+    rint_mannequin: 1, rint_pillar: 1, rint_plant: 1, rint_chest2: 1,
+  };
+  for (const d of D) {
+    if (!SOLID_INT[d.sprite]) continue;
+    const tx = Math.floor(d.x / TS), ty = Math.floor(d.y / TS);
+    if (reserved.has(ty * tw + tx)) continue;
+    d.solid = SOLID_INT[d.sprite];
+  }
+  for (let guard = 0; guard < 16; guard++) {
+    const blk = new Uint8Array(tw * th);
+    for (const d of D) if (d.solid) {
+      const tx = Math.floor(d.x / TS), ty = Math.floor(d.y / TS);
+      blk[ty * tw + tx] = 1;
+      if (d.solid === 2) { if (tx > 0) blk[ty * tw + tx - 1] = 1; if (tx < tw - 1) blk[ty * tw + tx + 1] = 1; }
+    }
+    const seen = new Uint8Array(tw * th); const q = [(th - 2) * tw + cx]; seen[q[0]] = 1;
+    while (q.length) { const i = q.pop(); const x = i % tw, y = (i / tw) | 0;
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const nx = x + dx, ny = y + dy;
+        if (nx < 0 || ny < 0 || nx >= tw || ny >= th) continue; const ni = ny * tw + nx;
+        if (seen[ni] || tiles[ni] !== FLOOR || blk[ni]) continue; seen[ni] = 1; q.push(ni); } }
+    if (seen[stationRow * tw + cx]) break;       // exit reaches the station — done
+    let best = null, bd = Infinity;
+    for (const d of D) if (d.solid) { const dd = (d.x / TS - cx) ** 2 + (d.y / TS - stationRow) ** 2; if (dd < bd) { bd = dd; best = d; } }
+    if (!best) break;
+    best.solid = 0;
+  }
+
+  const tileset = {
+    floor: ['int_wood', 'int_wood2', 'int_stone', 'int_stone2', 'int_carpet', 'int_carpet2'],
+    wall: 'int_wall', wallTop: 'int_wall_top',
+    wallFace: 'int_wall_face', wallCap: 'int_wall_cap',   // R20/B2: 2.5D faces indoors too
+    voidTile: 'ruin_void',
+  };
+  return { tw, th, tiles, floorVar, decor: D, rooms, tileset, triggers };
 }

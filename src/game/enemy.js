@@ -9,6 +9,7 @@ import { Enemies } from './content/registry.js';
 import { BALANCE } from './balance.js';
 import { applyStatus, tickStatus } from './status.js';
 import { ENEMY_STATUS } from './content/status_tags.js';
+import { bossMoveTick } from './content/boss_moves.js';   // R20/B6: named boss attack patterns
 
 export class Enemy {
   constructor(def, x, y, world, opts = {}) {
@@ -55,6 +56,7 @@ export class Enemy {
     }
   }
   phaseShift(world) {
+    this.mv = null; this.mvLift = 0; this.mvCd = Math.max(this.mvCd ?? 0, 1.5);   // R20/B6: a phase shift interrupts the active move (incl. mid-air) + gives breathing room
     this.iframe = 0.7; this.enrage += 0.45; this.flash = 0.3;
     addShake(9);
     world.particles.ring(this.x, this.y, this.tint || P.redL, 28, 170);
@@ -107,9 +109,14 @@ export class Enemy {
     if (this.touchCd > 0) this.touchCd -= dt;
     const { slowMult, controlled } = tickStatus(this, dt, world);   // D6
     if (this.dead) return;                                          // died to a DoT
+    // R20/B6: generic per-def tick (boss_pillar lifetime + player body-block live here)
+    if (this.def.tick) { this.def.tick(this, world, dt); if (this.dead) return; }
     if (this.boss) {
       if (this.iframe > 0) this.iframe -= dt;
       if (this.phase < this.phaseThresh.length && this.hp / this.maxHp < this.phaseThresh[this.phase]) { this.phase++; this.phaseShift(world); }
+      // R20/B6: named boss moves (content/boss_moves.js) — while one is active it owns
+      // movement + its own hit checks for the frame; normal AI/contact is skipped.
+      if (this.spawnT <= 0 && !controlled && bossMoveTick(this, world, dt)) return;
     }
     const player = world.nearestPlayer ? world.nearestPlayer(this.x, this.y) : world.player;   // co-op: chase the closest living avatar
     const toP = player ? dist(this.x, this.y, player.x, player.y) : 9999;
@@ -227,8 +234,9 @@ export class Enemy {
     if (Math.abs(this.vx) > 2) this.facing = this.vx < 0 ? -1 : 1;
     world.moveActor(this, this.vx * dt, this.vy * dt);
 
-    // contact damage (a hard-CC'd enemy can't bite)
-    if (this.spawnT <= 0 && player && !player.dead && this.touchCd <= 0 && !controlled) {
+    // contact damage (a hard-CC'd enemy can't bite; a 0-damage entity — e.g. the R20
+    // evt_bomb mine — must not touch at all, or it would feed the player free i-frames)
+    if (this.damage > 0 && this.spawnT <= 0 && player && !player.dead && this.touchCd <= 0 && !controlled) {
       if (toP < this.radius * this.scale * 0.7 + player.radius) {
         const landed = player.takeDamage(this.damage, ang, world);
         if (landed && this.hitStatus && Math.random() < (this.hitStatus.chance ?? 1)) applyStatus(player, this.hitStatus.type, world, this.hitStatus);   // D6: on-touch status (only on a real hit — respects i-frames/dash/dodge)
@@ -262,7 +270,7 @@ export class Enemy {
     // status feedback glow (D6): slow=ice, burn=ember, poison=toxic, bleed=red
     const sk = this.status.burn ? P.emberL : this.status.poison ? P.toxic : this.status.slow ? P.ice : this.status.bleed ? P.redL : null;
     if (sk) glowWorld(this.x, this.y - this.radius * sc * 0.3, this.radius * 1.5 * sc, sk, 0.3);
-    const hopY = this.hop > 0 ? -Math.sin(Math.min(1, this.hop / 0.6) * Math.PI) * 7 : 0;
+    const hopY = (this.hop > 0 ? -Math.sin(Math.min(1, this.hop / 0.6) * Math.PI) * 7 : 0) - (this.mvLift || 0);   // R20/B6: mvLift = leap_slam airborne pixel lift (shadow stays grounded)
     const opts = { ax: sp.ax, ay: sp.ay, flipX: this.facing > 0, scale: sc };
     if (this.flash > 0) { opts.tint = '#ffffff'; opts.tintAmt = 0.9; }
     else if (this.tint) { opts.tint = this.tint; opts.tintAmt = 0.22; }

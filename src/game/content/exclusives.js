@@ -24,6 +24,13 @@ export const CHAR_EXCLUSIVE = {
   g_ranger: 'x_galeshot',
   g_warden: 'x_bastionwave',
   g_stormcaller: 'x_stormheart',
+  // R20: the six final heroes' signature pieces
+  h4_paladin: 'x_h4_paladin',
+  h4_chronomancer: 'x_h4_chronomancer',
+  h4_puppeteer: 'x_h4_puppeteer',
+  h4_gravekeeper: 'x_h4_gravekeeper',
+  h4_starcaller: 'x_h4_starcaller',
+  h4_bladedancer: 'x_h4_bladedancer',
 };
 export function exclusiveFor(charId) { return CHAR_EXCLUSIVE[charId] || null; }
 
@@ -94,3 +101,34 @@ X({ id: 'x_stormheart', name: '雷暴核心', bg: '#22224a', price: 142,
   desc: '【專屬】三道高速雷彈齊射，貫穿雷霆。',
   draw: (p) => { for (let i = 0; i < 3; i++) { const y = 4 + i * 4; p.line(3, y, 9, y, P.blueL); p.px(10, y, P.white); } p.line(11, 8, 14, 5, P.emberL); p.px(12, 8, P.emberL); },
   weapon: { name: '雷暴核心', damage: 12, fireRate: 3.0, projSpeed: 330, projCount: 3, spread: 0.16, pierce: 1, knockback: 16, projSprite: 'bolt', projColor: P.blueL, projRadius: 2.8, projLife: 1.0 } });
+
+// ---- R20: six signature weapons for the final h4_* heroes ----
+X({ id: 'x_h4_paladin', name: '聖壁誓盾', bg: '#3a3214', price: 148,
+  desc: '【專屬】擲出迴旋聖盾，沉重擊退、貫穿罪孽。',
+  draw: (p) => { p.ellipse(8, 8, 4, 5, P.gold); p.ellipse(8, 8, 2.6, 3.6, P.holy); p.vline(8, 5, 7, P.holyL); p.hline(6, 8, 5, P.holyL); p.px(8, 8, P.white); },
+  weapon: { name: '聖壁誓盾', damage: 24, fireRate: 1.6, projSpeed: 170, projCount: 2, spread: 0.5, pierce: 3, knockback: 85, projSprite: 'bolt', projColor: P.holy, projRadius: 5, projLife: 1.2, projScale: 1.5 } });
+
+X({ id: 'x_h4_chronomancer', name: '時砂漏刻', bg: '#1c2a3a', price: 142,
+  desc: '【專屬】緩慢漂流的時砂彈久滯不散，貫穿並遲滯敵蹤。',
+  draw: (p) => { p.line(5, 3, 11, 3, P.iceD); p.line(5, 13, 11, 13, P.iceD); p.line(5, 3, 8, 8, P.shardL); p.line(11, 3, 8, 8, P.shardL); p.line(5, 13, 8, 8, P.shardL); p.line(11, 13, 8, 8, P.shardL); p.px(8, 6, P.sand); p.px(8, 10, P.sand); p.px(8, 8, P.white); },
+  weapon: { name: '時砂漏刻', damage: 11, fireRate: 2.8, projSpeed: 105, projCount: 2, spread: 0.3, pierce: 4, knockback: 8, projSprite: 'bolt_void', projColor: P.sand, projRadius: 4, projLife: 2.8, status: { type: 'slow' } } });
+
+X({ id: 'x_h4_puppeteer', name: '傀儡心匣', bg: '#2e1a2e', price: 140,
+  desc: '【專屬】心匣彈出四道追魂絲線，纏殺四方之敵。',
+  draw: (p) => { p.rect(5, 6, 6, 6, P.woodD); p.rect(5, 6, 6, 1, P.sakuraD); p.px(8, 9, P.magenta || P.sakura); p.line(5, 6, 3, 3, P.sakuraL); p.line(11, 6, 13, 3, P.sakuraL); p.px(3, 3, P.white); p.px(13, 3, P.white); },
+  weapon: { name: '傀儡心匣', damage: 6, fireRate: 3.4, projSpeed: 160, projCount: 4, spread: 0.65, pierce: 0, knockback: 10, projSprite: 'bolt_void', projColor: P.sakura, projRadius: 2.6, projLife: 2.0, homing: 5.5 } });
+
+X({ id: 'x_h4_gravekeeper', name: '亡者名冊', bg: '#16201a', price: 145,
+  desc: '【專屬】翻開名冊喚出亡魂巨浪，緩行卻無人能擋。',
+  draw: (p) => { p.rect(4, 4, 8, 9, P.woodD); p.vline(8, 4, 12, P.ink); p.rect(4, 4, 8, 1, P.poison); p.px(6, 7, P.toxic); p.px(10, 7, P.toxic); p.line(5, 10, 7, 10, P.greenL); p.line(9, 10, 11, 10, P.greenL); },
+  weapon: { name: '亡者名冊', damage: 16, fireRate: 1.9, projSpeed: 135, projCount: 1, spread: 0.02, pierce: 6, knockback: 24, projSprite: 'bolt_void', projColor: P.poison, projRadius: 5.5, projLife: 2.4, projScale: 1.6, status: { type: 'poison' } } });
+
+X({ id: 'x_h4_starcaller', name: '墜星羅盤', bg: '#1a1a3a', price: 144,
+  desc: '【專屬】羅盤指引五道墜星扇射，星雨洗地。',
+  draw: (p) => { p.ring(8, 8, 5, P.astral); p.line(8, 4, 8, 8, P.astralL); p.line(8, 8, 11, 10, P.astralL); p.px(8, 8, P.white); p.px(4, 4, P.holyL); p.px(12, 5, P.holyL); p.px(11, 12, P.holyL); },
+  weapon: { name: '墜星羅盤', damage: 8, fireRate: 2.3, projSpeed: 265, projCount: 5, spread: 0.42, pierce: 1, knockback: 18, projSprite: 'bolt', projColor: P.astralL, projRadius: 2.8, projLife: 1.0 } });
+
+X({ id: 'x_h4_bladedancer', name: '無影劍匣', bg: '#241a30', price: 143,
+  desc: '【專屬】劍匣連綻三刃近身刃舞，舞步間血花飛濺。',
+  draw: (p) => { p.rect(5, 9, 6, 4, P.iron); p.rect(5, 9, 6, 1, P.steelL); p.line(6, 9, 3, 3, P.steelL); p.line(8, 9, 8, 2, P.white); p.line(10, 9, 13, 3, P.steelL); p.px(8, 2, P.sakuraL); },
+  weapon: { name: '無影劍匣', damage: 9, fireRate: 3.1, projSpeed: 250, projCount: 3, spread: 0.2, pierce: 1, knockback: 14, projSprite: 'bolt', projColor: P.steelL, projRadius: 2.6, projLife: 0.7, status: { type: 'bleed' } } });

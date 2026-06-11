@@ -214,6 +214,8 @@ export const runScene = {
 
     // special "harasser" events (mushrooms / surround ring (D2) / Higgs zoning (D3))
     this.evtMines = []; this.evtStrikes = []; this.surround = null; this.higgs = null;
+    // R20/B5: new event roster state (kamikaze squad / cross-mines / boulder lanes / treasure goblin)
+    this.evtBombers = []; this.evtBombs = []; this.evtBoulders = []; this.evtLanes = []; this.evtGoblin = null;
     this.nextEventAt = BALANCE.SURROUND_PERIOD[0];   // first event time from config (was hardcoded 40)
 
     // difficulty scaling + finale (final boss -> killable Reaper, E2)
@@ -597,6 +599,7 @@ export const runScene = {
     this.finalBossRef = this.world.spawnEnemy(def, bx, by, { hpScale, dmgScale, quiet: true });
     this.bossRef = this.finalBossRef; this.boss = true; this.finalBoss = true;
     this.evtMines = []; this.evtStrikes = []; this.surround = null; this.higgs = null;
+    this.evtBombers = []; this.evtBombs = []; this.evtLanes = []; this.evtBoulders = []; this.evtGoblin = null;   // R20/B5: stop tracking event mobs for the finale (live ones just fight on)
     this.banner = '最終首領 · ' + (def.name || 'BOSS') + ' 降臨！'; this.bannerT = 3.6;
     addShake(10); Sfx.play('boss'); Music.setMode('boss');
   },
@@ -685,11 +688,21 @@ export const runScene = {
       this.nextEventAt = this.run.time + (evBase + rng.next() * evRand) * BALANCE.SPECIAL_EVENT_FREQ_MULT;
     }
   },
+  // R20/B5: weighted roster (BALANCE.EVENT_WEIGHTS) with threat gates; an event that's
+  // already active zeroes its own weight so it can't double-stack.
   triggerEvent() {
-    const r = rng.next();
-    if (r < 0.4) this.evMushrooms();
-    else if (r < 0.74) this.evHiggs();
-    else this.evSurround();
+    const W = BALANCE.EVENT_WEIGHTS, th = this.threat;
+    const opts = [
+      [W.mushrooms, () => this.evMushrooms()],
+      [this.higgs ? 0 : W.higgs, () => this.evHiggs()],
+      [this.surround ? 0 : W.surround, () => this.evSurround()],
+      [th >= 2 ? W.bombers : 0, () => this.evBombers()],
+      [th >= 3 ? W.bombs : 0, () => this.evBombs()],
+      [th >= 4 ? W.boulders : 0, () => this.evBoulders()],
+      [this.evtGoblin ? 0 : W.goblin, () => this.evGoblin()],
+    ].filter((o) => o[0] > 0);
+    if (!opts.length) return;
+    rng.weighted(opts, (o) => o[0])[1]();
   },
   evMushrooms() {
     const n = 5 + Math.floor(this.threat / 2);
@@ -735,6 +748,92 @@ export const runScene = {
     if (this.higgs) return;
     this.higgs = { t: BALANCE.HIGGS_DURATION, next: 0.2 };
     this.banner = '希格斯的炸彈雨！持續轟炸卡位'; this.bannerT = 2.8; Sfx.play('boss'); addShake(4);
+  },
+  // ---- R20/B5 new events. All four ride on plain enemy entities so co-op guests see
+  // them through the normal `en` snapshot channel; telegraphs go through world.addBeam
+  // (the `bm` channel). Protocol byte-unchanged.
+  // 自爆小隊: a squad of kamikaze imps with per-instance scaled deathBlasts + a hard fuse.
+  evBombers() {
+    const n = BALANCE.EVT_BOMBER_COUNT + Math.floor(this.threat / 2);
+    const hpScale = (1 + this.threat * 0.08) * this.diffMul * this.curseHpMul;
+    const dmgScale = this.diffMul * this.earlyDmgGrace() * this.curseDmgMul;
+    const blast = Math.round((BALANCE.EVT_BOMBER_BLAST_DMG + Math.min(this.threat, 10) * 2) * dmgScale);
+    let made = 0;
+    for (let i = 0; i < n; i++) {
+      const a = rng.next() * TAU, r = 170 + rng.next() * 90;
+      const x = clamp(this.player.x + Math.cos(a) * r, TS * 2, this.world.pxW - TS * 2);
+      const y = clamp(this.player.y + Math.sin(a) * r, TS * 2, this.world.pxH - TS * 2);
+      if (this.world.solidAt(x, y)) continue;
+      const e = this.world.spawnEnemy('evt_bomber', x, y, { hpScale, dmgScale, quiet: true });
+      if (!e) continue;
+      e.deathBlast = { r: BALANCE.EVT_BOMBER_BLAST_R, dmg: blast, color: P.ember };   // per-instance → scales with difficulty (def has none)
+      e.evtFuse = BALANCE.EVT_BOMBER_FUSE * (0.8 + rng.next() * 0.4);
+      this.evtBombers.push(e); made++;
+    }
+    if (made) { this.banner = '自爆狂徒衝鋒！在貼臉前放倒他們'; this.bannerT = 2.8; Sfx.play('boss'); }
+  },
+  // 棋盤詭雷: lattice-snapped stationary mines that pop a CROSS shockwave (bomberman).
+  // Shooting one detonates it early — the cross also clears mobs, so it's a tool too.
+  evBombs() {
+    const n = BALANCE.EVT_BOMB_COUNT[0] + rng.int(0, BALANCE.EVT_BOMB_COUNT[1]);
+    const dmg = (BALANCE.EVT_BOMB_DMG + Math.min(this.threat, 12) * 1.5) * this.diffMul * this.earlyDmgGrace() * this.curseDmgMul;
+    let made = 0;
+    for (let i = 0; i < n; i++) {
+      const tx = Math.floor(this.player.x / TS) + rng.int(-7, 7), ty = Math.floor(this.player.y / TS) + rng.int(-5, 5);
+      const x = (tx + 0.5) * TS, y = (ty + 0.5) * TS;
+      if (x < TS * 2 || y < TS * 2 || x > this.world.pxW - TS * 2 || y > this.world.pxH - TS * 2 || this.world.solidAt(x, y)) continue;
+      if (dist(x, y, this.player.x, this.player.y) < 24) continue;   // never directly under your feet
+      const e = this.world.spawnEnemy('evt_bomb', x, y, { hpScale: 1 + this.threat * 0.06, quiet: true });
+      if (!e) continue;
+      e.evtFuse = BALANCE.EVT_BOMB_FUSE + i * 0.22; e.evtDmg = dmg; e.evtTel = 0;
+      this.evtBombs.push(e); made++;
+    }
+    if (made) { this.banner = '魂晶詭雷布陣！十字衝擊波 — 離開直線'; this.bannerT = 2.8; Sfx.play('boss'); }
+  },
+  // the cross detonation: 4 arms of stepped AoE + beams; arms hurt the player too.
+  evtBombCross(e) {
+    const L = BALANCE.EVT_BOMB_ARM_LEN, dmg = e.evtDmg || BALANCE.EVT_BOMB_DMG, p = this.player;
+    this.world.spawnExplosion(e.x, e.y, 18, P.laser, dmg * 0.7, { knockback: 60 });
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      for (let s = 1; s <= L; s++) {
+        const x = e.x + dx * s * TS, y = e.y + dy * s * TS;
+        this.world.particles.burst(x, y, 6, { color: [P.laser, P.shardL, '#ffffff'], speed: 50, size: 2, life: 0.3, glow: true });
+        this.world.dealAreaDamage(x, y, 12, dmg * 0.55, { knockback: 50 });
+      }
+      this.world.addBeam(e.x, e.y, e.x + dx * L * TS, e.y + dy * L * TS, P.laser);
+    }
+    if (p && !p.dead) {   // player check: within half a tile of either axis line, inside arm reach
+      const ax = Math.abs(p.x - e.x), ay = Math.abs(p.y - e.y), reach = L * TS + 8;
+      if ((ay < 10 + p.radius && ax < reach) || (ax < 10 + p.radius && ay < reach)) p.takeDamage(dmg, Math.atan2(p.y - e.y, p.x - e.x), this.world);
+    }
+    addShake(3); Sfx.play('boss');
+  },
+  // 滾石突進: telegraphed straight lanes, then heavy rolling crushers along them.
+  evBoulders() {
+    const n = BALANCE.EVT_BOULDER_COUNT[0] + rng.int(0, BALANCE.EVT_BOULDER_COUNT[1]);
+    const dmgScale = this.diffMul * this.earlyDmgGrace() * this.curseDmgMul;
+    const p = this.player;
+    for (let i = 0; i < n; i++) {
+      const off = (rng.next() - 0.5) * 220, dir = rng.chance(0.5) ? 1 : -1;
+      let x0, y0, dx, dy;
+      if (rng.chance(0.5)) { x0 = p.x - dir * 260; y0 = p.y + off; dx = dir; dy = 0; }
+      else { y0 = p.y - dir * 260; x0 = p.x + off; dx = 0; dy = dir; }
+      this.evtLanes.push({ t: 1.0 + i * 0.35, x0, y0, dx, dy, dmgScale, tel: 0 });
+    }
+    this.banner = '滾岩衝撞！盯緊直線預警'; this.bannerT = 2.8; Sfx.play('boss'); addShake(3);
+  },
+  // 寶藏哥布林: spawns already fleeing; catch it inside EVT_GOBLIN_LIFE for the payout.
+  evGoblin() {
+    if (this.evtGoblin) return;
+    const p = this.player, a = rng.next() * TAU;
+    const x = clamp(p.x + Math.cos(a) * 150, TS * 2, this.world.pxW - TS * 2);
+    const y = clamp(p.y + Math.sin(a) * 150, TS * 2, this.world.pxH - TS * 2);
+    const e = this.world.spawnEnemy('evt_goblin', x, y, { hpScale: (1 + this.threat * 0.18) * this.diffMul });
+    if (!e) return;
+    e.fleeing = true;                      // reuse the thief bolt-for-it movement (×1.7 speed)
+    e.evtLife = BALANCE.EVT_GOBLIN_LIFE;
+    this.evtGoblin = e;
+    this.banner = '寶藏哥布林出沒！在牠遁走前攔下'; this.bannerT = 3.0; Sfx.play('coin');
   },
   eventExplode(x, y, r, dmg) {
     this.world.spawnExplosion(x, y, r, P.ember, dmg * 0.7, { knockback: 80 });
@@ -795,6 +894,78 @@ export const runScene = {
       const s = this.evtStrikes[i]; s.t -= dt;
       if (s.t <= 0) { this.eventExplode(s.x, s.y, s.r, s.dmg); this.evtStrikes.splice(i, 1); }
     }
+    // ---- R20/B5 arms ------------------------------------------------------
+    // bombers: tick the hard fuse — a fuse-out just sets dead, and the normal death
+    // pipeline (world.update) fires the per-instance deathBlast + loot next frame.
+    if (this.evtBombers.length) {
+      for (const e of this.evtBombers) {
+        if (e.dead) continue;
+        e.evtFuse -= dt;
+        if (e.evtFuse <= 0) e.dead = true;
+        else if (e.evtFuse < 2 && (e.evtFuse % 0.3) < dt * 2) e.flash = 0.06;   // accelerating warning blink
+      }
+      this.evtBombers = this.evtBombers.filter((e) => !e.dead);
+    }
+    // cross-mines: fuse + last-second beam telegraph; detonation fires whether the fuse
+    // ran out OR the player shot it (its normal death loot already happened — the cross is extra).
+    for (let i = this.evtBombs.length - 1; i >= 0; i--) {
+      const e = this.evtBombs[i];
+      if (!e.dead) {
+        e.evtFuse -= dt; e.evtTel -= dt;
+        if (e.evtFuse <= 0) { e.dead = true; continue; }   // detonate next pass (keeps kill + fuse paths identical)
+        if (e.evtFuse < 1.0 && e.evtTel <= 0) {
+          e.evtTel = 0.09; const L = BALANCE.EVT_BOMB_ARM_LEN * TS;
+          this.world.addBeam(e.x - L, e.y, e.x + L, e.y, withAlpha(P.laser, 0.5));
+          this.world.addBeam(e.x, e.y - L, e.x, e.y + L, withAlpha(P.laser, 0.5));
+          e.flash = 0.04;
+        }
+        continue;
+      }
+      this.evtBombCross(e);
+      this.evtBombs.splice(i, 1);
+    }
+    // boulder lanes: telegraph countdown → spawn the crusher on its fixed trajectory
+    for (let i = this.evtLanes.length - 1; i >= 0; i--) {
+      const ln = this.evtLanes[i]; ln.t -= dt; ln.tel -= dt;
+      if (ln.tel <= 0) { ln.tel = 0.09; this.world.addBeam(ln.x0, ln.y0, ln.x0 + ln.dx * 540, ln.y0 + ln.dy * 540, withAlpha(P.emberL, 0.45)); }
+      if (ln.t > 0) continue;
+      this.evtLanes.splice(i, 1);
+      const x = clamp(ln.x0, TS, this.world.pxW - TS), y = clamp(ln.y0, TS, this.world.pxH - TS);
+      const e = this.world.spawnEnemy('evt_boulder', x, y, { dmgScale: ln.dmgScale, hpScale: 1 + this.threat * 0.15, quiet: true });
+      if (e) { e.evtVX = ln.dx * BALANCE.EVT_BOULDER_SPEED; e.evtVY = ln.dy * BALANCE.EVT_BOULDER_SPEED; e.evtLife = BALANCE.EVT_BOULDER_LIFE; this.evtBoulders.push(e); addShake(2); }
+    }
+    // boulders: manual straight integration (overrides AI drift/knockback so the lane stays honest)
+    for (let i = this.evtBoulders.length - 1; i >= 0; i--) {
+      const e = this.evtBoulders[i];
+      if (e.dead) { this.evtBoulders.splice(i, 1); continue; }   // smashed by the player — normal loot path
+      e.evtLife -= dt;
+      e.x += e.evtVX * dt; e.y += e.evtVY * dt;
+      e.vx = 0; e.vy = 0;
+      if (e.evtLife <= 0 || e.x < -40 || e.y < -40 || e.x > this.world.pxW + 40 || e.y > this.world.pxH + 40) {
+        e.dead = true; e.processed = true;   // silent crumble: no loot, no kill count
+        this.world.particles.burst(e.x, e.y, 10, { color: [P.gray3, P.gray2], speed: 60, size: 2.5, life: 0.4 });
+        this.evtBoulders.splice(i, 1);
+      }
+    }
+    // treasure goblin: escape timer; a real kill pays a guaranteed equip on top of dropLoot's gold
+    if (this.evtGoblin) {
+      const g = this.evtGoblin;
+      if (g.dead) {
+        const d = this.world.rollEquipment(2 + (this.run.dropQuality || 0));
+        if (d) this.world.addPickup('equip', g.x, g.y, 1, { def: d });
+        this.world.particles.text(g.x, g.y - 18, '寶藏入手！', { color: P.goldL, size: 14, weight: '900' });
+        this.evtGoblin = null;
+      } else {
+        g.evtLife -= dt;
+        if ((g.evtLife % 0.5) < dt * 2) this.world.particles.burst(g.x, g.y - 8, 2, { color: [P.goldL], speed: 20, size: 1.5, life: 0.4, glow: true });   // coin-glint trail
+        if (g.evtLife <= 0) {
+          g.dead = true; g.processed = true;   // vanished — no loot for the slow
+          this.world.particles.text(g.x, g.y - 14, '哥布林遁走了…', { color: P.gray4, size: 12 });
+          this.world.particles.ring(g.x, g.y, P.goldL, 12, 60);
+          this.evtGoblin = null;
+        }
+      }
+    }
   },
   drawEvents() {
     for (const m of this.evtMines) {
@@ -817,6 +988,13 @@ export const runScene = {
       strokeCircleWorld(s.x, s.y, s.r, withAlpha(P.redL, 0.4 + 0.4 * k), 2);
       fillCircleWorld(s.x, s.y, s.r * k, withAlpha(P.ember, 0.12));
     }
+    // R20/B5 overlays (host-side flair; the synced telegraphs are the beams above)
+    for (const e of this.evtBombers) if (!e.dead && e.evtFuse < 2.4) glowWorld(e.x, e.y, 8, P.ember, 0.18 + 0.18 * Math.sin(this.t * (10 - e.evtFuse * 3)));
+    for (const e of this.evtBombs) if (!e.dead) {
+      glowWorld(e.x, e.y, 7, P.laser, 0.22 + 0.18 * Math.sin(this.t * 6));
+      if (e.evtFuse < 1.0) strokeCircleWorld(e.x, e.y, 10 + (1 - e.evtFuse) * 4, withAlpha(P.laser, 0.5), 1.5);
+    }
+    if (this.evtGoblin && !this.evtGoblin.dead) glowWorld(this.evtGoblin.x, this.evtGoblin.y, 10, P.goldL, 0.3);
   },
 
   // continuous spawning from the current 1-3 active enemy types

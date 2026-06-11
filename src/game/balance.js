@@ -146,6 +146,41 @@ export const BALANCE = {
   HIGGS_DMG: 20,
   SPECIAL_EVENT_FREQ_MULT: 0.8,               // special events fire a bit more often
 
+  // ---- R20/B5 expanded event roster ---------------------------------------
+  // triggerEvent picks from this weight table (gates: bombers th>=2, bombs th>=3,
+  // boulders th>=4; an already-active higgs/surround/goblin zeroes its own weight).
+  EVENT_WEIGHTS: { mushrooms: 24, higgs: 20, surround: 16, bombers: 12, bombs: 12, boulders: 10, goblin: 6 },
+  EVT_BOMBER_COUNT: 6,                        // + threat/2 kamikaze imps per squad
+  EVT_BOMBER_FUSE: 6,                         // sec until forced self-detonation (±20%)
+  EVT_BOMBER_BLAST_R: 46,                     // per-instance deathBlast radius
+  EVT_BOMBER_BLAST_DMG: 26,                   // base blast dmg (scaled by diff/threat in run.js)
+  EVT_BOMB_COUNT: [5, 3],                     // [base, +random] lattice mines per volley
+  EVT_BOMB_FUSE: 2.5,                         // sec until the cross shockwave
+  EVT_BOMB_ARM_LEN: 3,                        // cross arm reach, in tiles
+  EVT_BOMB_DMG: 22,                           // base cross dmg (scaled in run.js)
+  EVT_BOULDER_COUNT: [3, 2],                  // [base, +random] telegraphed lanes
+  EVT_BOULDER_SPEED: 150,                     // px/s fixed lane speed
+  EVT_BOULDER_LIFE: 6,                        // sec before a boulder crumbles off-lane
+  EVT_GOBLIN_LIFE: 12,                        // sec before the treasure goblin escapes
+
+  // ---- R20/B6 boss moves ----------------------------------------------------
+  BOSSMOVE_CD_MULT: 1,                        // global cooldown scaler for all named moves
+  BOSSMOVE_FIRST_CD: 5,                       // sec after spawn before the first move
+  BOSSMOVE_SLAM_AIR: 0.9,                     // leap_slam airborne time (dodge window)
+  BOSSMOVE_SLAM_RADIUS: 64,                   // slam AoE
+  BOSSMOVE_SLAM_DMG_MULT: 1.6,                // × boss contact damage
+  BOSSMOVE_PILLAR_HP: 60,                     // boss_pillar def hp (×(1+stage·0.12) at spawn)
+  BOSSMOVE_PILLAR_LIFE: 8,                    // sec before pillars crumble
+  BOSSMOVE_PILLAR_COUNT: 9,                   // ring slots (one random gap stays open)
+  BOSSMOVE_PILLAR_RING: 86,                   // cage radius around the player
+  BOSSMOVE_CHARGE_SPEED: 330,                 // dash px/s
+  BOSSMOVE_CHARGE_TIME: 0.42,                 // per-dash duration (×3 dashes)
+  BOSSMOVE_CHARGE_DMG_MULT: 1.25,             // × boss contact damage per dash hit
+  BOSSMOVE_SHOCK_RAYS: 4,                     // + phase radial fronts
+  BOSSMOVE_SHOCK_SPEED: 230,                  // front march px/s
+  BOSSMOVE_SHOCK_REACH: 260,                  // front max distance
+  BOSSMOVE_SHOCK_DMG_MULT: 0.9,               // × boss contact damage on front touch
+
   // ---- status effects (D6 / 原#18) --------------------------------------
   // durations in seconds; control effects (stun/knockup) are halved on bosses.
   STATUS: {

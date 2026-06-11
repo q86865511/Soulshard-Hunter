@@ -59,13 +59,14 @@ const KEEPER_AREA = { priest: 'church', guildmaster: 'guild', receptionist: 'gui
 // R19: NPCs that stay OUTSIDE in the town exterior
 const TOWN_NPC_IDS = new Set(['guide', 'child', 'merchant', 'oldvet']);
 // R19: the 6 building interior areas (door target -> panel + station identity)
+// R20/B3: station sprites upgraded to the large ruin_st_* centrepieces (40-56px, B1 art)
 const BUILDINGS = {
-  church: { panel: 'talents', sprite: 'town_goddess', label: '女神像 · 天賦', color: P.shardL, name: '教堂', enterLabel: '進入 教堂' },
-  guild: { panel: 'guild', sprite: 'town_board', label: '任務板 · 公會', color: P.goldL, name: '冒險者公會', enterLabel: '進入 公會' },
-  blacksmith: { panel: 'smith', sprite: 'town_furnace', label: '鍛造爐 · 鐵匠鋪', color: P.emberL, name: '鐵匠鋪', enterLabel: '進入 鐵匠鋪' },
-  clothing: { panel: 'wardrobe', sprite: 'town_mannequin', label: '衣帽店', color: P.purpleL, name: '衣帽店', enterLabel: '進入 衣帽店' },
-  achievements: { panel: 'achievements', sprite: 'town_trophyshelf', label: '成就殿堂', color: P.gold, name: '成就殿堂', enterLabel: '進入 成就殿堂' },
-  personal: { panel: 'personal', sprite: 'town_bed', label: '個人小屋', color: P.greenL, name: '個人小屋', enterLabel: '進入 小屋' },
+  church: { panel: 'talents', sprite: 'ruin_st_goddess', label: '女神像 · 天賦', color: P.shardL, name: '教堂', enterLabel: '進入 教堂' },
+  guild: { panel: 'guild', sprite: 'ruin_st_board', label: '任務板 · 公會', color: P.goldL, name: '冒險者公會', enterLabel: '進入 公會' },
+  blacksmith: { panel: 'smith', sprite: 'ruin_st_furnace', label: '鍛造爐 · 鐵匠鋪', color: P.emberL, name: '鐵匠鋪', enterLabel: '進入 鐵匠鋪' },
+  clothing: { panel: 'wardrobe', sprite: 'ruin_st_mannequin', label: '衣帽店', color: P.purpleL, name: '衣帽店', enterLabel: '進入 衣帽店' },
+  achievements: { panel: 'achievements', sprite: 'ruin_st_trophy', label: '成就殿堂', color: P.gold, name: '成就殿堂', enterLabel: '進入 成就殿堂' },
+  personal: { panel: 'personal', sprite: 'ruin_st_bed', label: '個人小屋', color: P.greenL, name: '個人小屋', enterLabel: '進入 小屋' },
 };
 const AREA_TITLE = { town: '魂 晶 遺 鎮', church: '教 堂', guild: '冒 險 者 公 會', blacksmith: '鐵 匠 鋪', clothing: '衣 帽 店', achievements: '成 就 殿 堂', personal: '個 人 小 屋' };
 // task-6: a distinct colour per room so each region reads as its own space (not one flat hall)
@@ -119,6 +120,7 @@ export const hubScene = {
     this.stations = this.buildStations(areaId, R);
     this.npcs = this.buildNpcs(areaId, R);
     this.near = null; this.nearKind = null;
+    this.doorCd = 0.7;   // R20/B3: re-trigger cooldown so a spawn beside the glow tile can't bounce straight back
     if (this.petState) this.petState.x = null;   // pet re-spawns next to the hero in the new area
     this.injectRoomDecor();   // R18/B10: only acts in the personal interior now (FLOOR-guarded)
   },
@@ -179,13 +181,22 @@ export const hubScene = {
     if (Math.abs(h.vx) > 2) h.facing = h.vx < 0 ? -1 : 1;
     this.world.moveActor(h, h.vx * dt, h.vy * dt);
     if (h.moving) h.walkT += dt;
+    // R20/B3 (player problem 6): step onto a glowing door circle → walk straight in/out.
+    // Guarded by doorCd (set in loadArea) so the arrival spawn can't instantly bounce back;
+    // dialogue/panel/menu states already returned above, so a cutscene can't teleport you.
+    if (this.doorCd > 0) this.doorCd -= dt;
+    else if (this.world.triggers && this.world.triggers.length) {
+      const htx = Math.floor(h.x / TS), hty = Math.floor(h.y / TS);
+      const g = this.world.triggers.find((t) => t.tx === htx && t.ty === hty);
+      if (g) { this.enterDoor({ target: g.target }); return; }
+    }
     camera.targetX = h.x; camera.targetY = h.y - 6;
     if (META.pet) updatePetFollow(this.petState, h.x, h.y, h.facing, dt);   // R18/B10 pet trails the hero
     this.ambientFx(dt);   // R18/B2: drifting petals over the field + fireflies by the garden
     this.world.particles.update(dt);
 
     // nearest interactable (station building OR npc)
-    this.near = null; this.nearKind = null; let bd = 34;
+    this.near = null; this.nearKind = null; let bd = 40;   // R20/B3: 34→40 to match the bigger ruin_st_* stations
     for (const s of this.stations) { const d = dist(h.x, h.y, s.x, s.y); if (d < bd) { bd = d; this.near = s; this.nearKind = 'station'; } }
     for (const n of this.npcs) { const d = dist(h.x, h.y, n.x, n.y); if (d < bd) { bd = d; this.near = n; this.nearKind = 'npc'; } }
 
@@ -193,7 +204,7 @@ export const hubScene = {
     if (this.near && (pressed('interact') || pressed('enter'))) act = this.near;
     if (mouse.justDown) {
       const mx = mouse.x * view.dpr, my = mouse.y * view.dpr;
-      for (const s of this.stations) { const ss = worldToScreen(s.x, s.y - 10); if (dist(mx, my, ss.x, ss.y) < 46 * view.dpr) { act = s; this.nearKind = 'station'; } }
+      for (const s of this.stations) { const ss = worldToScreen(s.x, s.y - 10); if (dist(mx, my, ss.x, ss.y) < 56 * view.dpr) { act = s; this.nearKind = 'station'; } }   // R20/B3: 46→56 for the bigger station art
       for (const n of this.npcs) { const ss = worldToScreen(n.x, n.y - 10); if (dist(mx, my, ss.x, ss.y) < 40 * view.dpr) { act = n; this.nearKind = 'npc'; } }
     }
     // R19: panel hotkeys now open panels directly from anywhere (no station lookup needed)
@@ -600,7 +611,8 @@ export const hubScene = {
     // R19: the personal room is its own interior area now — only inject the gold-sink decor there
     if (this.area !== 'personal' || !this.rooms.personal) return;
     // R19: the gold-sink offsets (dx -6..+6, dy -2..+4) were authored around the old room CENTRE —
-    // anchor them mid-room (row 5.5 of the 16×12 interior), not at the top-centre station anchor.
+    // anchor them mid-room (row ~5.5 of the now-17×13 R20 interior; cx is the true centre column),
+    // not at the top-centre station anchor. Every placement below stays FLOOR-guarded.
     const anchor = { cx: this.rooms.personal.cx, cy: 5.5 * TS };
     for (const dd of placedDecor(META, anchor)) {
       const tx = Math.floor(dd.x / TS), ty = Math.floor(dd.y / TS);
@@ -1063,6 +1075,19 @@ export const hubScene = {
       const col = ROOM_THEME[this.area];
       if (col && this.world) { glowWorld(this.hero.x, this.hero.y, 220, col, 0.06); uiRect(0, 0, view.W, view.H, withAlpha(col, 0.04)); }
     }
+    // R20/B3: the walk-in door circles — a pulsing soul glow over the ruin_doorglow decal,
+    // plus a「踏入光圈」hint when the hero is about to step on one
+    if (this.world.triggers) {
+      const h0 = this.hero;
+      for (const g of this.world.triggers) {
+        const gx = (g.tx + 0.5) * TS, gy = (g.ty + 0.5) * TS;
+        glowWorld(gx, gy, 11, P.shardL, 0.16 + 0.10 * Math.sin(this.t * 3 + g.tx));
+        if (h0 && dist(h0.x, h0.y, gx, gy) < TS * 1.6 && (this.doorCd || 0) <= 0) {
+          const ss0 = worldToScreen(gx, gy - 16);
+          uiText(g.target === 'town' ? '踏入光圈 離開' : '踏入光圈 進入', ss0.x, ss0.y, { size: 11 * S, align: 'center', color: withAlpha(P.shardL, 0.85), weight: '800' });
+        }
+      }
+    }
     // stations + hero + npcs
     for (const s of this.stations) {
       // R19: a door-station has no sprite — the facade door IS the visual; just a soft warm glow
@@ -1119,8 +1144,8 @@ export const hubScene = {
     drawSpriteUI(csp.frames[0], view.W - 110 * S, 12 * S, 2.2 * S);
     uiText(String(META.gold), view.W - 84 * S, 30 * S, { size: 18 * S, color: P.goldL, weight: '800' });
     const footer = this.area === 'town'
-      ? '1 教堂　2 鐵匠　3 成就　4 公會　空白 出擊　靠近大門按【E】進出建築　Esc 設定'
-      : '靠近站點或 NPC 按【E】互動　·　靠近大門按【E】離開　·　1 教堂 2 鐵匠 3 成就 4 公會 空白 出擊　Esc 設定';
+      ? '1 教堂　2 鐵匠　3 成就　4 公會　空白 出擊　踏入門前光圈進出建築　Esc 設定'
+      : '靠近站點或 NPC 按【E】互動　·　踏入門口光圈離開　·　1 教堂 2 鐵匠 3 成就 4 公會 空白 出擊　Esc 設定';
     uiText(footer, view.W / 2, view.H - 16 * S, { size: 12 * S, align: 'center', color: P.gray3 });
     if (this.flashT > 0) uiText(this.flash, view.W / 2, view.H * 0.78, { size: 18 * S, align: 'center', color: withAlpha(P.goldL, Math.min(1, this.flashT)), weight: '800' });
     if (!this.panel && !this.dialogue) this.drawQuestTracker();
