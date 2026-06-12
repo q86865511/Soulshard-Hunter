@@ -22,3 +22,6 @@ tools/_wf_*
 # round 6: dev screenshot capture (tools/serve.mjs POST /__shot) + server secrets
 _shot.png
 server/.env
+
+# local-only progress journal (synced to Notion, not tracked in git)
+PROGRESS.md
