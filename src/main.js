@@ -31,6 +31,7 @@ import './art/town_church.js';
 import './art/town_guildforge.js';
 import './art/town_decor.js';
 import './art/town_personal.js';
+import './art/title_scene.js';          // R20.1: title-cover dark tower
 import './art/town_ruin_walls.js';      // R20/B1: 2.5D wall faces + depth bands + void tile + door glow
 import './art/town_ruin_facades2.js';   // R20/B1: 96×96 grand ruin facades
 import './art/town_ruin_stations2.js';  // R20/B1: large interior stations + boss_pillar
