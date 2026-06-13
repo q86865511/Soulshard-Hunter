@@ -75,3 +75,24 @@ R20 只補上最終 6 英雄(`h4_*`)的專屬武器,5 個 `h2_*` + 4 個 `h3_*` 
 - B2 enemy tuple **只附加尾欄位**,其餘 `en`/`bm`/`pr`/`pk`/`pl` 格式不變;host/guest 隨 CI 同版上線故相容;單人路徑不讀此欄位。
 - B3 僅 UI 文案 + 兩處既有 helper 取用。
 - 全部 additive;`server/`、save schema、單人模擬 byte 不變。
+
+---
+
+## R21.1 — 維護批次(測試稽核後清理,8 項)
+
+R21 完成後跑了一次全系統測試(動態實機 + Workflow 靜態/後端稽核,詳見 `docs/TEST_REPORT_R21.md`)。結論可發布、無高嚴重度問題;本批把確認的 8 項維護性清理一次補齊。低階修改交由 Sonnet 執行、Opus 逐項驗證 + 瀏覽器回歸。
+
+| # | 嚴重度 | 修正 | 檔案 |
+|---|---|---|---|
+| 1 | 中 | `boss_pillar` 的 `hp` 硬編碼 60 → 改讀 `BALANCE.BOSSMOVE_PILLAR_HP`(恢復單一真實來源;值不變) | `content/boss_moves.js:243` |
+| 2 | 低 | dev launcher `fakepool.mjs` feedback INSERT 補上 `image` 第 5 欄(解構 + push + admin-list map),比照 `smoke.mjs`;正式環境本就正常 | `server/test/fakepool.mjs` |
+| 3 | 低 | 升級「回復生命」fallback 的未定義 icon `item_heart` → 改用既有的 `ability_vitality`(`sym.heart`),co-op 訪客升級不再顯示靈彈圖示 | `scenes/run.js:114` |
+| 4 | 低 | 移除孤兒鍵 `BIGBOSS_TIME`(全庫零引用;終 Boss 實走 `LEVEL_TIME`) | `balance.js` |
+| 5 | 低 | 移除孤兒鍵 `MOB_SHARD_BOSS`(全庫零引用;boss 掉落走 `e.shard`) | `balance.js` |
+| 6 | 低 | guest `makeEnemy` 初始化 `e.mvLift = 0`,消除 R21 滯空欄位在 `applySnapshot` 前的 undefined 視窗(原靠 `||0` 防護) | `scenes/coop.js:98` |
+| 7 | 資訊 | `gen_heroes2.js` 標頭過時註解改正:`kills_5000`/`survive_600` 已由 `characters.js` 的 `meetsCondition`(`kills_N`/`survive_N` 泛用比對)支援,兩名隱藏英雄會正常自動解鎖 | `gen/gen_heroes2.js:16` |
+| 8 | 資訊 | 刪除 R19 死美術 `ruin_fc_*` 六個 facade sprite(已由 R20 `ruin_fc2_*` 取代,全庫零引用),`town_ruin_facades.js` 留為 stub 以免 `main.js` import 404 | `art/town_ruin_facades.js` |
+
+**安全確認**:① 刪鍵/刪美術前皆 grep 全庫確認零引用(僅自身定義 + 測試報告文字命中);② `meetsCondition` 的 `kills_N`/`survive_N` 泛用比對 + `META.stats.bestTime`(state.js 初始化於 :44、結算寫入於 :342)實證為真,故 #7 是改正而非掩蓋 bug。
+
+**驗證**:reload 後 boot 乾淨、`reg()` 計數不變;`ability_vitality`/`ruin_fc2_0` sprite 解析正常、`boss_pillar.hp===BALANCE.BOSSMOVE_PILLAR_HP`(60)、`BIGBOSS_TIME`/`MOB_SHARD_BOSS` 已成 undefined;`coopRoundTrip()` + mvLift 仍綠;hub 渲染正常;ruin D2 一分鐘 run smoke 正常;**`server/test` smoke 103/0 + social 65/0 全綠**。

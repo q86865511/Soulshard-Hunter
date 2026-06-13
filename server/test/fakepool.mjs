@@ -94,15 +94,15 @@ export function makeFakePool() {
       if (s.startsWith('DELETE FROM runs')) { const id = args[0]; const i = runs.findIndex((r) => String(r.id) === String(id)); if (i >= 0) runs.splice(i, 1); return { rows: [], rowCount: i >= 0 ? 1 : 0 }; }
       // ---- round16/7.1 feedback ----
       if (s.startsWith('INSERT INTO feedback')) {
-        const [user_id, guest_name, category, content] = args;
-        feedback.push({ id: ++fid, user_id, guest_name, category, content, status: 'pending', admin_note: null, created_at: new Date().toISOString() });
+        const [user_id, guest_name, category, content, image] = args;   // #4: image is the 5th column now
+        feedback.push({ id: ++fid, user_id, guest_name, category, content, image: image || null, status: 'pending', admin_note: null, created_at: new Date().toISOString() });
         return { rows: [], rowCount: 1 };
       }
       if (s.startsWith('SELECT f.id, COALESCE(u.username, f.guest_name')) {
         let rows = feedback.slice();
         if (s.includes('WHERE f.status = $3')) rows = rows.filter((f) => f.status === args[2]);
         rows = rows.sort((a, b) => (a.created_at < b.created_at ? 1 : -1)).slice(0, args[0])
-          .map((f) => ({ id: f.id, author: (f.user_id != null ? (users.find((u) => String(u.id) === String(f.user_id)) || {}).username : null) || f.guest_name || '訪客', category: f.category, content: f.content, status: f.status, admin_note: f.admin_note, created_at: f.created_at }));
+          .map((f) => ({ id: f.id, author: (f.user_id != null ? (users.find((u) => String(u.id) === String(f.user_id)) || {}).username : null) || f.guest_name || '訪客', category: f.category, content: f.content, status: f.status, admin_note: f.admin_note, created_at: f.created_at, image: f.image }));
         return { rows, rowCount: rows.length };
       }
       if (s.startsWith('UPDATE feedback SET')) {

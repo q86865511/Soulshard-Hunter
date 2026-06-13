@@ -240,7 +240,7 @@ export function bossMoveTick(e, world, dt) {
 // def.tick (generic enemy.js hook) drives lifetime + the players-only body block.
 Enemies.register({
   id: 'boss_pillar', name: '魂晶巨柱', sprite: 'boss_pillar', ai: 'chase', tier: 9, weight: 0,
-  hp: 60, speed: 0, damage: 0, radius: 7, xp: 2, gold: 2, shard: 0,
+  hp: BALANCE.BOSSMOVE_PILLAR_HP, speed: 0, damage: 0, radius: 7, xp: 2, gold: 2, shard: 0,
   bloodColor: P.purpleL, tint: null, knockbackResist: 0.95,
   desc: 'Boss 召出的魂晶囚柱——敵人穿行無阻，你過不去。找缺口，或者砸開一根。',
   tick(e, world, dt) {

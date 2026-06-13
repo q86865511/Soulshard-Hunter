@@ -95,7 +95,7 @@ export const coopScene = {
     const id = this.defList[idx]; const def = id && Enemies.get(id);
     if (!def) return null;
     const e = new Enemy(def, x, y, this.world, { quiet: true });
-    e.spawnT = 0; e.tx = x; e.ty = y; e.t = Math.random() * 6; e.flash = 0; e.status = {};
+    e.spawnT = 0; e.tx = x; e.ty = y; e.t = Math.random() * 6; e.flash = 0; e.status = {}; e.mvLift = 0;
     return e;
   },
   deathFx(e) { try { this.particles.death(e.x, e.y, (e.def && e.def.bloodColor) || P.green); } catch (err) { /* */ } },

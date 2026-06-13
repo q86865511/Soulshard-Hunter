@@ -14,15 +14,10 @@ import { Sfx } from '../../../engine/audio.js';
 // (game is being rebalanced harder — no stacked survivability).
 //
 // NOTE for the achievement/unlock system:
-//   Two characters use NEW achievement condition strings that
-//   `checkCharacterUnlocks` in characters.js does not yet honor. They load and
-//   run fine (an unrecognised condition is simply skipped — no throw), but the
-//   two hidden heroes will not auto-unlock until that function is extended with:
-//     - 'kills_5000'  -> unlock when (META.stats.kills || 0) >= 5000
-//                        (cumulative lifetime kills; META.stats.kills already exists)
-//     - 'survive_600' -> unlock when a single run survives >= 600 seconds.
-//                        Track e.g. META.stats.bestTime = Math.max(bestTime, run.time)
-//                        in run.js end-of-run handling, then test bestTime >= 600.
+//   Two characters use condition strings 'kills_5000' and 'survive_600'.
+//   Both are now fully supported by `checkCharacterUnlocks` in characters.js
+//   (lines ~199-200) — the two hidden heroes auto-unlock correctly when
+//   META.stats.kills >= 5000 or META.stats.bestTime >= 600.
 
 // ---------- Art palettes (cloak, cloakD, cloakL, trim, eye) ----------
 const H2_ART = {
