@@ -115,3 +115,13 @@ Boss 原本幾乎只有彈幕。新增 **4 個具名招式**（`src/game/content
 **`enemy.js` 連帶修正**：接觸傷害增加 `this.damage > 0` 閘——0 傷害實體（evt_bomb）原本會以 `takeDamage(0)` 觸發保底 1 傷＋ **0.7s 無敵幀**，站在雷上可刷出近乎永動的 i-frame（exploit），現在 0 傷害敵人完全不觸發接觸。
 
 **驗證**（`node tools/serve.mjs` ＋ preview_eval 手動 pump）：威脅 3/8/13 各強制觸發四事件 → 生成數正確、25s 後全部追蹤陣列歸零、零錯誤；射爆詭雷 → 提前移除＋十字 beam 出現；擊殺哥布林 → 保底裝備落地；滾岩接觸 → 實際扣血；`__DBG.coopRoundTrip()` 全綠（snapshot 編解碼含事件怪照常）。註：headless 測試時 R16 的 `hudTut` 首次教學會凍結 run.update——測試前設 `s.hudTut=false`（非本批 bug）。
+
+## 文件維護 — CLAUDE.md 精簡刷新（R20.1 後)
+
+`CLAUDE.md` 的「Current state」原本把 R5–R20 全部塞成兩大段牆,且架構樹停在 R7 前(缺 `town_ruin_*`/`title_scene`/`boss_moves`/`heroes_r20` 等)。本次重寫:
+
+- **Current state 改為索引制**:版本標示為對外 **V2.0**;保留 live-`__DBG.reg()` 驗證過的內容計數與「Systems in place」清單;R1–R20.1 壓成一行一條的 round 索引,詳情一律指向 `docs/changelog/ROUNDx.md`(維持「changelog 是版本記事唯一家」原則)。
+- **架構樹刷新**:補上 `art/title_scene.js`、`town_outdoor/pets_decor`、8 個 `town_ruin_*`、`scenes/*.js`、`game/net/*`、以及 `content/` 的 town/meta 與 R18–R20 系統檔(bank/town_gates/curses/daily/boss_moves/event_mobs/heroes_r20/weapons_r20/patchnotes/pets/room_decor 等)、`net/rt.js`/`social.js`。
+- **新增「Round 18–20 systems」段**:補齊 R7 之後缺的深入系統說明(多地圖遺鎮 hub 的 `makeCamp`/`makeInterior` 與 run biome opt-out、無盡/每日/週常終局模式、資料驅動 Boss 招式、局內事件敵人實體、城鎮 meta、最終 6 英雄)。
+
+**驗證**:純文件變更,無程式碼/行為改動;內容計數與檔名對照現行 repo(`src/` glob)逐一核對。
