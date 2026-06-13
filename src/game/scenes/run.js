@@ -111,7 +111,7 @@ function buildWeaponChoices(player) {
   }
   for (let i = opts.length - 1; i > 0; i--) { const j = rng.int(0, i); const t = opts[i]; opts[i] = opts[j]; opts[j] = t; }   // shuffle
   const pick = opts.slice(0, 3);
-  if (!pick.length) pick.push({ act: 'heal', wid: '', name: '回復生命', icon: 'item_heart', lvl: 0 });
+  if (!pick.length) pick.push({ act: 'heal', wid: '', name: '回復生命', icon: 'ability_vitality', lvl: 0 });
   return pick;
 }
 function applyWeaponChoice(player, opt, world) {

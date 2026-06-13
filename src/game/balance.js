@@ -10,7 +10,6 @@ export const BALANCE = {
   // ---- run timeline (E2 / 原#13) ----------------------------------------
   LEVEL_TIME: 20 * 60,                       // a run lasts 20 minutes
   MINIBOSS_TIMES: [5 * 60, 10 * 60, 15 * 60], // a DISTINCT mini-boss every 5 min
-  BIGBOSS_TIME: 20 * 60,                     // the level's final boss at 20:00
   REAPER_DELAY: 30,                          // killable Reaper 30s after big boss dies
   THREAT_PERIOD: 99,                         // round-6: ceiling now hits the documented ~13 (was 112 → capped at 11) + brisker ramp
   THREAT_CEIL: 13,                           // reported stage cap (= floor(LEVEL_TIME/THREAT_PERIOD)+1); threat itself keeps climbing during the Reaper window
@@ -75,7 +74,6 @@ export const BALANCE = {
   STORY_DROP_QUALITY: 2,                      // +dropQuality (better equip/item rolls)
   SHARD_DROP_MULT: 1.2,                       // 原#4: soulshard drop rate up (was 0.95)
   MOB_SHARD_BASE: 0.06,                       // 原#4: any mob has this base chance to drop a shard
-  MOB_SHARD_BOSS: 0.0,                        // bosses use their own e.shard; no base bonus
 
   // ---- round-17 -----------------------------------------------------------
   NOVA_CHANCE: [0.25, 0.35, 0.45],            // R17/1.9: 魂爆 procs by chance per kill (was every kill); explosion damage compensated up
