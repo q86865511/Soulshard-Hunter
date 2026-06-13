@@ -120,7 +120,14 @@ function boot() {
       const slot = coop.players.find((p) => p.cid === 'cG');
       const beforeX = slot.player.x; slot.player.netInput = { move: { x: 1, y: 0 }, dash: false };
       for (let i = 0; i < 120; i++) { keepAlive(); host.update(1 / 60); }
+      // R21: stamp a leap_slam-style airborne lift on one live enemy BEFORE the encode
+      // (the host scene is torn down once we switch to the guest, so encode must happen now)
+      // — verifies the new mvLift tuple field round-trips so the guest renders the lift.
+      const liftEnemy = host.world.enemies.find((e) => !e.dead);
+      if (liftEnemy) liftEnemy.mvLift = 4.6;
       const rs = buildRunStart(host); const snap = encodeSnapshot(host);
+      const liftTuple = liftEnemy && snap.en.find((x) => x[0] === liftEnemy._nid);
+      const liftEncOk = !!(liftTuple && liftTuple.length > 8 && Math.abs(liftTuple[8] - 46) <= 1);
       const out = { rsPlayers: rs.players.length, snapPlayers: snap.pl.length, snapEnemies: snap.en.length,
         snapProjectiles: snap.pr.length, hostPlayers: host.world.players.length, remoteMoved: slot.player.x - beforeX, hud: snap.hud };
       // feed into a guest scene
@@ -131,6 +138,9 @@ function boot() {
       out.guestEnemies = guest.guest ? guest.guest.enemies.size : -1;
       out.guestPlayers = guest.players ? guest.players.length : -1;
       out.guestProjectiles = guest.guest ? guest.guest.projectiles.length : -1;
+      // mvLift decoded onto the matching guest enemy? (null = no live enemy to test against)
+      const liftGuest = liftEnemy && guest.guest && guest.guest.enemies.get(liftEnemy._nid);
+      out.mvLiftRoundTrip = liftEnemy ? (liftEncOk && !!liftGuest && Math.abs((liftGuest.mvLift || 0) - 4.6) <= 0.2) : null;
       setScene(refs.title, {}); applyPending();
       return out;
     },

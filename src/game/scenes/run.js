@@ -32,7 +32,7 @@ import {
   fillCircleWorld, strokeCircleWorld, goldStr, ctxRaw, uiClipRound,
 } from '../../engine/renderer.js';
 import { drawHud, drawLowHpWarning, hudIcons, drawAchievementToasts } from '../hud.js';
-import { pressed, mouse } from '../../engine/input.js';
+import { pressed, mouse, currentKeyFor, keyLabel } from '../../engine/input.js';
 import { rng, dist, clamp, TAU } from '../../engine/math.js';
 import { P, withAlpha } from '../../engine/palette.js';
 import { getSprite, frameAt, iconOr } from '../../engine/sprites.js';
@@ -84,7 +84,8 @@ const LEVEL_TIME = BALANCE.LEVEL_TIME;
 // 6.2 首局戰鬥提示：在第一場戰鬥的指定秒數淡入淡出的底部橫幅（看過一次後不再）。
 const BATTLE_HINTS = [
   { t: 3, text: '武器自動瞄準並射擊，無需手動操作。' },
-  { t: 12, text: '按【空白】或【右鍵】可緊急閃避（短暫無敵）。' },
+  // R21: 衝刺鍵可重綁,動態顯示目前綁定鍵(預設 Shift),避免硬寫「空白/右鍵」與實際不符。
+  { t: 12, text: () => '按【' + keyLabel(currentKeyFor('dash')) + '】可緊急閃避（短暫無敵）。' },
   { t: 22, text: '按【B】隨時開啟商店，花費魂晶強化裝備。' },
   { t: 33, text: '按【M】查看放大地圖，按【Tab】查看目前配裝。' },
   { t: 45, text: '升級時時間暫停，從三個選項中挑選強化。' },
@@ -1516,7 +1517,7 @@ export const runScene = {
   // 6.2: tick + show the first-battle combat hints (fade in 0.5s · hold 3s · fade out 0.5s).
   tickBattleHints(dt) {
     if (META.tutorialBattleDone || this.coop) return;
-    if (this._bhIdx < BATTLE_HINTS.length && this.run.time >= BATTLE_HINTS[this._bhIdx].t) { this._bhActive = { text: BATTLE_HINTS[this._bhIdx].text, t: 0 }; this._bhIdx++; }
+    if (this._bhIdx < BATTLE_HINTS.length && this.run.time >= BATTLE_HINTS[this._bhIdx].t) { const bh = BATTLE_HINTS[this._bhIdx]; this._bhActive = { text: typeof bh.text === 'function' ? bh.text() : bh.text, t: 0 }; this._bhIdx++; }
     if (this._bhActive) { this._bhActive.t += dt; if (this._bhActive.t > 4) { this._bhActive = null; if (this._bhIdx >= BATTLE_HINTS.length) { META.tutorialBattleDone = true; saveMeta(); } } }
   },
   drawBattleHint() {
