@@ -1,0 +1,77 @@
+# Round 21 — 後期英雄專屬武器 · 雙人連線同步稽核 · 已知問題修正
+
+承接 R20 的兩項待辦 + 一項已知問題修正。全部 **frontend additive**;`server/`、save schema、單人模擬不變;co-op 協議僅在 enemy tuple **尾端附加一個欄位**(host/guest 同版部署故相容)。
+
+---
+
+## B1 — 9 把後期英雄專屬武器(需求:後期英雄專屬武器)
+
+R20 只補上最終 6 英雄(`h4_*`)的專屬武器,5 個 `h2_*` + 4 個 `h3_*` 仍缺。本批補齊,**CHAR_EXCLUSIVE 18→27、Equipment 51→60**。
+
+**改檔(僅一個,手寫、非 gen/):** `src/game/content/exclusives.js`
+
+沿用既有 `X({...})` helper + `CHAR_EXCLUSIVE` map,武器用既有「signature 自動武器」扁平 stat 格式(透過 `equipItem`→`makeEquipWeaponDef` 在執行期套 `PLAYER_DAMAGE_MULT`/crit;**非** `weapons_r20.js` 的 `r20Roll`)。每把配合該英雄定位 + 色系,icon 由 `X()` 自動註冊為 `equip_x_<hero>`。
+
+| 英雄 | 專屬武器 | 定位呼應 |
+|---|---|---|
+| h2_duelist 魂刃決鬥者 | 烈刃雙星 | 高速雙刃 + 流血(快攻決鬥) |
+| h2_warlock 腐蝕巫師 | 腐朽瘴囊 | 緩飄大範圍毒彈(範圍消耗) |
+| h2_trapper 陷阱師 | 裂地壓爆 | 沉重高擊退穿透彈(佈場) |
+| h2_voidcaller 虛空喚者 | 寂滅奇點 | 緩行高傷虛空巨彈(玻璃大砲) |
+| h2_warder 恆冬守望者 | 凜冬霜壁 | 扇形震波 + 緩速(防禦反制) |
+| h3_spearmaiden 魂矛巫女 | 破穹魂矛 | 高速 6 穿透長矛(站樁穿透) |
+| h3_plague 瘟疫醫師 | 疫癘藥瓶 | 三枚毒瓶散射 + 中毒(範圍消耗) |
+| h3_beastfang 獸牙馴者 | 嗜血追爪 | 三道追蹤獸爪 + 流血(野性近戰) |
+| h3_dragoon 龍騎先鋒 | 墜龍重矛 | 俯衝高傷重矛 + 擊退(裝甲先鋒) |
+
+**注入路徑零改動**:`run.js rollGearChoice` 以 `exclusiveFor(characterId)` + 32% 機率注入,純 data-driven,進 map 即生效。
+
+**驗證**(`node tools/serve.mjs` + preview_eval):boot 乾淨(`__GAME_ERROR__`=null);`__DBG.reg()` characters 27 / equipment 60;9 把全 `slot:'weapon'`+`exclusive:true`+`weapon` 定義齊備+icon sprite 已 bake;9 個 hero `exclusiveFor()` 對應正確;`CHAR_EXCLUSIVE` 鍵數 27;實機 `equipItem()` 裝上 6 把任一 → 自動開火、projectiles 生成、零 update 錯誤。
+
+---
+
+## B2 — 雙人連線 Boss/事件同步稽核 + 修 `mvLift`(需求:雙人連線 Boss 同步抽查)
+
+**稽核結論(逐一核對程式碼):** R20 的新 Boss 招式與 4 局內事件**絕大多數已被既有架構正確涵蓋**,唯一確認的視覺缺口是 leap_slam 的滯空抬升。
+
+| 稽核項 | 同步機制 | 結論 |
+|---|---|---|
+| 敵人/Boss 位置 | 主機權威 + guest 插值(`coop.js:182`) | OK,免改 |
+| `wall_cage` 魂柱 | 普通敵人實體走 `en` 頻道;不在快照即被剔除(`protocol.js:150`) | OK,主機碎裂後 guest 正常消失 |
+| 各招式 beam 預警(charge_combo / shock_lines / wall_cage 詠唱) | 全走 `bm` 頻道序列化(`protocol.js:113/165`) | OK,免改 |
+| 事件 beam(evt_bomb 十字 / evt_boulder 車道) | 同上 `bm` 頻道 | OK,免改 |
+| evt_boulder 移動 / evt_goblin 速度 / evt_bomber 引信 | 位置走主機權威快照;guest 僅渲染 | OK(speed/fuse 是主機側純量,guest 不需) |
+| 魂柱推擠玩家 | guest 自身 avatar 本地預測 + 向主機權威位置 reconcile(`coop.js:207-209`) | OK,不會真的穿牆 |
+| **leap_slam 滯空抬升 `e.mvLift`** | **只存於敵人實例,沒進 8 欄位 enemy tuple** | **NG → 本批修正** |
+
+**修正(`src/game/net/protocol.js`,additive):**
+- enemy 編碼 tuple 尾端附加 `t[8] = Math.round((e.mvLift||0)*10)`。
+- guest 解碼加 `e.mvLift = t.length > 8 ? (t[8]||0)/10 : 0`(**每幀重設**,招式結束自動釋放抬升;舊的 `t.length < 8` 截斷保護不變)。
+- `enemy.js:273` 的 `hopY` 早已用 `this.mvLift` 繪製,guest 端取得後即正確飛起(原本恆為 0 → 貼地滑行)。
+
+**回歸測試(`src/main.js __DBG.coopRoundTrip()` 擴充):** 在送出快照前對一隻 live 敵人蓋上 `mvLift=4.6`,斷言 ① 編碼 tuple `t[8]≈46`、② guest 解碼後該敵人 `mvLift≈4.6`。`mvLiftRoundTrip:true`、`guestRendered:true`、零錯誤。
+
+**驗證**:`coopRoundTrip()` 綠(含新 mvLift 斷言);reload 後單人 run 不受影響(tuple 尾欄位對單人無作用)。其餘稽核項依上表判定「已由主機權威涵蓋、無需改」。
+
+---
+
+## B3 — 閃避提示文案修正(需求:已知問題修正)
+
+`run.js BATTLE_HINTS` 第 12 秒橫幅原硬寫「按【空白】或【右鍵】可緊急閃避」,與實際**預設衝刺鍵 Shift**(`input.js` `ShiftLeft/ShiftRight→'dash'`)不符,且衝刺鍵自 R11/R17 起可重綁。
+
+**修正(`src/game/scenes/run.js`):**
+- 該提示改為 `text: () => '按【' + keyLabel(currentKeyFor('dash')) + '】可緊急閃避（短暫無敵）。'`,沿用 `input.js` 既有的 `currentKeyFor`/`keyLabel`(無需新 export)。
+- 橫幅啟動處(`updateBattleHints`)支援 `text` 為 function:`typeof bh.text === 'function' ? bh.text() : bh.text` —— 其他字串提示不受影響。
+
+**順掃**:實作 B1/B2 過程未發現其他確認的小 bug;4 個 headless 測試陷阱屬 by-design(玩家無感),本輪不動。
+
+**驗證**:`currentKeyFor('dash')`→`ShiftLeft`、`keyLabel`→「Shift」→ 橫幅「按【Shift】可緊急閃避（短暫無敵）。」;模擬 `applyKeybinds({dash:'KeyC'})` 後標籤即時變「C」,還原後回「Shift」。
+
+---
+
+## 相容性
+
+- B1 純資料、零 gameplay 碼改動。
+- B2 enemy tuple **只附加尾欄位**,其餘 `en`/`bm`/`pr`/`pk`/`pl` 格式不變;host/guest 隨 CI 同版上線故相容;單人路徑不讀此欄位。
+- B3 僅 UI 文案 + 兩處既有 helper 取用。
+- 全部 additive;`server/`、save schema、單人模擬 byte 不變。

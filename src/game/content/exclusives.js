@@ -31,6 +31,17 @@ export const CHAR_EXCLUSIVE = {
   h4_gravekeeper: 'x_h4_gravekeeper',
   h4_starcaller: 'x_h4_starcaller',
   h4_bladedancer: 'x_h4_bladedancer',
+  // R21: the five h2_* heroes' signature pieces (gen_heroes2)
+  h2_duelist: 'x_h2_duelist',
+  h2_warlock: 'x_h2_warlock',
+  h2_trapper: 'x_h2_trapper',
+  h2_voidcaller: 'x_h2_voidcaller',
+  h2_warder: 'x_h2_warder',
+  // R21: the four h3_* heroes' signature pieces (gen_heroes3)
+  h3_spearmaiden: 'x_h3_spearmaiden',
+  h3_plague: 'x_h3_plague',
+  h3_beastfang: 'x_h3_beastfang',
+  h3_dragoon: 'x_h3_dragoon',
 };
 export function exclusiveFor(charId) { return CHAR_EXCLUSIVE[charId] || null; }
 
@@ -132,3 +143,50 @@ X({ id: 'x_h4_bladedancer', name: '無影劍匣', bg: '#241a30', price: 143,
   desc: '【專屬】劍匣連綻三刃近身刃舞，舞步間血花飛濺。',
   draw: (p) => { p.rect(5, 9, 6, 4, P.iron); p.rect(5, 9, 6, 1, P.steelL); p.line(6, 9, 3, 3, P.steelL); p.line(8, 9, 8, 2, P.white); p.line(10, 9, 13, 3, P.steelL); p.px(8, 2, P.sakuraL); },
   weapon: { name: '無影劍匣', damage: 9, fireRate: 3.1, projSpeed: 250, projCount: 3, spread: 0.2, pierce: 1, knockback: 14, projSprite: 'bolt', projColor: P.steelL, projRadius: 2.6, projLife: 0.7, status: { type: 'bleed' } } });
+
+// ---- R21: five signature weapons for the h2_* heroes (gen_heroes2) ----
+X({ id: 'x_h2_duelist', name: '烈刃雙星', bg: '#2a2e3a', price: 136,
+  desc: '【專屬】高速綻放的雙生光刃，撕裂間滲血。',
+  draw: (p) => { p.line(4, 12, 11, 4, P.steelL); p.line(5, 12, 12, 4, P.white); p.line(12, 12, 5, 4, P.steelL); p.px(11, 4, P.gold); p.px(5, 4, P.gold); p.px(8, 8, P.redL); },
+  weapon: { name: '烈刃雙星', damage: 10, fireRate: 4.2, projSpeed: 260, projCount: 2, spread: 0.12, pierce: 1, knockback: 14, projSprite: 'bolt', projColor: P.steelL, projRadius: 2.6, projLife: 0.7, status: { type: 'bleed' } } });
+
+X({ id: 'x_h2_warlock', name: '腐朽瘴囊', bg: '#1c2414', price: 140,
+  desc: '【專屬】緩飄的瘴氣囊彈，久滯成池、侵蝕血肉。',
+  draw: (p) => { p.ellipse(8, 9, 3.6, 4.2, P.poisonD); p.ellipse(8, 9, 2, 2.8, P.poison); p.px(8, 9, P.toxic); p.px(6, 6, P.toxic); p.px(10, 7, P.toxic); p.px(8, 4, P.greenL); },
+  weapon: { name: '腐朽瘴囊', damage: 12, fireRate: 1.8, projSpeed: 150, projCount: 1, spread: 0.04, pierce: 2, knockback: 10, projSprite: 'bolt_void', projColor: P.poison, projRadius: 6, projLife: 2.4, projScale: 1.5, status: { type: 'poison' } } });
+
+X({ id: 'x_h2_trapper', name: '裂地壓爆', bg: '#3a2a14', price: 142,
+  desc: '【專屬】沉重的壓爆彈頭，轟然擊退成排來敵。',
+  draw: (p) => { p.ellipse(8, 9, 4, 3.4, P.iron); p.ellipse(8, 9, 4, 3.4, P.ink); p.rect(5, 7, 6, 2, P.steelL); p.px(8, 9, P.emberL); p.line(11, 9, 14, 6, P.emberL); p.px(13, 6, P.white); },
+  weapon: { name: '裂地壓爆', damage: 22, fireRate: 1.5, projSpeed: 200, projCount: 1, spread: 0.03, pierce: 3, knockback: 88, projSprite: 'bolt', projColor: P.emberL, projRadius: 5, projLife: 1.8, projScale: 1.4 } });
+
+X({ id: 'x_h2_voidcaller', name: '寂滅奇點', bg: '#1a1430', price: 148,
+  desc: '【專屬】緩行的虛空奇點，吞噬並貫穿一切途經之物。',
+  draw: (p) => { p.ring(8, 8, 5, P.purpleL); p.ellipse(8, 8, 3, 3, P.void); p.ellipse(8, 8, 1.4, 1.4, P.manaL); p.px(8, 8, P.white); p.px(3, 8, P.manaL); p.px(13, 8, P.manaL); },
+  weapon: { name: '寂滅奇點', damage: 30, fireRate: 1.3, projSpeed: 140, projCount: 1, spread: 0.02, pierce: 4, knockback: 20, projSprite: 'bolt_void', projColor: P.manaL, projRadius: 7, projLife: 2.6, projScale: 1.8 } });
+
+X({ id: 'x_h2_warder', name: '凜冬霜壁', bg: '#14283a', price: 144,
+  desc: '【專屬】扇形霜壁震波，擊退並凍緩成群之敵。',
+  draw: (p) => { p.rect(5, 5, 6, 7, P.iceD); p.rect(6, 5, 4, 6, P.ice); p.vline(8, 5, 11, P.shardL); p.hline(6, 9, 8, P.shardL); for (let i = 0; i < 3; i++) p.line(11, 8, 14, 5 + i * 2, P.shardL); },
+  weapon: { name: '凜冬霜壁', damage: 16, fireRate: 1.6, projSpeed: 180, projCount: 4, spread: 0.7, pierce: 1, knockback: 60, projSprite: 'bolt', projColor: P.shardL, projRadius: 3.4, projLife: 0.8, status: { type: 'slow' } } });
+
+// ---- R21: four signature weapons for the h3_* heroes (gen_heroes3) ----
+X({ id: 'x_h3_spearmaiden', name: '破穹魂矛', bg: '#16223a', price: 140,
+  desc: '【專屬】高速擲出的長魂矛，貫穿成列敵陣。',
+  draw: (p) => { p.line(3, 13, 13, 3, P.wood); p.rect(11, 2, 3, 3, P.steel); p.px(13, 1, P.steelL); p.px(11, 4, P.blueL); p.px(10, 6, P.gold); },
+  weapon: { name: '破穹魂矛', damage: 15, fireRate: 2.6, projSpeed: 330, projCount: 1, spread: 0.02, pierce: 6, knockback: 26, projSprite: 'bolt', projColor: P.blueL, projRadius: 3.2, projLife: 1.6, projScale: 1.3 } });
+
+X({ id: 'x_h3_plague', name: '疫癘藥瓶', bg: '#1c2418', price: 138,
+  desc: '【專屬】拋撒三枚毒瓶，炸開蔓延的疫癘毒霧。',
+  draw: (p) => { p.rect(6, 6, 4, 7, P.gray3); p.rect(6, 6, 4, 5, P.toxic); p.rect(7, 3, 2, 3, P.woodD); p.px(7, 2, P.bone); p.px(7, 9, P.greenL); p.px(8, 11, P.greenL); },
+  weapon: { name: '疫癘藥瓶', damage: 10, fireRate: 2.4, projSpeed: 165, projCount: 3, spread: 0.4, pierce: 1, knockback: 14, projSprite: 'bolt_void', projColor: P.toxic, projRadius: 3.4, projLife: 1.8, status: { type: 'poison' } } });
+
+X({ id: 'x_h3_beastfang', name: '嗜血追爪', bg: '#2a1c14', price: 140,
+  desc: '【專屬】釋出追蹤的三道獸爪，撕咬間血流不止。',
+  draw: (p) => { for (let i = 0; i < 3; i++) { const x = 4 + i * 3; p.line(x, 12, x + 2, 4, P.bone); p.px(x + 2, 4, P.white); } p.px(8, 13, P.emberL); p.px(6, 8, P.redL); },
+  weapon: { name: '嗜血追爪', damage: 9, fireRate: 3.2, projSpeed: 200, projCount: 3, spread: 0.5, pierce: 1, knockback: 16, projSprite: 'bolt', projColor: P.emberL, projRadius: 2.8, projLife: 1.6, homing: 5.0, status: { type: 'bleed' } } });
+
+X({ id: 'x_h3_dragoon', name: '墜龍重矛', bg: '#2a1414', price: 150,
+  desc: '【專屬】俯衝墜下的龍騎重矛，沉重貫穿、勢不可擋。',
+  draw: (p) => { p.line(4, 3, 12, 13, P.steelL); p.rect(3, 2, 3, 3, P.steel); p.px(2, 1, P.white); p.line(5, 5, 8, 4, P.red); p.px(7, 4, P.emberL); p.px(11, 12, P.steelL); },
+  weapon: { name: '墜龍重矛', damage: 38, fireRate: 1.1, projSpeed: 230, projCount: 1, spread: 0.02, pierce: 4, knockback: 80, projSprite: 'bolt', projColor: P.emberL, projRadius: 5.5, projLife: 2.0, projScale: 1.7 } });

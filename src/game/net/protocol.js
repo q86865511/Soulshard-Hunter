@@ -92,7 +92,8 @@ export function encodeSnapshot(scene) {
     let fl = 0; if (e.boss) fl |= EF.BOSS; if (e.flash > 0) fl |= EF.FLASH; if (e.charging) fl |= EF.CHARGE; if (e.elite) fl |= EF.ELITE;
     if (e.status) { if (e.status.slow) fl |= EF.SLOW; if (e.status.burn) fl |= EF.BURN; if (e.status.poison) fl |= EF.POISON; if (e.status.bleed) fl |= EF.BLEED; }
     en.push([e._nid, scene.coop.defIdx(e.id), Math.round(e.x), Math.round(e.y), e.facing > 0 ? 1 : -1,
-      Math.max(0, Math.min(255, Math.round((e.hp / e.maxHp) * 255))), fl, Math.round((e.scale || 1) * 10)]);
+      Math.max(0, Math.min(255, Math.round((e.hp / e.maxHp) * 255))), fl, Math.round((e.scale || 1) * 10),
+      Math.round((e.mvLift || 0) * 10)]);   // t[8] R21: leap_slam 滯空抬升 — guest 端 Boss 才會真的飛起而非貼地滑
   }
   // projectiles — palette-deduped sprite+colour; advanced client-side via velocity
   const ppMap = new Map(); const pp = []; const pr = [];
@@ -146,6 +147,7 @@ export function applySnapshot(guest, snap) {
     e.boss = !!(fl & EF.BOSS); e.flash = (fl & EF.FLASH) ? 0.1 : 0; e.charging = !!(fl & EF.CHARGE); e.elite = !!(fl & EF.ELITE);
     e.status = { slow: !!(fl & EF.SLOW), burn: !!(fl & EF.BURN), poison: !!(fl & EF.POISON), bleed: !!(fl & EF.BLEED) };
     e.scale = t[7] / 10; e.spawnT = 0;
+    e.mvLift = t.length > 8 ? (t[8] || 0) / 10 : 0;   // R21: reset every frame so the lift releases when the move ends
   }
   for (const [nid, e] of guest.enemies) if (!seen.has(nid)) { guest.onEnemyGone && guest.onEnemyGone(e); guest.enemies.delete(nid); }
   // projectiles: replace wholesale (advanced by velocity between snaps)
