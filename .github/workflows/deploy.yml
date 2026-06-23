@@ -1,56 +1,62 @@
-name: Deploy to Oracle
-
-# Continuous deployment: on every push to `main`, SSH into the OCI VM, fast-forward the
-# checked-out repo to the pushed commit, (re)start the API, and health-check it.
-# The static frontend is served by Caddy straight from the repo working tree, so the
-# `git reset` alone updates it — there is no build step. See docs/DEPLOY.md.
+# ============================================================================
+# deploy.yml — 自動部署 Soulshard 到 soulshard.terrychou.com
+# ----------------------------------------------------------------------------
+# 與履歷主站「彼此解耦」:本 repo 有自己的 self-hosted runner 與這條獨立 pipeline。
+# push 到 main → 本 repo 在 Oracle A1(cfwebsite)上的 runner 部署:
+#   1) 靜態前端 rsync 到 /srv/soulshard(Caddy file_server 服務)
+#   2) 後端 server/(Node+Fastify+Postgres)同步到 ~/soulshard/server 並 docker compose 重建
+#   3) 經本機 Caddy 做 /api/health 健康檢查
+# 零入站:runner 主動連出領工作(取代舊的 SSH-to-duckdns 部署);對外一律經 Cloudflare Tunnel。
 #
-# Required repo secrets (Settings -> Secrets and variables -> Actions):
-#   OCI_HOST     VM public IP or hostname (e.g. yourname.duckdns.org)
-#   OCI_USER     SSH user (e.g. ubuntu)
-#   OCI_SSH_KEY  the PRIVATE key whose public half is in the VM's ~/.ssh/authorized_keys
-#                (use a dedicated deploy key, not your personal key)
+# 主機一次性前置:
+#   ① 註冊本 repo 的 self-hosted runner(labels: self-hosted,linux,ARM64)
+#   ② ~/soulshard/server/.env 放好 JWT_SECRET / CORS_ORIGIN(workflow 不覆蓋,保留帳號/DB)
+#   ③ repo variable DEPLOY_ENABLED=true
+# ============================================================================
+
+name: Deploy soulshard.terrychou.com
 
 on:
+  workflow_dispatch:
   push:
     branches: [main]
-  workflow_dispatch: {}            # also allow a manual run from the Actions tab
 
 concurrency:
-  group: deploy-oracle
-  cancel-in-progress: false        # never interrupt an in-flight deploy
+  group: deploy-soulshard-${{ github.ref }}
+  cancel-in-progress: false        # 部署排隊、不互相中斷
 
 jobs:
   deploy:
-    runs-on: ubuntu-latest
+    name: Deploy static + backend (self-hosted ARM)
+    # 部署閘門:未設 DEPLOY_ENABLED=true 時整個 job 跳過(不失敗)。
+    if: ${{ vars.DEPLOY_ENABLED == 'true' }}
+    runs-on: [self-hosted, linux, ARM64]
     steps:
-      - name: SSH deploy to the OCI VM
-        uses: appleboy/ssh-action@v1
-        with:
-          host: ${{ secrets.OCI_HOST }}
-          username: ${{ secrets.OCI_USER }}
-          key: ${{ secrets.OCI_SSH_KEY }}
-          # abort on the first failing command — handled by `set -e` in the script below
-          # (ssh-action@v1 dropped the old `script_stop` input; it warned and was ignored)
-          script: |
-            set -e
-            cd ~/soulshard
-            git fetch --all --prune
-            git reset --hard origin/main      # match main exactly; keeps gitignored .env / node_modules
-            cd server
+      - uses: actions/checkout@v4
 
-            # --- Restart the API: uncomment the ONE block matching your setup (deploy doc §4) ---
-            # Docker (deps build inside the image — no host npm needed):
-            docker compose up -d --build
-            # systemd:
-            # npm install --omit=dev && sudo systemctl restart soulshard
-            # pm2:
-            # npm install --omit=dev && pm2 restart soulshard
+      # 1) 靜態前端 → /srv/soulshard(只放遊戲執行所需;排除後端與雜項;--delete 讓目標等於來源)
+      - name: Deploy static frontend
+        run: |
+          rsync -a --delete \
+            --exclude '.git' --exclude '.github' --exclude '.claude' \
+            --exclude 'server' --exclude 'node_modules' \
+            --exclude 'tools' --exclude 'test' --exclude 'docs' \
+            ./ /srv/soulshard/
 
-            # --- Health check (retry: a --build rebuild + db-healthcheck wait can take >4s) ---
-            ok=0
-            for i in $(seq 1 15); do
-              sleep 2
-              if curl -fsS http://localhost:8787/api/health >/dev/null; then ok=1; echo "  <- API healthy (try $i)"; break; fi
-            done
-            [ "$ok" = 1 ] || { echo "API did not become healthy in ~30s"; docker compose logs --tail=40 api; exit 1; }
+      # 2) 後端 → 同步 server/ 到穩定目錄(保留既有 .env)後 docker compose 重建。
+      #    沿用 ~/soulshard/server:compose 專案名/Postgres 資料卷不變 → 帳號與雲端存檔持久。
+      - name: Deploy backend (docker compose)
+        run: |
+          rsync -a --delete --exclude '.env' ./server/ ~/soulshard/server/
+          cd ~/soulshard/server
+          sudo docker compose up -d --build
+
+      # 3) 健康檢查:經本機 Caddy 打 /api/health(帶 Host 命中 soulshard vhost)
+      - name: Health check
+        run: |
+          for i in $(seq 1 24); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' -H "Host: soulshard.terrychou.com" http://127.0.0.1:8080/api/health || true)
+            if [ "$code" = "200" ]; then echo "backend healthy ($code)"; exit 0; fi
+            echo "waiting api... ($i) got=$code"; sleep 3
+          done
+          echo "health check failed"; exit 1
