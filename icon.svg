@@ -1,0 +1,10 @@
+<svg width="64" height="64" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Soulshard Hunter">
+  <rect width="64" height="64" rx="14" fill="#0b0d1a"/>
+  <rect x="2.5" y="2.5" width="59" height="59" rx="12" fill="none" stroke="#2a2f50" stroke-width="3"/>
+  <g stroke="#7a4a16" stroke-width="1.2" stroke-linejoin="round">
+    <polygon points="32,12 18,29 32,33" fill="#ffe3a6"/>
+    <polygon points="32,12 46,29 32,33" fill="#ffce6b"/>
+    <polygon points="18,29 32,54 32,33" fill="#eab048"/>
+    <polygon points="46,29 32,54 32,33" fill="#d68f33"/>
+  </g>
+</svg>
