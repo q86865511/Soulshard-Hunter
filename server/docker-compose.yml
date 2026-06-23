@@ -16,8 +16,6 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
-    ports:
-      - "5432:5432"   # expose for local inspection; remove in production
 
   api:
     build: .
