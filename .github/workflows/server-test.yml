@@ -1,0 +1,28 @@
+name: server-test
+
+# 可重用 workflow：server 端的語法檢查 + 168 個 smoke/social 測試。
+# 由 ci.yml（PR 檢查）與 deploy.yml（部署前關卡）共用，避免重複定義。
+# 測試用 in-memory fakepool（SOULSHARD_NO_LISTEN=1），不需 Postgres、不開 port。
+
+on:
+  workflow_call: {}
+
+jobs:
+  server-test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: server
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+      - name: 安裝相依
+        run: npm ci
+      - name: 語法檢查
+        run: npm run check
+      - name: 測試（smoke + social）
+        run: npm test
