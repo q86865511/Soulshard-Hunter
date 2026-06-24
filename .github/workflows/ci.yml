@@ -1,0 +1,12 @@
+name: CI
+
+# PR 與 main push 的測試檢查。實際測試定義在可重用的 server-test.yml。
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    uses: ./.github/workflows/server-test.yml

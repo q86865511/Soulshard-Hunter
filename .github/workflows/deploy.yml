@@ -21,7 +21,12 @@ concurrency:
   cancel-in-progress: false        # never interrupt an in-flight deploy
 
 jobs:
+  # 部署前先跑 server 測試（共用 server-test.yml）；測試紅燈就不會 deploy。
+  test:
+    uses: ./.github/workflows/server-test.yml
+
   deploy:
+    needs: test
     runs-on: ubuntu-latest
     steps:
       - name: SSH deploy to the OCI VM
