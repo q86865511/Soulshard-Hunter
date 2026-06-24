@@ -15,6 +15,7 @@ gen_characters.js
 tools/_scratch_*
 tools/_integrate_scratch.mjs
 tools/_wf_*
+tools/_*.mjs
 
 # local-only Claude harness files
 .claude/settings.local.json
