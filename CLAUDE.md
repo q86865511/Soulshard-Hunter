@@ -49,7 +49,7 @@ src/
     gen/                    ← workflow-generated art (auto-loaded, fault-isolated)
   game/
     state.js                save/META, run lifecycle, base stats (makeBaseStats); cloud-sync seam
-    scene.js  scenes/       title.js / hub.js / run.js / coop.js (+ refs.js decoupler)
+    scene.js  scenes/       title.js / hub.js / run.js (assembler) + run/*.js (mixins) / coop.js (+ refs.js decoupler)
     world.js                tilemap collision, entities, combat, hazards, loot; makeCamp (ruin-town exterior) + makeInterior (interiors)
     player.js  enemy.js  projectile.js  pickup.js  hud.js  progression.js  maps.js  floor.js  toasts.js
     balance.js  status.js  cheats.js
@@ -72,6 +72,7 @@ assets/music/               ← the 12 recorded soundtrack MP3s (state-mapped in
 ALL difficulty / economy / pacing / status / map magic numbers live in `BALANCE` (one object) — tune there, not in gameplay code. Also exports `weaponMaxLevel`/`isWeaponMaxed` (weapons cap at **level 7**; character level is uncapped). Status effects live in `src/game/status.js` (`applyStatus`/`tickStatus`), enemy→player status tags in `content/status_tags.js`, achievement-gated unlocks in `content/unlocks.js`, the hidden dev cheat in `src/game/cheats.js` (Konami code → in-run dev panel; `window.__CHEATS`).
 
 ## Core loop (run.js)
+**File layout (R21.4):** `run.js` is a thin assembler — `export const runScene = Object.assign({}, …mixins)` over `src/game/scenes/run/*.js` (`shared.js` = file-scope helpers/constants; then `lifecycle`/`modes`/`events`/`combat`/`loop`/`coop`/`render_hud`/`shop_hidden`/`render`/`overlays` mixins). The scene is still ONE `this`-bound object (state lives on `this`); add new methods to the matching mixin, not back into run.js. The only duplicate key, `exit()`, lives in `lifecycle` (early) + `modes` (full) — `modes` wins via Object.assign order, as in the original literal.
 A run = **one biome, 20 minutes** (`BALANCE.LEVEL_TIME`) at a chosen **difficulty** (`run.difficulty`/`diffMul`).
 - **Threat** `this.threat` ramps 1→~13 over 20 min (`BALANCE.THREAT_PERIOD`) and drives enemy tier + scaling. Only **1-3 enemy types** active at once (`rotateTypes`, ranged biased down).
 - **Mini-bosses:** a DISTINCT boss at 5/10/15 min (`miniBossTick`/`spawnMiniBoss`, `BALANCE.MINIBOSS_TIMES`), never the biome final boss, never repeated.
