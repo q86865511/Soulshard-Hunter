@@ -2,6 +2,8 @@
 
 > 像素風 roguelike 生存遊戲（Vampire-Survivors-like）——原生 HTML5 Canvas + ES Modules,零建置、零依賴;可選配雲端帳號與 1~3 人即時連線合作。
 
+<p align="center"><img src="docs/cover.png" alt="魂晶獵手 Soulshard Hunter — 封面" width="100%"></p>
+
 [![CI](https://github.com/q86865511/Soulshard-Hunter/actions/workflows/ci.yml/badge.svg)](https://github.com/q86865511/Soulshard-Hunter/actions/workflows/ci.yml)
 [![Vanilla JS](https://img.shields.io/badge/Vanilla%20JS-ES%20Modules-f7df1e?logo=javascript&logoColor=black)](src/main.js)
 [![No Build](https://img.shields.io/badge/build-zero%20config-2ea44f)](tools/serve.mjs)
