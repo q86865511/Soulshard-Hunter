@@ -5,7 +5,7 @@
   "type": "module",
   "main": "src/server.js",
   "engines": {
-    "node": ">=18"
+    "node": ">=20"
   },
   "scripts": {
     "start": "node src/server.js",
@@ -15,10 +15,10 @@
     "check": "node --check src/server.js && node --check src/db.js && node --check src/social.js && node --check src/realtime.js && node --check src/wsgw.js"
   },
   "dependencies": {
-    "@fastify/cors": "^9.0.1",
-    "@fastify/rate-limit": "^9.1.0",
+    "@fastify/cors": "^11.0.1",
+    "@fastify/rate-limit": "^10.2.2",
     "bcryptjs": "^2.4.3",
-    "fastify": "^4.28.1",
+    "fastify": "^5.9.0",
     "jsonwebtoken": "^9.0.2",
     "pg": "^8.12.0",
     "ws": "^8.21.0",
