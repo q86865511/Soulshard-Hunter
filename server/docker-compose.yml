@@ -7,7 +7,9 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: soulshard
-      POSTGRES_PASSWORD: soulshard
+      # 本地 demo 預設為 soulshard;正式部署請在 .env 設定強密碼(POSTGRES_PASSWORD=…)覆寫。
+      # 註:db 服務未對外開 port,只在 compose 內網可達,故 demo 預設值風險受限。
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-soulshard}
       POSTGRES_DB: soulshard
     volumes:
       - pgdata:/var/lib/postgresql/data
@@ -24,7 +26,7 @@ services:
       db:
         condition: service_healthy
     environment:
-      DATABASE_URL: postgres://soulshard:soulshard@db:5432/soulshard
+      DATABASE_URL: postgres://soulshard:${POSTGRES_PASSWORD:-soulshard}@db:5432/soulshard
       JWT_SECRET: ${JWT_SECRET:?set a strong JWT_SECRET first, e.g. export JWT_SECRET=$(openssl rand -hex 48)}
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:5173,http://127.0.0.1:5173}
       ADMIN_USERS: ${ADMIN_USERS:-}   # comma-separated usernames granted the 🛠 admin console (read from .env)

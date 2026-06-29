@@ -78,3 +78,8 @@ npm run check     # node --check all server/src/*.js
 - 🚀 **Full deploy guide (zh-TW):** [`../docs/DEPLOY.md`](../docs/DEPLOY.md) — Oracle VM, domain, SSH, firewalls, Docker, Caddy (`/api` + `/rt`), CI/CD, and an external two-player test.
 - **Caddy must proxy BOTH** `handle /api/* { reverse_proxy localhost:8787 }` **and** `handle /rt { reverse_proxy localhost:8787 }` — the WS path is separate from `/api`.
 - Pushing to `main` auto-deploys via GitHub Actions ([`../.github/workflows/deploy.yml`](../.github/workflows/deploy.yml)).
+- **Production env(部署前務必設定 `.env`):**
+  - `JWT_SECRET` — ≥32 隨機字元,未設定/過弱會拒絕啟動(forgeable-token guard)。
+  - `POSTGRES_PASSWORD` — 正式部署設強密碼;docker-compose 的 db 與 `DATABASE_URL` 會一起套用(本地 demo 預設 `soulshard`,僅 compose 內網可達)。
+  - `CORS_ORIGIN` — 設成你的站點網域(勿用萬用字元),`ADMIN_USERS` 視需要設定。
+- **Runtime:** Node ≥ 20(Fastify 5)。
