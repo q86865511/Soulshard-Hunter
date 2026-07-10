@@ -14,6 +14,10 @@ import { P, withAlpha } from '../../engine/palette.js';
 import { Music } from '../../engine/audio.js';
 import { settingsUI } from '../ui/settings.js';
 
+// R21.8: UI breakpoint (CSS px) below which we assume a phone-class viewport and show
+// the keyboard-recommended hint (touch never feeds moveAxis — see engine/input.js).
+const MOBILE_HINT_MAX_W = 720;
+
 // R20.1 cover: the hero SQUAD assaulting the dark tower, in THREE depth ranks (far rank
 // small + high on the ridge → front rank big + low). Newest heroes (h4_*) carry the
 // lineup; the lead slot is the player skin. rx/ry are viewport fractions; s = scale on
@@ -75,7 +79,12 @@ const inside = (mx, my, r) => r && mx >= r.x && mx <= r.x + r.w && my >= r.y && 
 function fmtTime(s) { s = Math.floor(s || 0); const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60); return h > 0 ? (h + ' 小時 ' + m + ' 分') : (m > 0 ? (m + ' 分鐘') : '未滿 1 分'); }
 
 export const titleScene = {
-  enter() { this.t = 0; this.mode = 'menu'; this.confirm = -1; this.slots = slotSummaries(); Music.setMode('title'); },
+  enter() {
+    this.t = 0; this.mode = 'menu'; this.confirm = -1; this.slots = slotSummaries(); Music.setMode('title');
+    // R21.8: touch only maps to the mouse (engine/input.js) — movement needs a keyboard.
+    // Surface that honestly on narrow / coarse-pointer devices instead of implying touch support.
+    this.mobileHint = window.innerWidth < MOBILE_HINT_MAX_W || !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
+  },
 
   // ---- layout (shared by update hit-testing + render) ----------------------
   // R20.1: the menu is now ONE centred vertical column of 5 under the logo (player ask),
@@ -620,6 +629,7 @@ export const titleScene = {
     const nb = this.notesBtn(), nhov = inside(mx, my, nb);
     uiRect(nb.x, nb.y, nb.w, nb.h, withAlpha(nhov ? '#33251a' : '#171225', 0.92), { radius: 7 * S, stroke: nhov ? P.goldL : withAlpha(P.goldL, 0.45), lw: nhov ? 2.5 : 1.5 });
     uiText('📜 更新日誌 · ' + GAME_VERSION, nb.x + nb.w / 2, nb.y + nb.h / 2 + 1 * S, { size: 12 * S, align: 'center', baseline: 'middle', color: nhov ? '#fff' : P.goldL, weight: '700' });
+    if (this.mobileHint) uiText('📱 目前建議使用實體鍵盤遊玩　·　完整觸控操作尚未支援', view.W / 2, view.H * 0.885, { size: 11 * S, align: 'center', color: withAlpha(P.goldL, 0.9) });   // R21.8: honest platform support (non-blocking, above the vault line)
     uiText('金庫 ' + Math.round(META.gold || 0) + '　·　最高威脅 ' + (META.stats.bestStage || 0) + ' 級　·　最高分 ' + (META.stats.bestScore || 0), view.W / 2, view.H * 0.93, { size: 12 * S, align: 'center', color: P.gray3 });   // R17/2.1:「金庫」already labels it — no broken 🪙 glyph
     uiText('空白鍵 快速進入上次存檔　·　Esc 設定', view.W / 2, view.H * 0.97, { size: 11 * S, align: 'center', color: withAlpha(P.gray2, 0.8) });
   },

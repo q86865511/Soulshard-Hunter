@@ -1,0 +1,12 @@
+{
+  "name": "soulshard-hunter-frontend-tests",
+  "private": true,
+  "type": "module",
+  "description": "Dev/test-only frontend smoke tests (Playwright). The game runtime itself stays zero-dependency.",
+  "scripts": {
+    "test:frontend": "node frontend-smoke.mjs"
+  },
+  "devDependencies": {
+    "playwright": "^1.50.0"
+  }
+}

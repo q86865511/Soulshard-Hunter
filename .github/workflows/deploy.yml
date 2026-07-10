@@ -26,13 +26,16 @@ concurrency:
   cancel-in-progress: false        # 部署排隊、不互相中斷
 
 jobs:
-  # 部署前先跑 server 測試（共用 server-test.yml，GitHub-hosted ubuntu）；測試紅燈就不部署。
+  # 部署前先跑 server＋前端測試（共用可重用 workflow，GitHub-hosted ubuntu）；任一紅燈就不部署。
   test:
     uses: ./.github/workflows/server-test.yml
 
+  frontend:
+    uses: ./.github/workflows/frontend-test.yml
+
   deploy:
     name: Deploy static + backend (self-hosted ARM)
-    needs: test
+    needs: [test, frontend]
     # 部署閘門:未設 DEPLOY_ENABLED=true 時整個 job 跳過(不失敗)。
     if: ${{ vars.DEPLOY_ENABLED == 'true' }}
     runs-on: [self-hosted, linux, ARM64]

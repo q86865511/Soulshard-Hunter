@@ -120,9 +120,9 @@ npm run check   # 語法檢查(server 端各模組 node --check)
 npm test        # smoke(103)+ social(65)= 168 項
 ```
 
-CI 流程定義於 [`.github/workflows/ci.yml`](.github/workflows/ci.yml)(觸發於 PR 與 `main` push),實際測試步驟收斂在可重用的 [`.github/workflows/server-test.yml`](.github/workflows/server-test.yml),並由部署流程 [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml) 共用為部署前關卡。
+CI 流程定義於 [`.github/workflows/ci.yml`](.github/workflows/ci.yml)(觸發於 PR 與 `main` push),實際測試步驟收斂在可重用的 [`.github/workflows/server-test.yml`](.github/workflows/server-test.yml) 與 [`.github/workflows/frontend-test.yml`](.github/workflows/frontend-test.yml),並由部署流程 [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml) 共用為部署前關卡——**server 與前端任一紅燈都不部署**。
 
-前端為純 ESM、無建置,不走 `node --check`;改以**重載頁面 + 瀏覽器內自測**驗證:`window.__DBG` 提供 `reg()`(內容註冊表計數)、`startRun()`、`nav(name)`、`pump(n,dt)`,以及離線合作自測 `coopRoundTrip()` / `coopSilenceTest()` / `coopBossSyncTest()`(在無雙分頁、無中繼伺服器下驗證 host→guest 全鏈路)。細節見 [`CLAUDE.md`](CLAUDE.md) 的 *Run / test* 一節。
+前端為純 ESM、無建置,不走 `node --check`;自動化驗證走 **headless Chromium smoke 測試**(`cd test && npm ci && npm run test:frontend`,測試依賴隔離在 `test/`,遊戲 runtime 仍零依賴):涵蓋 boot、registry 計數基準、場景切換、首局 story 暫停與離線合作自測。開發時也可**重載頁面 + 瀏覽器內自測**:`window.__DBG` 提供 `reg()`(內容註冊表計數)、`startRun()`、`nav(name)`、`pump(n,dt)`,以及 `coopRoundTrip()` / `coopSilenceTest()` / `coopBossSyncTest()`(在無雙分頁、無中繼伺服器下驗證 host→guest 全鏈路)。細節見 [`CLAUDE.md`](CLAUDE.md) 的 *Run / test* 一節。
 
 ## 遊戲操作
 
@@ -139,6 +139,10 @@ CI 流程定義於 [`.github/workflows/ci.yml`](.github/workflows/ci.yml)(觸發
 | `Esc` | 暫停選單 / 設定(音量、震動、按鍵設定、重看教學…);城鎮中為選單(帳號 / 多人 / 排行榜 / 回報) |
 
 地面道具**撿起即用**(無道具欄);裝備撿取會跳出**前後數值差異**的選擇選單。每位角色武器上限 **6**、被動上限 **14**、武器等級上限 **Lv.7**(角色等級無上限)。
+
+### 已知限制:平台支援
+
+目前正式支援 **鍵盤＋滑鼠**(桌面瀏覽器)。手機/平板上畫面會自動縮放,但**觸控目前僅映射為滑鼠指標**——完整的觸控移動與動作操作(虛擬搖桿、衝刺、互動)尚未實作,角色無法只靠觸控移動;窄視窗或觸控裝置會在標題頁看到「建議使用實體鍵盤」提示。
 
 ## 遊戲流程
 

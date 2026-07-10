@@ -1,0 +1,29 @@
+name: frontend-test
+
+# 可重用 workflow：前端 smoke 測試（headless Chromium）。
+# 由 ci.yml（PR 檢查）與 deploy.yml（部署前關卡）共用。
+# 涵蓋 boot／registry 基準／場景切換／首局 story 暫停／co-op 離線自測，
+# 測試腳本自行啟停 tools/serve.mjs（詳見 test/frontend-smoke.mjs）。
+
+on:
+  workflow_call: {}
+
+jobs:
+  frontend-test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: test/package-lock.json
+      - name: 安裝測試相依
+        run: npm ci
+      - name: 安裝 Chromium
+        run: npx playwright install --with-deps chromium
+      - name: 前端 smoke 測試
+        run: npm run test:frontend
