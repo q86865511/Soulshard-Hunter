@@ -1,6 +1,6 @@
 name: CI
 
-# PR 與 main push 的測試檢查。實際測試定義在可重用的 server-test.yml。
+# PR 與 main push 的測試檢查。實際測試定義在可重用的 server-test.yml 與 frontend-test.yml。
 
 on:
   push:
@@ -10,3 +10,5 @@ on:
 jobs:
   test:
     uses: ./.github/workflows/server-test.yml
+  frontend:
+    uses: ./.github/workflows/frontend-test.yml
