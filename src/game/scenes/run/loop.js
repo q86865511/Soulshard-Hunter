@@ -17,6 +17,15 @@ import { refs } from '../refs.js';
 
 export const loopMixin = {
 
+  // 4.7: the 空白 used to launch from the hub carried into the run and instantly
+  // skipped the intro. Require space to be RELEASED first (arm), then a fresh press skips.
+  storyTick(dt) {
+    this.story.t -= dt;
+    if (!pressed('space')) this.story.armed = true;
+    if (this.story.t <= 0) this.story = null;
+    else if (this.story.armed && pressed('space')) this.story = null;
+  },
+
   // ---- update --------------------------------------------------------------
   update(dt) {
     this.t += dt;
@@ -36,6 +45,10 @@ export const loopMixin = {
     if (this.equipChoice) { this.updateEquipChoice(); return; }   // B1 equip menu pauses the field
     if (this.eventChoice) { this.updateEventChoice(); return; }   // 原#3 mini-boss event pauses the field
     if (this.curseChoice) { this.updateCurseChoice(); return; }   // R18/B7 endless curse pauses the field (before the level-up open below)
+    // R21.8: the chapter-intro story is a blocking onboarding state — freeze the world,
+    // in-run clock, spawns and AFK drain while it's up (solo/host-less only: online co-op
+    // can't freeze the SHARED world, so coop keeps the non-blocking countdown below).
+    if (this.story && !this.coop) { this.storyTick(dt); return; }
     if (this.coop) {
       // online co-op can't freeze the SHARED world: Esc opens a non-blocking leave menu,
       // Tab build-review / minimap are view-only overlays, the in-run shop is disabled.
@@ -80,9 +93,7 @@ export const loopMixin = {
     if (Cheats.enabled && Cheats.godmode && this.player) this.player.hp = this.player.maxHp;   // F2 invincibility
     this.aimCamera();
     if (this.bannerT > 0) this.bannerT -= dt;
-    // 4.7: the 空白 used to launch from the hub carried into the run and instantly
-    // skipped the intro. Require space to be RELEASED first (arm), then a fresh press skips.
-    if (this.story) { this.story.t -= dt; if (!pressed('space')) this.story.armed = true; if (this.story.t <= 0) this.story = null; else if (this.story.armed && pressed('space')) this.story = null; }
+    if (this.story) this.storyTick(dt);   // coop only after R21.8 (solo returns at the blocking gate above) — the shared world keeps running under the overlay
 
     if (this.challenge) this.updateChallenge(dt);   // 原#3 timed challenge
     this.endlessTick(dt);   // R18/B7: curse trigger + soul-tax drain + milestones (endless only)
