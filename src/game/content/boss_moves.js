@@ -85,7 +85,7 @@ export const BOSS_MOVES = {
         world.spawnExplosion(st.tx, st.ty, R, e.tint || P.emberL, 0);   // visual only — the slam must not friendly-fire the swarm
         for (const p of eachPlayer(world)) {
           if (!p || p.dead) continue;
-          if (dist(p.x, p.y, st.tx, st.ty) < R + p.radius) { p.takeDamage(dmg, Math.atan2(p.y - st.ty, p.x - st.tx), world); applyStatus(p, 'knockup', world); }
+          if (dist(p.x, p.y, st.tx, st.ty) < R + p.radius) { p.takeDamage(dmg, Math.atan2(p.y - st.ty, p.x - st.tx), world, 'boss:leap_slam'); applyStatus(p, 'knockup', world); }
         }
         addShake(8); Sfx.play('boss');
         return true;
@@ -159,7 +159,7 @@ export const BOSS_MOVES = {
         const dmg = e.damage * BALANCE.BOSSMOVE_CHARGE_DMG_MULT;
         for (const p of eachPlayer(world)) {
           if (!p || p.dead || st.hitSet.has(p)) continue;   // once per dash per player
-          if (dist(p.x, p.y, e.x, e.y) < e.radius * e.scale * 0.8 + p.radius) { p.takeDamage(dmg, st.a, world); st.hitSet.add(p); }
+          if (dist(p.x, p.y, e.x, e.y) < e.radius * e.scale * 0.8 + p.radius) { p.takeDamage(dmg, st.a, world, 'boss:charge_combo'); st.hitSet.add(p); }
         }
         if (st.t <= 0) {
           st.n--;
@@ -204,7 +204,7 @@ export const BOSS_MOVES = {
         world.particles.burst(x, y, 2, { color: [P.emberL, P.ember], speed: 30, size: 2, life: 0.25, glow: true });
         for (const p of eachPlayer(world)) {
           if (!p || p.dead || r.hitSet.has(p)) continue;     // once per ray per player
-          if (dist(p.x, p.y, x, y) < 15 + p.radius) { p.takeDamage(dmg, r.a, world); r.hitSet.add(p); }
+          if (dist(p.x, p.y, x, y) < 15 + p.radius) { p.takeDamage(dmg, r.a, world, 'boss:shock_lines'); r.hitSet.add(p); }
         }
       }
       return st.d >= BALANCE.BOSSMOVE_SHOCK_REACH;

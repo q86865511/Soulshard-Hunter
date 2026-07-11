@@ -242,7 +242,7 @@ export class Enemy {
     // evt_bomb mine — must not touch at all, or it would feed the player free i-frames)
     if (this.damage > 0 && this.spawnT <= 0 && player && !player.dead && this.touchCd <= 0 && !controlled) {
       if (toP < this.radius * this.scale * 0.7 + player.radius) {
-        const landed = player.takeDamage(this.damage, ang, world);
+        const landed = player.takeDamage(this.damage, ang, world, 'contact:' + ((this.def && this.def.id) || 'enemy'));
         if (landed && this.hitStatus && Math.random() < (this.hitStatus.chance ?? 1)) applyStatus(player, this.hitStatus.type, world, this.hitStatus);   // D6: on-touch status (only on a real hit — respects i-frames/dash/dodge)
         if (this.steal && !this.fleeing) this.doSteal(world, player);   // 原#11: grab loot then bolt
         this.touchCd = 0.55;

@@ -3,6 +3,7 @@ import { setScene } from '../scene.js';
 import { refs } from './refs.js';
 import { META, loadMeta, applySettings, setActiveSlot, activeSlot, slotSummaries, deleteSlot, syncFromCloud } from '../state.js';
 import { Net } from '../../net/api.js';
+import { Tele } from '../../net/telemetry.js';
 import { openAuth, openLeaderboard, isModalOpen, netToast } from '../../net/ui.js';
 import { openSocial } from '../../net/social.js';
 import { Characters } from '../content/registry.js';
@@ -127,7 +128,9 @@ export const titleScene = {
   },
 
   enterSlot(i) {
+    const wasEmpty = !!(this.slots && this.slots[i] && this.slots[i].empty);   // P1-3: first entry into a blank slot = a new save
     setActiveSlot(i); loadMeta(i); try { applySettings(); } catch (e) { /* */ }
+    if (wasEmpty) Tele.ev('save_created', {});
     // now that a slot is committed, reconcile it with the cloud (slot-gated; safe to pull)
     try { if (Net.isLoggedIn()) syncFromCloud().then(() => { try { applySettings(); } catch (e) { /* */ } }).catch(() => {}); } catch (e) { /* */ }
     setScene(refs.hub, {});

@@ -416,7 +416,7 @@ export class World {
         for (const player of this._playerSet()) {
           if (!player || player.dead) continue;
           if (circleHit(p.x, p.y, p.radius, player.x, player.y, player.radius)) {
-            const landed = player.takeDamage(p.damage, Math.atan2(p.vy, p.vx), this);
+            const landed = player.takeDamage(p.damage, Math.atan2(p.vy, p.vx), this, 'proj:enemy');
             if (landed && p.statusOnHit && Math.random() < (p.statusOnHit.chance ?? 1)) applyStatus(player, p.statusOnHit.type, this, p.statusOnHit);   // D6 (enemy ranged status — only on a real hit)
             if (p.pierce > 0) p.pierce--; else p.dead = true;
             break;
@@ -453,7 +453,7 @@ export class World {
     const b = e.deathBlast || e.def.deathBlast || {};
     const r = b.r || 42, dmg = b.dmg || Math.round((e.damage || 10) * 1.6), color = b.color || P.ember;
     this.spawnExplosion(e.x, e.y, r, color, dmg * 0.7, { knockback: 90 });   // visual + hurt other enemies
-    this.eachPlayer((p) => { if (!p.dead && dist(p.x, p.y, e.x, e.y) < r + p.radius) p.takeDamage(dmg, Math.atan2(p.y - e.y, p.x - e.x), this); });
+    this.eachPlayer((p) => { if (!p.dead && dist(p.x, p.y, e.x, e.y) < r + p.radius) p.takeDamage(dmg, Math.atan2(p.y - e.y, p.x - e.x), this, 'blast:' + ((e.def && e.def.id) || 'bomb')); });
   }
 
   spawnExplosion(x, y, radius, color = P.ember, damage = 0, opts = {}) {
@@ -518,7 +518,7 @@ export class World {
   }
   hazardStrike(h, def) {
     const dmg = def.dmg * BALANCE.TRAP_DMG_MULT * Math.min(2.2, 1 + (this.threat || 0) * 0.08);   // scales with threat, capped
-    this.eachPlayer((p) => { if (!p.dead && dist(p.x, p.y, h.x, h.y) < h.r + p.radius) p.takeDamage(dmg, Math.atan2(p.y - h.y, p.x - h.x), this); });
+    this.eachPlayer((p) => { if (!p.dead && dist(p.x, p.y, h.x, h.y) < h.r + p.radius) p.takeDamage(dmg, Math.atan2(p.y - h.y, p.x - h.x), this, 'hazard:' + (h.kind || 'trap')); });
     for (const e of this.enemies) { if (e.dead || e.spawnT > 0) continue; if (dist(e.x, e.y, h.x, h.y) < h.r + e.radius) e.hurt(dmg * 0.8, 0, 0, this, false); }
     this.particles.ring(h.x, h.y, def.color, 7, h.r * 3.5);
   }

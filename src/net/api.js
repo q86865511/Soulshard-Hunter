@@ -140,6 +140,8 @@ export const Net = {
   // ---- round16/7.6-7.8 admin (audit log / stats / player inspect) ----
   adminLogs(params = {}) { const qs = new URLSearchParams(params).toString(); return req('/admin/logs' + (qs ? '?' + qs : ''), { authed: true }); },
   adminStats() { return req('/admin/stats', { authed: true }); },
+  // ---- P1-3 telemetry aggregates (funnel/clear-rate/death-time/picks; 14-day window) ----
+  adminMetrics() { return req('/admin/metrics', { authed: true }); },
   adminPlayer(uid) { return req('/admin/player/' + uid, { authed: true }); },
   // ---- round16/7.3 "playing now" heartbeat (offline-first: swallow errors) ----
   pingPlaying(info = {}) { return req('/presence/play', { method: 'POST', authed: tokenAlive(token), body: { ...info, sid: clientSid() } }).catch(() => {}); },

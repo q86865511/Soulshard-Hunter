@@ -482,7 +482,7 @@ export function openAdmin() {
   const msg = $('div', { class: 'net-msg' });
   const setMsg = (t, ok) => { msg.textContent = t || ''; msg.className = 'net-msg' + (ok ? ' ok' : ''); };
 
-  const tabDefs = [['overview', '總覽'], ['players', '玩家'], ['runs', '對局'], ['cast', '廣播'], ['feedback', '回饋'], ['logs', '稽核'], ['stats', '統計']];
+  const tabDefs = [['overview', '總覽'], ['players', '玩家'], ['runs', '對局'], ['cast', '廣播'], ['feedback', '回饋'], ['logs', '稽核'], ['stats', '統計'], ['metrics', '數據']];
   const tabBtns = tabDefs.map(([id, label]) => $('button', { text: label, onclick: () => { adminTab = id; syncTabs(); render(); } }));
   const syncTabs = () => tabBtns.forEach((b, i) => b.classList.toggle('on', tabDefs[i][0] === adminTab));
 
@@ -618,6 +618,44 @@ export function openAdmin() {
         tableInto(top, ['#', '玩家', '最高分'], (s.topPlayers || []).map((p, i) => [$('td', { class: 'rank', text: '#' + (i + 1) }), $('td', { text: p.name }), $('td', { text: String(p.score) })]));
         body.append(sectionTitle('Top 5 分數'), top);
       } catch (e) { setMsg('無法載入統計'); }
+    } else if (adminTab === 'metrics') {   // P1-3 遙測（近 14 天匿名事件聚合）
+      try {
+        const s = await Net.adminMetrics();
+        const f = s.funnel || { saved: 0, started: 0, ended: 0 };
+        const pctStarted = f.saved ? ((f.started / f.saved) * 100).toFixed(1) + '%' : '—';
+        const pctEnded = f.started ? ((f.ended / f.started) * 100).toFixed(1) + '%' : '—';
+        const fCard = (k, v, col) => $('div', { class: 'net-stat-card' }, [$('div', { class: 'k', text: k }), $('div', { class: 'v', style: col ? 'color:' + col : '', text: v })]);
+        const funnelGrid = $('div', { style: 'display:flex;flex-wrap:wrap;gap:8px;margin-bottom:4px' }, [
+          fCard('存檔', String(f.saved)),
+          fCard('開局', f.started + '（' + pctStarted + '）', '#ffd479'),
+          fCard('結束', f.ended + '（' + pctEnded + '）', '#9be36b'),
+        ]);
+        const totalsTable = $('div', { class: 'net-table' });
+        tableInto(totalsTable, ['事件', '次數'], (s.totals || []).map((t) => [$('td', { text: t.name }), $('td', { text: String(t.n) })]));
+        const clearTable = $('div', { class: 'net-table' });
+        tableInto(clearTable, ['生態', '難度', '場次', '通關', '通關率'], (s.clearRate || []).map((c) => [
+          $('td', { text: BIOME_LABELS[c.biome] || c.biome || '—' }), $('td', { text: 'D' + c.diff }),
+          $('td', { text: String(c.total) }), $('td', { text: String(c.clears) }),
+          $('td', { text: c.total ? ((c.clears / c.total) * 100).toFixed(1) + '%' : '—' }),
+        ]));
+        const deaths = s.deathTime || [];
+        const maxN = Math.max(1, ...deaths.map((d) => d.n));
+        const deathBars = $('div', {}, deaths.length ? deaths.map((d) => $('div', { style: 'display:flex;align-items:center;gap:8px;margin:3px 0;font-size:12px' }, [
+          $('div', { style: 'width:56px;flex:none;color:#8ea0d8', text: d.minute + ' 分鐘' }),
+          $('div', { style: 'flex:1;background:#141832;border-radius:4px;overflow:hidden;height:14px' }, [$('div', { style: 'height:100%;width:' + ((d.n / maxN) * 100) + '%;background:linear-gradient(90deg,#ff8a7a,#ffd479)' })]),
+          $('div', { style: 'width:32px;flex:none;text-align:right;color:#dfe3f5', text: String(d.n) }),
+        ])) : [$('div', { style: 'padding:12px;color:#9aa3c8;text-align:center', text: '（無資料）' })]);
+        const picksTable = $('div', { class: 'net-table' });
+        tableInto(picksTable, ['#', '選項', '次數'], (s.picks || []).slice(0, 15).map((p, i) => [$('td', { class: 'rank', text: '#' + (i + 1) }), $('td', { text: p.picked }), $('td', { text: String(p.n) })]));
+        body.append(
+          $('div', { style: 'font-size:11px;color:#8ea0d8;margin-bottom:4px', text: '匿名遊玩事件・近 14 天・保留 ' + (s.retentionDays != null ? s.retentionDays : '—') + ' 天' }),
+          sectionTitle('首局漏斗'), funnelGrid,
+          sectionTitle('事件總量'), totalsTable,
+          sectionTitle('通關率'), clearTable,
+          sectionTitle('死亡時間分布'), deathBars,
+          sectionTitle('選卡榜（前 15）'), picksTable,
+        );
+      } catch (e) { setMsg('無法載入數據'); }
     }
   }
 

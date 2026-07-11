@@ -263,6 +263,8 @@ export const modesMixin = {
     if (this.dead) return;
     this.won = won; this.dead = true; this.deathT = 0;
     this.run.score = Math.floor(this.run.kills * 12 + this.run.stage * 400 + this.run.time + (this.run.difficulty || 1) * 600 + (this.reaperSlain ? 5000 : 0));
+    this.run.result = won ? 'clear' : 'death';   // P1-3: won here always means a cleared run; !won = died before clearing
+    if (this.player) this.run.weaponIds = (this.player.weapons || []).map((w) => w.def.id);   // snapshot loadout for run_ended (bankRun has no player)
     META.stats.bestStage = Math.max(META.stats.bestStage || 0, this.run.stage);
     META.stats.bestScore = Math.max(META.stats.bestScore || 0, this.run.score);
     if (won) { addShake(8); Sfx.play('levelup'); Music.setMode('victory'); } else { Music.setMode('death'); }

@@ -14,6 +14,7 @@ import { RARITY, applyChoice, getRunChoices, rarityOf } from '../../progression.
 import { setScene } from '../../scene.js';
 import { bankRun } from '../../state.js';
 import { settingsUI } from '../../ui/settings.js';
+import { Tele } from '../../../net/telemetry.js';
 import { refs } from '../refs.js';
 import { STAT_LABELS, fmtStat, inside } from './shared.js';
 
@@ -87,6 +88,8 @@ export const combatMixin = {
     if (pressed('slot1')) pick = 0; if (pressed('slot2')) pick = 1; if (pressed('slot3')) pick = 2;
     if (pick >= 0 && pick < this.choice.options.length) {
       const c = this.choice.options[pick];
+      // P1-3: which card was taken vs the three offered (kind:id), at run-time seconds
+      Tele.ev('level_choice', { picked: c.kind + ':' + c.id, offered: this.choice.options.map((o) => o.kind + ':' + o.id), t: Math.floor(this.run.time || 0) });
       applyChoice(this.run, this.player, this.world, c);
       this.world.particles.ring(this.player.x, this.player.y, P.manaL, 18, 100);
       this.banner = c.def.name; this.bannerT = 1.4; Sfx.play('levelup');
@@ -225,6 +228,7 @@ export const combatMixin = {
   },
   abandon() {
     this.run.score = Math.floor(this.run.kills * 12 + this.run.stage * 400 + this.run.time);
+    this.run.result = 'leave'; this.run.weaponIds = (this.player.weapons || []).map((w) => w.def.id);   // P1-3: tag result + snapshot loadout before bankRun
     Music.stop(); Sfx.play('portal');
     if (this.coop) { try { this.coop.dispose(); } catch (e) { /* */ } RT.leaveRoom(); this.coop = null; }   // host leaving closes the room for guests
     if (!this.dead && !this.banked) { this.banked = true; bankRun(this.run); }   // bank at most once (bankRun already applies bestStage/bestScore)

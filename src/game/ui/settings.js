@@ -18,10 +18,11 @@ export const settingsUI = {
   // internal offsets stay consistent) to fit the viewport — fixes button↔row overlap on short
   // / 1080p / scaled screens where uiScale() alone would cap the height and collide the content.
   // P1-2: panel grew to 700 design-units tall to hold the accessibility + assist rows.
-  fitScale() { return Math.min(uiScale(), (view.W * 0.94) / 520, (view.H * 0.96) / 700); },
+  // P1-3: 790 design-units to add the 隱私 (anonymous telemetry opt-out) section.
+  fitScale() { return Math.min(uiScale(), (view.W * 0.94) / 520, (view.H * 0.96) / 790); },
   layout() {
     const S = this.fitScale();
-    const pw = 520 * S, ph = 700 * S;
+    const pw = 520 * S, ph = 790 * S;
     const x = (view.W - pw) / 2, y = (view.H - ph) / 2;
     const rows = [];
     const colX = x + pw * 0.40, sldW = pw * 0.42;
@@ -38,6 +39,9 @@ export const settingsUI = {
     slider('hp', '輔助・敵人生命', { store: 'assist', min: 0.5, max: 1 });
     slider('dmg', '輔助・敵人傷害', { store: 'assist', min: 0.5, max: 1 });
     slider('speed', '輔助・敵人速度', { store: 'assist', min: 0.5, max: 1 });
+    header('隱私');   // P1-3
+    toggle('analytics', '匿名遊玩統計');
+    rows.push({ type: 'desc', label: '僅記錄匿名遊玩事件協助平衡調整・不含帳號與輸入內容', x, y: cy, w: pw }); cy += 16 * S;
     const note = { x, y: cy + 4 * S, w: pw };
     const bw = 220 * S, bx = x + pw / 2 - bw / 2;
     // R17 UI-sweep polish: without a 返回大廳 callback (title/hub) the reserved home slot left a
@@ -122,6 +126,10 @@ export const settingsUI = {
       if (r.type === 'header') {   // section divider label spanning the panel width
         uiText(r.label, r.x + 22 * S, r.y + 8 * S, { size: 12 * S, align: 'left', baseline: 'middle', color: P.shardL, weight: '900' });
         uiRect(r.x + 84 * S, r.y + 7 * S, r.w - 106 * S, Math.max(1, S), withAlpha(P.ink2, 0.85));
+        continue;
+      }
+      if (r.type === 'desc') {   // P1-3: small explanatory line under a toggle
+        uiText(r.label, r.x + 22 * S, r.y + 4 * S, { size: 9 * S, align: 'left', baseline: 'middle', color: P.gray3 });
         continue;
       }
       uiText(r.label, r.x - 16 * S, r.y + r.h / 2 + 1 * S, { size: 13 * S, align: 'right', baseline: 'middle', color: P.gray4, weight: '700' });

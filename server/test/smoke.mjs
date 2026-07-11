@@ -14,6 +14,7 @@ function makeFakePool() {
   const bans = [];            // { kind, value, reason, created_at }
   const feedback = [];        // { id, user_id, guest_name, category, content, status, admin_note, created_at }
   const adminLogs = [];       // { id, admin_username, action, target, detail, created_at }
+  const events = [];          // P1-3 telemetry: { sid, v, name, props, created_at }
   let uid = 0, rid = 0, fid = 0, lid = 0;
   return {
     async query(sql, args = []) {
@@ -152,6 +153,49 @@ function makeFakePool() {
           .map((r) => ({ ...r, username: r.user_id != null ? (users.find((u) => String(u.id) === String(r.user_id)) || {}).username : r.guest_name, guest: r.user_id == null }))
           .sort((a, b) => b.score - a.score)
           .slice(0, limit);
+        return { rows, rowCount: rows.length };
+      }
+      // --- P1-3 telemetry: batch insert, retention sweep, admin aggregates ---
+      if (s.startsWith('INSERT INTO events')) {   // batch single INSERT, args in chunks of 4 (sid,v,name,props)
+        let n = 0;
+        for (let k = 0; k + 3 < args.length; k += 4) { events.push({ sid: args[k], v: args[k + 1], name: args[k + 2], props: args[k + 3] || {}, created_at: new Date().toISOString() }); n++; }
+        return { rows: [], rowCount: n };
+      }
+      if (s.startsWith('DELETE FROM events')) return { rows: [], rowCount: 0 };   // retention sweep (buildApp runs this once at boot)
+      if (s.startsWith('SELECT name, count(*)::int AS n FROM events')) {          // totals
+        const m = new Map(); for (const e of events) m.set(e.name, (m.get(e.name) || 0) + 1);
+        const rows = [...m.entries()].map(([name, n]) => ({ name, n })).sort((a, b) => b.n - a.n);
+        return { rows, rowCount: rows.length };
+      }
+      if (s.startsWith('SELECT count(DISTINCT sid) FILTER')) {                    // funnel
+        const d = (nm) => new Set(events.filter((e) => e.name === nm).map((e) => e.sid)).size;
+        return { rows: [{ saved: d('save_created'), started: d('run_started'), ended: d('run_ended') }], rowCount: 1 };
+      }
+      if (s.startsWith("SELECT props->>'biome' AS biome")) {                      // clearRate by (biome,diff)
+        const m = new Map();
+        for (const e of events) {
+          if (e.name !== 'run_ended') continue;
+          const b = (e.props && e.props.biome != null) ? e.props.biome : null;
+          const df = (e.props && e.props.diff != null) ? String(e.props.diff) : null;
+          const k = b + '|' + df; const cur = m.get(k) || { biome: b, diff: df, total: 0, clears: 0 };
+          cur.total++; if (e.props && e.props.result === 'clear') cur.clears++; m.set(k, cur);
+        }
+        const rows = [...m.values()].sort((a, b) => b.total - a.total).slice(0, 20);
+        return { rows, rowCount: rows.length };
+      }
+      if (s.startsWith('SELECT LEAST(20')) {                                      // deathTime histogram
+        const m = new Map();
+        for (const e of events) {
+          if (e.name !== 'run_ended' || !e.props || e.props.result !== 'death' || e.props.time == null) continue;
+          const minute = Math.min(20, Math.floor(Number(e.props.time) / 60)); m.set(minute, (m.get(minute) || 0) + 1);
+        }
+        const rows = [...m.entries()].map(([minute, n]) => ({ minute, n })).sort((a, b) => a.minute - b.minute);
+        return { rows, rowCount: rows.length };
+      }
+      if (s.startsWith("SELECT props->>'picked' AS picked")) {                    // picks
+        const m = new Map();
+        for (const e of events) { if (e.name !== 'level_choice' || !e.props || e.props.picked == null) continue; m.set(e.props.picked, (m.get(e.props.picked) || 0) + 1); }
+        const rows = [...m.entries()].map(([picked, n]) => ({ picked, n })).sort((a, b) => b.n - a.n).slice(0, 15);
         return { rows, rowCount: rows.length };
       }
       throw new Error('unhandled query in fake pool: ' + s.slice(0, 80));
@@ -363,6 +407,37 @@ ok(typeof pl.json().stats.runCount === 'number' && Array.isArray(pl.json().recen
 ok(typeof pl.json().ban.user === 'boolean', 'player inspect returns ban state');
 ok((await J('GET', '/api/admin/player/99999', undefined, token)).statusCode === 404, 'unknown uid → 404');
 ok((await J('GET', '/api/admin/player/' + pid, undefined, t2)).statusCode === 403, 'player inspect as non-admin → 403');
+
+// ---- P1-3 anonymous telemetry (POST /api/metrics + GET /api/admin/metrics) ----
+const SID = 'sess-abcdef012345';
+// legal batch — save_created + run_started + level_choice + run_ended
+r = await J('POST', '/api/metrics', { sid: SID, v: '2.0', events: [
+  { n: 'save_created', p: {} },
+  { n: 'run_started', p: { biome: 'crypt', char: 'hunter', mode: 'normal', diff: 3, assist: false } },
+  { n: 'level_choice', p: { picked: 'blade', offered: ['blade', 'aura', 'dash'], t: 42 } },
+  { n: 'run_ended', p: { result: 'death', time: 305, score: 8000, stage: 6, diff: 3, biome: 'crypt', char: 'hunter', mode: 'normal', deathSrc: 'reaper' } },
+] });
+ok(r.statusCode === 200 && r.json().accepted === 4, 'metrics: legal batch → 200, accepted 4 (INSERT stub hit)');
+// unknown-name event dropped individually; over-long string + extra key sanitized but still accepted
+r = await J('POST', '/api/metrics', { sid: SID, v: '2.0', events: [
+  { n: 'run_started', p: { biome: 'x'.repeat(200), char: 'y', mode: 'normal', diff: 2, assist: true, secret: 'device-fingerprint-should-be-stripped' } },
+  { n: 'totally_unknown_event', p: { foo: 1 } },
+  { n: 'unlock_seen', p: { ach: Array(50).fill('a') } },
+] });
+ok(r.statusCode === 200 && r.json().accepted === 2, 'metrics: unknown name dropped, valid events (capped props) accepted → accepted 2');
+// body-shape errors → 400
+ok((await J('POST', '/api/metrics', { sid: SID, v: '2.0', events: 'nope' })).statusCode === 400, 'metrics: events not an array → 400');
+ok((await J('POST', '/api/metrics', { sid: SID, v: '2.0', events: Array.from({ length: 51 }, () => ({ n: 'save_created', p: {} })) })).statusCode === 400, 'metrics: >50 events → 400 (zod max)');
+ok((await J('POST', '/api/metrics', { sid: 'short', v: '2.0', events: [{ n: 'save_created', p: {} }] })).statusCode === 400, 'metrics: too-short sid → 400');
+// admin aggregation endpoint (gated) + shape
+ok((await J('GET', '/api/admin/metrics')).statusCode === 401, 'admin metrics without a token → 401');
+ok((await J('GET', '/api/admin/metrics', undefined, t2)).statusCode === 403, 'admin metrics as a non-admin → 403');
+const mt = await J('GET', '/api/admin/metrics', undefined, token);
+ok(mt.statusCode === 200, 'admin metrics (admin) → 200');
+const mj = mt.json();
+ok(Array.isArray(mj.totals) && mj.funnel && Array.isArray(mj.clearRate) && Array.isArray(mj.deathTime) && Array.isArray(mj.picks), 'admin metrics: five aggregate keys present');
+ok(mj.totals.some((x) => x.name === 'run_started') && mj.funnel.started >= 1, 'admin metrics: reflects inserted events (funnel + totals)');
+ok(typeof mj.retentionDays === 'number', 'admin metrics: retentionDays constant present');
 
 console.log(`\n${pass} passed, ${fail} failed`);
 await app.close();
