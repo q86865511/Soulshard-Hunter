@@ -5,8 +5,16 @@ import { mouse, pressed } from '../../../engine/input.js';
 import { P, withAlpha } from '../../../engine/palette.js';
 import { drawSpriteUI, uiClipRound, uiRect, uiScale, uiText, view } from '../../../engine/renderer.js';
 import { getSprite, iconOr } from '../../../engine/sprites.js';
+import { allRecipes, isSeen } from '../../content/codex.js';
 import { applyChoice, choiceStyle, getRunChoices } from '../../progression.js';
 import { applyWeaponChoice, buildWeaponChoices, inside } from './shared.js';
+
+// P1 內容圖鑑：同 overlays.js 的判準（見該檔註解）——小卡只畫「◆」符號，不加文字。
+function hasKnownEvo(c, player) {
+  if (c.kind === 'weapon' || c.kind === 'weaponup') return isSeen('rec', c.id);
+  if (c.kind === 'ability') return allRecipes().some((r) => r.reqId === c.id && player.weapons.some((w) => w.def.id === r.baseId));
+  return false;
+}
 
 export const coopMixin = {
 
@@ -72,6 +80,7 @@ export const coopMixin = {
       uiText(st.sub, r.x + r.w / 2, midY + 8 * S, { size: 10 * S, align: 'center', color: st.accent, weight: '800' });
       uiText(c.def.name, r.x + r.w / 2, midY + 24 * S, { size: 13 * S, align: 'center', color: '#fff', weight: '800' });
       uiText(String(i + 1), r.x + 9 * S, r.y + oy + 18 * S, { size: 13 * S, color: withAlpha('#fff', 0.45), weight: '900' });
+      if (hasKnownEvo(c, this.player)) uiText('◆', r.x + r.w - 10 * S, r.y + oy + 18 * S, { size: 13 * S, align: 'right', color: P.astralL, weight: '900' });
     });
   },
   // Non-blocking online leave menu (the world keeps simulating underneath). Returns
