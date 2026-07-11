@@ -10,6 +10,7 @@ import { BONDS, bondProgress } from '../../content/bonds.js';
 import { fmtQuestVal, trackedQuestStates } from '../../content/quests.js';
 import { hudIcons } from '../../hud.js';
 import { META, saveMeta } from '../../state.js';
+import { Tele } from '../../../net/telemetry.js';
 import { TS } from '../../world.js';
 import { BATTLE_HINTS } from './shared.js';
 
@@ -80,7 +81,7 @@ export const renderHudMixin = {
   // 6.3A: first-run HUD walkthrough — paused overlay with callouts pointing at the live HUD regions.
   updateHudTut() {
     if (pressed('interact') || pressed('enter') || pressed('space') || pressed('escape') || pressed('pause') || mouse.justDown) {
-      this.hudTut = false; META.tutorialHUDDone = true; saveMeta(); Sfx.play('uiClick');
+      this.hudTut = false; META.tutorialHUDDone = true; saveMeta(); Sfx.play('uiClick'); Tele.ev('tutorial_step', { step: 'hud_done' });   // P1-3
     }
   },
   drawHudTut() {

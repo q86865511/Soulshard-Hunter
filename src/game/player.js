@@ -127,7 +127,10 @@ export class Player {
 
   // returns true only if the hit actually LANDED (so on-hit status riders respect
   // i-frames / dash / dodge instead of pinning the player with permanent slow+DoT)
-  takeDamage(dmg, ang, world) {
+  // `src` (optional): a short attribution tag for the damage source (e.g. 'contact:slime',
+  // 'hazard:spikes', 'boss:leap_slam', 'proj:enemy'). Recorded as lastHitSrc + tallied on
+  // run.dmgTakenBySrc (P1-3 承傷來源; feeds P1-4 coaching). Defaults to 'other'.
+  takeDamage(dmg, ang, world, src = 'other') {
     if (this.dead || this.invuln > 0 || this.dashT > 0) return false;
     const dodge = Math.min(BALANCE.DODGE_CAP, (this.stats.dodge ?? 0) * BALANCE.DODGE_MULT);
     if (Math.random() < dodge) { world.particles.text(this.x, this.y - 14, '閃避', { color: P.shardL, size: 13 }); return false; }
@@ -135,6 +138,8 @@ export class Player {
     d = Math.max(1, Math.round(d * (1 - (this.stats.armorMult ?? 0))));
     const asDmg = (world && world.run && world.run.assistDmgMul) || 1;   // P1-2 輔助模式：敵人傷害
     if (asDmg !== 1) d = Math.max(1, Math.round(d * asDmg));
+    this.lastHitSrc = src;   // P1-3: remember the killer for deathSrc + accumulate by source
+    if (world && world.run) { const m = world.run.dmgTakenBySrc || (world.run.dmgTakenBySrc = {}); m[src] = (m[src] || 0) + d; }
     this.hp -= d; this.invuln = 0.7; this.flash = 0.18;
     this.vx -= Math.cos(ang) * 70; this.vy -= Math.sin(ang) * 70;
     world.particles.blood(this.x, this.y, ang + Math.PI, P.red);
@@ -151,6 +156,7 @@ export class Player {
   die(world) {
     if (this.dead) return;
     this.dead = true;
+    if (world && world.run) world.run.deathSrc = this.lastHitSrc || 'other';   // P1-3: attribute the fatal blow (DoT/AFK falls back to the last melee/'other')
     world.particles.death(this.x, this.y, P.shard);
     world.particles.ring(this.x, this.y, P.shardL, 18, 120);
     addShake(10); Sfx.play('death');

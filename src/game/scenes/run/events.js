@@ -136,7 +136,7 @@ export const eventsMixin = {
     }
     if (p && !p.dead) {   // player check: within half a tile of either axis line, inside arm reach
       const ax = Math.abs(p.x - e.x), ay = Math.abs(p.y - e.y), reach = L * TS + 8;
-      if ((ay < 10 + p.radius && ax < reach) || (ax < 10 + p.radius && ay < reach)) p.takeDamage(dmg, Math.atan2(p.y - e.y, p.x - e.x), this.world);
+      if ((ay < 10 + p.radius && ax < reach) || (ax < 10 + p.radius && ay < reach)) p.takeDamage(dmg, Math.atan2(p.y - e.y, p.x - e.x), this.world, 'event:mine');
     }
     addShake(3); Sfx.play('boss');
   },
@@ -170,7 +170,7 @@ export const eventsMixin = {
   eventExplode(x, y, r, dmg) {
     this.world.spawnExplosion(x, y, r, P.ember, dmg * 0.7, { knockback: 80 });
     const p = this.player;
-    if (p && !p.dead && dist(p.x, p.y, x, y) < r + p.radius) p.takeDamage(dmg, Math.atan2(p.y - y, p.x - x), this.world);
+    if (p && !p.dead && dist(p.x, p.y, x, y) < r + p.radius) p.takeDamage(dmg, Math.atan2(p.y - y, p.x - x), this.world, 'event:explosion');
   },
   updateEvents(dt) {
     for (let i = this.evtMines.length - 1; i >= 0; i--) {

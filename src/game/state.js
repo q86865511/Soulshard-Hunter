@@ -12,6 +12,7 @@ import { setShakeEnabled, setUiScaleMul, setShakeUserScale } from '../engine/ren
 import { setParticleDensity } from '../engine/particles.js';
 import { applyKeybinds } from '../engine/input.js';
 import { Net, queueCloudSave, postRunResult } from '../net/api.js';   // cloud save + leaderboard (offline-first)
+import { Tele } from '../net/telemetry.js';   // P1-3 anonymous product telemetry (offline no-op, opt-out)
 
 const SAVE_KEY = 'soulshard.save.v1';            // legacy single-save key (migrated into slot 0 on first load)
 const SLOT_COUNT = 3;
@@ -46,7 +47,7 @@ const DEFAULT_META = () => ({
     // round-5: extra lifetime stats for the expanded achievements (task 2)
     charClears: {}, noDmgClears: 0, bestCharLevel: 0, bondsTriggered: 0, forgeUpgrades: 0, npcTalks: 0, hiddenRoomsFound: 0, dailyClears: 0 },
   // P1-2 無障礙: shake is now a 0..1 strength (was bool); flash/particles/dmgNums added
-  settings: { master: 0.9, sfx: 0.75, music: 0.5, shake: 1, flash: true, particles: 1, dmgNums: true, muted: false, keybinds: {}, uiScale: 1 },
+  settings: { master: 0.9, sfx: 0.75, music: 0.5, shake: 1, flash: true, particles: 1, dmgNums: true, muted: false, keybinds: {}, uiScale: 1, analytics: true },   // P1-3 analytics: anonymous telemetry opt-out
   assist: { hp: 1, dmg: 1, speed: 1 },   // P1-2 輔助模式：敵人生命/傷害/速度倍率 (0.5–1；<1 該局不進排行榜)
   achievements: [],      // unlocked achievement ids
   questIndex: 0,         // current story-quest chapter
@@ -106,6 +107,7 @@ export function loadMeta(slot) {
       if (typeof META.settings.flash !== 'boolean') META.settings.flash = true;
       if (typeof META.settings.particles !== 'number') META.settings.particles = 1;
       if (typeof META.settings.dmgNums !== 'boolean') META.settings.dmgNums = true;
+      if (typeof META.settings.analytics !== 'boolean') META.settings.analytics = true;   // P1-3: default opt-IN on older saves
       // P1-2 輔助模式：三個 0.5–1 倍率
       if (!META.assist || typeof META.assist !== 'object') META.assist = DEFAULT_META().assist;
       for (const k of ['hp', 'dmg', 'speed']) META.assist[k] = (typeof META.assist[k] === 'number') ? Math.max(0.5, Math.min(1, META.assist[k])) : 1;
@@ -321,6 +323,7 @@ export function newRun(opts = {}) {
     equipment: { weapon: null, armor: null, trinket: null },
     inventory: [],
     dmgBySource: {},        // 原#16: weapon/source -> cumulative damage dealt (results ranking)
+    dmgTakenBySrc: {},      // P1-3: source tag -> cumulative damage TAKEN (承傷來源; feeds P1-4 coaching)
     bonds: [],              // 原#13: ids of bonds currently active this run
     startedAt: (typeof performance !== 'undefined' ? performance.now() : 0),
   };
@@ -394,6 +397,29 @@ export function bankRun(run) {
   try { for (const a of newAch) AchievementToasts.push(a && (a.name || a.title || a.id)); } catch (e) { /* ignore */ }   // round16/4.9-B: banner each unlock (shown in hub + run)
   try { restockSkinShop(META); } catch (e) { /* ignore */ }   // 5-6: fresh clothing-store stock next visit
   saveMeta();
+  // P1-3 telemetry (host/solo only — a co-op GUEST never banks). run.result is tagged by
+  // the scene (finishRun → 'clear'/'death'; abandon → 'leave'); weaponIds snapshotted there.
+  try {
+    const result = run.result || (run.cleared ? 'clear' : 'leave');
+    Tele.ev('run_ended', {
+      result,
+      time: Math.floor(run.time || 0),
+      score: Math.floor(run.score || 0),
+      stage: Math.floor(run.stage || run.floor || 1),
+      diff: Math.floor(run.difficulty == null ? 1 : run.difficulty),
+      charLevel: Math.floor(run.level || 1),
+      biome: run.biomeId || null,
+      char: run.characterId || null,
+      mode: run.mode || 'normal',
+      deathSrc: run.deathSrc || null,
+      assist: !!run.assist,
+      weapons: Array.isArray(run.weaponIds) ? run.weaponIds : [],
+      abilities: Array.isArray(run.abilities) ? run.abilities : [],
+    });
+    const achIds = (newAch || []).map((a) => a && a.id).filter(Boolean);
+    if (achIds.length) Tele.ev('unlock_seen', { ach: achIds });
+    Tele.flush();
+  } catch (e) { /* telemetry is best-effort */ }
   // upload the run to the shared leaderboard (best-effort; score recomputed server-side)
   const runPayload = {
     kills: run.kills || 0,

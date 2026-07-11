@@ -13,6 +13,7 @@ import { fusionAvailable } from '../../progression.js';
 import { setScene } from '../../scene.js';
 import { META } from '../../state.js';
 import { settingsUI } from '../../ui/settings.js';
+import { Tele } from '../../../net/telemetry.js';
 import { refs } from '../refs.js';
 
 export const loopMixin = {
@@ -22,8 +23,8 @@ export const loopMixin = {
   storyTick(dt) {
     this.story.t -= dt;
     if (!pressed('space')) this.story.armed = true;
-    if (this.story.t <= 0) this.story = null;
-    else if (this.story.armed && pressed('space')) this.story = null;
+    if (this.story.t <= 0) { Tele.ev('tutorial_step', { step: 'story_done' }); this.story = null; }   // P1-3: natural end
+    else if (this.story.armed && pressed('space')) { Tele.ev('tutorial_step', { step: 'story_skipped' }); this.story = null; }   // P1-3: space-skip
   },
 
   // ---- update --------------------------------------------------------------

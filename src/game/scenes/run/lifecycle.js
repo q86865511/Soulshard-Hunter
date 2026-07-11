@@ -6,6 +6,7 @@ import { TAU, clamp, dist, rng } from '../../../engine/math.js';
 import { P } from '../../../engine/palette.js';
 import { addShake, camera } from '../../../engine/renderer.js';
 import { Net } from '../../../net/api.js';
+import { Tele } from '../../../net/telemetry.js';
 import { BALANCE } from '../../balance.js';
 import { biomeWeight } from '../../content/biome_tags.js';
 import { applyDailyMutators } from '../../content/daily.js';
@@ -147,6 +148,8 @@ export const lifecycleMixin = {
     this.run.assistDmgMul = this.coop ? 1 : (A.dmg || 1);
     this.run.assistSpeedMul = this.coop ? 1 : (A.speed || 1);
     this.run.assist = !this.coop && (this.run.assistHpMul < 1 || this.run.assistDmgMul < 1 || this.run.assistSpeedMul < 1);
+    // P1-3: run_started (host/solo only — buildWorld never runs on a co-op GUEST puppet)
+    Tele.ev('run_started', { biome: this.run.biomeId, char: this.run.characterId, mode: this.run.mode || 'normal', diff: Math.floor(this.run.difficulty == null ? 1 : this.run.difficulty), assist: !!this.run.assist });
     if (this.storyMode) {   // weak enemies + generous loot, almost unloseable
       this.run.dropQuality = (this.run.dropQuality || 0) + BALANCE.STORY_DROP_QUALITY;
       if (this.player) this.player.stats.luck = (this.player.stats.luck || 0) + BALANCE.STORY_LUCK_BONUS;
@@ -169,6 +172,7 @@ export const lifecycleMixin = {
       quote: lore ? lore.quote : null, who, chapter: !!q,
       t: 6.5, dur: 6.5,
     } : null;
+    if (this.story) Tele.ev('tutorial_step', { step: 'story_shown' });   // P1-3
   },
 
   tierCapNow() { return Math.min(4, 1 + Math.floor(this.threat / 2)); },
