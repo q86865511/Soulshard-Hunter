@@ -18,9 +18,10 @@ export const renderWardrobeMixin = {
 
   // ---- achievement hall ----------------------------------------------------
   // 3.5-B: filter chips (全部 / 已達成 / 未達成) so the 200+ list is browsable.
+  // R21.9: 聚焦 tab prepended as the default (P1 成就聚焦) — 5 tabs, narrower to still fit.
   achFilterRects(f) {
-    const S = f.S, y = f.y + 60 * S, w = 70 * S, h = 22 * S, gap = 8 * S, x0 = f.x + 24 * S;   // R17/1.8: 4 tabs — slightly narrower
-    return [0, 1, 2, 3].map((i) => ({ x: x0 + i * (w + gap), y, w, h, i }));
+    const S = f.S, y = f.y + 60 * S, w = 56 * S, h = 22 * S, gap = 7 * S, x0 = f.x + 24 * S;
+    return [0, 1, 2, 3, 4].map((i) => ({ x: x0 + i * (w + gap), y, w, h, i }));
   },
   updateAchievements(mx, my) {
     if (!mouse.justDown) return;
@@ -32,14 +33,25 @@ export const renderWardrobeMixin = {
     const got = META.achievements || [];
     // 3.5-B filter tabs + R17/1.8: a dedicated 隱藏 tab (violet accent)
     const HID = '#d36bff';
-    const FILTERS = ['全部', '已達成', '未達成', '隱藏']; const fl = this.achFilter || 0;
+    // R21.9: 聚焦 tab prepended + defaults to it (this.achFilter is undefined on a fresh save,
+    // and `this.achFilter || 0` already resolves to index 0 = 聚焦 — no separate init needed).
+    const FILTERS = ['聚焦', '全部', '已達成', '未達成', '隱藏']; const fl = this.achFilter || 0;
     this.achFilterRects(f).forEach((r) => {
       const on = fl === r.i, hov = inside(mx, my, r);
-      const acc = r.i === 3 ? HID : P.shardL;
+      const acc = r.i === 4 ? HID : P.shardL;
       uiRect(r.x, r.y, r.w, r.h, withAlpha(on ? '#243a5a' : (hov ? '#1f2740' : '#1b2138'), 0.96), { radius: 6 * S, stroke: on ? acc : P.ink2, lw: on ? 2 : 1 });
       uiText(FILTERS[r.i], r.x + r.w / 2, r.y + r.h / 2 + 1 * S, { size: 11 * S, align: 'center', baseline: 'middle', color: on ? acc : P.gray3, weight: '800' });
     });
-    const list = ACHIEVEMENTS.filter((a) => fl === 0 ? true : fl === 1 ? got.includes(a.id) : fl === 2 ? !got.includes(a.id) : !!a.hidden);
+    // R21.9: 聚焦 = 未達成 + 非隱藏 + (有進度且未完成的 0<cur<goal，或有 rewardLabel) — pct 降冪、無 prog 的排後面、上限 12 條。
+    const list = fl === 0
+      ? ACHIEVEMENTS.filter((a) => !got.includes(a.id) && !a.hidden && ((a.prog && (() => { const pg = a.prog(META.stats || {}, META); return pg[1] > 0 && pg[0] > 0 && pg[0] < pg[1]; })()) || !!a.rewardLabel))
+        .sort((a, b) => {
+          const ra = a.prog ? (() => { const pg = a.prog(META.stats || {}, META); return pg[1] > 0 ? pg[0] / pg[1] : -1; })() : -1;
+          const rb = b.prog ? (() => { const pg = b.prog(META.stats || {}, META); return pg[1] > 0 ? pg[0] / pg[1] : -1; })() : -1;
+          return rb - ra;
+        })
+        .slice(0, 12)
+      : ACHIEVEMENTS.filter((a) => fl === 1 ? true : fl === 2 ? got.includes(a.id) : fl === 3 ? !got.includes(a.id) : !!a.hidden);
     const cols = 2;
     const cardW = (f.w - 40 * S - (cols - 1) * 14 * S) / cols, cardH = 62 * S;
     const gridTop = f.y + 92 * S, clipTop = f.y + 86 * S;
@@ -48,7 +60,7 @@ export const renderWardrobeMixin = {
     this.panelMaxScroll = Math.max(0, bottom - (f.y + f.h - 24 * S));
     if (mouse.wheel) this.panelScroll = clamp((this.panelScroll || 0) + mouse.wheel * 0.5, 0, this.panelMaxScroll);
     const ctx = ctxRaw(); ctx.save(); ctx.beginPath(); ctx.rect(f.x, clipTop, f.w, f.y + f.h - 24 * S - clipTop); ctx.clip();
-    if (!list.length) uiText('（此分類沒有成就）', f.x + f.w / 2, gridTop + 20 * S, { size: 12 * S, align: 'center', color: P.gray3 });
+    if (!list.length) uiText(fl === 0 ? '暫無接近完成的成就——切到『全部』看看更多' : '（此分類沒有成就）', f.x + f.w / 2, gridTop + 20 * S, { size: 12 * S, align: 'center', color: P.gray3 });
     list.forEach((a, i) => {
       const c = i % cols, r = Math.floor(i / cols);
       const x = f.x + 20 * S + c * (cardW + 14 * S), y = gridTop + r * (cardH + 9 * S) - (this.panelScroll || 0);
