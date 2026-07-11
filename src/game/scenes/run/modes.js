@@ -11,6 +11,7 @@ import { RT } from '../../../net/rt.js';
 import { BALANCE } from '../../balance.js';
 import { CURSES } from '../../content/curses.js';
 import { EVENTS } from '../../content/events.js';
+import { markSeen } from '../../content/codex.js';
 import { Enemies } from '../../content/registry.js';
 import { META, bankRun, saveMeta } from '../../state.js';
 import { TS } from '../../world.js';
@@ -208,6 +209,7 @@ export const modesMixin = {
   onBigBossDead(e) {
     this.boss = false; this.finalBoss = false; this.bossRef = null; this.finalBossRef = null;
     this.run.bossKills = (this.run.bossKills || 0) + 1;
+    if (e.def && e.def.boss) markSeen('boss', e.def.id);   // P1 內容圖鑑
     this.clearLevel();
   },
   // Banks the unlock immediately, then keeps the run alive for the Reaper window.
@@ -250,6 +252,7 @@ export const modesMixin = {
     this.boss = false; this.reaperRef = null; this.reaperSlain = true;
     this.run.bossKills = (this.run.bossKills || 0) + 1;
     this.run.reaperKills = (this.run.reaperKills || 0) + 1;
+    if (e.def && e.def.boss) markSeen('boss', e.def.id);   // P1 內容圖鑑（死神也是 boss:true）
     this.run.gold += Math.round((600 + (this.run.difficulty || 1) * 200) * (this.dailyBossDropMul || 1));   // R18/B9 m_frenzy: Reaper loot doubled (QA B12; ×1 in non-daily)
     this.run.shards += Math.round(30 * (this.dailyBossDropMul || 1));
     this.banner = '★ 死神已被斬殺！傳說自此誕生'; this.bannerT = 4.0;

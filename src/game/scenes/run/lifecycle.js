@@ -13,6 +13,7 @@ import { exclusiveFor } from '../../content/exclusives.js';
 import { HIDDEN_ROOMS } from '../../content/hidden.js';
 import { heroLore } from '../../content/lore.js';
 import { STORY_QUESTS } from '../../content/quests.js';
+import { markSeen } from '../../content/codex.js';
 import { Characters, Enemies, Equipment } from '../../content/registry.js';
 import { isUnlocked } from '../../content/unlocks.js';
 import { generateWorld } from '../../maps.js';
@@ -306,6 +307,7 @@ export const lifecycleMixin = {
     this.boss = false; this.bossDead = true; this.bossRef = null;
     this.run.bossKills = (this.run.bossKills || 0) + 1;
     this.run.miniKills = (this.run.miniKills || 0) + 1;
+    if (e.def && e.def.boss) markSeen('boss', e.def.id);   // P1 內容圖鑑
     this.banner = '擊敗小王！'; this.bannerT = 2.6; addShake(6);
     this.world.addPickup('heart', this.player.x, this.player.y, 30);
     // R18/B7 endless curses (fire on every boss-wave kill)

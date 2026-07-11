@@ -5,6 +5,7 @@ import { dist } from '../../engine/math.js';
 import { rng } from '../../engine/math.js';
 import { BALANCE } from '../balance.js';
 import { applyStatus } from '../status.js';
+import { markSeen } from './codex.js';
 
 const A = (o) => Abilities.register(o);
 
@@ -140,7 +141,7 @@ export function getAbilityChoices(run, n = 3) {
 export function applyAbility(run, player, world, def) {
   const lvl = (run.abilityLevels[def.id] || 0) + 1;
   run.abilityLevels[def.id] = lvl;
-  if (lvl === 1) run.abilities.push(def.id);
+  if (lvl === 1) { run.abilities.push(def.id); if (player && !player.netInput) markSeen('a', def.id); }   // P1 內容圖鑑: local avatar only
   try { def.apply?.(player, run, lvl, world); } catch (e) { console.warn('ability apply failed', def.id, e); }
 }
 
