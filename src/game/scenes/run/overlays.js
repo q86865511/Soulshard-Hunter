@@ -8,11 +8,20 @@ import { ctxRaw, drawSpriteUI, goldStr, textWidth, uiClipRound, uiRect, uiScale,
 import { getSprite, iconOr } from '../../../engine/sprites.js';
 import { Cheats } from '../../cheats.js';
 import { BONDS, activeBonds, bondAdvancedBy, bondProgress } from '../../content/bonds.js';
+import { allRecipes, isSeen } from '../../content/codex.js';
 import { Abilities, Equipment } from '../../content/registry.js';
 import { cheatUnlockAll } from '../../content/unlocks.js';
 import { CHOICE_TYPE, choiceStyle } from '../../progression.js';
 import { META, saveMeta } from '../../state.js';
 import { inside } from './shared.js';
+
+// P1 內容圖鑑：這張卡是否對應一條玩家已發現的進化配方（武器/升級卡＝配方本身已見過；
+// 被動卡＝它是某條已見配方的所需被動，且玩家目前持有該配方的基礎武器）。
+function hasKnownEvo(c, player) {
+  if (c.kind === 'weapon' || c.kind === 'weaponup') return isSeen('rec', c.id);
+  if (c.kind === 'ability') return allRecipes().some((r) => r.reqId === c.id && player.weapons.some((w) => w.def.id === r.baseId));
+  return false;
+}
 
 export const overlaysMixin = {
 
@@ -259,8 +268,11 @@ export const overlaysMixin = {
     const S = uiScale();
     uiRect(0, 0, view.W, view.H, withAlpha('#0b0d1a', 0.8));
     const rects = this.cardRects();
+    const evoFlags = this.choice.options.map((c) => hasKnownEvo(c, this.player));
     uiText('選 擇 強 化', view.W / 2, rects[0].y - 28 * S, { size: 26 * S, align: 'center', color: P.manaL, weight: '900' });
-    uiText('點擊卡片或按 1 / 2 / 3　·　★ 金框＝可推進羈絆　·　TAB 查看 build', view.W / 2, rects[0].y - 8 * S, { size: 12 * S, align: 'center', color: P.gray3 });
+    let hintLine = '點擊卡片或按 1 / 2 / 3　·　★ 金框＝可推進羈絆　·　TAB 查看 build';
+    if (evoFlags.some((v) => v)) hintLine += '　·　◆＝已知進化路線';
+    uiText(hintLine, view.W / 2, rects[0].y - 8 * S, { size: 12 * S, align: 'center', color: P.gray3 });
     rects.forEach((r, i) => {
       const c = this.choice.options[i]; const st = choiceStyle(c); const hover = this.choice.hover === i;
       const hints = (this.choice.bondHints && this.choice.bondHints[i]) || this.bondHintsFor(c);
@@ -273,6 +285,11 @@ export const overlaysMixin = {
       uiRect(r.x + r.w - pw - 8 * S, r.y + oy + 10 * S, pw, 16 * S, withAlpha(tc, 0.22), { radius: 8 * S, stroke: tc, lw: 1 });
       uiText(st.tag, r.x + r.w - pw / 2 - 8 * S, r.y + oy + 18 * S, { size: 10 * S, align: 'center', baseline: 'middle', color: tc, weight: '800' });
       if (hints.length) uiText('★', r.x + r.w / 2, r.y + oy + 14 * S, { size: 11 * S, align: 'center', baseline: 'middle', color: P.goldL, weight: '900' });
+      if (evoFlags[i]) {   // P1 圖鑑：已發現進化配方 pill，疊在 rarity pill 正下方避免重疊
+        const ew = textWidth('◆ 已知進化', 9 * S, '800') + 12 * S;
+        uiRect(r.x + r.w - ew - 8 * S, r.y + oy + 30 * S, ew, 14 * S, withAlpha(P.astral, 0.22), { radius: 7 * S, stroke: P.astral, lw: 1 });
+        uiText('◆ 已知進化', r.x + r.w - ew / 2 - 8 * S, r.y + oy + 37 * S, { size: 9 * S, align: 'center', baseline: 'middle', color: P.astralL, weight: '800' });
+      }
       const sp = getSprite(iconOr(st.icon, c.kind === 'ability' ? 'ability_power' : 'weapon_w_soulbolt')); const isc = (r.w * 0.42) / sp.w;
       drawSpriteUI(sp.frames[0], r.x + r.w / 2 - sp.w * isc / 2, r.y + oy + 20 * S, isc);
       const midY = r.y + oy + 20 * S + sp.h * isc;

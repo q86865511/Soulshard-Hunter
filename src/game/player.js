@@ -16,6 +16,7 @@ import { P } from '../engine/palette.js';
 import { Sfx } from '../engine/audio.js';
 import { Weapons } from './content/registry.js';
 import { computeForgeMods } from './content/forge.js';
+import { markSeen } from './content/codex.js';
 import { BALANCE, weaponMaxLevel } from './balance.js';
 import { tickStatus } from './status.js';
 
@@ -52,6 +53,7 @@ export class Player {
     if (this.weapons.length >= 6) return null;
     const inst = { def, level: 1, t: 0, st: {}, forge: computeForgeMods(id) };   // 5-5: attach forge mods once
     this.weapons.push(inst);
+    if (!this.netInput) markSeen('w', id);   // P1 內容圖鑑: local avatar only (host mustn't record a guest's discoveries)
     return inst;
   }
   levelWeapon(inst, world) {
@@ -71,6 +73,7 @@ export class Player {
     if (this.run) (this.run.evolvedWeaponIds || (this.run.evolvedWeaponIds = new Set())).add(d.id);   // 10.1: don't re-offer the consumed base weapon as a "new weapon"
     this.weapons = this.weapons.filter((w) => w !== inst);
     this.weapons.push({ def: evoDef, level: 1, t: 0, st: {}, forge: inst.forge });   // inherit base weapon's forge mods
+    if (!this.netInput) { markSeen('rec', d.id); markSeen('w', evoDef.id); }   // P1 內容圖鑑
     if (world) { world.particles.ring(this.x, this.y, P.goldL, 24, 140); world.particles.text(this.x, this.y - 20, '武器進化！', { color: P.goldL, size: 16, life: 1.2 }); Sfx.play('levelup'); }
   }
   // fusion (合成): instantly max + force-evolve a weapon. The "2-3 maxed weapons"
@@ -86,6 +89,7 @@ export class Player {
       this.weapons = this.weapons.filter((w) => w !== target);
       const evo = Weapons.get(d.evolveInto);
       this.weapons.push(evo ? { def: evo, level: 1, t: 0, st: {}, forge: target.forge } : target);   // inherit forge mods on fusion
+      if (evo && !this.netInput) { markSeen('rec', d.id); markSeen('w', evo.id); }   // P1 內容圖鑑
     }
     if (world) { world.particles.ring(this.x, this.y, P.goldL, 28, 160); world.particles.text(this.x, this.y - 20, '武器融合！', { color: P.goldL, size: 16, life: 1.3 }); Sfx.play('levelup'); }
   }

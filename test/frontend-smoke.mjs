@@ -140,13 +140,61 @@ async function main() {
     ok(tut.storyGone, 'story finished before hudTut check');
     ok(tut.hudTut, `hudTut pops ~2s into actual battle (run.time ${tut.time})`);
 
-    // ── 5. offline co-op self-tests ─────────────────────────────────────────
-    console.log('phase 5: co-op self-tests');
+    // ── 5. codex: discovery data layer + hub panel + goals (R22) ────────────
+    console.log('phase 5: codex + goals');
+    await freshBoot(page);
+    const codex = await page.evaluate(async () => {
+      const out = {};
+      const m = window.__DBG.meta();
+      out.freshEmpty = !!m.codex && ['w', 'a', 'boss', 'rec'].every((k) => m.codex[k] && Object.keys(m.codex[k]).length === 0);
+      window.__DBG.nav('run');
+      const s = window.__DBG.scene();
+      s.player.addWeapon('w_lightning', s.world);
+      out.weaponSeen = m.codex.w.w_lightning === true;
+      // manufacture an evolve on the starting weapon: max level + grant its req passive
+      const cx = await import('/src/game/content/codex.js');
+      const rec = cx.allRecipes().find((r) => r.baseId === 'w_soulbolt');
+      const inst = s.player.weapons.find((w) => w.def.id === 'w_soulbolt');
+      if (rec && inst) {
+        inst.level = 7;
+        if (rec.reqId) s.run.abilityLevels[rec.reqId] = 1;
+        s.player.checkEvolve(inst, s.world);
+        out.recipeSeen = m.codex.rec.w_soulbolt === true && m.codex.w[rec.evoId] === true;
+      } else out.recipeSeen = 'setup-failed';
+      const g = await import('/src/game/content/goals.js');
+      const goals = g.goalsFor(m);
+      out.goals = Array.isArray(goals) && goals.length >= 1 && goals.length <= 3 && goals.every((x) => x.title);
+      window.__DBG.nav('hub');
+      const h = window.__DBG.scene();
+      out.station = (h.stations || []).some((x) => x.id === 'codex');
+      h.openPanel('codex');
+      out.tabs = [];
+      for (let t = 0; t < 5; t++) { h.codexTab = t; try { h.render(); out.tabs.push(true); } catch (e) { out.tabs.push(String(e)); } }
+      h.panel = null; h.openPanel('achievements');
+      try { h.render(); out.achievements = true; } catch (e) { out.achievements = String(e); }
+      out.err = window.__GAME_ERROR__ || null;
+      return out;
+    });
+    ok(codex.freshEmpty === true, 'fresh save codex is empty');
+    ok(codex.weaponSeen === true, 'addWeapon marks codex.w');
+    ok(codex.recipeSeen === true, 'checkEvolve marks codex.rec + evolved weapon (got ' + codex.recipeSeen + ')');
+    ok(codex.goals === true, 'goalsFor returns 1-3 titled goals');
+    ok(codex.station === true, 'hub has the codex station');
+    ok(codex.tabs.every((t) => t === true), 'codex panel renders all 5 tabs (' + JSON.stringify(codex.tabs) + ')');
+    ok(codex.achievements === true, 'achievements panel renders with the focus tab default');
+    ok(!codex.err, 'no __GAME_ERROR__ after codex phase');
+
+    // ── 6. offline co-op self-tests ─────────────────────────────────────────
+    console.log('phase 6: co-op self-tests');
     await freshBoot(page);
     const coop = await page.evaluate(() => {
       const out = {};
       try { out.rt = window.__DBG.coopRoundTrip(); } catch (e) { out.rtError = String(e && e.stack || e); }
       try { out.boss = window.__DBG.coopBossSyncTest(); } catch (e) { out.bossError = String(e && e.stack || e); }
+      // R22 codex pollution guard: the host records its OWN weapon, never the guest's
+      const cw = (window.__DBG.meta().codex || {}).w || {};
+      out.codexHostOwn = cw.w_soulbolt === true;
+      out.codexGuestLeak = cw.w_homing === true;
       out.err = window.__GAME_ERROR__ || null;
       return out;
     });
@@ -160,6 +208,8 @@ async function main() {
       ok(coop.boss.guestRenderedOk === true, 'coopBossSyncTest guest rendered ok');
       ok((coop.boss.errors || []).length === 0, 'coopBossSyncTest no errors (' + JSON.stringify(coop.boss.errors) + ')');
     }
+    ok(coop.codexHostOwn === true, 'coop host records its own starting weapon in codex');
+    ok(coop.codexGuestLeak === false, 'coop guest weapon does NOT leak into host codex');
     ok(!coop.err, 'no __GAME_ERROR__ after co-op self-tests');
 
     ok(pageErrors.length === 0, 'no uncaught page errors (' + JSON.stringify(pageErrors.slice(0, 3)) + ')');

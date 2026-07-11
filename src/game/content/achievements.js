@@ -12,11 +12,17 @@ import { decorCount } from './room_decor.js';   // R18/B10
 import { PETS, petUnlocked } from './pets.js';   // R18/B10
 import { npcAffMaxLevel } from './npcs.js';   // R18/B11
 
-// reward helper: idempotently unlock a content id of a given kind
-const U = (kind, id) => (meta) => {
-  if (!meta.unlocked) meta.unlocked = {};
-  const arr = meta.unlocked[kind] = Array.isArray(meta.unlocked[kind]) ? meta.unlocked[kind] : [];
-  if (!arr.includes(id)) arr.push(id);
+// reward helper: idempotently unlock a content id of a given kind. Tags kind/id onto the
+// returned function so content/codex.js can build a reverse "who unlocks this" lookup
+// without re-parsing the achievement list's literal reward() calls.
+const U = (kind, id) => {
+  const fn = (meta) => {
+    if (!meta.unlocked) meta.unlocked = {};
+    const arr = meta.unlocked[kind] = Array.isArray(meta.unlocked[kind]) ? meta.unlocked[kind] : [];
+    if (!arr.includes(id)) arr.push(id);
+  };
+  fn.kind = kind; fn.id = id;
+  return fn;
 };
 
 const NUM = ['', ' II', ' III', ' IV', ' V', ' VI', ' VII', ' VIII', ' IX', ' X', ' XI', ' XII', ' XIII', ' XIV', ' XV'];

@@ -274,15 +274,18 @@ export function uiBar(x, y, w, h, frac, { fg = P.red, bg = '#000', border = '#00
   }
 }
 
-// generic image blit in screen space (for UI icons made from sprites)
-export function drawSpriteUI(spriteCanvas, x, y, scale = 1, { alpha = 1, flipX = false } = {}) {
+// generic image blit in screen space (for UI icons made from sprites).
+// opt-in `tint`: blit a source-in silhouette (codex 剪影 for undiscovered entries) instead of the
+// real frame — reuses the world-space tintedFrame WeakMap cache. Untinted path is byte-unchanged.
+export function drawSpriteUI(spriteCanvas, x, y, scale = 1, { alpha = 1, flipX = false, tint = null } = {}) {
   if (!spriteCanvas) return;
+  const src = tint ? tintedFrame(spriteCanvas, tint) : spriteCanvas;
   ctx.save();
   ctx.globalAlpha = alpha;
   ctx.imageSmoothingEnabled = false;
-  const w = spriteCanvas.width * scale, h = spriteCanvas.height * scale;
-  if (flipX) { ctx.translate(x + w, y); ctx.scale(-1, 1); ctx.drawImage(spriteCanvas, 0, 0, w, h); }
-  else ctx.drawImage(spriteCanvas, x, y, w, h);
+  const w = src.width * scale, h = src.height * scale;
+  if (flipX) { ctx.translate(x + w, y); ctx.scale(-1, 1); ctx.drawImage(src, 0, 0, w, h); }
+  else ctx.drawImage(src, x, y, w, h);
   ctx.restore();
 }
 

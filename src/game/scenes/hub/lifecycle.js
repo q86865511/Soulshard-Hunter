@@ -72,6 +72,8 @@ export const lifecycleMixin = {
     if (areaId === 'town') {
       const plaza = R.plaza;
       const list = [{ id: 'sortie', panel: 'sortie', sprite: 'portal_grand', label: '出擊傳送門', color: P.manaL, x: plaza.cx, y: plaza.cy }];
+      // P1 內容圖鑑：廣場一角的石碑站點（開面板，非門）— 避開中央傳送門與廣場 NPC（嚮導 -4/兒童 +4）
+      list.push({ id: 'codex', panel: 'codex', sprite: 'ruin_st_codex', label: '圖鑑石碑', color: P.shardL, x: plaza.cx + 4.5 * TS, y: plaza.cy - 3 * TS });
       for (const bid in BUILDINGS) {
         const b = BUILDINGS[bid], rm = R[bid]; if (!rm) continue;
         list.push({ id: 'door_' + bid, kind: 'door', target: bid, label: b.enterLabel, color: b.color, x: rm.cx, y: rm.cy });

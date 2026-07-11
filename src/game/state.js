@@ -68,6 +68,7 @@ const DEFAULT_META = () => ({
   room: { decor: {} },                   // R18/B10 個人小屋裝飾：decorId -> true
   pet: null,                             // R18/B10 出戰的迷你寵物 id（純裝飾）
   npcAff: {},                            // R18/B11 NPC 好感：npcId -> { pts, lastDay }
+  codex: { w: {}, a: {}, boss: {}, rec: {} },   // P1 內容圖鑑：跨局記錄曾發現的武器/被動/Boss/進化配方
   flags: {},
 });
 
@@ -155,6 +156,8 @@ export function loadMeta(slot) {
       if (!META.room.decor || typeof META.room.decor !== 'object') META.room.decor = {};
       if (typeof META.pet !== 'string' && META.pet !== null) META.pet = null;
       if (!META.npcAff || typeof META.npcAff !== 'object') META.npcAff = {};
+      if (!META.codex || typeof META.codex !== 'object') META.codex = { w: {}, a: {}, boss: {}, rec: {} };   // P1 內容圖鑑
+      for (const k of ['w', 'a', 'boss', 'rec']) if (!META.codex[k] || typeof META.codex[k] !== 'object') META.codex[k] = {};
       for (const k of ['charClears']) if (!META.stats[k] || typeof META.stats[k] !== 'object') META.stats[k] = {};
       for (const k of ['noDmgClears', 'bestCharLevel', 'bondsTriggered', 'forgeUpgrades', 'npcTalks', 'bestEndlessTime', 'dailyClears']) if (typeof META.stats[k] !== 'number') META.stats[k] = 0;
       if (typeof META.saveSeq !== 'number') META.saveSeq = 0;
