@@ -212,6 +212,45 @@ async function main() {
     ok(coop.codexGuestLeak === false, 'coop guest weapon does NOT leak into host codex');
     ok(!coop.err, 'no __GAME_ERROR__ after co-op self-tests');
 
+    // ── 7. accessibility settings + assist mode (R23) ───────────────────────
+    console.log('phase 7: accessibility + assist');
+    await freshBoot(page);
+    const acc = await page.evaluate(() => {
+      const out = {};
+      const s = window.__DBG.meta().settings;
+      out.defaults = typeof s.shake === 'number' && s.flash === true && typeof s.particles === 'number' && s.dmgNums === true;
+      out.assistDefault = JSON.stringify(window.__DBG.meta().assist) === JSON.stringify({ hp: 1, dmg: 1, speed: 1 });
+      // assist run: multipliers locked at run start, run flagged as assisted
+      Object.assign(window.__DBG.meta().assist, { hp: 0.5, dmg: 0.5, speed: 0.8 });
+      window.__DBG.nav('run');
+      const sc = window.__DBG.scene();
+      out.assistRun = sc.run.assist === true && sc.run.assistHpMul === 0.5 && sc.run.assistDmgMul === 0.5 && sc.run.assistSpeedMul === 0.8;
+      out.err = window.__GAME_ERROR__ || null;
+      return out;
+    });
+    ok(acc.defaults === true, 'settings defaults: shake is a number, flash/particles/dmgNums present');
+    ok(acc.assistDefault === true, 'META.assist defaults to all 1');
+    ok(acc.assistRun === true, 'assist multipliers lock onto the run and flag it assisted');
+    ok(!acc.err, 'no __GAME_ERROR__ after assist run');
+    // legacy migration: a bool shake save normalizes to a number on load
+    const legacy = await page.evaluate(() => {
+      const key = Object.keys(localStorage).find((k) => k.startsWith('soulshard.save.v1')) || 'soulshard.save.v1.slot0';
+      const m = JSON.parse(JSON.stringify(window.__DBG.meta()));
+      m.settings.shake = true; delete m.settings.flash; delete m.settings.particles; delete m.settings.dmgNums; delete m.assist;
+      localStorage.setItem(key, JSON.stringify(m));
+      return key;
+    });
+    void legacy;
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await page.waitForFunction(() => window.__DBG && typeof window.__DBG.reg === 'function');
+    const mig = await page.evaluate(() => {
+      const s = window.__DBG.meta().settings;
+      return { shake: s.shake, flash: s.flash, particles: s.particles, dmgNums: s.dmgNums, assist: window.__DBG.meta().assist };
+    });
+    ok(mig.shake === 1, 'legacy bool shake:true migrates to 1 (got ' + mig.shake + ')');
+    ok(mig.flash === true && mig.particles === 1 && mig.dmgNums === true, 'missing accessibility fields backfilled');
+    ok(!!mig.assist && mig.assist.hp === 1, 'META.assist backfilled on legacy save');
+
     ok(pageErrors.length === 0, 'no uncaught page errors (' + JSON.stringify(pageErrors.slice(0, 3)) + ')');
   } finally {
     if (browser) await browser.close().catch(() => {});
