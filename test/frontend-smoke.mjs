@@ -251,6 +251,39 @@ async function main() {
     ok(mig.flash === true && mig.particles === 1 && mig.dmgNums === true, 'missing accessibility fields backfilled');
     ok(!!mig.assist && mig.assist.hp === 1, 'META.assist backfilled on legacy save');
 
+    // ── 8. telemetry: whitelist queue + opt-out + damage-source (R24) ───────
+    console.log('phase 8: telemetry');
+    await freshBoot(page);
+    const tele = await page.evaluate(async () => {
+      const out = {};
+      out.analyticsDefault = window.__DBG.meta().settings.analytics === true;
+      const { Tele } = await import('/src/net/telemetry.js');
+      window.__DBG.nav('run');
+      const d1 = Tele._debug();
+      out.runStartQueued = d1.names.includes('run_started');
+      Tele.ev('bogus_event', { x: 1 });
+      out.bogusIgnored = Tele._debug().queued === d1.queued;
+      // damage-source plumbing (P1-4 groundwork) — clear i-frames/dash/dodge so the hit lands deterministically
+      const s = window.__DBG.scene();
+      s.player.invuln = 0; s.player.dashT = 0; s.player.stats.dodge = 0;
+      const landed = s.player.takeDamage(5, 0, s.world, 'hazard:spikes');
+      out.dmgSrc = landed === true && s.player.lastHitSrc === 'hazard:spikes' && ((s.run.dmgTakenBySrc || {})['hazard:spikes'] || 0) > 0;
+      // opt-out: no growth while disabled
+      window.__DBG.meta().settings.analytics = false;
+      const before = Tele._debug().queued + Tele._debug().sent;
+      window.__DBG.nav('hub'); window.__DBG.nav('run');
+      const after = Tele._debug().queued + Tele._debug().sent;
+      out.optOut = after === before;
+      out.err = window.__GAME_ERROR__ || null;
+      return out;
+    });
+    ok(tele.analyticsDefault === true, 'analytics defaults to on');
+    ok(tele.runStartQueued === true, 'run_started queued after entering a run');
+    ok(tele.bogusIgnored === true, 'non-whitelisted event names are ignored');
+    ok(tele.dmgSrc === true, 'takeDamage records lastHitSrc + run.dmgTakenBySrc');
+    ok(tele.optOut === true, 'disabling analytics stops event collection');
+    ok(!tele.err, 'no __GAME_ERROR__ after telemetry phase');
+
     ok(pageErrors.length === 0, 'no uncaught page errors (' + JSON.stringify(pageErrors.slice(0, 3)) + ')');
   } finally {
     if (browser) await browser.close().catch(() => {});

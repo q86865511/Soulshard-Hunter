@@ -1,6 +1,6 @@
 name: server-test
 
-# 可重用 workflow：server 端的語法檢查 + 168 個 smoke/social 測試。
+# 可重用 workflow：server 端的語法檢查 + 179 個 smoke/social 測試。
 # 由 ci.yml（PR 檢查）與 deploy.yml（部署前關卡）共用，避免重複定義。
 # 測試用 in-memory fakepool（SOULSHARD_NO_LISTEN=1），不需 Postgres、不開 port。
 

@@ -61,7 +61,7 @@
 - **主機權威即時合作**:開房玩家的瀏覽器跑**未修改的權威 `run.js` 模擬**並以 ~18Hz 廣播量化後的世界快照;Node 伺服器只當房間/中繼不跑模擬。訪客場景為純插值傀儡 + 自身 avatar 的本地預測/校正。**單機路徑零改動**。
 - **伺服器權威計分**:排行榜分數由後端以 `kills/stage/time/difficulty/reaper` 重算並做合理性檢查,忽略客戶端宣稱值,杜絕前端竄改。
 - **完整雲端後端**:Node + Fastify + PostgreSQL 單一程式同時提供 REST API 與 WebSocket 中繼;含 JWT 帳號、跨裝置存檔、多模式排行榜、好友/大廳/觀戰/斷線重連,以及 7 分頁管理後台(封鎖、踢人、稽核日誌、數據統計)。
-- **CI 與離線優先設計**:GitHub Actions 跑 168 項後端 smoke/social 測試;前端附離線自測 hook(`__DBG.coopRoundTrip/coopSilenceTest/coopBossSyncTest`)可在無雙分頁、無中繼伺服器的情況下驗證 host→guest 全鏈路。
+- **CI 與離線優先設計**:GitHub Actions 跑 179 項後端 smoke/social 測試與前端 headless smoke(部署雙關卡);前端另附離線自測 hook(`__DBG.coopRoundTrip/coopSilenceTest/coopBossSyncTest`)可在無雙分頁、無中繼伺服器的情況下驗證 host→guest 全鏈路。
 
 ## 🏗️ 架構
 
@@ -117,7 +117,7 @@ node tools/serve.mjs
 cd server
 npm ci          # 安裝相依(CI 用 npm ci;本機開發用 npm install 亦可)
 npm run check   # 語法檢查(server 端各模組 node --check)
-npm test        # smoke(103)+ social(65)= 168 項
+npm test        # smoke(114)+ social(65)= 179 項
 ```
 
 CI 流程定義於 [`.github/workflows/ci.yml`](.github/workflows/ci.yml)(觸發於 PR 與 `main` push),實際測試步驟收斂在可重用的 [`.github/workflows/server-test.yml`](.github/workflows/server-test.yml) 與 [`.github/workflows/frontend-test.yml`](.github/workflows/frontend-test.yml),並由部署流程 [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml) 共用為部署前關卡——**server 與前端任一紅燈都不部署**。
@@ -143,6 +143,10 @@ CI 流程定義於 [`.github/workflows/ci.yml`](.github/workflows/ci.yml)(觸發
 ### 無障礙與輔助模式
 
 設定選單(`Esc`)提供:畫面震動強度(0~100%)、螢幕閃光開關(低血警示改為靜態紅框)、粒子密度、傷害數字開關——關閉特效後 Boss 預警仍以**形狀與動畫**(方向箭頭、收縮警戒圈、十字準星)保持可辨識。**輔助模式**可調降敵人生命/傷害/速度(50~100%,下一局生效、多人連線不適用);啟用輔助的對局**不計入任何排行榜**,但金幣與成就照常結算。
+
+### 匿名遊玩統計(遙測)
+
+為了平衡調整與新手體驗改善,遊戲會收集**匿名**遊玩事件(開局、升級選卡、對局結束等六種白名單事件,附本機隨機識別碼與版本號)。**不收集**:帳號連結、IP、裝置指紋、聊天或任何輸入內容。資料保存 **90 天**後自動刪除;可在設定選單的「隱私」區一鍵停用;離線遊玩完全不受影響。
 
 ### 已知限制:平台支援
 
@@ -221,7 +225,7 @@ JWT_SECRET=$(node -e "console.log(require('crypto').randomBytes(48).toString('he
 # 無 Postgres 的純前端測試(記憶體後端,重啟即清空)
 npm install && npm run dev:fakedb
 
-# 後端測試(帳號/存檔/排行榜/回饋/後台 + 好友/房間/中繼,共 103 + 65 項)
+# 後端測試(帳號/存檔/排行榜/回饋/後台/遙測 + 好友/房間/中繼,共 114 + 65 項)
 npm test
 ```
 
@@ -281,7 +285,7 @@ assets/music/                   ← 12 首實錄配樂
 
 ## ⚠️ 已知限制
 
-- **無自動化前端測試**:前端為零建置純 ESM,目前沒有 headless 自動化測試;`__DBG` 自測 hook 與「重載 + 手動 pump」需在瀏覽器中手動執行。CI 只涵蓋後端(168 項 smoke/social)。
+- **前端自動化測試為 smoke 級**:`test/` 的 Playwright headless smoke(52 條斷言)涵蓋 boot/registry/場景/教學暫停/圖鑑/遙測/co-op 自測並作為部署關卡,但 UI 冷路徑仍靠 `__DBG` hook 與「重載 + 手動 pump」人工驗證。
 - **雲端存檔需真實 PostgreSQL 才持久**:`npm run dev:fakedb` 為記憶體假資料庫,重啟即清空,僅供本機測試;本機 `localStorage` 存檔不受影響。
 - **即時合作為主機權威中繼,非 rollback netcode**:開房玩家(host)是權威來源;host 離線會觸發主機遷移,訪客在斷線重連有 ~20 秒寬限。高延遲下訪客自身 avatar 靠本地預測/校正,其餘實體為插值,並非逐幀同步。
 - **合作人數上限 1~3 人**:採共視窗設計,鏡頭各自跟隨;非大廳式大規模連線。

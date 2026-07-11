@@ -65,7 +65,7 @@ No Postgres at all? `npm run dev:fakedb` runs the **real** app on an in-memory p
 ## Tests
 
 ```bash
-npm test          # test/smoke.mjs (103: accounts/save/leaderboard/admin/moderation) + test/social.smoke.mjs (65: friends/rooms/relay/rate-limit) = 168
+npm test          # test/smoke.mjs (114: accounts/save/leaderboard/admin/moderation/telemetry) + test/social.smoke.mjs (65: friends/rooms/relay/rate-limit) = 179
 npm run check     # node --check all server/src/*.js
 ```
 
