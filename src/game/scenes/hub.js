@@ -10,7 +10,8 @@ import { renderMixin } from './hub/render.js';
 import { renderSmithMixin } from './hub/render_smith.js';
 import { renderWardrobeMixin } from './hub/render_wardrobe.js';
 import { renderPersonalMixin } from './hub/render_personal.js';
+import { renderCodexMixin } from './hub/render_codex.js';
 
-export const hubScene = Object.assign({}, lifecycleMixin, menusMixin, panelsMixin, upgradesMixin, renderMixin, renderSmithMixin, renderWardrobeMixin, renderPersonalMixin);
+export const hubScene = Object.assign({}, lifecycleMixin, menusMixin, panelsMixin, upgradesMixin, renderMixin, renderSmithMixin, renderWardrobeMixin, renderPersonalMixin, renderCodexMixin);
 
 refs.hub = hubScene;

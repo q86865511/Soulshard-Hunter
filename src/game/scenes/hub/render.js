@@ -6,6 +6,7 @@ import { P, withAlpha } from '../../../engine/palette.js';
 import { UI, ctxRaw, drawShadow, drawSprite, drawSpriteUI, glowWorld, textWidth, uiBar, uiRect, uiScale, uiText, view, vignette, worldToScreen } from '../../../engine/renderer.js';
 import { frameAt, getSprite, iconOr } from '../../../engine/sprites.js';
 import { Cheats } from '../../cheats.js';
+import { goalsFor } from '../../content/goals.js';
 import { guildProgress } from '../../content/guild.js';
 import { npcAffLevel } from '../../content/npcs.js';
 import { petById } from '../../content/pets.js';
@@ -121,6 +122,7 @@ export const renderMixin = {
     else if (this.panel === 'guild') this.drawGuild();
     else if (this.panel === 'personal') this.drawPersonal();
     else if (this.panel === 'bank') this.drawBank();
+    else if (this.panel === 'codex') this.drawCodex();   // P1 內容圖鑑
 
     if (this.dialogue) this.drawDialogue();
     if (this.confirm) this.drawConfirm();   // task 8: buy/reset confirmation on top
@@ -168,6 +170,9 @@ export const renderMixin = {
     uiBar(x + 8 * S, y + 33 * S, w - 16 * S, 4 * S, q.frac || 0, { fg: q.done ? P.greenL : P.shardL, bg: '#16183a', border: P.ink });
     uiText('公會 · ' + gp.name, x + 8 * S, y + 50 * S, { size: 9.5 * S, color: P.shardL, weight: '700' });
     uiBar(x + 8 * S, y + 55 * S, w - 16 * S, 3 * S, gp.frac || 0, { fg: P.gold, bg: '#16183a', border: P.ink });
+    // P1 內容圖鑑：底部 append 第一條推薦目標（輕量輔助；無目標時不畫）
+    const g0 = goalsFor(META)[0];
+    if (g0) this.clip1((g0.icon || '◆') + ' ' + g0.title, x + 8 * S, y + h + 12 * S, w - 16 * S, 9.5 * S, P.goldL, '700');
   },
 
   drawPanelFrame(title, sub) {

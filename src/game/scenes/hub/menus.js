@@ -96,6 +96,7 @@ export const menusMixin = {
     if (id === 'wardrobe') { this.wardrobeView = null; this.wardrobeChar = null; ensureSale(META); }   // R17/3.1: entry screen first
     if (id === 'bank') this.bankAmount = bankLimit(META);   // 7.2: default the custom-borrow amount to the full limit
     if (id === 'smith' && !this.forgeSel) this.forgeSel = (forgeableWeapons(META)[0] || {}).id || null;
+    if (id === 'codex') { this.codexTab = 0; this.codexSel = null; }   // P1 內容圖鑑：預設回目標分頁
     Sfx.play('uiClick');
   },
   feedback(msg) { this.flash = msg; this.flashT = 1.4; Sfx.play('buy'); },

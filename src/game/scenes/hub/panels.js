@@ -2,6 +2,7 @@
 // Mixed into hubScene via Object.assign in hub.js; all state lives on `this`.
 import { Sfx } from '../../../engine/audio.js';
 import { mouse, pressed } from '../../../engine/input.js';
+import { clamp } from '../../../engine/math.js';   // wheel/scrollbar 用（原先 updatePanel/handleScrollbar 未匯入，屬既有漏洞）
 import { P, withAlpha } from '../../../engine/palette.js';
 import { UI, ctxRaw, drawSpriteUI, goldStr, uiBar, uiRect, uiScale, uiText, view } from '../../../engine/renderer.js';
 import { getSprite } from '../../../engine/sprites.js';
@@ -16,7 +17,7 @@ import { TS } from '../../world.js';
 import { inside } from './shared.js';
 
 export const panelsMixin = {
-  panelTitle(id) { return { talents: '教堂 · 天賦', smith: '鐵匠鋪', guild: '獵人公會', wardrobe: '衣帽店', achievements: '成就殿堂', personal: '個人小屋', sortie: '出擊', bank: '魂晶銀行' }[id] || id; },
+  panelTitle(id) { return { talents: '教堂 · 天賦', smith: '鐵匠鋪', guild: '獵人公會', wardrobe: '衣帽店', achievements: '成就殿堂', personal: '個人小屋', sortie: '出擊', bank: '魂晶銀行', codex: '圖鑑石碑' }[id] || id; },
   // 2.3 / 3.5-C: reusable「新」/「可領」badge — a yellow circle with a white「!」.
   drawNewBadge(bx, by, S) {
     const ctx = ctxRaw(), r = 7 * S;
@@ -57,7 +58,7 @@ export const panelsMixin = {
     if ((this.panel === 'smith' || this.panel === 'guild') && mouse.justDown) {
       for (const tb of this.tabRects(frame)) if (inside(mx, my, tb)) { this.tab = tb.i; this.panelScroll = 0; Sfx.play('uiClick'); return; }
     }
-    if (mouse.wheel && ['talents', 'facilities', 'achievements', 'smith', 'personal', 'wardrobe', 'guild'].includes(this.panel)) {
+    if (mouse.wheel && ['talents', 'facilities', 'achievements', 'smith', 'personal', 'wardrobe', 'guild', 'codex'].includes(this.panel)) {
       this.panelScroll = clamp((this.panelScroll || 0) + mouse.wheel * 0.5, 0, this.panelMaxScroll || 0);
     }
     if (this.panel === 'talents') this.updateTalents(mx, my);
@@ -71,6 +72,7 @@ export const panelsMixin = {
       if ((this.personalTab || 0) === 2) this.updateRoomTab(mx, my);   // R18/B10 裝飾·寵物
     }
     else if (this.panel === 'bank') this.updateBank(mx, my);   // 7.2 魂晶銀行
+    else if (this.panel === 'codex') this.updateCodex(mx, my);   // P1 內容圖鑑
   },
   // ---- 魂晶銀行 (7.2): borrow a CUSTOM amount now, auto-repaid (×interest) from next run's gold ----
   bankStep() { return Math.max(10, Math.round(bankLimit(META) / 20)); },

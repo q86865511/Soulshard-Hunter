@@ -475,6 +475,65 @@ defineSprite('ruin_st_bed', 44, 44, (p) => {
   p.outline(P.ink);
 }, { anchor: 'feet' });
 
+// ── 8. ruin_st_codex 44×48 anim 2f — TOWN plaza: the content-codex soul stele ─
+// A weathered ash-stone stele engraved with a codex frame of glowing soul-teal
+// runes, crowned by a floating open crystal tome whose astral pages breathe
+// between the two frames. Deliberately reads apart from the timber quest board:
+// no timber, no notices — pure stone + soul-crystal light (P.shard/P.astral).
+defineAnim('ruin_st_codex', 44, 48, 2, (p, f) => {
+  p.softShadow(22, 46, 16, 2.4, 0.34);
+  // stepped stone base: wide lower slab + narrower upper block
+  p.rect(8, 42, 28, 4, ST);  p.hline(8, 35, 42, STL);  p.vline(42, 45, 8, darken(ST, 0.24));
+  p.rect(12, 38, 20, 4, ST); p.hline(12, 31, 38, lighten(STL, 0.06)); p.vline(38, 41, 12, darken(ST, 0.28));
+  p.px(10, 44, CRACK); p.px(33, 43, darken(ST, 0.3)); p.px(14, 45, P.moss); p.px(29, 40, P.moss);
+  // the stele slab: a tall tablet tapering slightly to a peaked cap
+  for (let y = 10; y <= 38; y++) {
+    const t = (y - 10) / 28;
+    const hw = Math.round(8 + t * 3);                 // top 8 → base 11
+    p.hline(22 - hw, 22 + hw, y, mix(STL, STD, t * 0.7));
+  }
+  p.gradV(12, 10, 20, 28, mix(STL, ST, 0.3), darken(STD, 0.05));
+  // peaked cap
+  p.hline(16, 27, 9, ST); p.hline(18, 25, 8, STL); p.px(21, 7, STL); p.px(22, 7, STL);
+  // weathering: cracks, moss, chipped face
+  p.line(15, 14, 17, 22, CRACK); p.line(28, 26, 30, 34, CRACK);
+  p.px(12, 30, P.moss); p.px(31, 20, P.moss); p.px(13, 36, darken(ST, 0.3));
+  // engraved codex frame inset on the face
+  p.rect(15, 15, 14, 18, darken(STD, 0.12));
+  p.gradV(15, 15, 14, 18, darken(ST, 0.06), darken(STD, 0.18));
+  p.hline(15, 28, 15, darken(ST, 0.3)); p.vline(15, 32, 15, lighten(STL, 0.05));   // bevel
+  // glowing soul-teal rune rows (breathe with the frame)
+  const rc = f ? P.shardL : P.shard;
+  p.hline(17, 26, 18, withAlpha(rc, f ? 0.9 : 0.6));
+  p.hline(17, 24, 21, withAlpha(rc, f ? 0.75 : 0.5));
+  p.hline(17, 27, 24, withAlpha(rc, f ? 0.85 : 0.55));
+  p.hline(17, 23, 27, withAlpha(rc, f ? 0.7 : 0.45));
+  p.hline(17, 25, 30, withAlpha(rc, f ? 0.8 : 0.5));
+  // soul-gem inset crowning the panel
+  p.px(21, 13, P.shard); p.px(22, 13, P.shardL); p.glow(21, 13, 2, P.shard, f ? 0.3 : 0.18, 2);
+  // the floating open crystal tome hovering above the stele (gentle bob)
+  const yb = f ? 0 : 1;
+  p.glow(22, 6 + yb, f ? 7 : 5.5, P.astral, f ? 0.4 : 0.26, 3);
+  for (let y = 3; y <= 8; y++) {                        // splayed pages fanning down from the spine
+    const w = Math.min(6, y - 1);
+    p.hline(22 - w, 21, y + yb, withAlpha(P.astral, f ? 0.75 : 0.58));
+    p.hline(23, 23 + w, y + yb, withAlpha(P.shard, f ? 0.75 : 0.58));
+  }
+  p.line(22, 3 + yb, 16, 5 + yb, P.astralL);            // bright page top edges
+  p.line(23, 3 + yb, 29, 5 + yb, P.shardL);
+  p.vline(3 + yb, 8 + yb, 22, mix(P.astralL, P.shardL, 0.5));   // spine
+  p.px(22, 2 + yb, P.white);                            // spine-top glint
+  p.px(19, 5 + yb, withAlpha(P.white, 0.8)); p.px(25, 6 + yb, withAlpha(P.shardL, 0.8));   // page runes
+  // kira sparkles + drifting soul-motes
+  p.star4(30, 9 + f, 2, P.white, P.astralL);
+  p.star4(12, 12 - f, 1, P.shardL);
+  p.sparkle(26, 3 + yb, P.neonL, 0);
+  p.px(14 - f, 26, withAlpha(P.shardL, 0.7));
+  p.shadeBottom(0.15, 40);
+  p.rimLight(P.rimCool, 0.33);
+  p.outline(P.ink);
+}, { anchor: 'feet', fps: 2 });
+
 // ── 7. boss_pillar 16×28 anim 3f — IN-RUN destructible soul-cage pillar ─────
 // A boss summons rings of these to wall the player in. Jagged obsidian-violet
 // shard torn up out of the ground, soul-teal core veins pulsing bright → dim
