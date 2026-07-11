@@ -109,5 +109,20 @@ export async function initSchema(p = pool) {
       created_at     timestamptz DEFAULT now()
     );
     CREATE INDEX IF NOT EXISTS admin_logs_time_idx ON admin_logs (created_at DESC);
+
+    -- P1-3: anonymous product telemetry. A whitelist of gameplay-funnel events, batched
+    -- from POST /api/metrics. NO user id / IP / UA / free text — sid is a client-random
+    -- session token only; props is a whitelisted, capped JSONB blob. Purged after
+    -- METRICS_RETENTION_DAYS (default 90) by server.js.
+    CREATE TABLE IF NOT EXISTS events (
+      id         bigserial PRIMARY KEY,
+      sid        text NOT NULL,
+      v          text NOT NULL,
+      name       text NOT NULL,
+      props      jsonb NOT NULL DEFAULT '{}',
+      created_at timestamptz NOT NULL DEFAULT now()
+    );
+    CREATE INDEX IF NOT EXISTS events_name_time_idx ON events (name, created_at DESC);
+    CREATE INDEX IF NOT EXISTS events_sid_idx       ON events (sid);
   `);
 }

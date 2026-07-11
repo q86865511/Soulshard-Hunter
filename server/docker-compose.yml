@@ -30,6 +30,7 @@ services:
       JWT_SECRET: ${JWT_SECRET:?set a strong JWT_SECRET first, e.g. export JWT_SECRET=$(openssl rand -hex 48)}
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:5173,http://127.0.0.1:5173}
       ADMIN_USERS: ${ADMIN_USERS:-}   # comma-separated usernames granted the 🛠 admin console (read from .env)
+      METRICS_RETENTION_DAYS: ${METRICS_RETENTION_DAYS:-90}   # P1-3: anonymous telemetry retention (days)
       NODE_ENV: production
       PORT: "8787"
     ports:

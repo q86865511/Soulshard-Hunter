@@ -25,6 +25,9 @@ const isAdmin = (username) => !!username && ADMIN_USERS.includes(username);
 // ---- helpers --------------------------------------------------------------
 const clampInt = (v, lo, hi) => Math.max(lo, Math.min(hi, Math.floor(Number(v) || 0)));
 
+// P1-3: how long anonymous telemetry rows live before the retention sweep deletes them.
+const METRICS_RETENTION_DAYS = clampInt(process.env.METRICS_RETENTION_DAYS || 90, 1, 3650);
+
 function sign(user) {
   return jwt.sign({ uid: String(user.id), username: user.username }, JWT_SECRET, { expiresIn: TOKEN_TTL });
 }
@@ -156,6 +159,47 @@ const feedbackSchema = z.object({
   // text (~1.9MB binary). The regex rejects any non-image / non-data payload.
   image:    z.string().max(2_600_000).regex(/^data:image\/(png|jpeg|jpg|webp);base64,[A-Za-z0-9+/]+={0,2}$/).optional().nullable(),   // QA: anchor + base64-charset (defense-in-depth)
 });
+
+// P1-3: anonymous telemetry batch. Body shape only — individual events are name-checked
+// and prop-whitelisted in code (unknown-name events are dropped, not 400'd), so the array
+// is validated loosely here (1..50 elements). Oversized batch or non-array → 400.
+const metricsSchema = z.object({
+  sid:    z.string().min(8).max(40),
+  v:      z.string().min(1).max(16),
+  events: z.array(z.any()).min(1).max(50),
+});
+// Per-event prop whitelist. Value = 's' (string, capped 40) · 'n' (finite number) ·
+// 'b' (boolean) · 'a' (string array, ≤24 elems, each capped 40) · [..] (string enum).
+// Keys NOT listed are stripped; NO free-text / device-id / user fields are ever accepted.
+const METRIC_SPEC = {
+  save_created: {},
+  tutorial_step: { step: ['story_shown', 'story_skipped', 'story_done', 'hud_done'] },
+  run_started:  { biome: 's', char: 's', mode: 's', diff: 'n', assist: 'b' },
+  level_choice: { picked: 's', offered: 'a', t: 'n' },
+  run_ended:    { result: ['clear', 'death', 'leave'], time: 'n', score: 'n', stage: 'n', diff: 'n', charLevel: 'n', biome: 's', char: 's', mode: 's', deathSrc: 's', assist: 'b', weapons: 'a', abilities: 'a' },
+  unlock_seen:  { ach: 'a' },
+};
+const STR_CAP = 40, ARR_CAP = 24;
+const cleanStr = (v) => (typeof v === 'string' ? v.slice(0, STR_CAP) : undefined);
+const cleanNum = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : undefined);
+const cleanBool = (v) => (typeof v === 'boolean' ? v : undefined);
+const cleanArr = (v) => (Array.isArray(v) ? v.slice(0, ARR_CAP).map(cleanStr).filter((x) => x !== undefined) : undefined);
+// Build a sanitized props object for one event: whitelist keys, cap/coerce values, drop the rest.
+function sanitizeProps(name, raw) {
+  const spec = METRIC_SPEC[name];
+  const p = (raw && typeof raw === 'object' && !Array.isArray(raw)) ? raw : {};
+  const out = {};
+  for (const key of Object.keys(spec)) {
+    const rule = spec[key]; const val = p[key]; let cleaned;
+    if (Array.isArray(rule)) cleaned = (typeof val === 'string' && rule.includes(val)) ? val : undefined;   // enum
+    else if (rule === 's') cleaned = cleanStr(val);
+    else if (rule === 'n') cleaned = cleanNum(val);
+    else if (rule === 'b') cleaned = cleanBool(val);
+    else if (rule === 'a') cleaned = cleanArr(val);
+    if (cleaned !== undefined) out[key] = cleaned;
+  }
+  return out;
+}
 
 const strictLimit = { config: { rateLimit: { max: 15, timeWindow: '1 minute' } } };          // auth
 const saveLimit = { preHandler: auth, config: { rateLimit: { max: 60, timeWindow: '1 minute' } } };   // cloud save (client debounces at ~24/min)
@@ -306,6 +350,29 @@ export async function buildApp(pool, { logger = false, rateMax = 120 } = {}) {
     return { ok: true };
   });
 
+  // P1-3: anonymous product telemetry. INTENTIONALLY reads NO JWT, IP, or User-Agent —
+  // only the client-random session token (sid) + a whitelist of gameplay-funnel events.
+  // Malformed batch shape → 400; individual unknown-name / bad-prop events are dropped so a
+  // stray event never loses the whole batch. Rows are purged after METRICS_RETENTION_DAYS.
+  app.post('/api/metrics', { config: { rateLimit: { max: 30, timeWindow: '1 minute' } } }, async (req, reply) => {
+    const p = metricsSchema.safeParse(req.body || {});
+    if (!p.success) return reply.code(400).send({ error: 'invalid metrics payload' });
+    const { sid, v, events } = p.data;
+    const clean = [];
+    for (const ev of events) {
+      if (!ev || typeof ev !== 'object' || Array.isArray(ev)) continue;                 // not an event object → drop
+      if (!Object.prototype.hasOwnProperty.call(METRIC_SPEC, ev.n)) continue;           // unknown name → drop
+      clean.push({ n: ev.n, p: sanitizeProps(ev.n, ev.p) });
+    }
+    if (clean.length) {
+      const rows = []; const vals = []; let i = 0;
+      for (const ev of clean) { rows.push(`($${++i},$${++i},$${++i},$${++i})`); vals.push(sid, v, ev.n, ev.p); }
+      // stable prefix 'INSERT INTO events' — batch single INSERT (variable VALUES count).
+      await pool.query(`INSERT INTO events(sid, v, name, props) VALUES ${rows.join(',')}`, vals);
+    }
+    return { ok: true, accepted: clean.length };
+  });
+
   // round16/7.3: "playing now" heartbeat — works for logged-in users AND offline guests.
   // High-frequency (~every 30s/client): keep its own modest per-IP rate bucket.
   app.post('/api/presence/play', { config: { rateLimit: { max: 40, timeWindow: '1 minute' } } }, async (req, reply) => {
@@ -333,6 +400,15 @@ export async function buildApp(pool, { logger = false, rateMax = 120 } = {}) {
   app.realtime = realtime;
   await realtime.loadBans().catch(() => {});   // load account/IP ban list into memory
   app.get('/api/rt/stats', async () => realtime.stats());
+
+  // P1-3: telemetry retention sweep — delete rows older than METRICS_RETENTION_DAYS. Runs once
+  // at boot then every 24h; self-catches so a missing table (pre-migration deploy) never throws.
+  const purgeOldEvents = () => pool.query(
+    `DELETE FROM events WHERE created_at < now() - ($1 || ' days')::interval`,
+    [String(METRICS_RETENTION_DAYS)]).catch(() => {});
+  purgeOldEvents();
+  const purgeTimer = setInterval(purgeOldEvents, 24 * 3600e3);
+  if (purgeTimer.unref) purgeTimer.unref();
 
   // round16/7.6: central audit-log writer — called by every admin mutation. Self-catches:
   // a logging failure must NEVER block the moderation action it is recording.
@@ -475,6 +551,39 @@ export async function buildApp(pool, { logger = false, rateMax = 120 } = {}) {
       live: { online: ov.totals.users, playing: ov.totals.playing || 0, rooms: ov.totals.rooms },
       topPlayers: top,
     };
+  });
+
+  // P1-3: product telemetry dashboard — anonymous funnel/clear-rate/death-time/pick aggregates
+  // over the last 14 days. Each query is independent with a stable, recognizable prefix; a
+  // missing/empty events table degrades that field to []/zeros rather than 500-ing.
+  app.get('/api/admin/metrics', { preHandler: requireAdmin }, async () => {
+    const rows = (sql) => pool.query(sql).then((r) => r.rows).catch(() => []);
+    const [totals, funnel, clearRate, deathTime, picks] = await Promise.all([
+      // 1) event-name counts (last 14d)
+      rows(`SELECT name, count(*)::int AS n FROM events
+            WHERE created_at >= now() - interval '14 days' GROUP BY name ORDER BY n DESC`),
+      // 2) distinct-sid funnel: saved → started → ended
+      rows(`SELECT count(DISTINCT sid) FILTER (WHERE name = 'save_created')::int AS saved,
+                   count(DISTINCT sid) FILTER (WHERE name = 'run_started')::int AS started,
+                   count(DISTINCT sid) FILTER (WHERE name = 'run_ended')::int   AS ended
+            FROM events WHERE created_at >= now() - interval '14 days'`),
+      // 3) clear rate by (biome, diff) — top 20 groups
+      rows(`SELECT props->>'biome' AS biome, props->>'diff' AS diff, count(*)::int AS total,
+                   count(*) FILTER (WHERE props->>'result' = 'clear')::int AS clears
+            FROM events WHERE name = 'run_ended' AND created_at >= now() - interval '14 days'
+            GROUP BY 1, 2 ORDER BY total DESC LIMIT 20`),
+      // 4) death-time histogram: minute bucket floor(time/60), clamped 0..20
+      rows(`SELECT LEAST(20, floor((props->>'time')::float / 60))::int AS minute, count(*)::int AS n
+            FROM events WHERE name = 'run_ended' AND props->>'result' = 'death'
+                  AND props->>'time' IS NOT NULL AND created_at >= now() - interval '14 days'
+            GROUP BY 1 ORDER BY 1`),
+      // 5) top-15 picked upgrades
+      rows(`SELECT props->>'picked' AS picked, count(*)::int AS n
+            FROM events WHERE name = 'level_choice' AND props->>'picked' IS NOT NULL
+                  AND created_at >= now() - interval '14 days'
+            GROUP BY 1 ORDER BY n DESC LIMIT 15`),
+    ]);
+    return { totals, funnel: funnel[0] || { saved: 0, started: 0, ended: 0 }, clearRate, deathTime, picks, retentionDays: METRICS_RETENTION_DAYS };
   });
 
   // round16/7.8: single-player inspect (account + lifetime stats + recent runs + ban state)

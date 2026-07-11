@@ -8,6 +8,7 @@ export function makeFakePool() {
   const bans = [];            // { kind, value, reason, created_at }
   const feedback = [];        // round16/7.1
   const adminLogs = [];       // round16/7.6
+  const events = [];          // P1-3 telemetry: { sid, v, name, props, created_at }
   let uid = 0, rid = 0, fid = 0, lid = 0;
   const findEdge = (a, b) => edges.find((e) => String(e.user_id) === String(a) && String(e.friend_id) === String(b));
   const uobj = (id) => { const u = users.find((x) => String(x.id) === String(id)); return u ? { id: u.id, username: u.username } : null; };
@@ -174,6 +175,49 @@ export function makeFakePool() {
         const rows = [...best.values()]
           .map((r) => ({ ...r, username: r.user_id != null ? (users.find((u) => String(u.id) === String(r.user_id)) || {}).username : r.guest_name, guest: r.user_id == null }))
           .sort((a, b) => b.score - a.score).slice(0, limit);
+        return { rows, rowCount: rows.length };
+      }
+      // --- P1-3 telemetry: batch insert, retention sweep, admin aggregates ---
+      if (s.startsWith('INSERT INTO events')) {   // batch single INSERT, args in chunks of 4 (sid,v,name,props)
+        let n = 0;
+        for (let k = 0; k + 3 < args.length; k += 4) { events.push({ sid: args[k], v: args[k + 1], name: args[k + 2], props: args[k + 3] || {}, created_at: new Date().toISOString() }); n++; }
+        return { rows: [], rowCount: n };
+      }
+      if (s.startsWith('DELETE FROM events')) return { rows: [], rowCount: 0 };   // retention sweep (buildApp runs this once at boot)
+      if (s.startsWith('SELECT name, count(*)::int AS n FROM events')) {          // totals
+        const m = new Map(); for (const e of events) m.set(e.name, (m.get(e.name) || 0) + 1);
+        const rows = [...m.entries()].map(([name, n]) => ({ name, n })).sort((a, b) => b.n - a.n);
+        return { rows, rowCount: rows.length };
+      }
+      if (s.startsWith('SELECT count(DISTINCT sid) FILTER')) {                    // funnel
+        const d = (nm) => new Set(events.filter((e) => e.name === nm).map((e) => e.sid)).size;
+        return { rows: [{ saved: d('save_created'), started: d('run_started'), ended: d('run_ended') }], rowCount: 1 };
+      }
+      if (s.startsWith("SELECT props->>'biome' AS biome")) {                      // clearRate by (biome,diff)
+        const m = new Map();
+        for (const e of events) {
+          if (e.name !== 'run_ended') continue;
+          const b = (e.props && e.props.biome != null) ? e.props.biome : null;
+          const df = (e.props && e.props.diff != null) ? String(e.props.diff) : null;
+          const k = b + '|' + df; const cur = m.get(k) || { biome: b, diff: df, total: 0, clears: 0 };
+          cur.total++; if (e.props && e.props.result === 'clear') cur.clears++; m.set(k, cur);
+        }
+        const rows = [...m.values()].sort((a, b) => b.total - a.total).slice(0, 20);
+        return { rows, rowCount: rows.length };
+      }
+      if (s.startsWith('SELECT LEAST(20')) {                                      // deathTime histogram
+        const m = new Map();
+        for (const e of events) {
+          if (e.name !== 'run_ended' || !e.props || e.props.result !== 'death' || e.props.time == null) continue;
+          const minute = Math.min(20, Math.floor(Number(e.props.time) / 60)); m.set(minute, (m.get(minute) || 0) + 1);
+        }
+        const rows = [...m.entries()].map(([minute, n]) => ({ minute, n })).sort((a, b) => a.minute - b.minute);
+        return { rows, rowCount: rows.length };
+      }
+      if (s.startsWith("SELECT props->>'picked' AS picked")) {                    // picks
+        const m = new Map();
+        for (const e of events) { if (e.name !== 'level_choice' || !e.props || e.props.picked == null) continue; m.set(e.props.picked, (m.get(e.props.picked) || 0) + 1); }
+        const rows = [...m.entries()].map(([picked, n]) => ({ picked, n })).sort((a, b) => b.n - a.n).slice(0, 15);
         return { rows, rowCount: rows.length };
       }
       throw new Error('unhandled query in fake pool: ' + s.slice(0, 80));
