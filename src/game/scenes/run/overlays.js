@@ -8,6 +8,7 @@ import { ctxRaw, drawSpriteUI, goldStr, textWidth, uiClipRound, uiRect, uiScale,
 import { getSprite, iconOr } from '../../../engine/sprites.js';
 import { Cheats } from '../../cheats.js';
 import { BONDS, activeBonds, bondAdvancedBy, bondProgress } from '../../content/bonds.js';
+import { coachFor } from '../../content/coach.js';
 import { allRecipes, isSeen } from '../../content/codex.js';
 import { Abilities, Equipment } from '../../content/registry.js';
 import { cheatUnlockAll } from '../../content/unlocks.js';
@@ -168,9 +169,12 @@ export const overlaysMixin = {
     const total = dmgEntries.reduce((s, e) => s + e[1], 0) || 1;
     const maxV = dmgEntries.length ? dmgEntries[0][1] : 1;
     const fmtDmg = (v) => v >= 10000 ? (v / 1000).toFixed(1) + 'k' : String(Math.round(v));
+    // R24 P1-4: compute coach lines up front so the ranking reserves room for the「⚑ 教練筆記」band below it.
+    const coach = coachFor(this.run, this.player).lines;
+    const rankBottom = y + h - 30 * S - (coach.length ? (18 + coach.length * 15 + 6) * S : 0);
     if (!dmgEntries.length) uiText('（本局無傷害紀錄）', colR, yR, { size: 11 * S, color: P.gray3 });
-    dmgEntries.slice(0, 9).forEach(([name, v], i) => {
-      if (yR > y + h - 30 * S) return;
+    dmgEntries.slice(0, 6).forEach(([name, v], i) => {
+      if (yR > rankBottom) return;
       const frac = v / maxV, pct = Math.round((v / total) * 100);
       const rankCol = i === 0 ? P.goldL : i === 1 ? P.shardL : i === 2 ? P.emberL : '#cfd6ee';
       uiRect(colR, yR + 2 * S, rw, 13 * S, withAlpha('#15192c', 0.85), { radius: 3 * S });
@@ -179,6 +183,23 @@ export const overlaysMixin = {
       uiText(fmtDmg(v) + ' · ' + pct + '%', colR + rw - 5 * S, yR + 11 * S, { size: 10 * S, align: 'right', color: rankCol, weight: '700' });
       yR += 17 * S;
     });
+    // R24 P1-4 結算教練:規則式建議「⚑ 教練筆記」,排在傷害排行下方的空白帶(lines 空時完全不畫)。
+    if (coach.length) {
+      const yLimit = y + h - 46 * S;   // never overlap the「★ 本局解鎖」bottom strip (drawn at y+h-40*S)
+      let yC = yR + 10 * S;
+      if (yC + 15 * S <= yLimit) {
+        uiText('⚑ 教練筆記', colR, yC, { size: 12 * S, color: P.shardL, weight: '800' }); yC += 16 * S;
+        const toneCol = { good: P.greenL, warn: P.redL, info: P.gray3 };
+        for (const ln of coach) {
+          if (yC > yLimit) break;
+          const full = (ln.icon ? ln.icon + ' ' : '') + ln.text;
+          let s = full; while (s.length > 1 && textWidth(s, 11 * S, '600') > rw) s = s.slice(0, -1);
+          if (s.length < full.length && s.length > 1) s = s.slice(0, -1) + '…';
+          uiText(s, colR, yC, { size: 11 * S, color: toneCol[ln.tone] || '#cfd6ee', weight: '600' });
+          yC += 15 * S;
+        }
+      }
+    }
     // unlocks — bottom strip
     const un = this.newlyUnlocked || [], nc = this.newCharacters || [];
     let oy = y + h - 40 * S;

@@ -284,6 +284,42 @@ async function main() {
     ok(tele.optOut === true, 'disabling analytics stops event collection');
     ok(!tele.err, 'no __GAME_ERROR__ after telemetry phase');
 
+    // ── 9. results coach: data-driven, no arbitrary advice, no recipe leak (R25)
+    console.log('phase 9: results coach');
+    const coach = await page.evaluate(async () => {
+      const { coachFor } = await import('/src/game/content/coach.js');
+      const out = {};
+      // full death scenario: output top + death source + taken top + advice
+      const run = {
+        result: 'death', deathSrc: 'contact:slime',
+        dmgBySource: { '魂晶彈': 500, '被動技能': 120 },
+        dmgTakenBySrc: { 'contact:slime': 80, 'proj:enemy': 15 },
+        abilityLevels: {},
+      };
+      const texts = coachFor(run, null).lines.map((l) => l.text);
+      out.hasOutput = texts.some((t) => t.includes('主力輸出') && t.includes('魂晶彈') && t.includes('81%'));
+      out.hasDeath = texts.some((t) => t.includes('陣亡於') && t.includes('近戰接觸'));
+      out.hasTaken = texts.some((t) => t.includes('承傷最高') && t.includes('84%'));
+      out.hasAdvice = texts.some((t) => t.startsWith('建議:'));
+      // insufficient taken data (<30 total) → no taken line, no advice
+      const low = coachFor({ result: 'clear', dmgBySource: { x: 10 }, dmgTakenBySrc: { 'contact:slime': 20 } }, null).lines.map((l) => l.text);
+      out.lowNoTaken = !low.some((t) => t.includes('承傷最高') || t.startsWith('建議:'));
+      // empty run → no lines at all (no arbitrary advice)
+      out.emptyNone = coachFor({}, null).lines.length === 0;
+      // maxed weapon with UNSEEN recipe → generic hint, never names the required passive
+      const fakePlayer = { weapons: [{ level: 7, def: { id: 'w_soulbolt', name: '魂晶彈', maxLevel: 7, evolveInto: 'w_soulstorm', evolveReq: 'power' } }] };
+      const fuse = coachFor({ result: 'clear' }, fakePlayer).lines.map((l) => l.text).join('|');
+      out.fuseGeneric = fuse.includes('已滿級') && !fuse.includes('power') && !fuse.includes('力量');
+      return out;
+    });
+    ok(coach.hasOutput === true, 'coach reports top damage output with pct');
+    ok(coach.hasDeath === true, 'coach reports death source in Chinese');
+    ok(coach.hasTaken === true, 'coach reports top damage-taken category with pct');
+    ok(coach.hasAdvice === true, 'coach gives one concrete advice line at >=40% share');
+    ok(coach.lowNoTaken === true, 'insufficient taken data -> no taken line and no advice');
+    ok(coach.emptyNone === true, 'empty run -> coach stays silent');
+    ok(coach.fuseGeneric === true, 'unseen recipe -> generic fusion hint, passive never named');
+
     ok(pageErrors.length === 0, 'no uncaught page errors (' + JSON.stringify(pageErrors.slice(0, 3)) + ')');
   } finally {
     if (browser) await browser.close().catch(() => {});
