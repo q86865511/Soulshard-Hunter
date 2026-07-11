@@ -4,7 +4,7 @@ import { Enemies, Equipment, Items } from './content/registry.js';
 import { equipItem } from './content/equipment.js';
 import { Enemy } from './enemy.js';
 import { Pickup } from './pickup.js';
-import { drawSprite, fillRectWorld, fillCircleWorld, glowWorld, lineWorld, camera, view, worldToScreen, addShake } from '../engine/renderer.js';
+import { drawSprite, fillRectWorld, fillCircleWorld, glowWorld, lineWorld, strokeCircleWorld, uiText, ctxRaw, camera, view, worldToScreen, addShake } from '../engine/renderer.js';
 import { getSprite, frameAt, hasSprite } from '../engine/sprites.js';
 import { circleHit, dist, dist2, clamp, rng, TAU } from '../engine/math.js';
 import { P, withAlpha } from '../engine/palette.js';
@@ -536,6 +536,17 @@ export class World {
       }
       glowWorld(h.x, h.y, h.r * 0.9, def.color, active ? 0.2 : 0.07);
       if (active && Math.random() < 0.3) { const a = Math.random() * TAU, rr = Math.random() * h.r; this.particles.spawn({ x: h.x + Math.cos(a) * rr, y: h.y + Math.sin(a) * rr, life: 0.4, size: 2, color: def.color, glow: true, grav: def.grav }); }
+      // P1-2: periodic traps (e.g. spikes) telegraph the off→on flip with a SHAPE (shrinking ring
+      // + "!" mark), not just an alpha fade — stays readable with particles/screen-flash off.
+      if (def.periodic && !h.on) {
+        const warnDur = Math.min(0.5, def.cycle * 0.35);
+        if (h.tick <= warnDur) {
+          const k = 1 - clamp(h.tick / warnDur, 0, 1);   // 0 at warn-start -> 1 at the moment it triggers
+          strokeCircleWorld(h.x, h.y, h.r * (1.6 - 0.6 * k), withAlpha('#ffffff', 0.5 + 0.35 * k), 1.5);
+          const sp = worldToScreen(h.x, h.y);
+          uiText('!', sp.x, sp.y + 4, { size: 12, align: 'center', color: '#ffffff', weight: '900', alpha: 0.6 + 0.35 * k, shadow: false });
+        }
+      }
     }
   }
 
@@ -619,6 +630,39 @@ export class World {
     }
   }
 
+  // P1-2: beam telegraph shape/motion cues — animated flow-dashes + a start dot / end
+  // arrowhead. Pure canvas line/polygon work (no particle allocation) so it stays cheap
+  // even with a dozen-plus simultaneous beams.
+  drawBeamCues(b, a) {
+    const p0 = worldToScreen(b.x0, b.y0), p1 = worldToScreen(b.x1, b.y1);
+    const dx = p1.x - p0.x, dy = p1.y - p0.y, len = Math.hypot(dx, dy);
+    if (len < 2) return;
+    const ux = dx / len, uy = dy / len, nx = -uy, ny = ux;
+    const ctx = ctxRaw();
+    ctx.save();
+    // directional flow dashes (animated offset -> reads as motion toward the impact end)
+    ctx.strokeStyle = withAlpha('#ffffff', a * 0.9);
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([6, 10]);
+    ctx.lineDashOffset = -((this.time * 90) % 16);
+    ctx.beginPath(); ctx.moveTo(p0.x, p0.y); ctx.lineTo(p1.x, p1.y); ctx.stroke();
+    ctx.setLineDash([]);
+    // start marker: small dot
+    ctx.fillStyle = withAlpha(b.color, a);
+    ctx.beginPath(); ctx.arc(p0.x, p0.y, 3, 0, TAU); ctx.fill();
+    // end marker: arrowhead pointing along the beam (shape info independent of colour)
+    const ah = 7, aw = 4.5;
+    const bx = p1.x - ux * ah, by = p1.y - uy * ah;
+    ctx.beginPath();
+    ctx.moveTo(p1.x, p1.y);
+    ctx.lineTo(bx + nx * aw, by + ny * aw);
+    ctx.lineTo(bx - nx * aw, by - ny * aw);
+    ctx.closePath();
+    ctx.fillStyle = withAlpha('#ffffff', a);
+    ctx.fill();
+    ctx.restore();
+  }
+
   draw() {
     this.drawTiles();
     this.drawHazards();
@@ -636,11 +680,14 @@ export class World {
     for (const d of drawables) d.draw(this);
     // projectiles above actors
     for (const p of this.projectiles) p.draw();
-    // beams (lightning / lasers)
+    // beams (lightning / lasers) — boss-move/trap telegraphs. P1-2: colour alone doesn't
+    // read for every player, so every beam also carries SHAPE (start dot + end arrowhead,
+    // pointing at the actual danger) and MOTION (dashes flowing start->end).
     for (const b of this.beams) {
       const a = Math.max(0, b.life / b.max);
       lineWorld(b.x0, b.y0, b.x1, b.y1, withAlpha('#ffffff', a), 3);
       lineWorld(b.x0, b.y0, b.x1, b.y1, withAlpha(b.color, a * 0.8), 1.5);
+      this.drawBeamCues(b, a);
     }
     // particles
     this.particles.draw();

@@ -139,6 +139,14 @@ export const lifecycleMixin = {
     this.petId = META.pet || null; this.petState = { x: null, y: null, t: 0, bob: 0 };   // R18/B10 cosmetic pet (local player only)
     if (this.run.mode === 'daily') { try { applyDailyMutators(this); } catch (e) { console.warn('daily mutators', e); } }
     this.diffMul = this.storyMode ? BALANCE.STORY_DIFF_MUL : (1 + (D - 1) * 0.35);
+    // P1-2 輔助模式：lock the enemy hp/dmg/speed mults onto the run at start (mid-run setting
+    // changes only take effect next run). Co-op forces 1× so an assist host can't skew a shared
+    // board. run.assist (any mult < 1) is the single gate that skips leaderboard upload.
+    const A = META.assist || {};
+    this.run.assistHpMul = this.coop ? 1 : (A.hp || 1);
+    this.run.assistDmgMul = this.coop ? 1 : (A.dmg || 1);
+    this.run.assistSpeedMul = this.coop ? 1 : (A.speed || 1);
+    this.run.assist = !this.coop && (this.run.assistHpMul < 1 || this.run.assistDmgMul < 1 || this.run.assistSpeedMul < 1);
     if (this.storyMode) {   // weak enemies + generous loot, almost unloseable
       this.run.dropQuality = (this.run.dropQuality || 0) + BALANCE.STORY_DROP_QUALITY;
       if (this.player) this.player.stats.luck = (this.player.stats.luck || 0) + BALANCE.STORY_LUCK_BONUS;
@@ -149,7 +157,7 @@ export const lifecycleMixin = {
 
     Music.setBiome(map.biome.id); Music.setHero(this.run.characterId);
     Music.setMode('run');
-    this.banner = map.biome.name + ' · ' + (this.storyMode ? '劇情' : '難度 ' + this.run.difficulty);
+    this.banner = map.biome.name + ' · ' + (this.storyMode ? '劇情' : '難度 ' + this.run.difficulty) + (this.run.assist ? ' · 輔助' : '');
     this.bannerT = 2.6;
     // G3: a brief cinematic recounting the current story chapter
     const q = STORY_QUESTS[META.questIndex || 0];

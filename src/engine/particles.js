@@ -3,6 +3,11 @@ import { fillCircleWorld, fillRectWorld, worldToScreen, uiText, drawSprite, glow
 import { withAlpha, P } from './palette.js';
 import { getSprite } from './sprites.js';
 
+// P1-2 accessibility: global particle-density multiplier (0..1). Scales the count of the
+// three burst-style emitters (burst/ring/trail); floating text is unaffected.
+let density = 1;
+export function setParticleDensity(v) { density = Math.max(0, Math.min(1, +v || 0)); }
+
 export class Particles {
   constructor(max = 1400) { this.list = []; this.texts = []; this.max = max; }
   clear() { this.list.length = 0; this.texts.length = 0; }
@@ -20,6 +25,7 @@ export class Particles {
   }
 
   burst(x, y, n, opt = {}) {
+    n = Math.round(n * density);
     for (let i = 0; i < n; i++) {
       const a = opt.angle != null ? opt.angle + (Math.random() - 0.5) * (opt.spread ?? Math.PI * 2) : Math.random() * Math.PI * 2;
       const spd = (opt.speed ?? 40) * (0.4 + Math.random() * 0.8);
@@ -47,12 +53,14 @@ export class Particles {
     this.burst(x, y, 4, { angle: ang, spread: 0.6, speed: 90, color: [color, '#fff'], size: 1.5, life: 0.15, glow: true });
   }
   ring(x, y, color, n = 12, speed = 90) {
-    for (let i = 0; i < n; i++) {
-      const a = (i / n) * Math.PI * 2;
+    const cnt = Math.round(n * density);
+    for (let i = 0; i < cnt; i++) {
+      const a = (i / cnt) * Math.PI * 2;
       this.spawn({ x, y, vx: Math.cos(a) * speed, vy: Math.sin(a) * speed, life: 0.4, size: 2, color, drag: 0.8, glow: true });
     }
   }
   trail(x, y, color, size = 1.5) {
+    if (Math.random() >= density) return;   // single-particle emitter → probabilistic thinning
     this.spawn({ x, y, vx: (Math.random() - 0.5) * 8, vy: (Math.random() - 0.5) * 8, life: 0.25, size, color, drag: 0.9, glow: true });
   }
 

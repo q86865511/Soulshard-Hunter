@@ -17,17 +17,28 @@ export const settingsUI = {
   // The panel is designed at 520×500 UI-units. fitScale() shrinks the WHOLE panel (so its
   // internal offsets stay consistent) to fit the viewport — fixes button↔row overlap on short
   // / 1080p / scaled screens where uiScale() alone would cap the height and collide the content.
-  fitScale() { return Math.min(uiScale(), (view.W * 0.94) / 520, (view.H * 0.94) / 500); },
+  // P1-2: panel grew to 700 design-units tall to hold the accessibility + assist rows.
+  fitScale() { return Math.min(uiScale(), (view.W * 0.94) / 520, (view.H * 0.96) / 700); },
   layout() {
     const S = this.fitScale();
-    const pw = 520 * S, ph = 500 * S;
+    const pw = 520 * S, ph = 700 * S;
     const x = (view.W - pw) / 2, y = (view.H - ph) / 2;
     const rows = [];
-    [['master', '主音量'], ['sfx', '音效'], ['music', '音樂']].forEach((s, i) =>
-      rows.push({ key: s[0], label: s[1], type: 'slider', x: x + pw * 0.34, y: y + 70 * S + i * 42 * S, w: pw * 0.5, h: 12 * S }));
-    [['shake', '畫面震動'], ['muted', '靜音']].forEach((t, i) =>
-      rows.push({ key: t[0], label: t[1], type: 'toggle', x: x + pw * 0.34, y: y + 70 * S + (3 + i) * 42 * S, w: 56 * S, h: 24 * S }));
-    rows.push({ key: 'uiScale', label: 'UI 大小', type: 'uiscale', x: x + pw * 0.34, y: y + 70 * S + 5 * 42 * S, w: pw * 0.5, h: 12 * S });   // 1080p UI 大小可調
+    const colX = x + pw * 0.40, sldW = pw * 0.42;
+    let cy = y + 62 * S; const RH = 30 * S;
+    const slider = (key, label, opt = {}) => { rows.push({ key, label, type: 'slider', store: opt.store || 'settings', min: opt.min ?? 0, max: opt.max ?? 1, x: colX, y: cy, w: sldW, h: 12 * S }); cy += RH; };
+    const toggle = (key, label) => { rows.push({ key, label, type: 'toggle', store: 'settings', x: colX, y: cy, w: 52 * S, h: 22 * S }); cy += RH; };
+    const header = (label) => { rows.push({ type: 'header', label, x, y: cy, w: pw }); cy += 26 * S; };
+
+    slider('master', '主音量'); slider('sfx', '音效'); slider('music', '音樂'); toggle('muted', '靜音');
+    header('無障礙');
+    slider('shake', '畫面震動'); slider('particles', '粒子密度'); toggle('flash', '螢幕閃光'); toggle('dmgNums', '傷害數字');
+    rows.push({ key: 'uiScale', label: 'UI 大小', type: 'uiscale', x: colX, y: cy, w: sldW, h: 12 * S }); cy += RH;
+    header('輔助模式');
+    slider('hp', '輔助・敵人生命', { store: 'assist', min: 0.5, max: 1 });
+    slider('dmg', '輔助・敵人傷害', { store: 'assist', min: 0.5, max: 1 });
+    slider('speed', '輔助・敵人速度', { store: 'assist', min: 0.5, max: 1 });
+    const note = { x, y: cy + 4 * S, w: pw };
     const bw = 220 * S, bx = x + pw / 2 - bw / 2;
     // R17 UI-sweep polish: without a 返回大廳 callback (title/hub) the reserved home slot left a
     // visible dead band — collapse it by sliding 按鍵設定 down into the slot.
@@ -36,7 +47,7 @@ export const settingsUI = {
     const home = hasHome ? { x: bx, y: y + ph - 142 * S, w: bw, h: 30 * S } : null;
     const reset = { x: x + pw / 2 - 100 * S, y: y + ph - 96 * S, w: 200 * S, h: 30 * S };
     const close = { x: x + pw / 2 - 70 * S, y: y + ph - 50 * S, w: 140 * S, h: 36 * S };
-    return { x, y, w: pw, h: ph, S, rows, keys, home, reset, close };
+    return { x, y, w: pw, h: ph, S, rows, note, keys, home, reset, close };
   },
   keysLayout() {
     const S = this.fitScale();
@@ -69,13 +80,18 @@ export const settingsUI = {
     if (mouse.down) {
       for (const r of L.rows) {
         const hit = mx >= r.x - 10 && mx <= r.x + r.w + 10 && my >= r.y - 12 && my <= r.y + r.h + 12;
-        if (r.type === 'slider' && hit) { META.settings[r.key] = Math.round(Math.max(0, Math.min(1, (mx - r.x) / r.w)) * 20) / 20; applySettings(); }
+        if (r.type === 'slider' && hit) {
+          const t = Math.max(0, Math.min(1, (mx - r.x) / r.w));
+          const min = r.min ?? 0, max = r.max ?? 1;
+          const val = Math.max(min, Math.min(max, Math.round((min + t * (max - min)) * 20) / 20));   // 5% steps
+          (r.store === 'assist' ? META.assist : META.settings)[r.key] = val; applySettings();
+        }
         else if (r.type === 'uiscale' && hit) { const t = Math.max(0, Math.min(1, (mx - r.x) / r.w)); META.settings.uiScale = Math.round((0.6 + t * 0.9) * 20) / 20; applySettings(); }   // 0.6–1.5×
       }
     }
     if (mouse.justDown) {
       if (!inside(mx, my, L.reset)) this.confirmReset = false;
-      for (const r of L.rows) if (r.type === 'toggle' && inside(mx, my, r)) { META.settings[r.key] = !META.settings[r.key]; applySettings(); saveMeta(); Sfx.play('uiClick'); }
+      for (const r of L.rows) if (r.type === 'toggle' && inside(mx, my, r)) { const st = r.store === 'assist' ? META.assist : META.settings; st[r.key] = !st[r.key]; applySettings(); saveMeta(); Sfx.play('uiClick'); }
       if (inside(mx, my, L.keys)) { this.page = 'keys'; Sfx.play('uiClick'); }
       else if (L.home && inside(mx, my, L.home)) { const fn = this.returnHub || this.returnTitle; this.open = false; this.returnHub = null; this.returnTitle = null; this.onClose = null; if (fn) fn(); }
       else if (inside(mx, my, L.reset)) {
@@ -103,12 +119,20 @@ export const settingsUI = {
     uiText('設 定', L.x + L.w / 2, L.y + 31 * S, { size: 20 * S, align: 'center', color: '#fff', weight: '900' });
 
     for (const r of L.rows) {
-      uiText(r.label, r.x - 16 * S, r.y + r.h / 2 + 1 * S, { size: 14 * S, align: 'right', baseline: 'middle', color: P.gray4, weight: '700' });
+      if (r.type === 'header') {   // section divider label spanning the panel width
+        uiText(r.label, r.x + 22 * S, r.y + 8 * S, { size: 12 * S, align: 'left', baseline: 'middle', color: P.shardL, weight: '900' });
+        uiRect(r.x + 84 * S, r.y + 7 * S, r.w - 106 * S, Math.max(1, S), withAlpha(P.ink2, 0.85));
+        continue;
+      }
+      uiText(r.label, r.x - 16 * S, r.y + r.h / 2 + 1 * S, { size: 13 * S, align: 'right', baseline: 'middle', color: P.gray4, weight: '700' });
       if (r.type === 'slider') {
-        const v = META.settings[r.key] ?? 0.5;
-        uiBar(r.x, r.y, r.w, r.h, v, { fg: P.shardL, bg: '#16183a', border: P.ink, radius: 3 });
+        const store = r.store === 'assist' ? META.assist : META.settings;
+        const min = r.min ?? 0, max = r.max ?? 1;
+        const raw = store[r.key] ?? (r.store === 'assist' ? 1 : 0.5);
+        const v = (raw - min) / (max - min);   // 0..1 fill fraction
+        uiBar(r.x, r.y, r.w, r.h, v, { fg: r.store === 'assist' ? P.goldL : P.shardL, bg: '#16183a', border: P.ink, radius: 3 });
         uiRect(r.x + r.w * v - 4 * S, r.y - 4 * S, 8 * S, r.h + 8 * S, '#fff', { radius: 3 * S });
-        uiText(Math.round(v * 100) + '%', r.x + r.w + 14 * S, r.y + r.h / 2 + 1 * S, { size: 12 * S, baseline: 'middle', color: P.gray3 });
+        uiText(Math.round(raw * 100) + '%', r.x + r.w + 14 * S, r.y + r.h / 2 + 1 * S, { size: 12 * S, baseline: 'middle', color: P.gray3 });
       } else if (r.type === 'uiscale') {
         const sc = META.settings.uiScale ?? 1, t = Math.max(0, Math.min(1, (sc - 0.6) / 0.9));
         uiBar(r.x, r.y, r.w, r.h, t, { fg: P.goldL, bg: '#16183a', border: P.ink, radius: 3 });
@@ -121,6 +145,9 @@ export const settingsUI = {
         uiText(on ? '開' : '關', r.x + r.w + 16 * S, r.y + r.h / 2 + 1 * S, { size: 12 * S, baseline: 'middle', color: on ? P.greenL : P.gray3, weight: '700' });
       }
     }
+
+    if (L.note) uiText('低於 100% 時該局不計入排行榜・下一局生效・多人連線不適用',
+      L.note.x + L.note.w / 2, L.note.y, { size: 9 * S, align: 'center', baseline: 'middle', color: P.gray3 });
 
     this.btn(L.keys, '⌨ 按鍵設定', mx, my, P.shardL);
     if (L.home) this.btn(L.home, this.returnHub ? '🏠 返回大廳' : '🏠 返回主畫面', mx, my, P.goldL);

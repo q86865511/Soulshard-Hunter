@@ -62,9 +62,11 @@ export function cssToWorld(mx, my) { return screenToWorld(mx * dpr, my * dpr); }
 
 let shakeEnabled = true;
 let shakeScale = 0.45;          // global damp: screen shake stays subtle by default…
+let shakeUserScale = 1;         // P1-2 accessibility: player 畫面震動 strength 0..1 (independent of the per-frame shakeScale)
 export function setShakeEnabled(b) { shakeEnabled = b; }
 export function setShakeScale(s) { shakeScale = s; }   // …the run scene raises this only when near death
-export function addShake(mag) { if (shakeEnabled) camera.shakeMag = Math.min(10, camera.shakeMag + mag * shakeScale); }
+export function setShakeUserScale(v) { shakeUserScale = Math.max(0, Math.min(1, +v || 0)); }   // settings · 畫面震動 0–100%
+export function addShake(mag) { if (shakeEnabled) camera.shakeMag = Math.min(10, camera.shakeMag + mag * shakeScale * shakeUserScale); }
 
 export function updateCamera(dt) {
   // smooth follow

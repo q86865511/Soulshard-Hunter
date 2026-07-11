@@ -3,7 +3,7 @@
 import { Sfx } from '../../../engine/audio.js';
 import { TAU, clamp, dist, rng } from '../../../engine/math.js';
 import { P, withAlpha } from '../../../engine/palette.js';
-import { addShake, fillCircleWorld, glowWorld, strokeCircleWorld, uiScale, uiText, worldToScreen } from '../../../engine/renderer.js';
+import { addShake, fillCircleWorld, glowWorld, lineWorld, strokeCircleWorld, uiScale, uiText, worldToScreen } from '../../../engine/renderer.js';
 import { BALANCE } from '../../balance.js';
 import { biomeWeight } from '../../content/biome_tags.js';
 import { Enemies } from '../../content/registry.js';
@@ -316,9 +316,15 @@ export const eventsMixin = {
       uiText(msg, ns.x, ns.y, { size: 11 * uiScale(), align: 'center', color: P.purpleL, weight: '800' });
     }
     for (const s of this.evtStrikes) {
-      const k = 1 - clamp(s.t / s.max, 0, 1);
+      const k = 1 - clamp(s.t / s.max, 0, 1);   // 0 at spawn -> 1 at impact
       strokeCircleWorld(s.x, s.y, s.r, withAlpha(P.redL, 0.4 + 0.4 * k), 2);
       fillCircleWorld(s.x, s.y, s.r * k, withAlpha(P.ember, 0.12));
+      // P1-2: SHAPE (crosshair) + MOTION (a warning ring that closes in, smallest right at
+      // impact) so the strike reads without relying on the ember fill's colour alone.
+      const armLen = s.r * 0.55;
+      lineWorld(s.x - armLen, s.y, s.x + armLen, s.y, withAlpha('#ffffff', 0.5 + 0.3 * k), 1);
+      lineWorld(s.x, s.y - armLen, s.x, s.y + armLen, withAlpha('#ffffff', 0.5 + 0.3 * k), 1);
+      strokeCircleWorld(s.x, s.y, s.r * (1.6 - 0.6 * k), withAlpha('#ffffff', 0.35 + 0.35 * k), 1.5);
     }
     // R20/B5 overlays (host-side flair; the synced telegraphs are the beams above)
     for (const e of this.evtBombers) if (!e.dead && e.evtFuse < 2.4) glowWorld(e.x, e.y, 8, P.ember, 0.18 + 0.18 * Math.sin(this.t * (10 - e.evtFuse * 3)));

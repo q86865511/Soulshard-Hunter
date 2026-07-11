@@ -8,7 +8,8 @@ import { MAX_TRACKED, isValidTrackId } from './content/quests.js';   // 5.2: sin
 import { bankRepay } from './content/bank.js';   // 7.2 魂晶銀行: auto-repay a loan at run settlement
 import { AchievementToasts } from './toasts.js';
 import { Audio } from '../engine/audio.js';
-import { setShakeEnabled, setUiScaleMul } from '../engine/renderer.js';
+import { setShakeEnabled, setUiScaleMul, setShakeUserScale } from '../engine/renderer.js';
+import { setParticleDensity } from '../engine/particles.js';
 import { applyKeybinds } from '../engine/input.js';
 import { Net, queueCloudSave, postRunResult } from '../net/api.js';   // cloud save + leaderboard (offline-first)
 
@@ -44,7 +45,9 @@ const DEFAULT_META = () => ({
   stats: { runs: 0, kills: 0, bestFloor: 0, bestStage: 0, bestScore: 0, bestTime: 0, bestEndlessTime: 0, bossKills: 0, reaperKills: 0, miniBossKills: 0, clears: 0, deaths: 0, totalGold: 0, playTime: 0, history: [],
     // round-5: extra lifetime stats for the expanded achievements (task 2)
     charClears: {}, noDmgClears: 0, bestCharLevel: 0, bondsTriggered: 0, forgeUpgrades: 0, npcTalks: 0, hiddenRoomsFound: 0, dailyClears: 0 },
-  settings: { master: 0.9, sfx: 0.75, music: 0.5, shake: true, muted: false, keybinds: {}, uiScale: 1 },
+  // P1-2 無障礙: shake is now a 0..1 strength (was bool); flash/particles/dmgNums added
+  settings: { master: 0.9, sfx: 0.75, music: 0.5, shake: 1, flash: true, particles: 1, dmgNums: true, muted: false, keybinds: {}, uiScale: 1 },
+  assist: { hp: 1, dmg: 1, speed: 1 },   // P1-2 輔助模式：敵人生命/傷害/速度倍率 (0.5–1；<1 該局不進排行榜)
   achievements: [],      // unlocked achievement ids
   questIndex: 0,         // current story-quest chapter
   levels: { unlocked: 1, diff: {} },   // # of biomes unlocked + highest cleared difficulty per biome
@@ -75,7 +78,9 @@ const DEFAULT_META = () => ({
 export function applySettings() {
   const s = META.settings || {};
   Audio.setVolumes({ master: s.master, sfx: s.sfx, music: s.music, muted: s.muted });
-  setShakeEnabled(s.shake !== false);
+  setShakeEnabled(true);
+  setShakeUserScale(typeof s.shake === 'number' ? s.shake : (s.shake === false ? 0 : 1));   // 設定 · 畫面震動 0–100%
+  setParticleDensity(typeof s.particles === 'number' ? s.particles : 1);   // 設定 · 粒子密度
   setUiScaleMul(typeof s.uiScale === 'number' ? s.uiScale : 1);   // 設定 · UI 大小
   try { applyKeybinds(s.keybinds); } catch (e) { /* */ }
 }
@@ -96,6 +101,14 @@ export function loadMeta(slot) {
       META.stats = Object.assign(DEFAULT_META().stats, parsed.stats || {});
       META.unlocked = Object.assign(DEFAULT_META().unlocked, parsed.unlocked || {});
       META.settings = Object.assign(DEFAULT_META().settings, parsed.settings || {});
+      // P1-2 無障礙: migrate legacy bool `shake` → 0..1 strength; default the new toggles/sliders
+      if (typeof META.settings.shake !== 'number') META.settings.shake = (META.settings.shake === false ? 0 : 1);
+      if (typeof META.settings.flash !== 'boolean') META.settings.flash = true;
+      if (typeof META.settings.particles !== 'number') META.settings.particles = 1;
+      if (typeof META.settings.dmgNums !== 'boolean') META.settings.dmgNums = true;
+      // P1-2 輔助模式：三個 0.5–1 倍率
+      if (!META.assist || typeof META.assist !== 'object') META.assist = DEFAULT_META().assist;
+      for (const k of ['hp', 'dmg', 'speed']) META.assist[k] = (typeof META.assist[k] === 'number') ? Math.max(0.5, Math.min(1, META.assist[k])) : 1;
       META.levels = Object.assign(DEFAULT_META().levels, parsed.levels || {});
       META.levels.diff = Object.assign({}, (parsed.levels && parsed.levels.diff) || {});
       // --- save migration: guarantee nested shapes exist for older/partial saves ---
@@ -397,7 +410,9 @@ export function bankRun(run) {
   };
   // R18/B7: endless now uploads to its OWN board (mode dimension keeps it off the standard
   // board). Only story difficulty (D0) stays excluded.
-  if ((run.difficulty == null ? 1 : run.difficulty) >= 1) {
+  // P1-2 輔助模式：single gate — an assist run (any enemy mult < 1) skips ALL leaderboard
+  // upload (gold + achievements already banked above; co-op forces assist=false at run start).
+  if ((run.difficulty == null ? 1 : run.difficulty) >= 1 && !run.assist) {
     try { postRunResult(runPayload); } catch (e) { /* ignore */ }                       // logged in → auto-upload
     try { if (!Net.isLoggedIn()) lastGuestRun = runPayload; } catch (e) { /* ignore */ }  // guest → offer a named upload from the leaderboard overlay
   }

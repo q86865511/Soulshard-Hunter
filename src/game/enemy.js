@@ -10,6 +10,7 @@ import { BALANCE } from './balance.js';
 import { applyStatus, tickStatus } from './status.js';
 import { ENEMY_STATUS } from './content/status_tags.js';
 import { bossMoveTick } from './content/boss_moves.js';   // R20/B6: named boss attack patterns
+import { META } from './state.js';   // P1-2: 傷害數字開關
 
 export class Enemy {
   constructor(def, x, y, world, opts = {}) {
@@ -22,9 +23,12 @@ export class Enemy {
     const dmgScale = (opts.dmgScale ?? 1) * (this.elite ? 1.5 : 1);
     const gHp = this.boss ? BALANCE.BOSS_HP_MULT : BALANCE.ENEMY_HP_MULT;     // D1/E3 global buffs
     const gDmg = this.boss ? (def.dmgMult ?? BALANCE.BOSS_DMG_MULT) : BALANCE.ENEMY_DMG_MULT;   // a boss def can opt out of the global boss-dmg mult (e.g. reaper owns its own REAPER_DMG_* knobs)
-    this.maxHp = Math.max(1, Math.round((def.hp ?? 20) * hpScale * gHp));
+    // P1-2 輔助模式：assist mults are locked onto run at run start (1 in co-op / normal play)
+    const asHp = (world && world.run && world.run.assistHpMul) || 1;
+    const asSpd = (world && world.run && world.run.assistSpeedMul) || 1;
+    this.maxHp = Math.max(1, Math.round((def.hp ?? 20) * hpScale * gHp * asHp));
     this.hp = this.maxHp;
-    this.speed = (def.speed ?? 30) * (opts.speedScale ?? 1) * (this.elite ? 0.85 : 1);
+    this.speed = (def.speed ?? 30) * (opts.speedScale ?? 1) * (this.elite ? 0.85 : 1) * asSpd;
     this.damage = (def.damage ?? 8) * dmgScale * gDmg;
     this.radius = def.radius ?? 6;
     this.phaseWalls = true;   // 10.8: enemies (incl. bosses) pass through walls → never get stuck on map geometry
@@ -79,7 +83,7 @@ export class Enemy {
     world.attributeDamage(src || world._curSrc, dmg);   // 原#16: damage ranking
     this.flash = 0.1;
     if (crit) Sfx.play('crit'); else Sfx.hit();
-    world.particles.text(this.x, this.y - this.radius * this.scale - 4, String(Math.round(dmg)),
+    if (META.settings.dmgNums !== false) world.particles.text(this.x, this.y - this.radius * this.scale - 4, String(Math.round(dmg)),
       { color: crit ? P.goldL : '#ffffff', size: crit ? 18 : 13, weight: crit ? '900' : '800' });
     world.particles.blood(this.x, this.y, Math.atan2(kby, kbx), this.def.bloodColor || P.blood);
     const k = 1 - this.knockResist;
