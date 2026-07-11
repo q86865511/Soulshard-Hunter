@@ -5,6 +5,7 @@ import { P, withAlpha } from '../engine/palette.js';
 import { Abilities } from './content/registry.js';
 import { weaponMaxLevel } from './balance.js';
 import { AchievementToasts } from './toasts.js';
+import { META } from './state.js';   // P1-2: 螢幕閃光開關
 
 // round16/4.9-B — global achievement-unlock banners (top-right, gold), drawn by both
 // the hub and the run scene. Fades in 0.3s → holds → fades out 0.5s; max 3 stacked.
@@ -158,6 +159,14 @@ export function drawHud(run, player) {
 export function drawLowHpWarning(player, time) {
   const frac = player.hp / player.maxHp;
   if (frac > 0.3 || player.dead) return;
+  // P1-2 無障礙: with 螢幕閃光 off, keep the low-HP signal but drop the pulsing full-screen
+  // fill — draw a static thin red border instead (info stays, motion sensitivity respected).
+  if (META.settings.flash === false) {
+    const b = Math.max(2, Math.round(view.W * 0.004)), col = 'rgba(180,20,30,0.55)';
+    uiRect(0, 0, view.W, b, col); uiRect(0, view.H - b, view.W, b, col);
+    uiRect(0, 0, b, view.H, col); uiRect(view.W - b, 0, b, view.H, col);
+    return;
+  }
   const pulse = (Math.sin(time * 6) * 0.5 + 0.5) * (1 - frac / 0.3);
   const g = `rgba(180,20,30,${0.18 * pulse})`;
   uiRect(0, 0, view.W, view.H, g);

@@ -19,6 +19,7 @@ import { computeForgeMods } from './content/forge.js';
 import { markSeen } from './content/codex.js';
 import { BALANCE, weaponMaxLevel } from './balance.js';
 import { tickStatus } from './status.js';
+import { META } from './state.js';   // P1-2: 輔助模式敵人傷害倍率 + 傷害數字開關
 
 export class Player {
   constructor(x, y, stats) {
@@ -132,10 +133,12 @@ export class Player {
     if (Math.random() < dodge) { world.particles.text(this.x, this.y - 14, '閃避', { color: P.shardL, size: 13 }); return false; }
     let d = Math.max(1, dmg - (this.stats.defense ?? 0) * BALANCE.DEFENSE_MULT);   // 原#12: defense toned down
     d = Math.max(1, Math.round(d * (1 - (this.stats.armorMult ?? 0))));
+    const asDmg = (world && world.run && world.run.assistDmgMul) || 1;   // P1-2 輔助模式：敵人傷害
+    if (asDmg !== 1) d = Math.max(1, Math.round(d * asDmg));
     this.hp -= d; this.invuln = 0.7; this.flash = 0.18;
     this.vx -= Math.cos(ang) * 70; this.vy -= Math.sin(ang) * 70;
     world.particles.blood(this.x, this.y, ang + Math.PI, P.red);
-    world.particles.text(this.x, this.y - 16, String(d), { color: P.redL, size: 14 });
+    if (META.settings.dmgNums !== false) world.particles.text(this.x, this.y - 16, String(d), { color: P.redL, size: 14 });
     addShake(4); Sfx.play('hurt');
     world._curSrc = '被動技能';   // 原#16: attribute thorns-style retaliation damage
     for (const h of this.hooks.hurt) h(this, d, ang, world);
