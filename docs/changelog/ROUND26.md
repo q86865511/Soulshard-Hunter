@@ -58,7 +58,34 @@ torch、dec_crystal、dec_ice、dec_lava、dec_voidcrystal、bd_crypt_candles、
 - **前端 smoke**:整併後 `cd test && npm run test:frontend` **59/59 通過**(含 coop 自測、registry 計數、無 uncaught error)。
 - 檔案清單:`balance.js`、`biomes.js`、`maps.js`、`world.js`、`renderer.js`、`tools/integrate.mjs`(改)+ `lights.js`、`biome_decals.js`、`art/gen/art_decals_*.js` ×10(新)。
 
-## 遺留(批次 2/3 待辦)
+## 7. 批次 1c/1d/1e — 全生態值階推廣與去陣列(`biomes.js` + `lights.js`)
 
-- 其餘 8 生態的截圖逐一驗收(plainFloor 已全生態套用,但 frost/desert/celestial 等亮色生態的牆/光暈值階可能需要 verdant 同款調修)。
-- 城鎮地面去噪 + 光池氛圍(批次 2);標題文字重疊、右側怪物接地陰影、`title.js` 負半徑防禦(批次 3)。
+Fable 逐生態截圖驗收後的三輪系統性推廣(verdant 原則 → 全部 10 生態):
+
+- **1c 值階**:全 10 生態牆體壓到烘焙均值暗於地板 11-38%(改前 crypt 牆亮 +114% 最嚴重);WALLTOPS 全改暗色 fringe skirt;plainFloor v1 基底統一 `mix(floor, floor2, 0.45)`(floor2 差全數 ≤8 階);v2 feature 統一錨定地板色(frost 雪湖/celestial 紫裂/swamp 毒池/cavern 晶脈);frost floor `#1e2a3a→#2b3d54`(雪感,原深藍近黑與名不符);celestial「+」星紋去週期;亮生態光暈(frost ice、celestial holy)r/α 下修——規則:**亮生態的光池要暖而淡**。
+- **1d 去網格**:inferno/swamp plain 的固定座標 accent 點(平鋪成滿版等距網格)改 seeded speckle、v0/v1 異種子;cavern 晶蘗/void 符文/abyss 光十字的 v2 單置中符號改 2-3 個 offset 元素散布;crypt 牆內部補低對比磚縫。
+- **1e v2 終結掃描**:全 10 生態 v2 磚逐一判定——inferno 熔岩(3 offset glow+3 裂紋,動畫幀連貫)、desert 綠洲(dither 波面+2 漣漪)、swamp 毒池(2 offset glow)、crypt 石板(錯位鋪石縫)改散布;其餘 6 生態已散不動。
+- **驗收準則沉澱**:任何「每 tile 固定位置的線/點/符號」平鋪必成紋——floor 紋樣一律 seeded 散布、離開 tile 邊緣與置中。
+
+## 8. 批次 2 — 城鎮地面去噪 + 街道可讀化 + 氛圍(`world.js makeCamp` + `town_ruin_tiles.js` + `hub/render.js`)
+
+- **草地變體聚簇化**(world.js:864-882):逐格 random 改座標 hash value-noise——ashgrass/grass2 各自成 2-5 格斑塊(ash 磚左鄰同色率 0.10→0.44,blob 中位數 3 磚)。
+- **街道主導鋪面**(world.js:895-905):路徑中心±1 一律 ruin_path,path2 降為 15% hash 點綴、外環鋸齒降至 ~25% → 最終 53% path 連續帶狀。
+- **ruin_grass 去黑條紋**(town_ruin_tiles.js):移除 4 條 2px 固定欄位 vline 改低對比散點(逐欄亮度 STD 1.43→1.04);grass2 同步。
+- **冷色 vignette**:`BALANCE.HUB_VIGNETTE={strength:0.4, rgb:'20,28,52'}`(原純黑 0.45)。
+- **rng 序 byte-identical**:兩處改動保持每格 rng.next() 呼叫數與位置逐一對齊、hash 閘門零 rng 消耗——牆/走廊/建築/碰撞佈局完全不變。
+
+## 9. 批次 3 — 標題小修(`scenes/title.js`)
+
+- 底部「建議實體鍵盤」提示改錨定在更新日誌按鈕上方(原 H*0.885 落在按鈕正中、文字重疊)。
+- 塔前駐軍接地陰影加強(0.4→0.58,近黑地面上原本讀不出來)、營地後排道具補接地陰影。
+- `drawBackdrop` 月環 arc 半徑 clamp(0×0 畫布開機競態會算出負值而 crash,實測觸發過)。
+
+## 最終驗證(批次 1c-3)
+
+- Fable 截圖驗收:10 生態全部通過(frost 雪原成立、desert/celestial 牆量體、inferno 熔岩流動感、crypt 迴歸)+ 城鎮(聚簇分區、豎紋消失、冷色氛圍)+ 標題(重疊修復、陰影接地)。
+- `cd test && npm run test:frontend` **59/59 通過**(全部變更後)。
+
+## 遺留(終審微調候選,非必改)
+
+- celestial v2 星雲區「+」密度仍略高;crypt 暗牆內部紋理可再豐富;城鎮外圍焦木牆帶 tile 的密豎紋品質(結構物,非噪點);cavern v2 晶田大片時仍偏規律。

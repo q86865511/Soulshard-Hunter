@@ -22,19 +22,21 @@ const CARPET= mix(P.blood, P.gray1, 0.32);                // faded red carpet
 // ════════════════════════════════════════════════════════════════════════════
 
 // ruin_grass — dead/ashen grass, dark olive-grey base.
+// R26/B2: the dry blades used to be 2px vlines at FIXED columns (x=2,6,11,14) which bake
+// into periodic dark vertical stripes once the tile is repeated across the floor. They are
+// now low-contrast 1px flecks scattered by seed (no aligned column), and the grit/ash
+// contrast is trimmed, so a field of grass reads as smooth turf instead of striped noise.
 defineSprite('ruin_grass', 16, 16, (p) => {
   const base = TURF;
   p.rect(0, 0, 16, 16, base);
   p.gradV(0, 0, 16, 16, lighten(base, 0.05), darken(base, 0.06));
-  p.speckle(0, 0, 16, 16, darken(base, 0.14), 12, 7);
-  p.speckle(0, 0, 16, 16, mix(base, P.gray3, 0.30), 7, 23);     // ash dust
-  const blade = mix(base, P.sandD, 0.34);                       // limp dry blades
-  p.vline(4, 5, 2, blade);
-  p.vline(9, 10, 6, blade);
-  p.vline(3, 4, 11, mix(base, P.sandD, 0.22));
-  p.vline(12, 13, 14, lighten(base, 0.13));
-  p.px(13, 3, blade);
-  p.px(6, 9, lighten(base, 0.11));
+  p.speckle(0, 0, 16, 16, darken(base, 0.11), 12, 7);           // fine dark grit (contrast trimmed)
+  p.speckle(0, 0, 16, 16, mix(base, P.gray3, 0.26), 7, 23);     // ash dust
+  const blade = mix(base, P.sandD, 0.20);                       // limp dry blades — soft, close to base
+  const bladeL = lighten(base, 0.09);
+  p.speckle(0, 0, 16, 16, blade, 5, 53);                        // scattered blade flecks (no column)
+  p.speckle(0, 0, 16, 16, bladeL, 4, 131);
+  p.px(6, 9, lighten(base, 0.08));
 }, { anchor: [0, 0] });
 
 // ruin_grass2 — variant: sparse dry blades + tiny rubble specks.
@@ -47,9 +49,9 @@ defineSprite('ruin_grass2', 16, 16, (p) => {
   const bare = mix(base, DIRT, 0.40);                           // worn bare patch
   p.ellipse(11, 11, 3, 2, bare);
   p.speckle(8, 9, 7, 5, mix(bare, P.gray3, 0.20), 4, 9);
-  const blade = mix(base, P.sandD, 0.30);                       // sparse blades
-  p.vline(3, 4, 4, blade);
-  p.vline(8, 9, 13, mix(base, P.sandD, 0.20));
+  const blade = mix(base, P.sandD, 0.18);                       // sparse blades — 散點 (no fixed column)
+  p.px(4, 4, blade); p.px(4, 3, mix(base, P.sandD, 0.10));
+  p.px(13, 9, mix(base, P.sandD, 0.14)); p.px(11, 6, blade);
   const peb = mix(base, P.gray3, 0.55);                         // rubble specks
   p.px(5, 7, peb); p.px(6, 7, lighten(peb, 0.14));
   p.px(13, 4, peb); p.px(2, 13, darken(peb, 0.10));

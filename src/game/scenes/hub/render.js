@@ -3,7 +3,8 @@
 import { mouse } from '../../../engine/input.js';
 import { dist } from '../../../engine/math.js';
 import { P, withAlpha } from '../../../engine/palette.js';
-import { UI, ctxRaw, drawShadow, drawSprite, drawSpriteUI, glowWorld, textWidth, uiBar, uiRect, uiScale, uiText, view, vignette, worldToScreen } from '../../../engine/renderer.js';
+import { UI, ctxRaw, drawShadow, drawSprite, drawSpriteUI, glowWorld, textWidth, uiBar, uiRect, uiScale, uiText, view, worldToScreen } from '../../../engine/renderer.js';
+import { BALANCE } from '../../balance.js';
 import { frameAt, getSprite, iconOr } from '../../../engine/sprites.js';
 import { Cheats } from '../../cheats.js';
 import { goalsFor } from '../../content/goals.js';
@@ -100,7 +101,16 @@ export const renderMixin = {
       if (this.near === n) { const sp2 = worldToScreen(n.x, n.y + 8); uiText('【E】交談', sp2.x, sp2.y, { size: 11 * S, align: 'center', color: withAlpha('#fff', 0.6 + Math.sin(this.t * 6) * 0.3), weight: '800' }); }
     }
     this.world.particles.drawText();
-    vignette(0.45);
+    // R26/B2: cool low-sat vignette (BALANCE.HUB_VIGNETTE) — same framing the black vignette
+    // gave, but tinted cold navy to unify the ruin-town ambience. Device-pixel coords + ctxRaw,
+    // matching the engine vignette() so it lines up regardless of zoom/UI scale.
+    { const hv = BALANCE.HUB_VIGNETTE, ctx = ctxRaw(), W = view.W, H = view.H;
+      if (hv && hv.strength > 0) {
+        const g = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.35, W / 2, H / 2, Math.max(W, H) * 0.75);
+        g.addColorStop(0, `rgba(${hv.rgb},0)`);
+        g.addColorStop(1, `rgba(${hv.rgb},${hv.strength})`);
+        ctx.save(); ctx.fillStyle = g; ctx.fillRect(0, 0, W, H); ctx.restore();
+      } }
 
     // top bar — R19: title reflects the active area (town vs. the building you're inside)
     uiText(AREA_TITLE[this.area] || AREA_TITLE.town, view.W / 2, 28 * S, { size: 20 * S, align: 'center', color: '#fff', weight: '900' });

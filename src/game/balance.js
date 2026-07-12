@@ -205,6 +205,11 @@ export const BALANCE = {
     SURROUND_A_MIN: 0.25, SURROUND_A_MAX: 0.45,  // beacon silhouette pulse range
     WALL_AO_ALPHA: 0.35,                       // south-edge wall-foot ambient-occlusion strength
   },
+
+  // ---- R26/B2 ruin-town ambience -----------------------------------------
+  // Cool, low-saturation vignette over the hub — unifies the 末日遺鎮 mood and frames
+  // the scattered districts. Tint is a desaturated cold navy; strength kept faint.
+  HUB_VIGNETTE: { strength: 0.4, rgb: '20,28,52' },
 };
 
 // Effective weapon level cap: evolved weapons are terminal (level 1), everything

@@ -861,9 +861,24 @@ export function makeCamp() {
   corridor(TOWN_BUILDINGS[0].cx, TOWN_BUILDINGS[0].cy, TOWN_BUILDINGS[3].cx, TOWN_BUILDINGS[3].cy, 3); // church<->smith (W spine)
   corridor(TOWN_BUILDINGS[1].cx, TOWN_BUILDINGS[1].cy, TOWN_AREAS[2].cx, TOWN_AREAS[2].cy, 3);          // guild<->market (NE)
 
-  // 3) ground texturing — ashen grass base over all FLOOR (variants 0/1/2)
+  // 3) ground texturing — ashen grass base over all FLOOR (variants 0/1/2).
+  // R26/B2: the variant is chosen by low-frequency value-noise (座標 hash), NOT a per-tile
+  // coin-flip, so grass2 / ashgrass form contiguous 2-5 tile patches — burn scars read as
+  // scarred DISTRICTS rather than salt-and-pepper noise. We STILL consume exactly one
+  // rng.next() per FLOOR tile so the layout rng stream (rift edges / recarve / decor scatter
+  // further down) stays byte-identical; floorVar is purely visual so its value can be hashed.
+  const vh = (x, y, s) => { let n = (x * 374761393 + y * 668265263 + s * 2246822519) >>> 0; n = ((n ^ (n >>> 13)) * 1274126177) >>> 0; return ((n ^ (n >>> 16)) >>> 0) / 4294967296; };
+  const vnoise = (x, y, sc, s) => {
+    const fx = x / sc, fy = y / sc, ix = Math.floor(fx), iy = Math.floor(fy);
+    const tx = fx - ix, ty = fy - iy, sx = tx * tx * (3 - 2 * tx), sy = ty * ty * (3 - 2 * ty);
+    const a = vh(ix, iy, s), b = vh(ix + 1, iy, s), c = vh(ix, iy + 1, s), d = vh(ix + 1, iy + 1, s);
+    return (a * (1 - sx) + b * sx) * (1 - sy) + (c * (1 - sx) + d * sx) * sy;
+  };
   for (let y = 0; y < th; y++) for (let x = 0; x < tw; x++) {
-    if (tiles[y * tw + x] === FLOOR) { const r = rng.next(); floorVar[y * tw + x] = r < 0.10 ? 2 : (r < 0.24 ? 1 : 0); }
+    if (tiles[y * tw + x] !== FLOOR) continue;
+    rng.next();   // preserve the layout rng stream (variant chosen by hash below, NOT this draw)
+    const ash = vnoise(x, y, 2.6, 1301), worn = vnoise(x + 40, y - 25, 3.0, 4703);
+    floorVar[y * tw + x] = ash > 0.80 ? 2 : (worn > 0.74 ? 1 : 0);   // ~12% ash / ~13% worn, clustered
   }
   // irregular cracked-flagstone plaza disc (variants 5/6) around the plaza anchor, r≈8 w/ jitter
   for (let y = pc.cy - 9; y <= pc.cy + 9; y++) for (let x = pc.cx - 10; x <= pc.cx + 10; x++) {
@@ -878,8 +893,14 @@ export function makeCamp() {
     while ((x !== x1 || y !== y1) && guard++ < 400) {
       for (const ox of [-2, -1, 0, 1, 2]) for (const oy of [-2, -1, 0, 1, 2]) {
         const outer = Math.abs(ox) === 2 || Math.abs(oy) === 2;
-        if (outer && rng.next() > 0.45) continue;   // ragged path edges
-        setVar(x + ox, y + oy, rng.next() < 0.4 ? 4 : 3);
+        if (outer && rng.next() > 0.45) continue;   // (rng UNCHANGED — keeps route + downstream stream)
+        rng.next();                                  // (rng UNCHANGED — variant now chosen by座標 hash)
+        const gx = x + ox, gy = y + oy;
+        // R26/B2: centre + ±1 lay a SOLID width-3 cracked avenue (reads as one continuous street);
+        // the outer ±2 ring is thinned to ~25% via a hash gate (no rng) for a little ragged edge;
+        // ruin_path2 cobbles are a ~15% hash accent, not a 40% per-tile coin-flip against grass.
+        if (outer && vh(gx, gy, 8087) > 0.55) continue;
+        setVar(gx, gy, vh(gx, gy, 5501) < 0.15 ? 4 : 3);
       }
       const sx = x1 - x, sy = y1 - y, r = rng.next();
       if (Math.abs(sx) > Math.abs(sy)) { if (r < 0.78 || sy === 0) x += sx > 0 ? 1 : -1; else y += sy > 0 ? 1 : -1; }
