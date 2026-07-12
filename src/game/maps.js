@@ -3,6 +3,7 @@ import { rng, dist } from '../engine/math.js';
 import { WALL, FLOOR, TS } from './world.js';
 import { BIOMES } from '../art/biomes.js';
 import { DECOR_SETS, DECOR_CLUSTERS } from '../art/biome_decor.js';
+import { DECAL_SETS } from '../art/biome_decals.js';
 import { BALANCE } from './balance.js';
 
 export function biomeForStage(stage) { return BIOMES[(stage - 1) % BIOMES.length]; }
@@ -140,12 +141,25 @@ export function generateWorld(seedBiome) {
   const pool = DECOR_SETS[biome.id] || ['torch'];
   const clusterPool = DECOR_CLUSTERS[biome.id] || pool;
   const pick = (a) => a[rng.int(0, a.length - 1)];
-  for (let i = 0; i < Math.round(34 * k); i++) { const t = randFloor(tiles, tw, th); if (t && far(t.x, t.y, 40)) decor.push({ sprite: pick(pool), x: t.x, y: t.y, phase: rng.int(0, 2) }); }
-  for (let c = 0; c < Math.round(9 * k); c++) { const t = randFloor(tiles, tw, th); if (t && far(t.x, t.y, 70)) placeCluster(decor, tiles, tw, th, t, pick(clusterPool), rng.int(3, 6)); }
-  for (let i = 0; i < Math.round(14 * k); i++) { const t = nearWallFloor(tiles, tw, th); if (t && far(t.x, t.y, 50)) decor.push({ sprite: pick(pool), x: t.x, y: t.y, phase: rng.int(0, 2) }); }
+  const D = BALANCE.DECOR;
+  for (let i = 0; i < Math.round(D.SINGLES * k); i++) { const t = randFloor(tiles, tw, th); if (t && far(t.x, t.y, 40)) decor.push({ sprite: pick(pool), x: t.x, y: t.y, phase: rng.int(0, 2) }); }
+  for (let c = 0; c < Math.round(D.CLUSTERS * k); c++) { const t = randFloor(tiles, tw, th); if (t && far(t.x, t.y, 70)) placeCluster(decor, tiles, tw, th, t, pick(clusterPool), rng.int(3, 6)); }
+  for (let i = 0; i < Math.round(D.WALL * k); i++) { const t = nearWallFloor(tiles, tw, th); if (t && far(t.x, t.y, 50)) decor.push({ sprite: pick(pool), x: t.x, y: t.y, phase: rng.int(0, 2) }); }
+
+  // R26/B1 ground-DECAL channel — render-only flat marks on FLOOR tiles. Sampled
+  // LAST (after every gameplay-affecting placement) and ONLY when the biome has a
+  // decal pool, so an empty pool consumes no rng → identical layout / zero change.
+  const decals = [];
+  const decalPool = DECAL_SETS[biome.id];
+  if (decalPool && decalPool.length) {
+    for (let i = 0; i < Math.round(D.DECALS * k); i++) {
+      const t = randFloor(tiles, tw, th);
+      if (t) decals.push({ sprite: decalPool[rng.int(0, decalPool.length - 1)], x: t.x, y: t.y });
+    }
+  }
 
   return {
-    tw, th, tiles, floorVar, decor, biome, boss: false,
+    tw, th, tiles, floorVar, decor, decals, biome, boss: false,
     tileset: { floor: ['floor_' + biome.id, 'floor2_' + biome.id, 'floorx_' + biome.id], wall: 'wall_' + biome.id, wallTop: 'walltop_' + biome.id },
     entrance: start, center: start, chests, secret, shrine, hazards, npcs, hiddenRooms, featureRooms, vault,
   };

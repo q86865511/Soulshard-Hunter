@@ -13,14 +13,14 @@ import { P, lighten, darken, mix, withAlpha, tint } from '../engine/palette.js';
 
 export const BIOMES = [
   // ── original 5 (id + field shape UNCHANGED) ────────────────────────────────
-  { id: 'crypt', name: '幽影地穴', floor: '#24262f', floor2: '#2c2f3b', line: '#15161e', wall: '#48548f', wallD: '#2d3563', wallL: '#7585cf', decor: 'torch', accent: P.shardL, fog: 'rgba(10,12,26,0.0)' },
+  { id: 'crypt', name: '幽影地穴', floor: '#282b37', floor2: '#353a4d', line: '#15161e', wall: '#48548f', wallD: '#2d3563', wallL: '#7585cf', decor: 'torch', accent: P.shardL, fog: 'rgba(10,12,26,0.0)' },  // R26/B1: floor/floor2 lifted for contrast (was #24262f / #2c2f3b — near-black, no variation)
   { id: 'cavern', name: '水晶洞窟', floor: '#1c2a2e', floor2: '#243638', line: '#121e20', wall: '#2e4a4e', wallD: '#1f3236', wallL: '#4a7076', decor: 'crystal', accent: P.shard, fog: 'rgba(20,40,44,0.05)' },
   { id: 'frost', name: '霜寒冰原', floor: '#1e2a3a', floor2: '#26344a', line: '#16202e', wall: '#37506e', wallD: '#243a52', wallL: '#5f86b0', decor: 'ice', accent: P.ice, fog: 'rgba(160,220,255,0.05)' },
   { id: 'inferno', name: '熔岩深淵', floor: '#2a1816', floor2: '#36201c', line: '#1c0e0c', wall: '#4a2a22', wallD: '#321c16', wallL: '#7a4030', decor: 'lava', accent: P.ember, fog: 'rgba(60,20,10,0.06)' },
   { id: 'void', name: '虛空裂界', floor: '#1c1430', floor2: '#241a40', line: '#120c20', wall: '#3a2a5a', wallD: '#261a40', wallL: '#5a4482', decor: 'voidcrystal', accent: P.purpleL, fog: 'rgba(40,20,70,0.06)' },
 
   // ── NEW 5 (same field shape) ───────────────────────────────────────────────
-  { id: 'verdant', name: '翠林森境', floor: '#26361f', floor2: '#2f4326', line: '#192611', wall: '#3a5230', wallD: '#243a1e', wallL: '#5f8444', decor: 'bd_verdant_tree', accent: P.leafL, fog: 'rgba(120,200,120,0.05)' },
+  { id: 'verdant', name: '翠林森境', floor: '#33482a', floor2: '#3d5533', line: '#192611', wall: '#3a5230', wallD: '#243a1e', wallL: '#5f8444', decor: 'bd_verdant_tree', accent: P.leafL, fog: 'rgba(120,200,120,0.05)' },  // R26/B1: floor brightened so grass isn't near-black + walltop skirt stops reading as a floating band (was #26361f / #2f4326)
   { id: 'desert', name: '流沙荒漠', floor: '#caa260', floor2: '#d8b46a', line: '#9c7a3e', wall: '#9a7334', wallD: '#634619', wallL: '#f0d188', decor: 'bd_desert_cactus', accent: P.sandL, fog: 'rgba(240,220,160,0.06)' },
   { id: 'swamp', name: '腐沼濕地', floor: '#2c3a26', floor2: '#37472d', line: '#1b2618', wall: '#3c4a2e', wallD: '#27331f', wallL: '#5e7240', decor: 'bd_swamp_willow', accent: P.slimeBog, fog: 'rgba(110,140,70,0.07)' },
   { id: 'abyss', name: '深淵海溝', floor: '#0f3046', floor2: '#143b54', line: '#0a2030', wall: '#16415c', wallD: '#0d2e44', wallL: '#2f6f96', decor: 'bd_abyss_coral', accent: P.oceanL, fog: 'rgba(20,80,120,0.08)' },
@@ -34,6 +34,23 @@ export const BIOMES = [
 // ENHANCED: every base tile now carries a faint top-left light + bottom shade for depth,
 // a couple of seeded accent glints, and the feature tiles are livelier / animated where
 // it reads well at 16px. floorx painters accept an optional frame index `f`.
+// R26/B1b — plain-floor skeleton. The old per-tile top/bottom hlines + a 16px
+// vertical gradient tiled into regular HORIZONTAL BANDING across the map (glaring
+// once floors were brightened). Fix: a FLAT base + seeded multi-tone speckle
+// (unique seed per variant) for grain, and scattered pixels in the extreme rows
+// so row 0 / row 15 never tile into a solid edge line. `accents(p)` paints the
+// biome's interior details (kept OFF the tile edges so they don't re-band).
+function plainFloor(p, base, grain, s, accents) {
+  p.rect(0, 0, 16, 16, base);
+  if (accents) accents(p);
+  p.speckle(0, 0, 16, 16, grain, 13, s);
+  p.speckle(0, 0, 16, 16, withAlpha(darken(base, 0.12), 0.6), 8, s + 17);
+  p.speckle(0, 0, 16, 16, withAlpha(lighten(base, 0.12), 0.5), 6, s + 41);
+  // break the extreme rows (scattered mixed-tone dots → texture, never a band line)
+  p.px(2, 0, darken(base, 0.13)); p.px(9, 0, lighten(base, 0.08)); p.px(13, 0, darken(base, 0.07));
+  p.px(4, 15, lighten(base, 0.07)); p.px(10, 15, darken(base, 0.13)); p.px(14, 15, darken(base, 0.07));
+}
+
 const FLOORS = {
   // ── crypt: aged flagstone, pale worn feature ────────────────────────────────
   crypt: (p, b, v) => {
@@ -45,10 +62,7 @@ const FLOORS = {
       p.speckle(1, 1, 14, 13, withAlpha(P.shardL, 0.18), 4, 17);
       return;
     }
-    p.gradV(0, 0, 16, 16, v === 1 ? lighten(b.floor2, 0.04) : b.floor, v === 1 ? darken(b.floor2, 0.06) : darken(b.floor, 0.08));
-    p.hline(0, 15, 0, lighten(b.floor, 0.06)); p.vline(0, 15, 0, lighten(b.floor, 0.06));
-    p.hline(0, 15, 15, b.line); p.vline(0, 15, 15, b.line);
-    p.speckle(2, 2, 12, 12, withAlpha(P.ink, 0.25), v === 1 ? 3 : 4, v === 1 ? 23 : 11);
+    plainFloor(p, v === 1 ? lighten(b.floor2, 0.04) : b.floor, withAlpha(P.ink, 0.22), v === 1 ? 113 : 211);
   },
   // ── cavern: damp rock, crystal-vein feature ────────────────────────────────
   cavern: (p, b, v) => {
@@ -60,10 +74,8 @@ const FLOORS = {
       p.sparkle(7, 6, P.shardL, 1);
       return;
     }
-    p.gradV(0, 0, 16, 16, v === 1 ? lighten(b.floor2, 0.03) : b.floor, darken(v === 1 ? b.floor2 : b.floor, 0.1));
-    p.hline(0, 15, 0, lighten(b.floor, 0.08));
-    p.px(12, 12, darken(b.floor, 0.1)); p.px(3, 9, darken(b.floor, 0.08));
-    p.speckle(2, 2, 12, 12, withAlpha(b.accent, 0.12), 3, v === 1 ? 31 : 7);
+    plainFloor(p, v === 1 ? lighten(b.floor2, 0.03) : b.floor, withAlpha(b.accent, 0.12), v === 1 ? 137 : 79,
+      (q) => { q.px(12, 12, darken(b.floor, 0.1)); q.px(3, 9, darken(b.floor, 0.08)); });
   },
   // ── frost: dark ice, snow-field feature ────────────────────────────────────
   frost: (p, b, v) => {
@@ -75,11 +87,8 @@ const FLOORS = {
       p.speckle(1, 1, 14, 8, withAlpha(P.white, 0.5), 4, 19);
       return;
     }
-    p.gradV(0, 0, 16, 16, v === 1 ? lighten(b.floor2, 0.04) : b.floor, darken(v === 1 ? b.floor2 : b.floor, 0.06));
-    p.hline(0, 15, 0, lighten(b.wallL, 0.1));
-    p.hline(0, 15, 15, b.line); p.vline(0, 15, 15, b.line);
-    p.line(2, 11, 9, 4, withAlpha(P.ice, 0.18)); // frost crack
-    p.px(12, 6, withAlpha(P.white, 0.4));
+    plainFloor(p, v === 1 ? lighten(b.floor2, 0.04) : b.floor, withAlpha(P.white, 0.14), v === 1 ? 151 : 97,
+      (q) => { q.line(3, 11, 9, 5, withAlpha(P.ice, 0.16)); q.px(12, 6, withAlpha(P.white, 0.4)); });   // frost crack (interior)
   },
   // ── inferno: scorched rock, molten lava feature (animated) ─────────────────
   inferno: (p, b, v, f = 0) => {
@@ -92,11 +101,8 @@ const FLOORS = {
       p.shadeBottom(0.14);
       return;
     }
-    p.gradV(0, 0, 16, 16, v === 1 ? lighten(b.floor2, 0.04) : b.floor, darken(v === 1 ? b.floor2 : b.floor, 0.1));
-    p.hline(0, 15, 0, lighten(b.floor, 0.08));
-    p.hline(0, 15, 15, b.line); p.vline(0, 15, 15, b.line);
-    p.px(11, 9, withAlpha(P.ember, 0.5)); p.px(4, 5, withAlpha(P.ember, 0.3)); // dim embers in cracks
-    p.speckle(2, 2, 12, 12, withAlpha(P.ink, 0.22), 3, v === 1 ? 13 : 5);
+    plainFloor(p, v === 1 ? lighten(b.floor2, 0.04) : b.floor, withAlpha(P.ink, 0.20), v === 1 ? 173 : 59,
+      (q) => { q.px(11, 9, withAlpha(P.ember, 0.5)); q.px(4, 5, withAlpha(P.ember, 0.3)); });   // dim embers in cracks
   },
   // ── void: dark stone, rift feature (animated mana motes) ───────────────────
   void: (p, b, v, f = 0) => {
@@ -108,29 +114,30 @@ const FLOORS = {
       p.star4(8, 6, 2, P.manaL, P.white);
       return;
     }
-    p.gradV(0, 0, 16, 16, v === 1 ? lighten(b.floor2, 0.04) : b.floor, darken(v === 1 ? b.floor2 : b.floor, 0.08));
-    p.hline(0, 15, 0, lighten(b.floor, 0.07));
-    p.px(11, 8, withAlpha(P.purpleL, 0.4)); p.px(5, 12, withAlpha(P.manaL, 0.3));
-    p.speckle(2, 2, 12, 12, withAlpha(P.purpleL, 0.14), 3, v === 1 ? 29 : 3);
+    plainFloor(p, v === 1 ? lighten(b.floor2, 0.04) : b.floor, withAlpha(P.purpleL, 0.14), v === 1 ? 191 : 31,
+      (q) => { q.px(11, 8, withAlpha(P.purpleL, 0.4)); q.px(5, 12, withAlpha(P.manaL, 0.3)); });
   },
 
   // ═══ NEW BIOMES ════════════════════════════════════════════════════════════
   // ── verdant: mossy soil + sun-dappled greens; feature = flower meadow ──────
   verdant: (p, b, v) => {
-    if (v === 2) { // flower meadow
-      p.gradV(0, 0, 16, 16, mix(P.leaf, P.moss, 0.4), darken(P.leafD, 0.05));
-      p.speckle(1, 1, 14, 14, lighten(P.leaf, 0.12), 7, 41);
-      // a few little blossoms
+    if (v === 2) { // flower meadow — a SUBTLE lift over the base soil (not a bright green patch), dotted with blooms
+      const fb = mix(b.floor, P.leaf, 0.3);   // R26/B1: saturated green lift — plain lighten() washed toward white and isolated meadow tiles read as fog squares
+      p.rect(0, 0, 16, 16, fb);
+      p.speckle(0, 0, 16, 16, withAlpha(P.moss, 0.28), 11, 71);
+      p.speckle(0, 0, 16, 16, withAlpha(P.leafL, 0.16), 8, 89);
+      // a few little blossoms (kept)
       p.px(4, 5, P.sakuraL); p.px(4, 4, P.sakura); p.px(5, 5, P.sakura); p.px(4, 6, P.sakura); p.px(3, 5, P.sakura);
       p.px(11, 10, P.holyL); p.px(11, 9, P.gold); p.px(12, 10, P.gold); p.px(11, 11, P.gold); p.px(10, 10, P.gold);
       p.px(8, 13, P.sakura); p.px(13, 4, P.gold);
       return;
     }
-    p.gradV(0, 0, 16, 16, v === 1 ? lighten(b.floor2, 0.05) : b.floor, darken(v === 1 ? b.floor2 : b.floor, 0.08));
-    p.hline(0, 15, 0, mix(b.floor, P.leafL, 0.35)); // sun-dapple top
-    p.hline(0, 15, 15, b.line);
-    p.speckle(2, 2, 12, 12, withAlpha(P.bark, 0.3), 4, v === 1 ? 53 : 17); // soil flecks
-    p.px(5, 4, withAlpha(P.leafL, 0.5)); p.px(11, 9, withAlpha(P.moss, 0.6)); // moss tufts
+    plainFloor(p, v === 1 ? mix(b.floor, b.floor2, 0.45) : b.floor, withAlpha(P.bark, 0.26), v === 1 ? 59 : 19,   // R26/B1: v1 stays close to base — full floor2 read as scattered pale squares on the lifted grass
+      (q) => {
+        q.speckle(0, 0, 16, 16, withAlpha(P.leafL, 0.16), 8, v === 1 ? 313 : 307);   // grass blades
+        q.speckle(0, 0, 16, 16, withAlpha(P.moss, 0.22), 6, v === 1 ? 331 : 317);    // moss patches
+        q.px(5, 4, withAlpha(P.leafL, 0.5)); q.px(11, 9, withAlpha(P.moss, 0.6));     // moss tufts
+      });
   },
   // ── desert: warm sand dunes + sandstone; feature = cracked oasis/quicksand ─
   desert: (p, b, v) => {
@@ -142,12 +149,11 @@ const FLOORS = {
       p.px(8, 7, P.hiSky); p.px(6, 9, withAlpha(P.white, 0.6));
       return;
     }
-    p.gradV(0, 0, 16, 16, v === 1 ? lighten(b.floor2, 0.05) : b.floor, darken(v === 1 ? b.floor2 : b.floor, 0.1));
-    p.hline(0, 15, 0, P.sandL); // sunlit crest
-    // wind-ripple lines (calm, low-frequency)
-    p.line(0, 6, 10, 4, withAlpha(P.sandD, 0.35)); p.line(4, 12, 15, 10, withAlpha(P.sandD, 0.3));
-    p.px(13, 5, P.sandL); p.px(3, 11, withAlpha(P.clay, 0.5));
-    p.speckle(2, 2, 12, 12, withAlpha(P.sandL, 0.3), 3, v === 1 ? 61 : 23);
+    plainFloor(p, v === 1 ? lighten(b.floor2, 0.05) : b.floor, withAlpha(P.sandL, 0.28), v === 1 ? 211 : 163,
+      (q) => {   // wind-ripple lines kept OFF the tile edges + a couple of grains
+        q.line(3, 7, 11, 5, withAlpha(P.sandD, 0.30)); q.line(5, 12, 13, 10, withAlpha(P.sandD, 0.24));
+        q.px(13, 5, P.sandL); q.px(3, 11, withAlpha(P.clay, 0.5));
+      });
   },
   // ── swamp: murky bog greens; feature = bubbling toxic water ────────────────
   swamp: (p, b, v, f = 0) => {
@@ -160,13 +166,11 @@ const FLOORS = {
       p.px(8, 5 + (f & 1), P.poison); p.px(8, 5 + (f & 1) - 1, withAlpha(P.toxic, 0.6));
       return;
     }
-    p.gradV(0, 0, 16, 16, v === 1 ? lighten(b.floor2, 0.04) : b.floor, darken(v === 1 ? b.floor2 : b.floor, 0.1));
-    p.hline(0, 15, 0, mix(b.floor, P.bogL, 0.4));
-    p.hline(0, 15, 15, b.line);
-    // algae / slime patches
-    p.px(4, 5, withAlpha(P.slimeBog, 0.6)); p.px(5, 5, withAlpha(P.slimeBog, 0.4));
-    p.px(11, 10, withAlpha(P.bogL, 0.6)); p.px(10, 11, withAlpha(P.bogL, 0.4));
-    p.speckle(2, 2, 12, 12, withAlpha(P.murk, 0.5), 4, v === 1 ? 71 : 37);
+    plainFloor(p, v === 1 ? lighten(b.floor2, 0.04) : b.floor, withAlpha(P.murk, 0.42), v === 1 ? 233 : 181,
+      (q) => {   // algae / slime patches (interior)
+        q.px(4, 5, withAlpha(P.slimeBog, 0.6)); q.px(5, 5, withAlpha(P.slimeBog, 0.4));
+        q.px(11, 10, withAlpha(P.bogL, 0.6)); q.px(10, 11, withAlpha(P.bogL, 0.4));
+      });
   },
   // ── abyss: sunken deep-sea blues; feature = glowing seabed vent ────────────
   abyss: (p, b, v, f = 0) => {
@@ -178,12 +182,11 @@ const FLOORS = {
       p.sparkle(8, 9, P.neonL, 1);
       return;
     }
-    p.gradV(0, 0, 16, 16, v === 1 ? lighten(b.floor2, 0.05) : b.floor, darken(v === 1 ? b.floor2 : b.floor, 0.14));
-    p.hline(0, 15, 0, mix(b.floor, P.oceanL, 0.3)); // faint caustic light from above
-    // soft caustic ripple
-    p.line(1, 4, 8, 2, withAlpha(P.oceanL, 0.18)); p.line(8, 12, 15, 9, withAlpha(P.oceanL, 0.12));
-    p.px(12, 6, withAlpha(P.oceanL, 0.4)); p.px(4, 11, withAlpha(P.neon, 0.2));
-    p.speckle(2, 2, 12, 12, withAlpha(P.oceanL, 0.12), 3, v === 1 ? 83 : 43);
+    plainFloor(p, v === 1 ? lighten(b.floor2, 0.05) : b.floor, withAlpha(P.oceanL, 0.12), v === 1 ? 251 : 199,
+      (q) => {   // soft caustic ripple kept OFF the edges
+        q.line(2, 4, 9, 3, withAlpha(P.oceanL, 0.16)); q.line(7, 12, 14, 10, withAlpha(P.oceanL, 0.10));
+        q.px(12, 6, withAlpha(P.oceanL, 0.4)); q.px(4, 11, withAlpha(P.neon, 0.2));
+      });
   },
   // ── celestial: bright cloud + astral marble; feature = starlit rift ────────
   celestial: (p, b, v, f = 0) => {
@@ -195,13 +198,11 @@ const FLOORS = {
       p.px(5 + f, 5, P.white); p.px(11 - f, 11, P.astralL);
       return;
     }
-    p.gradV(0, 0, 16, 16, v === 1 ? lighten(b.floor2, 0.06) : b.floor, darken(v === 1 ? b.floor2 : b.floor, 0.08));
-    p.hline(0, 15, 0, P.skyL); // bright top edge
-    p.vline(0, 15, 0, mix(b.floor, P.skyL, 0.4));
-    // marble veining + a tiny star
-    p.line(2, 12, 9, 5, withAlpha(P.cloud, 0.35)); p.line(9, 5, 14, 9, withAlpha(P.skyL, 0.3));
-    p.px(12, 4, P.star); p.sparkle(12, 4, withAlpha(P.holyL, 0.7), 1);
-    p.speckle(2, 2, 12, 12, withAlpha(P.cloud, 0.3), 3, v === 1 ? 97 : 47);
+    plainFloor(p, v === 1 ? lighten(b.floor2, 0.06) : b.floor, withAlpha(P.cloud, 0.26), v === 1 ? 271 : 217,
+      (q) => {   // marble veining + a tiny star (interior)
+        q.line(3, 12, 9, 5, withAlpha(P.cloud, 0.32)); q.line(9, 5, 13, 9, withAlpha(P.skyL, 0.28));
+        q.px(12, 4, P.star); q.sparkle(12, 4, withAlpha(P.holyL, 0.7), 1);
+      });
   },
 };
 
@@ -252,12 +253,13 @@ const WALLS = {
   },
 
   // ── NEW ──
-  verdant: (p, b) => { // mossy stone
-    p.gradV(0, 0, 16, 16, lighten(b.wall, 0.07), darken(b.wall, 0.11));
-    p.hline(0, 15, 7, b.wallD); p.hline(0, 15, 0, lighten(b.wallL, 0.08)); p.hline(0, 15, 1, b.wallL); // 2px lit top bevel
-    p.rect(2, 1, 6, 2, withAlpha(P.moss, 0.6)); p.rect(9, 5, 4, 2, withAlpha(P.leafD, 0.6)); // moss caps
-    p.px(3, 3, P.leafL); p.px(11, 9, withAlpha(P.moss, 0.5));
-    wallBase(p, b, 0.15);
+  verdant: (p, b) => { // dense hedge mass — R26/B1: kept darker than the lifted grass floor so it reads solid, not floating
+    p.gradV(0, 0, 16, 16, darken(b.wall, 0.12), darken(b.wall, 0.32));
+    p.hline(0, 15, 0, b.wallL); // single lit crown line
+    p.speckle(0, 1, 16, 7, darken(b.wall, 0.02), 7, 31);               // upper leaf clumps catch light
+    p.speckle(0, 8, 16, 8, darken(b.wall, 0.4), 7, 73);                // shaded under-leaves
+    p.px(3, 3, P.leafL); p.px(11, 5, withAlpha(P.leafL, 0.7)); p.px(7, 10, withAlpha(P.moss, 0.5));
+    wallBase(p, b, 0.2);
   },
   desert: (p, b) => { // layered sandstone
     p.gradV(0, 0, 16, 16, lighten(b.wall, 0.07), darken(b.wall, 0.08));
@@ -298,7 +300,7 @@ const WALLTOPS = {
   void: (p, b) => { p.gradV(0, 0, 16, 8, darken(b.wallD, 0.12), darken(b.wallD, 0.26)); p.rect(0, 0, 16, 2, P.purpleL); p.px(8, 3, withAlpha(P.manaL, 0.6)); },
 
   // ── NEW ──
-  verdant: (p, b) => { p.gradV(0, 0, 16, 8, darken(b.wallD, 0.1), darken(b.wallD, 0.24)); p.rect(0, 0, 16, 2, b.wallL); p.rect(0, 0, 16, 1, withAlpha(P.moss, 0.6)); p.px(4, 1, P.leafL); p.px(11, 2, withAlpha(P.leafD, 0.6)); },
+  verdant: (p, b) => { p.gradV(0, 0, 16, 8, darken(b.wallD, 0.08), darken(b.wallD, 0.26)); p.speckle(0, 0, 16, 3, withAlpha(P.leafD, 0.8), 10, 43); p.px(4, 1, withAlpha(P.leaf, 0.6)); p.px(11, 2, withAlpha(P.leafD, 0.6)); }, // R26/B1: dark hanging-foliage skirt (the old solid wallL rows tiled into bright green bars)
   desert: (p, b) => { p.gradV(0, 0, 16, 8, lighten(b.wallL, 0.06), darken(b.wallD, 0.16)); p.rect(0, 0, 16, 2, P.sandL); p.rect(0, 2, 16, 1, withAlpha(b.wallD, 0.6)); p.px(12, 4, withAlpha(P.sand, 0.6)); },
   swamp: (p, b) => { p.gradV(0, 0, 16, 8, darken(b.wallD, 0.1), darken(b.wallD, 0.26)); p.rect(0, 0, 16, 2, b.wallL); p.rect(0, 0, 16, 1, withAlpha(P.slimeBog, 0.5)); p.px(6, 2, withAlpha(P.toxic, 0.5)); },
   abyss: (p, b) => { p.gradV(0, 0, 16, 8, darken(b.wallD, 0.16), darken(b.wallD, 0.32)); p.rect(0, 0, 16, 2, b.wallL); p.px(5, 3, P.neonL); p.px(11, 4, withAlpha(P.neon, 0.5)); },

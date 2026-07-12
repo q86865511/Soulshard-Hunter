@@ -4,12 +4,13 @@ import { Enemies, Equipment, Items } from './content/registry.js';
 import { equipItem } from './content/equipment.js';
 import { Enemy } from './enemy.js';
 import { Pickup } from './pickup.js';
-import { drawSprite, fillRectWorld, fillCircleWorld, glowWorld, lineWorld, strokeCircleWorld, uiText, ctxRaw, camera, view, worldToScreen, addShake } from '../engine/renderer.js';
-import { getSprite, frameAt, hasSprite } from '../engine/sprites.js';
+import { drawSprite, fillRectWorld, fillCircleWorld, glowWorld, glowWorldCached, drawSpriteTint, lineWorld, strokeCircleWorld, uiText, ctxRaw, camera, view, worldToScreen, addShake } from '../engine/renderer.js';
+import { getSprite, frameAt, hasSprite, defineSprite } from '../engine/sprites.js';
 import { circleHit, dist, dist2, clamp, rng, TAU } from '../engine/math.js';
 import { P, withAlpha } from '../engine/palette.js';
 import { Sfx } from '../engine/audio.js';
 import { BALANCE } from './balance.js';
+import { LIGHT_BY_SPRITE } from './lights.js';
 import { applyStatus } from './status.js';
 import { META } from './state.js';
 import { isUnlocked } from './content/unlocks.js';
@@ -26,6 +27,16 @@ const HAZ = {
   spikes: { dmg: 15, cycle: 1.5, activeTime: 0.5, color: P.steelL, periodic: true, grav: 0 },
 };
 
+// R26/B1 — local-player cold-white ground pool (identity, distinct from warm/enemy tones).
+const PLAYER_RING_COLOR = '#cfeaff';
+// R26/B1 — south-edge wall-foot ambient occlusion: a 16×6 top-dark→transparent strip
+// baked ONCE, blitted on the FLOOR tile below a wall so the wall/floor seam grounds
+// (run + town share this path). Alpha driven by BALANCE so it stays tunable.
+defineSprite('fx_wallao', 16, 6, (p) => {
+  const A = (BALANCE.SCENE_FX && BALANCE.SCENE_FX.WALL_AO_ALPHA) || 0.35;
+  for (let i = 0; i < 6; i++) p.rect(0, i, 16, 1, withAlpha('#000000', A * (1 - i / 6)));
+}, { anchor: [0, 0] });
+
 export class World {
   constructor(run) {
     this.run = run;
@@ -33,6 +44,7 @@ export class World {
     this.tiles = new Uint8Array(0);
     this.floorVar = new Uint8Array(0);
     this.decor = [];          // {sprite,x,y,anim}
+    this.decals = [];         // R26/B1 render-only flat ground marks {sprite,x,y}
     this.enemies = [];
     this.projectiles = [];
     this.pickups = [];
@@ -79,6 +91,7 @@ export class World {
     this.tiles = map.tiles;
     this.floorVar = map.floorVar || new Uint8Array(this.tw * this.th);
     this.decor = map.decor || [];
+    this.decals = map.decals || [];   // R26/B1 render-only (empty on maps without a decal pool)
     this.tileset = map.tileset || { floor: ['floor', 'floor2', 'floor_crack'], wall: 'wall', wallTop: 'wall_top' };
     this.biome = map.biome || null;
     this.pxW = this.tw * TS; this.pxH = this.th * TS;
@@ -573,6 +586,7 @@ export class World {
     const face2Sp = ts.wallFace2 ? getSprite(ts.wallFace2) : faceSp;
     const capSp = ts.wallCap ? getSprite(ts.wallCap) : null;
     const voidSp = ts.voidTile ? getSprite(ts.voidTile) : null;
+    const aoSp = getSprite('fx_wallao');   // R26/B1 wall-foot ambient occlusion
     const hash5 = (tx, ty) => (((tx * 73856093) ^ (ty * 19349663)) >>> 0) % 5;
     // pick the band/variant sprite for a WALL tile (banded fill or plain ts.wall)
     const wallSprite = (tx, ty) => {
@@ -627,6 +641,9 @@ export class World {
         // original path: redundant skirt drawn on the floor tile below
         drawSprite(topSp.frames[0], tx * TS, (ty + 1) * TS, { ax: 0, ay: 0 });
       }
+      // R26/B1: soft contact shadow on the floor tile below any south-edge wall
+      // (grounds the wall/floor seam; run + town alike).
+      if (southFloor) drawSprite(aoSp.frames[0], tx * TS, (ty + 1) * TS, { ax: 0, ay: 0 });
     }
   }
 
@@ -663,14 +680,74 @@ export class World {
     ctx.restore();
   }
 
-  draw() {
-    this.drawTiles();
-    this.drawHazards();
-    // decor (torches etc.)
+  // R26/B1 — visible world-rect (+margins) for viewport culling of decor/decals.
+  // x margin ≈ half a wide prop; bottom margin holds tall bottom-anchored props
+  // whose base sits just below the screen but whose body still poked in.
+  _cullBounds() {
+    const z = camera.zoom;
+    const halfW = view.W / 2 / z, halfH = view.H / 2 / z;
+    return {
+      x0: camera.x - halfW - 16, x1: camera.x + halfW + 16,
+      y0: camera.y - halfH - 8, y1: camera.y + halfH + 40,
+    };
+  }
+
+  // R26/B1 — flat ground decals (render-only; empty unless a biome has a decal pool).
+  drawDecals(cb) {
+    if (!this.decals.length) return;
+    for (const d of this.decals) {
+      if (d.x < cb.x0 || d.x > cb.x1 || d.y < cb.y0 || d.y > cb.y1) continue;
+      const sp = getSprite(d.sprite);
+      drawSprite(sp.frames[0], d.x, d.y, { ax: sp.ax, ay: sp.ay });
+    }
+  }
+
+  // R26/B1 — additive light channel: a pool under each emissive decor (culled +
+  // flickered) then the local player's cold-white identity pool. After decor,
+  // before actors, so pools sit on the ground beneath everything that moves.
+  drawSceneLights(cb) {
     for (const d of this.decor) {
+      const li = LIGHT_BY_SPRITE[d.sprite];
+      if (!li) continue;
+      if (d.x < cb.x0 || d.x > cb.x1 || d.y < cb.y0 || d.y > cb.y1) continue;
+      const flick = li.flicker
+        ? 1 - li.flicker * 0.5 + li.flicker * 0.5 * Math.sin(this.time * (li.speed || 4) + (d.phase || 0) * 2.1)
+        : 1;
+      glowWorldCached(d.x, d.y - (li.oy || 0), li.r, li.color, li.a * flick);
+    }
+    const p = this.player, fx = BALANCE.SCENE_FX;
+    if (p && !p.dead && fx) glowWorldCached(p.x, p.y - 4, fx.PLAYER_RING_R, PLAYER_RING_COLOR, fx.PLAYER_RING_A);
+  }
+
+  // R26/B1 — "surrounded" beacon: when ≥N enemies crowd the LOCAL player, redraw
+  // its current frame as a pulsing white silhouette so it never gets lost in a mob.
+  drawSurroundBeacon() {
+    const p = this.player, fx = BALANCE.SCENE_FX;
+    if (!p || p.dead || !fx) return;
+    let near = 0;
+    this.forEachNear(p.x, p.y, fx.SURROUND_R, (e) => {
+      if (!e.dead && e.spawnT <= 0 && dist2(p.x, p.y, e.x, e.y) < fx.SURROUND_R * fx.SURROUND_R) near++;
+    });
+    if (near < fx.SURROUND_N) return;
+    const sp = getSprite(p.spriteName || 'player');
+    const frame = p.moving ? frameAt(sp, p.walkT, 0) : frameAt(sp, p.t * 0.4);
+    const hopY = p.hop > 0 ? -Math.sin(Math.min(1, p.hop / 0.6) * Math.PI) * 6 : 0;
+    const a = fx.SURROUND_A_MIN + (fx.SURROUND_A_MAX - fx.SURROUND_A_MIN) * (0.5 + 0.5 * Math.sin(this.time * 9));
+    drawSpriteTint(frame, p.x, p.y + hopY, '#ffffff', a, { ax: sp.ax, ay: sp.ay, flipX: p.faceX < 0, scale: 0.9 });
+  }
+
+  draw() {
+    const cb = this._cullBounds();
+    this.drawTiles();
+    this.drawDecals(cb);           // R26/B1 flat ground marks (after tiles, before hazards)
+    this.drawHazards();
+    // decor (torches etc.) — viewport-culled (R26/B1)
+    for (const d of this.decor) {
+      if (d.x < cb.x0 || d.x > cb.x1 || d.y < cb.y0 || d.y > cb.y1) continue;
       const sp = getSprite(d.sprite);
       drawSprite(frameAt(sp, this.time, d.phase || 0), d.x, d.y, { ax: sp.ax, ay: sp.ay });
     }
+    this.drawSceneLights(cb);      // R26/B1 light pools + local-player ground ring
     // depth-sorted actors
     const drawables = [];
     for (const pk of this.pickups) drawables.push(pk);
@@ -691,6 +768,8 @@ export class World {
     }
     // particles
     this.particles.draw();
+    // R26/B1 "surrounded" beacon — local player only, on top of the in-world layer
+    this.drawSurroundBeacon();
   }
 }
 

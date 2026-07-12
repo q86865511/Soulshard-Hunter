@@ -181,6 +181,51 @@ export function glowWorld(wx, wy, r, color, alpha = 0.5) {
   ctx.restore();
 }
 
+// Cached variant of glowWorld: bakes each (color, r) radial gradient into an
+// offscreen canvas ONCE, then blits it additively (scaled by zoom + modulated by
+// globalAlpha). Use for the per-frame scene light channel, where many emitters
+// share a handful of (color, r) pairs so the per-call gradient build dominates.
+const _glowTex = new Map();
+function glowTexture(r, color) {
+  const key = color + '|' + r;
+  let c = _glowTex.get(key);
+  if (!c) {
+    c = document.createElement('canvas'); c.width = c.height = r * 2;
+    const g2 = c.getContext('2d');
+    const grad = g2.createRadialGradient(r, r, 0, r, r, r);
+    grad.addColorStop(0, withAlpha(color, 1)); grad.addColorStop(1, withAlpha(color, 0));
+    g2.fillStyle = grad; g2.beginPath(); g2.arc(r, r, r, 0, Math.PI * 2); g2.fill();
+    _glowTex.set(key, c);
+  }
+  return c;
+}
+export function glowWorldCached(wx, wy, r, color, alpha = 0.5) {
+  if (!(alpha > 0)) return;
+  const s = worldToScreen(wx, wy), z = camera.zoom;
+  const tex = glowTexture(Math.max(1, Math.round(r)), color), rr = r * z;
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  ctx.globalAlpha = Math.min(1, alpha);
+  ctx.drawImage(tex, s.x - rr, s.y - rr, rr * 2, rr * 2);
+  ctx.restore();
+}
+
+// Draw ONLY a solid-colour silhouette of a sprite frame (reuses the hit-flash
+// tint cache) at a given alpha — used for the "surrounded" player beacon.
+export function drawSpriteTint(spriteCanvas, wx, wy, color, alpha, opts = {}) {
+  if (!spriteCanvas || !(alpha > 0)) return;
+  const z = camera.zoom;
+  const ax = opts.ax ?? spriteCanvas.width / 2, ay = opts.ay ?? spriteCanvas.height / 2;
+  const s = worldToScreen(wx, wy), scale = (opts.scale ?? 1) * z;
+  ctx.save();
+  ctx.globalAlpha = Math.min(1, alpha);
+  ctx.translate(s.x, s.y);
+  if (opts.flipX) ctx.scale(-1, 1);
+  ctx.scale(scale, scale);
+  ctx.drawImage(tintedFrame(spriteCanvas, color), -ax, -ay);
+  ctx.restore();
+}
+
 // ---- screen-space UI -------------------------------------------------------
 // All UI uses device pixels. Use uiScale() to keep UI readable across DPI.
 // UI scale tuned so 1080p ≈ 2. Keeps panels/text a sensible size across resolutions.

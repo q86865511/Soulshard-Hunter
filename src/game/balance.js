@@ -194,6 +194,17 @@ export const BALANCE = {
   // ---- traps / map (E1 / 原#9) ------------------------------------------
   TRAP_DMG_MULT: 1.7,                         // raise trap damage
   MAP_W: 138, MAP_H: 102,                     // bigger battleground (was 104 x 76)
+
+  // ---- R26/B1 decoration density (× area factor k in maps.js) -------------
+  DECOR: { SINGLES: 75, CLUSTERS: 20, WALL: 24, DECALS: 360 },   // R26/B1b density pass (was 55/14/20/90); DECALS = render-only ground-mark channel (empty pools → no-op)
+
+  // ---- R26/B1 scene-composition FX (render-only tuning) ------------------
+  SCENE_FX: {
+    PLAYER_RING_R: 20, PLAYER_RING_A: 0.12,   // local-player cold-white ground pool (identity)
+    SURROUND_N: 4, SURROUND_R: 14,            // ≥N enemies within R px of the player → "surrounded" beacon
+    SURROUND_A_MIN: 0.25, SURROUND_A_MAX: 0.45,  // beacon silhouette pulse range
+    WALL_AO_ALPHA: 0.35,                       // south-edge wall-foot ambient-occlusion strength
+  },
 };
 
 // Effective weapon level cap: evolved weapons are terminal (level 1), everything
