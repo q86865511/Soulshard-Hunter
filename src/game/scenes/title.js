@@ -257,7 +257,7 @@ export const titleScene = {
     ctx.beginPath(); ctx.arc(mx0 + mr * 0.34, my0 + mr * 0.28, mr * 0.95, 0, Math.PI * 2); ctx.fill();
     ctx.restore();
     ctx.strokeStyle = withAlpha('#eaf6ff', 0.55); ctx.lineWidth = 1.6 * S;
-    ctx.beginPath(); ctx.arc(mx0, my0, mr - 0.8 * S, Math.PI * 0.78, Math.PI * 1.62); ctx.stroke();
+    ctx.beginPath(); ctx.arc(mx0, my0, Math.max(0.1, mr - 0.8 * S), Math.PI * 0.78, Math.PI * 1.62); ctx.stroke();   // R26/B3: clamp — a near-zero canvas (0×0 boot race) made this negative and threw
     ctx.save();
     ctx.translate(mx0, my0); ctx.rotate(Math.PI * 0.20);
     const beam = ctx.createLinearGradient(0, 0, 0, H * 0.55);
@@ -341,7 +341,7 @@ export const titleScene = {
       const sp = getSprite(gd.sprite); if (!sp || sp.missing) continue;
       const sc = gd.s * S;
       const bx = crownX + W * gd.dxw, by = horizonY + H * gd.dyh + (gd.fly ? Math.sin(t * 1.6 + gd.ph) * 6 * S : 0);
-      if (!gd.fly) { ctx.fillStyle = 'rgba(0,0,0,0.4)'; ctx.beginPath(); ctx.ellipse(bx, horizonY + H * gd.dyh + 1.5 * S, sp.w * sc * 0.36, sp.w * sc * 0.10, 0, 0, Math.PI * 2); ctx.fill(); }
+      if (!gd.fly) { ctx.fillStyle = 'rgba(0,0,0,0.58)'; ctx.beginPath(); ctx.ellipse(bx, horizonY + H * gd.dyh + 1.5 * S, sp.w * sc * 0.42, sp.w * sc * 0.12, 0, 0, Math.PI * 2); ctx.fill(); }   // R26/B3: 0.4 black vanished on the near-black ground — guards read as floating
       drawSpriteUI(frameAt(sp, t, gd.ph), bx - sp.w * sc / 2, by - sp.h * sc, sc, { alpha: 0.97 });
     }
 
@@ -359,6 +359,8 @@ export const titleScene = {
         fg.addColorStop(0, withAlpha('#ffb060', 0.16 + 0.05 * Math.sin(t * 7))); fg.addColorStop(1, 'rgba(0,0,0,0)');
         ctx.fillStyle = fg; ctx.fillRect(W * m.rx - 46 * S, H * m.ry - 54 * S, 92 * S, 92 * S);
       }
+      ctx.fillStyle = 'rgba(0,0,0,0.42)';   // R26/B3: ground-contact shadow (camp props floated shadowless)
+      ctx.beginPath(); ctx.ellipse(W * m.rx, H * m.ry + 1 * S, sp.w * m.s * S * 0.38, sp.w * m.s * S * 0.11, 0, 0, Math.PI * 2); ctx.fill();
       drawSpriteUI(frameAt(sp, t), W * m.rx - sp.w * m.s * S / 2, H * m.ry - sp.h * m.s * S, m.s * S);
     }
 
@@ -632,7 +634,7 @@ export const titleScene = {
     const nb = this.notesBtn(), nhov = inside(mx, my, nb);
     uiRect(nb.x, nb.y, nb.w, nb.h, withAlpha(nhov ? '#33251a' : '#171225', 0.92), { radius: 7 * S, stroke: nhov ? P.goldL : withAlpha(P.goldL, 0.45), lw: nhov ? 2.5 : 1.5 });
     uiText('📜 更新日誌 · ' + GAME_VERSION, nb.x + nb.w / 2, nb.y + nb.h / 2 + 1 * S, { size: 12 * S, align: 'center', baseline: 'middle', color: nhov ? '#fff' : P.goldL, weight: '700' });
-    if (this.mobileHint) uiText('📱 目前建議使用實體鍵盤遊玩　·　完整觸控操作尚未支援', view.W / 2, view.H * 0.885, { size: 11 * S, align: 'center', color: withAlpha(P.goldL, 0.9) });   // R21.8: honest platform support (non-blocking, above the vault line)
+    if (this.mobileHint) uiText('📱 目前建議使用實體鍵盤遊玩　·　完整觸控操作尚未支援', view.W / 2, nb.y - 10 * S, { size: 11 * S, align: 'center', color: withAlpha(P.goldL, 0.9) });   // R21.8 hint; R26/B3: anchored above the notes button (H*0.885 landed inside it and the two overlapped)
     uiText('金庫 ' + Math.round(META.gold || 0) + '　·　最高威脅 ' + (META.stats.bestStage || 0) + ' 級　·　最高分 ' + (META.stats.bestScore || 0), view.W / 2, view.H * 0.93, { size: 12 * S, align: 'center', color: P.gray3 });   // R17/2.1:「金庫」already labels it — no broken 🪙 glyph
     uiText('空白鍵 快速進入上次存檔　·　Esc 設定', view.W / 2, view.H * 0.97, { size: 11 * S, align: 'center', color: withAlpha(P.gray2, 0.8) });
   },
