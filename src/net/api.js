@@ -88,8 +88,18 @@ async function req(path, { method = 'GET', body, authed = false } = {}) {
   return data;
 }
 
+// PUT /api/save can succeed at the HTTP level yet be REFUSED by the server's
+// conflict guard (a newer blob of the SAME save slot already sits in the one-per-account
+// cloud row) — it answers { ok:true, applied:false }. Surfacing it is the difference
+// between "☁ 已登入" quietly meaning "this slot never syncs" and the player knowing.
+function noteApplied(r) {
+  if (r && r.applied === false && Net.onSaveConflict) { try { Net.onSaveConflict(r); } catch (e) { /* */ } }
+  return r;
+}
+
 export const Net = {
   onSessionExpired: null,   // ui.js sets this to flip the bar + toast on a 401
+  onSaveConflict: null,     // ui.js sets this to toast when the cloud refused a save push
   isLoggedIn: () => tokenAlive(token),
   currentUser: () => user,
   isAdmin: () => !!(tokenAlive(token) && user && user.admin),
@@ -113,7 +123,7 @@ export const Net = {
   },
   logout() { setSession(null, null); },
   getSave() { return req('/save', { authed: true }); },
-  putSave(meta, saveVersion) { return req('/save', { method: 'PUT', authed: true, body: { meta, saveVersion } }); },
+  putSave(meta, saveVersion) { return req('/save', { method: 'PUT', authed: true, body: { meta, saveVersion } }).then(noteApplied); },
   postRun(run) { return req('/runs', { method: 'POST', authed: true, body: run }); },
   postGuestRun(run) { return req('/runs/guest', { method: 'POST', body: run }); },   // 訪客模式: no token, body carries a self-entered name
   leaderboard(params = {}) {

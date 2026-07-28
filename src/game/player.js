@@ -6,9 +6,15 @@ import { normalize, clamp } from '../engine/math.js';
 
 // Co-op: sanitise a networked move vector (clamp magnitude to 1 so a malicious/laggy
 // client can't speed-hack by sending an oversized vector).
+// Number.isFinite, not `+x || 0`: JSON overflows to Infinity (`{"mv":[1e999,0]}`), and
+// Infinity survives `|| 0` → hypot(Inf,0)=Inf → x/m = NaN → the avatar's position goes
+// NaN permanently (falls out of the broadphase grid, serialises as null to every guest).
 function clampAxis(mv) {
   if (!mv) return { x: 0, y: 0 };
-  let x = +mv.x || 0, y = +mv.y || 0; const m = Math.hypot(x, y);
+  let x = +mv.x, y = +mv.y;
+  if (!Number.isFinite(x)) x = 0;
+  if (!Number.isFinite(y)) y = 0;
+  const m = Math.hypot(x, y);
   if (m > 1) { x /= m; y /= m; }
   return { x, y };
 }

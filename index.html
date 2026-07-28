@@ -6,11 +6,17 @@
   <title>魂晶獵手 · Soulshard Hunter</title>
   <link rel="icon" href="/icon.svg?v=1" type="image/svg+xml" sizes="any" />
   <meta name="theme-color" content="#0b0d1a" />
-  <!-- 1.8: pixel bitmap font for numeric HUD values (falls back to monospace offline) -->
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet" />
   <style>
+    /* 1.8: pixel bitmap font for numeric HUD values. Self-hosted (was a Google Fonts CDN
+       <link>, which handed the player's IP + UA to a third party on every page load and broke
+       the "no external requests" claim); latin subset only — PIXEL_FONT is ASCII-only by
+       design, see engine/renderer.js. SIL OFL 1.1, licence in assets/font/OFL.txt. */
+    @font-face {
+      font-family: 'Press Start 2P';
+      font-style: normal; font-weight: 400; font-display: swap;
+      src: url('./assets/font/PressStart2P-latin.woff2') format('woff2');
+      unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+    }
     :root { --bg: #0b0d1a; }
     * { margin: 0; padding: 0; box-sizing: border-box; }
     html, body {

@@ -10,6 +10,7 @@ const TYPES = {
   '.js': 'text/javascript', '.mjs': 'text/javascript', '.html': 'text/html; charset=utf-8',
   '.css': 'text/css', '.json': 'application/json', '.png': 'image/png', '.jpg': 'image/jpeg',
   '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.wav': 'audio/wav', '.mp3': 'audio/mpeg',
+  '.woff2': 'font/woff2',
 };
 
 http.createServer((req, res) => {
@@ -30,7 +31,11 @@ http.createServer((req, res) => {
   }
   if (p === '/' || p === '') p = '/index.html';
   const fp = path.join(root, path.normalize(p));
-  if (!fp.startsWith(root)) { res.writeHead(403); res.end('forbidden'); return; }
+  // Compare against root + separator: a bare startsWith(root) also accepts SIBLING dirs
+  // (…/Soulshard-Hunter-bak/secret.txt starts with …/Soulshard-Hunter). path.normalize
+  // currently clamps a leading `..` on an absolute path, so no live escape was reproducible —
+  // this is the correct check regardless of that. `fp === root` stays allowed (→ index.html).
+  if (fp !== root && !fp.startsWith(root + path.sep)) { res.writeHead(403); res.end('forbidden'); return; }
   fs.readFile(fp, (err, data) => {
     if (err) { res.writeHead(404, { 'Content-Type': 'text/plain' }); res.end('404 ' + p); return; }
     res.writeHead(200, {
@@ -40,4 +45,6 @@ http.createServer((req, res) => {
     });
     res.end(data);
   });
-}).listen(port, () => console.log('dev server (no-cache) on http://localhost:' + port));
+// Loopback only: this is a dev server with a write-to-disk POST /__shot endpoint and
+// Access-Control-Allow-Origin:*, so it must never be reachable from the LAN.
+}).listen(port, '127.0.0.1', () => console.log('dev server (no-cache) on http://localhost:' + port));

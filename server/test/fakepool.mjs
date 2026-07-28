@@ -66,7 +66,15 @@ export function makeFakePool() {
         return { rows: sv ? [{ meta: sv.meta, save_version: sv.save_version }] : [], rowCount: sv ? 1 : 0 };
       }
       if (s.startsWith('INSERT INTO saves')) {
-        saves.set(String(args[0]), { meta: args[1], save_version: args[2] });
+        // Mirror the real ON CONFLICT … WHERE guard (server.js PUT /api/save): a push into the
+        // SAME save slot only lands when its saveSeq is at least the stored one; a different
+        // slot is a separate lineage (per-slot counters) → always applies. Without this the
+        // fake pool answered rowCount:1 to everything and `applied:false` was untestable.
+        const key = String(args[0]), next = args[1] || {}, cur = saves.get(key);
+        const slotOf = (m) => String(m && m.slot != null ? m.slot : 0);
+        const seqOf = (m) => Number((m && m.saveSeq) || 0);
+        if (cur && slotOf(cur.meta) === slotOf(next) && seqOf(cur.meta) > seqOf(next)) return { rows: [], rowCount: 0 };
+        saves.set(key, { meta: next, save_version: args[2] });
         return { rows: [], rowCount: 1 };
       }
       if (s.startsWith('INSERT INTO runs')) {

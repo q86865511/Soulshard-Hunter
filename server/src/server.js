@@ -77,7 +77,13 @@ export function computeScore(c) {
 //     index. The client now report-caps it at the ceiling, but threat keeps climbing
 //     while the player lingers on the Reaper past 20:00, so allow headroom (20) to avoid
 //     false-rejecting legitimate clear+reaper runs from older/unpatched clients.
-const ANTICHEAT = { KILL_BASE: 80, MAX_KPS: 30, MIN_CLEAR_TIME: 1000, MAX_STAGE: 20, ENDLESS_MAX_TIME: 14400, ENDLESS_MAX_STAGE: 99 };
+// MAX_KPS derivation (was a hand-waved 30): the on-screen swarm is hard-capped at 260
+// (world.js) and a maxed build clears a full screen in well under a minute, so a *sustained*
+// 12 kills/s already means wiping the entire cap roughly every 22 s for the whole run —
+// ~14.4k kills over a 20-min run, several times what a real clear produces. Not derived from
+// telemetry P99 (no such dataset yet), so it is deliberately still generous; the P1-3
+// run_ended events now carry kills-adjacent fields, so tighten again once real data exists.
+const ANTICHEAT = { KILL_BASE: 80, MAX_KPS: 12, MIN_CLEAR_TIME: 1000, MAX_STAGE: 20, ENDLESS_MAX_TIME: 14400, ENDLESS_MAX_STAGE: 99 };
 export function runPlausibility(c) {
   const party = clampInt(c.coop_size || 1, 1, 3);
   const mode = c.mode || 'normal';
@@ -256,11 +262,20 @@ export async function buildApp(pool, { logger = false, rateMax = 120 } = {}) {
   app.put('/api/save', saveLimit, async (req, reply) => {
     const p = saveSchema.safeParse(req.body);
     if (!p.success) return reply.code(400).send({ error: 'invalid save payload' });
-    // reject an older write clobbering a newer one (compare the client's monotonic savedAt marker)
+    // Reject an older write clobbering a newer one — but ONLY within the same save slot.
+    // saveSeq is incremented PER SLOT on the client, so comparing it across slots is
+    // meaningless: slot0 at seq=500 used to permanently block every push from slot1 at
+    // seq=30, and the client had no way to tell (it read `ok`, not `applied`). The cloud
+    // row is one-per-account and mirrors whichever slot is active, so a slot switch is a
+    // new lineage → always applies; a same-slot push still has to be at least as new.
+    // (Low-risk option: no schema change, no per-slot rows; the trade-off is that the
+    // cloud blob still holds ONE slot at a time — switching slots re-points it, and the
+    // client keeps a .precloud.bak before any pull. See src/game/state.js syncFromCloud.)
     const r = await pool.query(
       `INSERT INTO saves(user_id, meta, save_version, updated_at) VALUES($1,$2,$3,now())
        ON CONFLICT (user_id) DO UPDATE SET meta=$2, save_version=$3, updated_at=now()
-       WHERE COALESCE((saves.meta->>'saveSeq')::bigint, 0) <= COALESCE(($2->>'saveSeq')::bigint, 0)`,
+       WHERE COALESCE(saves.meta->>'slot', '0') IS DISTINCT FROM COALESCE($2->>'slot', '0')
+          OR COALESCE((saves.meta->>'saveSeq')::bigint, 0) <= COALESCE(($2->>'saveSeq')::bigint, 0)`,
       [req.user.uid, p.data.meta, p.data.saveVersion]);
     return { ok: true, applied: r.rowCount > 0 };
   });
@@ -283,7 +298,10 @@ export async function buildApp(pool, { logger = false, rateMax = 120 } = {}) {
   // guest leaderboard upload — no account, a self-entered display name. Same anti-cheat gate;
   // tighter per-IP rate limit (anonymous → can't be tied to an account).
   const guestRunSchema = runSchema.extend({ name: z.string().trim().min(1).max(16) });
-  const guestRunLimit = { config: { rateLimit: { max: 10, timeWindow: '1 minute' } } };
+  // A real run takes 20 minutes, so an honest guest can never need more than a handful of
+  // uploads per window — 10/minute was wide enough to script a whole board. Per-IP
+  // (trustProxy is on, so this is the real client IP behind Caddy).
+  const guestRunLimit = { config: { rateLimit: { max: 5, timeWindow: '10 minutes' } } };
   app.post('/api/runs/guest', guestRunLimit, async (req, reply) => {
     const p = guestRunSchema.safeParse(req.body);
     if (!p.success) return reply.code(400).send({ error: 'invalid run payload', detail: p.error.issues });

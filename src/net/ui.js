@@ -217,6 +217,9 @@ export function mountNetBar() {
   // bottom-right chip). We still keep the element + onSessionExpired wiring for the toast path.
   if (!bar) { bar = $('div', { id: 'net-bar', style: 'display:none' }); document.body.appendChild(bar); }
   Net.onSessionExpired = () => { RT.close(); renderBar(); toast('雲端登入已過期，請重新登入'); };   // a background 401 also tears down the realtime socket (match the explicit-logout path)
+  // 雲端拒絕套用這次推送（同一存檔槽在雲端已有更新的版本，例如另一台裝置先存了）——
+  // 以前是靜默的，玩家看到「☁ 已登入」卻永遠不同步；現在明說一次。
+  Net.onSaveConflict = () => toast('雲端存檔未套用：此存檔槽在雲端有更新的版本，本次進度僅存在本機', 3600);
   renderBar();
 }
 function renderBar() {

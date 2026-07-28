@@ -50,6 +50,8 @@ export const overlaysMixin = {
   },
   doCheat(id) {
     Sfx.play('uiClick');
+    // 誠信旗標：面板任一功能一經使用就整場黏著（state.js 的 runCheated 據此擋掉所有排行榜上傳）。
+    if (this.run) this.run.cheated = true;
     const w = this.world;
     if (id === 'god') Cheats.godmode = !Cheats.godmode;
     else if (id === 'fast') Cheats.fast = !Cheats.fast;
@@ -73,6 +75,8 @@ export const overlaysMixin = {
       uiRect(b.x, b.y, b.w, b.h, withAlpha(on ? '#2a5a3a' : (hov ? '#3a2a4a' : '#1a1430'), 0.95), { radius: 5 * S, stroke: on ? P.greenL : hov ? P.goldL : P.ink2, lw: 1.5 });
       uiText(b.label, b.x + b.w / 2, b.y + b.h / 2 + 1 * S, { size: 11 * S, align: 'center', baseline: 'middle', color: '#fff', weight: '700' });
     }
+    const last = btns[btns.length - 1];
+    uiText('※ 使用後本局不計排行榜', last.x + last.w / 2, last.y + last.h + 10 * S, { size: 9 * S, align: 'center', color: P.redL, weight: '700' });
   },
 
   drawWon() {

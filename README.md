@@ -2,13 +2,15 @@
 
 > 像素風 roguelike 生存遊戲（Vampire-Survivors-like）——原生 HTML5 Canvas + ES Modules,零建置、零依賴;可選配雲端帳號與 1~3 人即時連線合作。
 
+### ▶ 立即遊玩:**<https://soulshard.terrychou.com>**(正式站,前後端皆在線上;不需安裝、不需註冊即可開玩)
+
 <p align="center"><img src="docs/cover.png" alt="魂晶獵手 Soulshard Hunter — 封面" width="100%"></p>
 
 [![CI](https://github.com/q86865511/Soulshard-Hunter/actions/workflows/ci.yml/badge.svg)](https://github.com/q86865511/Soulshard-Hunter/actions/workflows/ci.yml)
 [![Vanilla JS](https://img.shields.io/badge/Vanilla%20JS-ES%20Modules-f7df1e?logo=javascript&logoColor=black)](src/main.js)
 [![No Build](https://img.shields.io/badge/build-zero%20config-2ea44f)](tools/serve.mjs)
-[![Node](https://img.shields.io/badge/Node-%E2%89%A518-339933?logo=node.js&logoColor=white)](server/package.json)
-[![Fastify](https://img.shields.io/badge/Fastify-4.x-000000?logo=fastify&logoColor=white)](server/package.json)
+[![Node](https://img.shields.io/badge/Node-%E2%89%A520-339933?logo=node.js&logoColor=white)](server/package.json)
+[![Fastify](https://img.shields.io/badge/Fastify-5.x-000000?logo=fastify&logoColor=white)](server/package.json)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-relay%20backend-4169e1?logo=postgresql&logoColor=white)](server/README.md)
 [![WebSocket](https://img.shields.io/badge/WebSocket-host--authoritative-010101?logo=socketdotio&logoColor=white)](docs/MULTIPLAYER_PLAN.md)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
@@ -21,9 +23,9 @@
 
 - 🎨 **美術 100% 程式即時生成**(無任何外部圖片素材);音效 WebAudio 合成、配樂為 12 首實錄曲目(依遊戲狀態交叉淡入,合成器為後備)
 - 🕹️ **可純單機離線遊玩**:雲端與多人皆為選配,未登入／連不上自動退回本機存檔,不影響遊玩
-- ⚙️ **前端零安裝**:一個靜態伺服器即可執行
+- ⚙️ **前端零安裝**:一個靜態伺服器即可執行;**執行期不對任何第三方主機發出請求**(字型已自架,見[隱私](#匿名遊玩統計遙測))
 
-**目前進度**:Round 21 完成,對外版本 **V2.0**(V1.0=R18 / V1.5=R19 / V2.0=R20)。已實作末日遺跡城鎮、無盡／每日／週常模式、資料驅動 Boss 招式與局內事件、全 27 角色專屬武器。逐輪更新詳見 [`docs/changelog/`](docs/changelog/)(最新 `ROUND21.md`)。
+**目前進度**:Round 26 完成,對外版本 **V2.0**(V1.0=R18 / V1.5=R19 / V2.0=R20;R21–R26 為 V2.0 之後的內容與品質輪)。已實作末日遺跡城鎮、無盡／每日／週常模式、資料驅動 Boss 招式與局內事件、全 27 角色專屬武器、內容圖鑑與推薦目標、無障礙與輔助模式、匿名遙測、結算教練、場景光影美術輪。R27 為外部程式碼審查的修正批次(排行榜誠信閘門、雲端存檔資料遺失、字型自架、相依清零),不含新玩法。逐輪更新詳見 [`docs/changelog/`](docs/changelog/)(最新 `ROUND27.md`)。
 
 ## 目錄
 
@@ -47,7 +49,7 @@
 
 一款 **Vampire-Survivors-like** 的像素風 roguelike 生存遊戲。玩家只需走位,身上的多把武器會**自動瞄準開火**;在一張限時 20 分鐘的生態大地圖中迎戰由弱到強、不斷湧出的怪潮,透過「升級三選一」與「滿級進化合成」即時構築自己的 build,最後在第 20 分鐘擊敗生態最終首領破關。每局帶回的金幣投入可走動的**末日遺跡城鎮**做永久成長——解鎖角色、天賦、設施、武器鍛造與故事。
 
-技術上它是一個**零建置、零執行期依賴**的純前端遊戲:**原生 HTML5 Canvas + ES Modules**,所有像素美術都在程式中**程序化生成**(沒有任何外部圖片素材),只有 `assets/music/` 的 12 首實錄配樂屬於外部資產。一個靜態伺服器即可開跑。
+技術上它是一個**零建置、零執行期依賴**的純前端遊戲:**原生 HTML5 Canvas + ES Modules**,所有像素美術都在程式中**程序化生成**(沒有任何外部圖片素材),外部資產只有 `assets/music/` 的 12 首實錄配樂與 `assets/font/` 的一個像素字型(自架、SIL OFL 1.1)。一個靜態伺服器即可開跑。
 
 雲端與多人是**選配且離線優先**:沒登入或連不上時自動退回本機 `localStorage`,單機體驗完全不受影響。接上後端後,可獲得帳號、跨裝置雲端存檔、伺服器權威計分的共享排行榜,以及 **1~3 人即時連線合作**(採主機權威中繼架構)。
 
@@ -59,9 +61,9 @@
 - **multi-agent workflow 量產內容**:核心內容之外,以「生成 → 對抗式審查」的多代理工作流大量產出 63 敵人 / 43 武器 / 27 角色 / 54 被動 / 60 裝備…,經 `tools/integrate.mjs` 自動整合且**故障隔離**(單一 gen 檔出錯不拖垮整體)。
 - **120 Hz 固定步模擬**:固定步主迴圈壓低輸入延遲;空間網格(uniform spatial grid)取代 O(n²) 鄰近查詢,在 260 敵人上限仍保持穩定。
 - **主機權威即時合作**:開房玩家的瀏覽器跑**未修改的權威 `run.js` 模擬**並以 ~18Hz 廣播量化後的世界快照;Node 伺服器只當房間/中繼不跑模擬。訪客場景為純插值傀儡 + 自身 avatar 的本地預測/校正。**單機路徑零改動**。
-- **伺服器權威計分**:排行榜分數由後端以 `kills/stage/time/difficulty/reaper` 重算並做合理性檢查,忽略客戶端宣稱值,杜絕前端竄改。
+- **伺服器權威計分**:排行榜分數由伺服器以 `kills/stage/time/difficulty/reaper` 重算並做合理性檢查(**不採信客戶端分數**);客戶端另有誠信閘門——輔助模式或動用開發者面板的對局一律不上傳。
 - **完整雲端後端**:Node + Fastify + PostgreSQL 單一程式同時提供 REST API 與 WebSocket 中繼;含 JWT 帳號、跨裝置存檔、多模式排行榜、好友/大廳/觀戰/斷線重連,以及 7 分頁管理後台(封鎖、踢人、稽核日誌、數據統計)。
-- **CI 與離線優先設計**:GitHub Actions 跑 179 項後端 smoke/social 測試與前端 headless smoke(部署雙關卡);前端另附離線自測 hook(`__DBG.coopRoundTrip/coopSilenceTest/coopBossSyncTest`)可在無雙分頁、無中繼伺服器的情況下驗證 host→guest 全鏈路。
+- **CI 與離線優先設計**:GitHub Actions 跑 185 項後端 smoke/social 測試與 59 條前端 headless smoke 斷言,兩者由 `deploy.yml` 的 `needs: [test, frontend]` 組成**部署雙關卡——任一紅燈就不部署**;前端另附離線自測 hook(`__DBG.coopRoundTrip/coopSilenceTest/coopBossSyncTest`)可在無雙分頁、無中繼伺服器的情況下驗證 host→guest 全鏈路。
 
 ## 🏗️ 架構
 
@@ -117,12 +119,12 @@ node tools/serve.mjs
 cd server
 npm ci          # 安裝相依(CI 用 npm ci;本機開發用 npm install 亦可)
 npm run check   # 語法檢查(server 端各模組 node --check)
-npm test        # smoke(114)+ social(65)= 179 項
+npm test        # smoke(120)+ social(65)= 185 項
 ```
 
 CI 流程定義於 [`.github/workflows/ci.yml`](.github/workflows/ci.yml)(觸發於 PR 與 `main` push),實際測試步驟收斂在可重用的 [`.github/workflows/server-test.yml`](.github/workflows/server-test.yml) 與 [`.github/workflows/frontend-test.yml`](.github/workflows/frontend-test.yml),並由部署流程 [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml) 共用為部署前關卡——**server 與前端任一紅燈都不部署**。
 
-前端為純 ESM、無建置,不走 `node --check`;自動化驗證走 **headless Chromium smoke 測試**(`cd test && npm ci && npm run test:frontend`,測試依賴隔離在 `test/`,遊戲 runtime 仍零依賴):涵蓋 boot、registry 計數基準、場景切換、首局 story 暫停與離線合作自測。開發時也可**重載頁面 + 瀏覽器內自測**:`window.__DBG` 提供 `reg()`(內容註冊表計數)、`startRun()`、`nav(name)`、`pump(n,dt)`,以及 `coopRoundTrip()` / `coopSilenceTest()` / `coopBossSyncTest()`(在無雙分頁、無中繼伺服器下驗證 host→guest 全鏈路)。細節見 [`CLAUDE.md`](CLAUDE.md) 的 *Run / test* 一節。
+前端為純 ESM、無建置,不走 `node --check`;自動化驗證走 **headless Chromium smoke 測試**(`cd test && npm ci && npm run test:frontend`,共 **59 條斷言**;測試依賴隔離在 `test/`,遊戲 runtime 仍零依賴):涵蓋 boot、registry 計數基準、場景切換、首局 story 暫停與離線合作自測。開發時也可**重載頁面 + 瀏覽器內自測**:`window.__DBG` 提供 `reg()`(內容註冊表計數)、`startRun()`、`nav(name)`、`pump(n,dt)`,以及 `coopRoundTrip()` / `coopSilenceTest()` / `coopBossSyncTest()`(在無雙分頁、無中繼伺服器下驗證 host→guest 全鏈路)。細節見 [`CLAUDE.md`](CLAUDE.md) 的 *Run / test* 一節。
 
 ## 遊戲操作
 
@@ -147,6 +149,8 @@ CI 流程定義於 [`.github/workflows/ci.yml`](.github/workflows/ci.yml)(觸發
 ### 匿名遊玩統計(遙測)
 
 為了平衡調整與新手體驗改善,遊戲會收集**匿名**遊玩事件(開局、升級選卡、對局結束等六種白名單事件,附本機隨機識別碼與版本號)。**不收集**:帳號連結、IP、裝置指紋、聊天或任何輸入內容。資料保存 **90 天**後自動刪除;可在設定選單的「隱私」區一鍵停用;離線遊玩完全不受影響。
+
+遊戲執行期也**不對任何第三方主機發出請求**:像素數值字型改為自架於 `assets/font/`(原先為 Google Fonts CDN,等於每次開頁把玩家 IP 與 UA 送給第三方),所有其餘資產皆同源。
 
 ### 已知限制:平台支援
 
@@ -207,7 +211,7 @@ CI 流程定義於 [`.github/workflows/ci.yml`](.github/workflows/ci.yml)(觸發
 
 完全**離線優先**:未登入或連不上時自動退回本機 `localStorage`,不會卡開機或遊玩。
 
-- **Phase 1 — 雲端地基**:帳號、跨裝置雲端存檔、共享排行榜。**伺服器權威計分**——排行榜分數由伺服器以 `kills/stage/time/difficulty/reaper` 重算並做合理性檢查,忽略客戶端宣稱值。
+- **Phase 1 — 雲端地基**:帳號、跨裝置雲端存檔、共享排行榜。**伺服器權威計分**——排行榜分數由伺服器以 `kills/stage/time/difficulty/reaper` 重算並做合理性檢查(不採信客戶端分數),訪客上傳另有較嚴的每 IP 頻率限制。
 - **Phase 2 — 即時合作(共視窗)**:1~3 人合作＋好友／大廳／邀請／觀戰／斷線重連。採**主機權威中繼**(host-authoritative relay):開房玩家的瀏覽器跑權威模擬並以 ~18Hz 廣播世界快照,Node 伺服器只當房間／中繼(不跑模擬);各客戶端鏡頭各自跟隨自己。**單機路徑完全不變**。
 
 設計細節與現況見 [`docs/MULTIPLAYER_PLAN.md`](docs/MULTIPLAYER_PLAN.md)。
@@ -225,7 +229,7 @@ JWT_SECRET=$(node -e "console.log(require('crypto').randomBytes(48).toString('he
 # 無 Postgres 的純前端測試(記憶體後端,重啟即清空)
 npm install && npm run dev:fakedb
 
-# 後端測試(帳號/存檔/排行榜/回饋/後台/遙測 + 好友/房間/中繼,共 114 + 65 項)
+# 後端測試(帳號/存檔/排行榜/回饋/後台/遙測 + 好友/房間/中繼,共 120 + 65 項)
 npm test
 ```
 
@@ -271,6 +275,7 @@ tools/  serve.mjs(開發伺服器)  integrate.mjs(workflow 輸出整合)
 server/                         ← 後端:REST API + /rt 即時中繼
   src/  server.js  db.js  realtime.js(房間/在線)  social.js(好友)  wsgw.js(WS 閘道)
 assets/music/                   ← 12 首實錄配樂
+assets/font/                    ← 自架像素數值字型(SIL OFL 1.1;取代原 Google Fonts CDN)
 ```
 
 ## 擴充與開發
@@ -285,8 +290,9 @@ assets/music/                   ← 12 首實錄配樂
 
 ## ⚠️ 已知限制
 
-- **前端自動化測試為 smoke 級**:`test/` 的 Playwright headless smoke(52 條斷言)涵蓋 boot/registry/場景/教學暫停/圖鑑/遙測/co-op 自測並作為部署關卡,但 UI 冷路徑仍靠 `__DBG` hook 與「重載 + 手動 pump」人工驗證。
+- **前端自動化測試為 smoke 級**:`test/` 的 Playwright headless smoke(59 條斷言)涵蓋 boot/registry/場景/教學暫停/圖鑑/遙測/co-op 自測並作為部署關卡,但 UI 冷路徑仍靠 `__DBG` hook 與「重載 + 手動 pump」人工驗證。
 - **雲端存檔需真實 PostgreSQL 才持久**:`npm run dev:fakedb` 為記憶體假資料庫,重啟即清空,僅供本機測試;本機 `localStorage` 存檔不受影響。
+- **雲端存檔為「一個帳號一份 blob」**:本機有 3 個存檔槽,雲端只保存目前使用中的那一槽(切槽等於改由該槽接管雲端;拉取前一律先寫 `.precloud.bak` 可還原)。同一槽被另一台裝置推上更新版本時,本機推送會被伺服器擋下並**明確提示**「雲端存檔未套用」,不再靜默。
 - **即時合作為主機權威中繼,非 rollback netcode**:開房玩家(host)是權威來源;host 離線會觸發主機遷移,訪客在斷線重連有 ~20 秒寬限。高延遲下訪客自身 avatar 靠本地預測/校正,其餘實體為插值,並非逐幀同步。
 - **合作人數上限 1~3 人**:採共視窗設計,鏡頭各自跟隨;非大廳式大規模連線。
 - **gen 內容檔會被重新整合覆寫**:`src/art/gen/*` 與 `src/game/content/gen/*` 由 workflow 生成,部分經手動微調的平衡修正在重跑 `tools/integrate.mjs` 後會被覆寫,需重新套用(詳見 [`CLAUDE.md`](CLAUDE.md) 的 Gotchas)。
@@ -297,13 +303,14 @@ assets/music/                   ← 12 首實錄配樂
 本專案以 **MIT License** 釋出,詳見 [`LICENSE`](LICENSE)。
 
 > 配樂為實錄曲目資產,置於 `assets/music/`;若你要重散布或商用,請自行確認音樂授權狀態。
+> `assets/font/PressStart2P-latin.woff2` 為 Press Start 2P(© CodeMan38),以 **SIL Open Font License 1.1** 釋出,授權全文見 [`assets/font/OFL.txt`](assets/font/OFL.txt)。
 
 ## 文件索引
 
 | 文件 | 內容 |
 | --- | --- |
 | [`CLAUDE.md`](CLAUDE.md) | 開發指南:架構、子系統、慣例、Gotchas、測試 |
-| [`docs/changelog/`](docs/changelog/) | 逐輪更新紀錄(版本記事唯一來源,最新:`ROUND21.md`) |
+| [`docs/changelog/`](docs/changelog/) | 逐輪更新紀錄(版本記事唯一來源,最新:`ROUND27.md`) |
 | [`docs/TEST_REPORT_R21.md`](docs/TEST_REPORT_R21.md) | R21 全系統測試報告 |
 | [`docs/ROUND16–19_SPEC.md`](docs/) | 各輪實作規格(R16–R19,皆已完成) |
 | [`docs/DEPLOY.md`](docs/DEPLOY.md) | Oracle Cloud 部署＋CI/CD＋HTTPS |

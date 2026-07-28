@@ -41,7 +41,14 @@ function makeFakePool() {
         return { rows: sv ? [{ meta: sv.meta, save_version: sv.save_version }] : [], rowCount: sv ? 1 : 0 };
       }
       if (s.startsWith('INSERT INTO saves')) {
-        saves.set(String(args[0]), { meta: args[1], save_version: args[2] });
+        // Mirror the real ON CONFLICT … WHERE guard: same slot → the pushed saveSeq must be
+        // at least the stored one; different slot → separate lineage, always applies.
+        // (Kept in sync with test/fakepool.mjs — see CLAUDE.md's "TWO fakepools" note.)
+        const key = String(args[0]), next = args[1] || {}, cur = saves.get(key);
+        const slotOf = (m) => String(m && m.slot != null ? m.slot : 0);
+        const seqOf = (m) => Number((m && m.saveSeq) || 0);
+        if (cur && slotOf(cur.meta) === slotOf(next) && seqOf(cur.meta) > seqOf(next)) return { rows: [], rowCount: 0 };
+        saves.set(key, { meta: next, save_version: args[2] });
         return { rows: [], rowCount: 1 };
       }
       if (s.startsWith('INSERT INTO runs')) {
@@ -245,6 +252,22 @@ ok(r.statusCode === 200 && r.json().meta === null, 'fresh account → meta null'
 ok((await J('PUT', '/api/save', { meta: { gold: 5, stats: { kills: 9 } }, saveVersion: 2 }, token)).statusCode === 200, 'PUT /api/save → ok');
 r = await J('GET', '/api/save', undefined, token);
 ok(r.statusCode === 200 && r.json().meta.gold === 5 && r.json().saveVersion === 2, 'GET /api/save round-trips the blob');
+
+// anti-clobber guard (ON CONFLICT … WHERE) × multi-slot semantics — the ONE path that can
+// silently lose player progress, and previously the only untested one (the fake pool used to
+// accept every write, so `applied` was never exercised).
+r = await J('PUT', '/api/save', { meta: { slot: 0, saveSeq: 10, gold: 100 }, saveVersion: 2 }, token);
+ok(r.statusCode === 200 && r.json().applied === true, 'save push (slot 0, seq 10) → applied:true');
+r = await J('PUT', '/api/save', { meta: { slot: 0, saveSeq: 4, gold: 1 }, saveVersion: 2 }, token);
+ok(r.statusCode === 200 && r.json().applied === false, 'stale same-slot push (seq 4 < 10) → applied:false, not a silent ok');
+ok((await J('GET', '/api/save', undefined, token)).json().meta.gold === 100, 'refused push left the newer blob intact');
+r = await J('PUT', '/api/save', { meta: { slot: 1, saveSeq: 3, gold: 42 }, saveVersion: 2 }, token);
+ok(r.statusCode === 200 && r.json().applied === true, 'another slot with a LOWER saveSeq still applies (counters are per-slot)');
+ok((await J('GET', '/api/save', undefined, token)).json().meta.slot === 1, 'cloud row now mirrors the newly active slot');
+r = await J('PUT', '/api/save', { meta: { slot: 1, saveSeq: 3, gold: 43 }, saveVersion: 2 }, token);
+ok(r.json().applied === true, 'equal saveSeq in the same slot still applies (guard is <=, not <)');
+// restore the round-trip blob so later admin/player assertions see the original shape
+await J('PUT', '/api/save', { meta: { gold: 5, stats: { kills: 9 } }, saveVersion: 2 }, token);
 
 // runs: score recomputed server-side, claimed score ignored
 r = await J('POST', '/api/runs', { kills: 100, stage: 3, time_s: 1200, difficulty: 5, reaper: true, cleared: true, character: 'hunter', biome: 'crypt', score: 999999999 }, token);

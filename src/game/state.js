@@ -13,6 +13,7 @@ import { setParticleDensity } from '../engine/particles.js';
 import { applyKeybinds } from '../engine/input.js';
 import { Net, queueCloudSave, postRunResult } from '../net/api.js';   // cloud save + leaderboard (offline-first)
 import { Tele } from '../net/telemetry.js';   // P1-3 anonymous product telemetry (offline no-op, opt-out)
+import { Cheats } from './cheats.js';   // 排行榜誠信 gate：作弊過的對局不上傳
 
 const SAVE_KEY = 'soulshard.save.v1';            // legacy single-save key (migrated into slot 0 on first load)
 const SLOT_COUNT = 3;
@@ -269,8 +270,10 @@ export async function syncFromCloud(opts = {}) {
         if (opts.pushOnly) return { ok: true, pulled: false, deferred: true };   // boot: don't clobber a slot before the player enters it
         return importMeta(cloud) ? { ok: true, pulled: true } : { ok: false };
       }
-      await Net.putSave(getMeta(), SAVE_VERSION);   // local is newer → keep it, push up
-      return { ok: true, pushed: true, keptLocal: true };
+      const pr = await Net.putSave(getMeta(), SAVE_VERSION);   // local is newer → keep it, push up
+      // applied:false = 伺服器的防覆寫守衛擋下了這次推送（同槽雲端更新）；api.js 已 toast 過，
+      // 這裡把結果一併回報給呼叫端，避免上層把「有推」當成「已同步」。
+      return { ok: true, pushed: true, keptLocal: true, applied: pr ? pr.applied !== false : true };
     }
     await Net.putSave(getMeta(), SAVE_VERSION);      // fresh account → seed it with local progress
     return { ok: true, pushed: true };
@@ -300,6 +303,13 @@ export const WEAPONS = {
 };
 
 export function defaultWeapon() { return { ...WEAPONS.wand }; }
+
+// 排行榜誠信 gate：本局動用過 F2 開發者面板任一功能（`run.cheated`，由 run/overlays.js
+// 的 doCheat 標記，整場黏著），或結算當下無敵/加速仍開著（主控台 `__CHEATS` 路徑），
+// 都視為作弊局 → 與輔助模式同一個 single gate，整場不上傳任何排行榜。
+export function runCheated(run) {
+  return !!(run && run.cheated) || !!(Cheats.godmode || Cheats.fast);
+}
 
 // ---- run lifecycle ---------------------------------------------------------
 export function newRun(opts = {}) {
@@ -438,7 +448,9 @@ export function bankRun(run) {
   // board). Only story difficulty (D0) stays excluded.
   // P1-2 輔助模式：single gate — an assist run (any enemy mult < 1) skips ALL leaderboard
   // upload (gold + achievements already banked above; co-op forces assist=false at run start).
-  if ((run.difficulty == null ? 1 : run.difficulty) >= 1 && !run.assist) {
+  // 同一個 gate 也擋作弊局（F2 開發者面板 / __CHEATS）——伺服器只擋分數公式竄改，
+  // 擋不住「用無敵+強制通關產出的合法成分」，所以誠實的客戶端在來源就不送。
+  if ((run.difficulty == null ? 1 : run.difficulty) >= 1 && !run.assist && !runCheated(run)) {
     try { postRunResult(runPayload); } catch (e) { /* ignore */ }                       // logged in → auto-upload
     try { if (!Net.isLoggedIn()) lastGuestRun = runPayload; } catch (e) { /* ignore */ }  // guest → offer a named upload from the leaderboard overlay
   }
