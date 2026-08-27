@@ -13,7 +13,11 @@ const cache = new Map();   // charId -> { img, ready, failed }
 // and needless traffic in a runtime that otherwise makes zero requests it doesn't need.
 // ADDING A PORTRAIT: drop assets/portraits/<id>.png in AND add <id> to this Set. An id that is
 // not listed never gets fetched, so a file present but unlisted stays invisible.
-const MANIFEST = new Set(['hunter', 'ranger', 'pyro', 'guardian', 'shadow', 'stormcaller']);
+const MANIFEST = new Set([
+  'hunter', 'ranger', 'pyro', 'guardian', 'shadow', 'stormcaller',
+  'g_vanguard', 'g_arcanist', 'g_ranger', 'g_warden', 'g_stormcaller',
+  'h4_paladin', 'h4_chronomancer', 'h4_puppeteer', 'h4_gravekeeper', 'h4_starcaller',
+]);
 
 // Returns the loaded <img> once ready, else null (caller should fall back to sprite art).
 // First call for an id kicks off the fetch; onload/onerror flip state for the NEXT call —
