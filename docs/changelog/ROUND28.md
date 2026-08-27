@@ -406,3 +406,6 @@ hub-interiors.png`)的病徵是「對稱、空曠、鏡像擺設、下半畫面�
 - `index.html` 載入進度條的 `transition: width` → **判定誤報保留**：寬度是進度條的語義屬性、
   該元素獨處 fixed 覆蓋層無 layout thrash 成本、且背景是橫向漸層，改 `transform:scaleX` 會
   拉伸變形。未加抑制註解，理由記錄於此。
+- 追加（同一工具的第三則發現）：`.net-card h2`／`.sl-card h2` 的鏤空漸層標題 → 改純白實色
+  對齊 Canvas 面板標題（`hub/render.js` 用 `color:'#fff'` weight 900），保留輝光；
+  瀏覽器實測兩個 modal 皆 `color: rgb(255,255,255)`、`background-image: none`，圖示仍正常上色。

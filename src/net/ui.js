@@ -65,8 +65,9 @@ function ensureStyles() {
     .net-card{position:relative;background:linear-gradient(165deg,var(--chrome-bg-top),var(--chrome-bg-bot) 70%);border:var(--chrome-border-w) solid var(--chrome-border);border-radius:var(--chrome-radius);padding:24px;width:min(92vw,430px);color:var(--chrome-text);box-shadow:0 20px 70px rgba(0,0,0,.6),inset 0 0 26px rgba(72,224,208,.12);animation:nt-in .22s ease-out}
     .net-card::before{content:'';position:absolute;left:18px;right:18px;top:0;height:2px;background:linear-gradient(90deg,transparent,var(--chrome-accent),var(--chrome-gold),transparent);border-radius:2px;opacity:.85}
     .net-card.wide{width:min(94vw,660px)}
-    .net-card h2{margin:0 0 16px;font-size:var(--chrome-font-title);font-weight:var(--chrome-weight-title);letter-spacing:2px;text-align:center;display:flex;align-items:center;justify-content:center;gap:8px;background:linear-gradient(90deg,var(--chrome-accent-light),var(--chrome-gold));-webkit-background-clip:text;background-clip:text;color:transparent;text-shadow:0 0 18px rgba(72,224,208,.3)}
-    .net-card h2 .icon{-webkit-text-fill-color:initial;color:var(--chrome-accent-light)}
+    /* Solid white to match the canvas panel title (see social.js for the full reasoning). */
+    .net-card h2{margin:0 0 16px;font-size:var(--chrome-font-title);font-weight:var(--chrome-weight-title);letter-spacing:2px;text-align:center;display:flex;align-items:center;justify-content:center;gap:8px;color:#fff;text-shadow:0 0 18px rgba(72,224,208,.3)}
+    .net-card h2 .icon{color:var(--chrome-accent-light)}
     .net-tabs{display:flex;gap:var(--chrome-gap-sm);margin-bottom:14px}
     .net-tabs button{flex:1;padding:9px;border-radius:var(--chrome-radius-sm);border:1px solid var(--chrome-border-soft);background:#141832;color:var(--chrome-text-dim);cursor:pointer;font-weight:var(--chrome-weight-heading);font-size:var(--chrome-font-body);transition:.15s}
     .net-tabs button:hover{color:#cfe0ff;border-color:#3a4a8a}

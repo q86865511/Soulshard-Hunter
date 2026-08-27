@@ -53,8 +53,12 @@ function ensureStyles() {
     .sl-modal{position:fixed;inset:0;z-index:60;display:flex;align-items:center;justify-content:center;background:radial-gradient(circle at 50% 40%,rgba(20,26,54,.6),rgba(5,7,16,.82));backdrop-filter:blur(3px);font:${'var(--chrome-font-body)'}/1.5 system-ui,sans-serif}
     .sl-card{position:relative;background:linear-gradient(165deg,var(--chrome-bg-top),var(--chrome-bg-bot) 70%);border:var(--chrome-border-w) solid var(--chrome-border);border-radius:var(--chrome-radius);padding:24px;width:min(94vw,560px);max-height:86vh;overflow:auto;color:var(--chrome-text);box-shadow:0 20px 70px rgba(0,0,0,.6),inset 0 0 26px rgba(72,224,208,.12);animation:sl-in .22s ease-out}
     .sl-card::before{content:'';position:absolute;left:18px;right:18px;top:0;height:2px;background:linear-gradient(90deg,transparent,var(--chrome-accent),var(--chrome-gold),transparent);border-radius:2px;opacity:.85}
-    .sl-card h2{margin:0 0 4px;font-size:var(--chrome-font-title);font-weight:var(--chrome-weight-title);letter-spacing:2px;text-align:center;display:flex;align-items:center;justify-content:center;gap:8px;background:linear-gradient(90deg,var(--chrome-accent-light),var(--chrome-gold));-webkit-background-clip:text;background-clip:text;color:transparent;text-shadow:0 0 16px rgba(72,224,208,.3)}
-    .sl-card h2 .icon{-webkit-text-fill-color:initial;color:var(--chrome-accent-light)}
+    /* Solid white, matching the canvas panel title (hub/render.js drawPanelFrame paints its
+       title with color '#fff' weight 900). The old teal->gold clipped gradient made the DOM
+       read as a different product than the game it overlays, which is what ART-08 is about;
+       the shard glow stays as the shared identity cue. */
+    .sl-card h2{margin:0 0 4px;font-size:var(--chrome-font-title);font-weight:var(--chrome-weight-title);letter-spacing:2px;text-align:center;display:flex;align-items:center;justify-content:center;gap:8px;color:#fff;text-shadow:0 0 16px rgba(72,224,208,.3)}
+    .sl-card h2 .icon{color:var(--chrome-accent-light)}
     .sl-sub{margin:0 0 14px;text-align:center;font-size:var(--chrome-font-caption);letter-spacing:2px;color:#7c87b8}
     .sl-tabs{display:flex;gap:var(--chrome-gap-sm);margin-bottom:14px}
     .sl-tabs button{flex:1;padding:9px;border-radius:var(--chrome-radius-sm);border:1px solid var(--chrome-border-soft);background:#141832;color:var(--chrome-text-dim);cursor:pointer;font-weight:var(--chrome-weight-heading);font-size:var(--chrome-font-body);transition:.15s;display:inline-flex;align-items:center;justify-content:center;gap:6px}
