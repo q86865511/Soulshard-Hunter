@@ -147,7 +147,7 @@ defineIcon('weapon_w_orbit', P.shardD, (p) => {   // R28 B-rework
   p.ellipse(8, 8, 2.6, 2.6, darken(P.shardD, 0.4));   // 轂
   p.ellipse(8, 8, 1.8, 1.8, P.shard);
   p.ellipse(7.4, 7.4, 1, 1, P.shardL); p.px(7, 7, P.white);
-}, { kira: true });
+});
 
 // BASE 灼蝕光環 — ONE broken sweep arc (open toward the lower-left) around a
 // single ember core. The old version was concentric rings, i.e. the same
@@ -162,7 +162,7 @@ defineIcon('weapon_w_aura', '#5a2a1a', (p) => {
   p.ellipse(8, 8, 2.2, 2.2, P.ember);
   p.ellipse(7.5, 7.5, 1.3, 1.3, P.holyL);
   p.px(7, 7, P.white);
-}, { kira: true });
+});
 
 // 魂鞭 — 一條鏈鞭：纏皮握柄＋金護環＋四節魂晶鏈環＋末端的帶刺鎚頭。
 // 節狀鏈環（一顆顆帶孔的環）是全套武器裡唯一的「鎖鏈」語彙，
@@ -184,7 +184,7 @@ defineIcon('weapon_w_whip', P.shardD, (p) => {   // R28 B-rework
   p.ellipse(12.6, 2.6, 1.1, 1.1, P.steelL);
   p.px(13, 1, P.steel); p.px(11, 2, P.steel); p.px(14, 4, P.steel); p.px(13, 5, P.steel);
   p.px(12, 2, P.white);
-}, { kira: true });
+});
 
 // 震爆波 — 一口共鳴鐘：吊冠環＋梯形鐘身＋外撇鐘唇＋鐘舌，兩側各兩道震波弧。
 // 弧線只是次要提示，主體是鐘（梯形＋唇），不是 w_aura／w_nova 舊版的同心圓。
@@ -208,7 +208,7 @@ defineIcon('weapon_w_nova', P.purpleD, (p) => {   // R28 B-rework
   p.hline(2, 13, 11, P.goldL); p.hline(2, 13, 12, P.gold);        // 外撇鐘唇
   p.hline(3, 12, 13, darken(P.goldD, 0.35));
   p.ellipse(8, 14, 1.2, 1.1, P.bronze); p.px(8, 13, P.goldL);     // 鐘舌
-}, { kira: true });
+});
 
 // 追魂彈 — 一枚追蹤火箭：垂直升空後折向右上的「彎折彈體」，
 // 尾端三片尾翼＋噴焰。彎折的本體本身就是「追蹤」，所以它不是一根直斜桿。
@@ -225,7 +225,7 @@ defineIcon('weapon_w_homing', P.purpleD, (p) => {   // R28 B-rework
   p.line(4, 11, 6, 13, P.purple); p.line(10, 11, 8, 13, P.purple);
   p.ellipse(7, 14, 1.4, 1, P.astral); p.px(7, 14, P.astralL);      // 噴焰
   p.px(6, 13, P.holyL);
-}, { kira: true });
+});
 
 // 連鎖閃電 — 一把雷杖：纏繩杖身＋杖尾箍＋頂端三爪避雷叉夾住一顆雷石，
 // 電弧自爪間跳向左右兩處（＝「連鎖」的次要動勢，主體仍是那把杖）。
@@ -242,7 +242,7 @@ defineIcon('weapon_w_lightning', '#5a4a1a', (p) => {   // R28 B-rework
   p.ellipse(7.8, 4.8, 1.2, 1.2, P.emberL); p.px(7, 4, P.white);
   p.line(6, 5, 3, 7, P.holyL); p.px(4, 6, P.emberL); p.px(3, 7, P.white);   // 連鎖電弧
   p.line(10, 5, 13, 7, P.holyL); p.px(12, 6, P.emberL); p.px(13, 7, P.white);
-}, { kira: true });
+});
 
 // EVO of w_soulbolt — the base bolt PLUS a second layer of shape (a containment
 // 光環 + two 裂變 sub-bolts), not just a recolour, per ART_SPEC 第 5 節.

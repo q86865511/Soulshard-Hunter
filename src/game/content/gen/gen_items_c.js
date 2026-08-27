@@ -137,7 +137,7 @@ defineIcon('item_ic_bloodthirst_vial', P.blood, (p) => {
   }
   p.px(8, 14, P.redL); p.px(8, 15, P.laser);               // 瓶尖滴血
   p.px(6, 5, P.white);
-}, { kira: true });
+});
 
 // 2) warding salve 鐵衛護膏 — 寬口矮藥膏罐：外突的旋蓋＋罐身，蓋上一抹挑起的護膏
 defineIcon('item_ic_warding_salve', P.steelD, (p) => {
@@ -151,7 +151,7 @@ defineIcon('item_ic_warding_salve', P.steelD, (p) => {
   p.rect(5, 9, 6, 2, P.steel); p.px(5, 9, P.steelL);                   // 標籤鐵牌
   p.ellipse(11, 3, 2, 1.4, P.ice); p.px(10, 2, P.white);               // 挑起的一抹護膏
   p.px(4, 5, P.glint);
-}, { kira: true });
+});
 
 // 3) quicksilver 疾影靈藥 — 長頸球底瓶（細長頸＋正圓底球），左側拖三道速度線
 defineIcon('item_ic_quicksilver_tonic', P.greenD, (p) => {
@@ -180,7 +180,7 @@ defineIcon('item_ic_splinter_rounds', P.shardD, (p) => {
   p.rect(1, 10, 14, 3, P.iron); p.hline(1, 14, 10, P.steelL);          // 彈夾
   p.hline(1, 14, 12, darken(P.iron, 0.45)); p.px(1, 10, P.glint);
   for (let x = 3; x <= 12; x += 3) p.px(x, 11, darken(P.iron, 0.3));   // 夾口卡榫
-}, { kira: true });
+});
 
 // 5) toxic flask 劇毒燒瓶 — 投擲用的裹布火焰瓶：瓶口塞一團燃燒的布條
 defineIcon('item_ic_toxic_flask', P.poisonD, (p) => {

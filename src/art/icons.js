@@ -216,8 +216,8 @@ export function panel(p, bg, cat) {
 //          NOT knowable here — rarityOf() (game/progression.js) needs the content
 //          def, and sprites bake eagerly at art-module import time, before the
 //          registries exist. So it is a call-site opt-in: content authors who
-//          know the def's tier pass { kira: true } for tier >= 2 / evolved /
-//          exclusive. Default false.
+//          know the def pass { kira: true }. R28 收緊：只給進化武器 / epic /
+//          隱藏獎勵（ART_SPEC 第 5 節），不是所有 tier>=2。Default false.
 export function defineIcon(name, bg, draw, opts) {
   const o = opts || {};
   const cat = o.cat || catFromName(name);
@@ -357,7 +357,7 @@ export const sym = {
 // ／錢堆／嫩芽／奔跑殘影／雪花／蕈狀爆炸／電池／捲軸／螺旋／砝碼／琉璃人像／錢袋…
 // 通用符號（sym.ring / sym.cross / sym.star / sym.shardSym）刻意不再直接套用在
 // 被動上：它們正是「同輪廓不同色」的來源。
-// kira（左上星芒）依 def 的 tier：>= 2 才傳 { kira: true }（ART_SPEC 第 5 節）。
+// kira（左上星芒）只給進化/epic/隱藏獎勵（ART_SPEC 第 5 節）；一般被動不傳。
 defineIcon('ability_power', P.blood, (p) => {
   p.glow(8, 8, 4.5, P.red, 0.18, 4);
   // 16px 下「少即是多」：兩個大指節凸起，內部只留一條拇指橫壓
@@ -463,7 +463,7 @@ defineIcon('ability_pierce', P.steelD, (p) => {
   p.hline(11, 14, 8, P.steelL); p.px(14, 8, P.glint);
   p.line(2, 5, 4, 7, P.redL); p.line(2, 11, 4, 9, P.red);             // 尾羽
   p.px(2, 5, P.white);
-}, { kira: true });
+});
 // 加速彈道：一枚斜向飛出的彈丸，後方拖三道遞亮的尾焰。
 defineIcon('ability_velocity', P.blueD, (p) => {
   p.glow(7, 9, 5, P.ice, 0.18, 3);
@@ -534,7 +534,7 @@ defineIcon('ability_lifesteal', P.blood, (p) => {
   p.ellipse(5, 13, 1, 1.2, P.red); p.px(5, 12, P.redL);               // 滴血
   p.ellipse(11, 13, 1, 1.2, P.redD);
   p.ellipse(8, 10, 1.4, 1.9, P.redL); p.px(8, 9, P.white);            // 中央血珠
-}, { kira: true });
+});
 // 追蹤魂彈：一發彈丸沿彎曲軌跡拐向右上角的圈叉標記——全場唯一的曲線軌跡。
 defineIcon('ability_homing', P.purpleD, (p) => {
   p.glow(7, 9, 5.5, P.mana, 0.22, 3);
@@ -553,7 +553,7 @@ defineIcon('ability_homing', P.purpleD, (p) => {
   }
   p.ellipse(9, 7, 1.9, 1.9, P.astral);                                // 彈丸
   p.ellipse(9, 7, 1.1, 1.1, P.astralL); p.px(8, 6, P.white);
-}, { kira: true });
+});
 // 巨型魂晶：一顆撐滿畫面的六角魂晶，四角外擴小箭頭講「變大」。
 defineIcon('ability_bigshot', P.shardD, (p) => {
   p.glow(8, 8, 6, P.shard, 0.24, 3);
@@ -571,7 +571,7 @@ defineIcon('ability_bigshot', P.shardD, (p) => {
     p.px(x - dx, y - dy, withAlpha(P.holyL, 0.6));
   };
   arrow(3, 3, 1, 1); arrow(12, 3, -1, 1); arrow(3, 12, 1, -1); arrow(12, 12, -1, -1);
-}, { kira: true });
+});
 // 玻璃大砲：一門帶輪砲架的野戰砲——玻璃砲管（管內透出紫色能量、殼上裂紋）＋
 // 加寬砲口＋輻條木輪。輪子是「這是一門砲」最快被認出來的那個形。
 defineIcon('ability_glasscannon', P.purpleD, (p) => {
@@ -587,7 +587,7 @@ defineIcon('ability_glasscannon', P.purpleD, (p) => {
   p.hline(3, 7, 11, P.woodL); p.vline(9, 13, 5, P.woodL);             // 輪輻
   p.ellipse(5, 11, 1.1, 1.1, P.wood); p.px(4, 10, P.bone);
   p.px(14, 6, P.white); p.star4(14, 6, 2, withAlpha(P.magentaL, 0.9), P.white);
-}, { kira: true });
+});
 // 環繞魂衛：核心＋兩條相互傾斜的橢圓軌道＋三顆大小不一的衛星（原子式）。
 defineIcon('ability_orbit', P.shardD, (p) => {
   p.glow(8, 8, 4, P.shard, 0.2, 3);
@@ -605,7 +605,7 @@ defineIcon('ability_orbit', P.shardD, (p) => {
   p.ellipse(13, 4, 1.3, 1.3, P.neonL); p.px(13, 4, P.white);          // 衛星
   p.ellipse(3, 12, 1.3, 1.3, P.shardL);
   p.ellipse(12, 12, 1, 1, P.holyL);
-}, { kira: true });
+});
 // 魂爆：蕈狀爆炸雲——上方三團翻滾煙火、中間火柱、底部白熱衝擊核。
 // 刻意做成上重下亮的不對稱塊體，與「霜噬」的六角雪花完全不同。
 defineIcon('ability_nova', '#5a2a1a', (p) => {
@@ -618,7 +618,7 @@ defineIcon('ability_nova', '#5a2a1a', (p) => {
   p.ellipse(8, 12, 3.4, 1.7, P.ember);                                // 衝擊核
   p.ellipse(8, 12, 2.2, 1.1, P.holy); p.px(8, 12, P.white);
   p.px(3, 9, P.emberL); p.px(13, 10, P.ember); p.px(4, 12, P.ember); p.px(13, 3, P.emberL);
-}, { kira: true });
+});
 // 荊棘：環繞己身的荊棘環（中心對稱）——舊版的單排尖刺讀起來像武器的揮擊排列。
 defineIcon('ability_thorns', P.greenD, (p) => {
   p.glow(8, 8, 3, P.toxic, 0.14, 3);
@@ -630,7 +630,7 @@ defineIcon('ability_thorns', P.greenD, (p) => {
     p.px(Math.round(8 + Math.cos(t) * 6.2), Math.round(8 + Math.sin(t) * 6.2), P.white);
   }
   p.ellipse(8, 8, 1.8, 1.8, P.leaf); p.px(7, 7, P.toxic);
-}, { kira: true });
+});
 // 瞬影：一個奔跑的人形，身後拖兩層遞淡的殘影。
 defineIcon('ability_dash', P.blueD, (p) => {
   p.glow(8, 9, 5, P.ice, 0.18, 3);
@@ -659,7 +659,7 @@ defineIcon('ability_luck', P.greenD, (p) => {
   p.ellipse(8, 7.5, 1.3, 1.3, P.leafD); p.px(8, 7, P.toxic);          // 葉心
   p.line(8, 9, 9, 12, P.leafD); p.line(9, 12, 11, 13, P.leafD);       // 莖
   p.px(4, 4, P.white); p.px(10, 9, P.toxic);
-}, { kira: true });
+});
 
 // D6 status passives — dedicated glowing icons (no longer fall back to ability_power)
 // 霜噬之觸：六臂帶側枝的雪花結晶。
@@ -676,7 +676,7 @@ defineIcon('ability_frostbite', P.blueD, (p) => {
     p.px(Math.round(ex), Math.round(ey), P.white);
   }
   p.ellipse(8, 8, 1.5, 1.5, P.hiSky); p.px(8, 8, P.white); p.px(7, 7, P.glint);
-}, { kira: true });
+});
 // 裂創：三道由粗轉細的撕裂爪痕，傷口邊緣翻出亮色、下緣掛血珠。
 defineIcon('ability_lacerate', P.blood, (p) => {
   p.glow(8, 8, 5, P.laser, 0.16, 3);
@@ -690,7 +690,7 @@ defineIcon('ability_lacerate', P.blood, (p) => {
   slash(6, 2, 10, 12, P.red);
   slash(10, 3, 13, 11, P.redD);
   p.ellipse(4, 14, 1, 1, P.red); p.px(11, 13, P.redL);
-}, { kira: true });
+});
 // 燃魂：一團有明確火舌尖端的火焰（外焰／中焰／白熱內焰三階）＋左側小分焰。
 defineIcon('ability_ignite', '#5a2a1a', (p) => {
   p.glow(8, 10, 5.5, P.ember, 0.35, 3);
@@ -702,7 +702,7 @@ defineIcon('ability_ignite', '#5a2a1a', (p) => {
   p.ellipse(8, 11, 1.3, 1.4, P.holyL); p.px(8, 11, P.white);          // 內焰
   p.ellipse(4.5, 11, 1.6, 2, withAlpha(P.ember, 0.85));               // 左側分焰
   p.px(4, 10, P.emberL); p.px(8, 3, P.gold);
-}, { kira: true });
+});
 // 過載核心：直立的能量電池（上下端子＋能量窗＋內部閃電），外殼裂縫漏出過載光。
 // 與「連鎖閃電」的裸閃電、「靜電力場」的線圈都不同：這是一個有殼的方形元件。
 defineIcon('ability_overload', P.purpleD, (p) => {
@@ -717,7 +717,7 @@ defineIcon('ability_overload', P.purpleD, (p) => {
   p.px(8, 8, P.white);
   p.line(4, 7, 2, 9, P.magentaL); p.line(11, 6, 13, 8, P.magentaL);   // 過載裂縫
   p.px(2, 9, P.white); p.px(13, 8, P.white);
-}, { kira: true });
+});
 
 // cursed abilities — 共用暗紅底板（那是「詛咒」這件事的提示），但 glyph 各畫各的
 // 具體物件：契約捲軸／瘋狂螺旋／砝碼／琉璃人像／錢袋。絕不是「同一個環＋換符號」。
@@ -732,7 +732,7 @@ defineIcon('ability_curse_bloodpact', '#2a0e16', (p) => {
   p.px(6, 8, P.redD); p.px(7, 8, P.red); p.px(9, 8, P.red); p.px(10, 8, P.redD);
   p.vline(8, 9, 6, P.redD); p.vline(8, 9, 10, P.redD);                // 手指
   p.px(8, 11, P.laser); p.px(7, 10, P.red);
-}, { kira: true });
+});
 defineIcon('ability_curse_frenzy', '#2a0e16', (p) => {
   p.glow(8, 8, 6, P.laser, 0.28, 3);
   let a = 0, r = 6.1;                                                 // 向內收束的瘋狂螺旋
@@ -747,7 +747,7 @@ defineIcon('ability_curse_frenzy', '#2a0e16', (p) => {
     p.px(Math.round(8 + Math.cos(t) * 7), Math.round(8 + Math.sin(t) * 7), P.redL);
   }
   p.px(8, 8, P.white);
-}, { kira: true });
+});
 defineIcon('ability_curse_titan', '#2a0e16', (p) => {
   p.glow(8, 8, 5, P.blood, 0.22, 3);
   p.ring(8, 4, 2.2, P.gray2); p.hline(7, 8, 2, P.gray4);              // 提環
@@ -761,7 +761,7 @@ defineIcon('ability_curse_titan', '#2a0e16', (p) => {
   p.hline(6, 9, 8, P.ink2); p.hline(6, 9, 9, P.ink);                  // 重量刻紋
   p.px(3, 13, P.laser); p.px(12, 13, P.laser); p.px(7, 13, P.redD);   // 壓裂
 
-}, { kira: true });
+});
 defineIcon('ability_curse_glasssoul', '#2a0e16', (p) => {
   p.glow(8, 8, 5, P.shard, 0.22, 3);
   p.ellipse(8, 4, 2, 2.2, withAlpha(P.shardL, 0.85));                 // 琉璃人像：頭
@@ -773,7 +773,7 @@ defineIcon('ability_curse_glasssoul', '#2a0e16', (p) => {
   p.vline(6, 11, 6, P.shardL); p.px(7, 3, P.white); p.vline(6, 11, 10, withAlpha(P.shardD, 0.8));
   p.line(8, 7, 7, 9, P.laser); p.line(7, 9, 9, 11, P.laser);          // 胸口裂痕
   p.line(5, 7, 4, 9, withAlpha(P.laser, 0.7)); p.px(8, 8, P.white);
-}, { kira: true });
+});
 defineIcon('ability_curse_greedpact', '#2a0e16', (p) => {
   p.glow(8, 9, 5.5, P.gold, 0.2, 3);
   p.ellipse(8, 10, 4.6, 3.6, darken(P.leather, 0.35));                // 錢袋
@@ -784,6 +784,6 @@ defineIcon('ability_curse_greedpact', '#2a0e16', (p) => {
   p.hline(4, 11, 7, P.laser); p.px(4, 7, P.redL); p.px(11, 7, P.redL);// 詛咒束繩
   p.px(5, 12, P.gray3); p.px(8, 13, P.gray3); p.px(11, 12, P.gray3);
   p.vline(9, 11, 8, P.goldD); p.px(8, 9, P.goldL);                    // 袋上幣紋
-}, { kira: true });
+});
 
 export const ICONS_READY = true;

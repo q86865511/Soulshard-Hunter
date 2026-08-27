@@ -445,7 +445,7 @@ defineIcon('weapon_w_h4_judgment', '#5a4a1a', (p) => {   // R28 B-rework
   p.hline(8, 13, 7, darken(P.goldD, 0.4)); p.vline(3, 7, 13, darken(P.goldD, 0.25));
   p.rect(10, 3, 2, 5, P.holyL); p.rect(9, 4, 4, 2, P.holyL);       // 十字聖印
   p.px(9, 3, P.white);
-}, { kira: true });
+});
 // 黎明聖印（w_h4_judgment 的進化） — 第二層形狀：同一顆方錘頭，但兩側張開三層
 // 羽翼、頂上加三尖光冕，柄縮短為懸浮姿態。base 沒有翼、沒有冠——形差不是色差。
 defineIcon('weapon_w_h4_judgment_evo', '#6a4a10', (p) => {   // R28 B-rework
@@ -484,7 +484,7 @@ defineIcon('weapon_w_h4_chronoblade', P.blueD, (p) => {   // R28 B-rework
   p.ellipse(4, 12, 2.3, 2.3, P.iron); p.ellipse(4, 12, 1.3, 1.3, P.gray1);   // 樞紐環
   p.px(3, 11, P.gray4); p.px(4, 12, P.neonL);
   p.px(11, 5, P.white);
-}, { kira: true });
+});
 // 永劫迴環（w_h4_chronoblade 的進化） — 第二層形狀：base 是「單刃＋小樞紐」，
 // evo 把兩柄指針刃交叉插在一枚大齒輪盤上，再加一圈刻度環。形差在「刃數＋外環」。
 defineIcon('weapon_w_h4_chronoblade_evo', P.void, (p) => {   // R28 B-rework
@@ -520,7 +520,7 @@ defineIcon('weapon_w_h4_marionette', '#4a2a3a', (p) => {   // R28 B-rework
   p.line(6, 8, 4, 10, P.bone); p.line(10, 8, 12, 10, P.bone);      // 雙臂
   p.px(4, 10, P.woodL); p.px(12, 10, P.woodL);
   p.line(7, 12, 6, 14, P.bone); p.line(9, 12, 10, 14, P.bone);     // 雙腿
-}, { kira: true });
+});
 // 千絲傀儡王（w_h4_marionette 的進化） — 第二層形狀：base 是「窄身、無冠、四線」，
 // evo 加上尖冠、梯形展開的披風下擺，兩側各吊一具小傀儡，絲線變成八條。形差在輪廓寬度。
 defineIcon('weapon_w_h4_marionette_evo', '#3a1a3a', (p) => {   // R28 B-rework
@@ -555,7 +555,7 @@ defineIcon('weapon_w_h4_gravescythe', '#1a3a2a', (p) => {   // R28 B-rework
   }
   p.px(13, 6, P.white); p.px(5, 2, P.white);                       // 刃尖與刃背高光
   p.px(6, 2, P.auroraL); p.px(9, 3, P.auroraL);
-}, { kira: true });
+});
 // 萬魂收割: paired reaper blades crossed in an X, wreathed by a soul halo
 // R28 FIX-2: base+evo shared one blade silhouette, only recoloured (gate flagged
 // as recolor-only, see docs/reviews/art-improve-2026-08/gate/GATE_REPORT.md) —
@@ -591,7 +591,7 @@ defineIcon('weapon_w_h4_starfall', '#2a2a5a', (p) => {   // R28 B-rework
   p.ellipse(8, 6.4, 2, 2, P.ember);                                // 隕石本體
   p.ellipse(7.6, 6, 1.2, 1.2, P.goldL); p.px(7, 6, P.white);
   p.px(8, 8, withAlpha(P.emberL, 0.6));
-}, { kira: true });
+});
 // 隕星審判（w_h4_starfall 的進化） — 第二層形狀：base 是「單顆隕石＋單環法陣」，
 // evo 改成三顆齊落＋法陣長出五根尖角變成星形雙環＋地面燃燒帶。形差不是換色。
 defineIcon('weapon_w_h4_starfall_evo', '#4a1a1a', (p) => {   // R28 B-rework
@@ -632,7 +632,7 @@ defineIcon('weapon_w_h4_bladewaltz', '#4a2438', (p) => {   // R28 B-rework
     p.px(Math.round(bx + 2), Math.round(by + 1), P.sakuraL);
     p.px(Math.round(bx - 1), Math.round(by - 2), P.sakuraD);
   }
-}, { kira: true });
+});
 // 千刃輪舞（w_h4_bladewaltz 的進化） — 第二層形狀：base 是「一柄直劍」，
 // evo 是內外雙環共十二柄劍逆旋（外環八柄朝外、內環四柄朝內）＋中央玫瑰核。
 defineIcon('weapon_w_h4_bladewaltz_evo', '#3a1430', (p) => {   // R28 B-rework

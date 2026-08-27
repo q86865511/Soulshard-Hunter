@@ -83,7 +83,7 @@ defineIcon('equip_g_sniper', P.steelD, (p) => {
   // bright muzzle tip + kira
   muzzle(p, 13, 3, P.neonL, P.white);
   p.rimLight(P.rimCool, 0.5, -1, -1);
-}, { kira: true });
+});
 
 // scattergun: wide twin barrels, neon spray cone
 defineIcon('equip_g_scattergun', P.woodD, (p) => {
@@ -104,7 +104,7 @@ defineIcon('equip_g_scattergun', P.woodD, (p) => {
   for (let i = 0; i < 4; i++) p.px(13 + (i % 2), 4 + i * 2, P.emberL);
   p.sparkle(15, 5, P.holyL, 1);
   p.rimLight(P.rim, 0.5, -1, -1);
-}, { kira: true });
+});
 
 // boomerang: curved L crystal blade, glowing edge + spinning kira
 defineIcon('equip_g_boomerang', P.shardD, (p) => {
@@ -127,7 +127,7 @@ defineIcon('equip_g_boomerang', P.shardD, (p) => {
   rune(p, 9, 12, P.neonL);
   p.sparkle(13, 13, P.white, 1);
   p.rimLight(P.rimCool, 0.55, -1, -1);
-}, { kira: true });
+});
 
 // laser: emitter prism + glowing beam streak across the icon
 defineIcon('equip_g_laser', P.purpleD, (p) => {
@@ -148,7 +148,7 @@ defineIcon('equip_g_laser', P.purpleD, (p) => {
   p.glow(14, 7, 2.0, P.laser, 0.6, 4);
   p.px(14, 7, P.white);
   p.rimLight(P.rim, 0.5, -1, -1);
-}, { kira: true });
+});
 
 // venom: gourd sprayer dripping glowing toxin
 defineIcon('equip_g_venom', P.poisonD, (p) => {
@@ -170,7 +170,7 @@ defineIcon('equip_g_venom', P.poisonD, (p) => {
   p.px(11, 14, P.toxic);
   p.sparkle(11, 6, P.poison, 1);
   p.rimLight(P.rim, 0.45, -1, -1);
-}, { kira: true });
+});
 
 // frost: crystalline shard launcher with icy aura
 defineIcon('equip_g_frost', P.blueD, (p) => {

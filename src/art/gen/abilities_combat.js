@@ -86,7 +86,7 @@ defineIcon('ability_g_savagery', P.blood, (p) => {   // R28 W3-B-rework
   }
   p.px(6, 4, P.red); p.px(10, 4, P.redL); p.px(8, 3, P.red);  // 爪尖血
   p.ellipse(4, 8, 1, 1.1, P.red); p.px(12, 7, P.redL);
-}, { kira: true });
+});
 
 // fanned triple bolt (split shot) — three energy darts splaying from one toxic
 // core, neon-green tracers.
@@ -110,7 +110,7 @@ defineIcon('ability_g_splitshot', P.greenD, (p) => {
   p.ellipse(3, 8, 1.6, 1.6, P.greenL);
   p.px(3, 8, P.white); p.px(2, 7, P.glint);
   p.star4(3, 8, 2, P.toxic);
-}, { kira: true });   // R28 W3-B-rework: tier 2 → kira
+});   // R28 W3-B-rework: tier 2 → kira
 
 // branching lightning (chain) — forked electric arc, cyan-hot core with neon
 // glow and crackle nodes.
@@ -137,7 +137,7 @@ defineIcon('ability_g_chainlight', P.blueD, (p) => {
   p.px(6, 13, P.neonL);
   p.star4(8, 2, 2, P.glint);
   p.sparkle(11, 9, P.neonL, 1);
-}, { kira: true });   // R28 W3-B-rework: tier 2 → kira
+});   // R28 W3-B-rework: tier 2 → kira
 
 // bomb-core with ignition pips (detonate on stacked hits) — round bomb with a
 // metal sheen, a hissing sparking fuse and ignition embers about to blow.
@@ -165,7 +165,7 @@ defineIcon('ability_g_detonate', P.ink2, (p) => {
   p.px(4, 6, P.emberL); p.px(12, 8, P.ember); p.px(5, 13, P.ember);
   p.px(11, 12, P.emberL);
   p.sparkle(12, 8, P.ember, 1);
-}, { kira: true });   // R28 W3-B-rework: tier 3 → kira
+});   // R28 W3-B-rework: tier 3 → kira
 
 // 處決者 — 一顆填滿畫面的骷髏頭（顱骨＋上下顎＋發光眼窩），額上一道紅色處決印。
 // 原本骷髏下還壓著一把斷頭刃（武器輪廓）——移除，讓輪廓就是「頭骨」本身。
@@ -184,4 +184,4 @@ defineIcon('ability_g_executioner', P.purpleD, (p) => {   // R28 W3-B-rework
   p.vline(11, 12, 7, darken(P.bone, 0.4)); p.vline(11, 12, 9, darken(P.bone, 0.4)); // 牙縫
   p.hline(6, 10, 3, P.laser); p.px(8, 2, P.laser);                       // 額上處決印
   p.px(5, 4, P.rim);
-}, { kira: true });
+});

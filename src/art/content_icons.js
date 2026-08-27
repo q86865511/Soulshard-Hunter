@@ -490,7 +490,7 @@ defineIcon('item_big_potion', P.blood, (p) => {
   p.rect(7, 9, 2, 4, P.white); p.rect(6, 10, 4, 1, P.white);    // 白十字
   p.rect(5, 13, 7, 1, P.gray3);                                 // 平底
   shine(p, 6, 4, P.glint, 1.1);
-}, { kira: true });
+});
 // 魂晶炸彈＝球形鑄鐵彈體＋魂晶接縫＋斜引信（球體，與任何瓶罐都不同）。
 defineIcon('item_bomb', P.gray1, (p) => {
   p.softShadow(8, 14, 4, 1.2, 0.35);
@@ -549,7 +549,7 @@ defineIcon('item_frenzy_brew', '#5a3a1a', (p) => {
   p.px(8, 4, withAlpha(P.emberL, 0.75)); p.px(7, 5, withAlpha(P.ember, 0.7)); // 頸內蒸氣
   p.rect(1, 12, 14, 1, P.gray3);                                // 平底
   p.hline(2, 13, 13, darken(P.gray2, 0.3));
-}, { kira: true });
+});
 // 護盾符＝上尖的木製符牌，繩圈掛在頂端、牌面刻著冰藍的護盾符文。
 // （舊版直接借用共用的 shield() 盾牌，與 gen 的 item_g_ward_stone 幾乎同輪廓。）
 defineIcon('item_shield_charm', P.blueD, (p) => {
@@ -577,7 +577,7 @@ defineIcon('item_shield_charm', P.blueD, (p) => {
   p.hline(5, 10, 6, P.hiSky); p.px(5, 6, P.white);
   p.px(8, 8, P.white); p.px(8, 9, P.hiSky); p.px(10, 8, P.iceD);
   p.rect(3, 13, 10, 1, P.woodD);                                // 底影
-}, { kira: true });
+});
 
 // ---- equipment -------------------------------------------------------------
 // R28 W3-B-rework-B: 裝備 7 張＝**那一件裝備本身**。武器型裝備畫該武器，防具/飾品畫
@@ -626,7 +626,7 @@ defineIcon('equip_shotgun_wand', '#5a3a1a', (p) => {
   p.line(AX - PX * 0.8, AY - PY * 0.8, BX - PX * 3.0, BY - PY * 3.0, P.holyL); // 左上受光稜
   p.line(BX - PX * 3.4, BY - PY * 3.4, BX + PX * 3.4, BY + PY * 3.4, P.ink2);  // 膛口
   p.px(11, 3, P.emberL); p.px(12, 4, P.holyL); p.px(13, 5, P.ember);           // 膛內魂彈
-}, { kira: true });
+});
 defineIcon('equip_cannon_staff', P.purpleD, (p) => {
   gem(p, 8, 5, 4.2, P.purpleL, 0.6);                            // 巨型紫水晶球
   p.line(4, 4, 6, 2, lighten(P.purpleL, 0.4));                  // 球面刻面
@@ -640,7 +640,7 @@ defineIcon('equip_cannon_staff', P.purpleD, (p) => {
   p.hline(5, 10, 11, P.gold); p.hline(5, 10, 12, P.goldD);      // 加固金環
   p.hline(5, 10, 14, darken(P.woodD, 0.45));                    // 柄底配重
   p.px(6, 14, P.gold);
-}, { kira: true });
+});
 // 皮革護甲＝一件無袖皮背心：肩帶＋深 V 領口＋橫向甲片＋腰帶＋雙片裙甲。
 // gate 指出舊版在 16px 讀成「牛頭/面具」（兩顆圓護肩＋中央塊＝雙眼＋鼻），故重畫：
 // 護肩改成窄長方肩帶、頂部挖出領口缺口，破掉「臉」的讀法。
@@ -685,7 +685,7 @@ defineIcon('equip_mage_robe', P.purpleD, (p) => {
   p.hline(4, 11, 13, P.purpleD);                                          // 下擺
   p.vline(6, 12, 7, P.goldL); p.vline(6, 12, 8, P.goldD);                 // 前襟金邊
   p.px(6, 4, P.rimCool);
-}, { kira: true });
+});
 defineIcon('equip_swift_ring', '#5a4a1a', (p) => { p.glow(8, 4, 5, P.shardL, 0.24, 3); ring(p, P.gold, P.shardL); });
 // 吸血護符＝皮繩上垂著一枚彎曲的血牙（金屬牙箍＋牙面血紋＋牙尖血滴）。
 // 與疾風之戒的中空指環是完全不同的輪廓，也不再套用共用的 sym.drop 水滴符號。
@@ -708,6 +708,6 @@ defineIcon('equip_vamp_amulet', P.blood, (p) => {
   p.px(9, 9, P.redD); p.px(8, 11, P.redD);                      // 牙面血斑（斜條會讀成糖果拐杖）
   p.px(5, 14, P.red); p.px(6, 13, P.redL);                      // 牙尖血滴
   p.px(6, 8, P.glint);
-}, { kira: true });
+});
 
 export const CONTENT_ICONS_READY = true;

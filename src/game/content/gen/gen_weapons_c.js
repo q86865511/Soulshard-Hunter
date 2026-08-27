@@ -115,7 +115,7 @@ defineIcon('weapon_wc_boomerang', P.steelD, (p) => {   // R28 B-rework
   p.rect(2, 7, 3, 3, P.leather); p.hline(2, 4, 7, P.woodL);        // 外背纏皮握位
   p.px(2, 9, darken(P.leather, 0.4));
   p.px(4, 4, P.glint); p.px(5, 3, P.steelL);
-}, { kira: true });
+});
 
 // 散華弩 — 一把十字弩：木質弩身托＋彎曲弩臂（prod）＋拉開的弦＋已上膛的弩矢。
 defineIcon('weapon_wc_cone', P.greenD, (p) => {   // R28 B-rework
@@ -150,7 +150,7 @@ defineIcon('weapon_wc_beam', P.blueD, (p) => {   // R28 B-rework
   p.hline(8, 15, 6, P.ice); p.hline(8, 15, 5, withAlpha(P.hiSky, 0.75));   // 射出的光束
   p.line(10, 4, 9, 8, P.iceD); p.line(13, 4, 12, 8, P.iceD);       // 兩片稜鏡
   p.px(10, 6, P.white); p.px(13, 6, P.white);
-}, { kira: true });
+});
 
 // 碎地尖刺 — 從地裂中掀起的一排石刺：地平線＋裂縫＋四根不等高、有寬基座的尖刺。
 defineIcon('weapon_wc_spikes', P.gray1, (p) => {   // R28 B-rework
@@ -168,7 +168,7 @@ defineIcon('weapon_wc_spikes', P.gray1, (p) => {   // R28 B-rework
   p.hline(1, 14, 13, P.gray1); p.hline(1, 14, 12, P.gray2);        // 地平線
   p.hline(2, 13, 14, darken(P.gray1, 0.45));
   p.line(3, 13, 5, 14, P.ink2); p.line(8, 13, 10, 14, P.ink2);     // 地裂
-}, { kira: true });
+});
 
 // 跳躍流星 — 一顆五芒星流星彈沿之字彈道彈跳，兩個轉折點各留一朵撞擊爆星。
 // （g_ricochet 畫的是彈弓本體；這裡畫的是彈丸與彈道，兩者不共用輪廓。）
@@ -187,7 +187,7 @@ defineIcon('weapon_wc_ricochet', '#5a4a1a', (p) => {   // R28 B-rework
   p.hline(cx - 2, cx - 1, cy + 1, P.gold); p.hline(cx + 1, cx + 2, cy + 1, P.goldD);
   p.hline(cx - 3, cx - 2, cy + 2, P.goldD); p.hline(cx + 2, cx + 3, cy + 2, darken(P.goldD, 0.25));
   p.px(cx, cy, P.white); p.px(cx - 1, cy - 1, P.holyL);
-}, { kira: true });
+});
 
 // 守護砲塔 — 一座砲塔：梯形底盤＋圓形旋轉台＋斜指右上的長砲管＋側邊瞄準鏡。
 defineIcon('weapon_wc_turret', P.purpleD, (p) => {   // R28 B-rework
@@ -203,7 +203,7 @@ defineIcon('weapon_wc_turret', P.purpleD, (p) => {   // R28 B-rework
   p.ellipse(7.2, 8, 1.9, 1.6, P.gray2); p.px(6, 7, P.gray4);
   p.ellipse(8, 9, 1.4, 1.4, P.purple); p.px(8, 9, P.purpleL);      // 能量核
   p.rect(4, 7, 2, 2, P.gray2); p.px(4, 7, P.neonL);                // 瞄準鏡
-}, { kira: true });
+});
 
 // ============================================================================
 // 1) 回旋月刃 — boomerang crescent that flies out, curves back through foes.

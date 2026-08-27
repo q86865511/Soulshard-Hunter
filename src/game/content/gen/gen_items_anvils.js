@@ -221,7 +221,7 @@ defineIcon('item_it_timeslow_burst', P.blueD, (p) => {
   p.line(8, 8, 8, 4, withAlpha(P.hiSky, 0.35)); p.line(8, 8, 11, 6, withAlpha(P.hiSky, 0.35)); // 凍結殘影
   p.line(8, 8, 8, 5, P.white); p.line(8, 8, 10, 10, P.iceD);           // 停住的時針
   p.ellipse(8, 8, 1.2, 1.2, P.blueD); p.px(8, 8, P.white);
-}, { kira: true });
+});
 
 // chain-heal — 鏈結療癒：兩個互扣的鎖鏈環，扣點上托著一顆心
 defineIcon('item_it_chain_heal', P.blood, (p) => {
@@ -243,7 +243,7 @@ defineIcon('item_it_shock_nova', P.shardD, (p) => {
   p.ring(8, 8, 3.6, P.shardL);
   p.ring(8, 8, 1.8, P.white);
   p.ellipse(8, 8, 1, 1, P.white); p.px(6, 6, P.glint);
-}, { kira: true });
+});
 
 // --- anvil icons：同一件鐵砧，但每個變體用「輪廓層」分家 ---
 
@@ -254,7 +254,7 @@ defineIcon('item_it_anvil_might', P.gray1, (p) => {
   p.hline(3, 9, 2, darken(P.iron, 0.45)); p.px(3, 0, P.glint);
   p.line(9, 1, 14, 4, P.woodD); p.line(9, 2, 14, 5, P.wood);            // 鎚柄（斜出右上）
   p.px(5, 5, P.emberL); p.px(10, 5, P.ember); p.px(2, 6, P.redL);       // 撞擊火星
-}, { kira: true });
+});
 
 // vigor 活力鐵砧 — 砧下多一截寬木樁台座，砧面上放著一枚發亮鑄錠
 defineIcon('item_it_anvil_vigor', P.gray1, (p) => {
@@ -267,7 +267,7 @@ defineIcon('item_it_anvil_vigor', P.gray1, (p) => {
   p.glow(8, 1, 3, P.red, 0.5, 3);
   p.rect(5, 0, 6, 3, P.redD); p.rect(5, 0, 6, 1, P.redL); p.px(5, 0, P.white); // 熾熱鑄錠
   p.px(9, 2, P.ember);
-}, { kira: true });
+});
 
 // swift 疾速鐵砧 — 整座砧向右傾斜，後方拖兩道遞淡的殘影
 defineIcon('item_it_anvil_swift', P.gray1, (p) => {
@@ -276,7 +276,7 @@ defineIcon('item_it_anvil_swift', P.gray1, (p) => {
   itAnvilShape(p, P.iron, P.gray4, P.gray1, { ox: 1, oy: 0 });         // 本體（偏右）
   for (let i = 0; i < 3; i++) p.hline(0, 2 + i, 4 + i * 4, withAlpha(P.neonL, 0.8 - i * 0.18)); // 疾風尾線
   p.px(14, 4, P.hiSky);
-}, { kira: true });
+});
 
 // focus 專注鐵砧 — 砧角反向（朝右），砧面立著一把鑿子，正上方竄起一柱金火花
 defineIcon('item_it_anvil_focus', P.gray1, (p) => {
@@ -289,4 +289,4 @@ defineIcon('item_it_anvil_focus', P.gray1, (p) => {
     p.px(x, y, i % 2 ? P.goldL : P.gold);
   }
   p.px(4, 0, P.white); p.px(11, 2, P.goldL);
-}, { kira: true });
+});

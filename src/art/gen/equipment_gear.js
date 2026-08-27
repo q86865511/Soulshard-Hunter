@@ -78,7 +78,7 @@ function _gearRing(p, metal, gem) {
 // R28 B-rework (ART_SPEC 第 5 節鐵律)：這四件原本都是「同一個收腰身軀＋換色」。
 // 現在各自是可命名的實體 — 板甲胸鎧（寬肩＋分節裙甲）／鎖鏈衫（有袖的 T 形）／
 // 龍鱗甲（左肩龍首、下擺尾鰭的不對稱剪影）／道袍（肩軛＋大 A 字下擺，無兜帽）。
-// kira 改走 defineIcon 的 { kira: true }（依 def tier；本檔 8 件皆 tier >= 2）。
+// kira 不給一般 gear（R28 收緊：只給進化/epic/隱藏獎勵，ART_SPEC 第 5 節）。
 
 // 重甲：板甲胸鎧 — 喉甲＋外突肩甲＋收腰＋三條分節裙甲
 defineIcon('equip_g_heavy_plate', P.steelD, (p) => {
@@ -101,7 +101,7 @@ defineIcon('equip_g_heavy_plate', P.steelD, (p) => {
   p.hline(4, 11, 13, darken(P.steelD, 0.45));
   p.px(5, 4, P.rim); p.px(6, 5, P.glint); p.px(5, 8, P.steelL); p.px(11, 8, P.gray1);
   p.rimLight(P.rimCool, 0.5);
-}, { kira: true });
+});
 
 // 刺甲：鎖鏈衫 — 帶「兩隻橫伸的袖子」的 T 形，肩上一排尖刺，環織紋理
 defineIcon('equip_g_spiked_mail', P.gray1, (p) => {
@@ -122,7 +122,7 @@ defineIcon('equip_g_spiked_mail', P.gray1, (p) => {
   p.rect(6, 8, 4, 1, P.gray4);                                        // 腰繩
   p.px(6, 6, P.glint);
   p.rimLight(P.rimCool, 0.45);
-}, { kira: true });
+});
 
 // 龍鱗甲：不對稱剪影 — 左肩一顆龍首肩甲（角＋眼），下擺收成尾鰭
 defineIcon('equip_g_dragon_scale', P.greenD, (p) => {
@@ -150,7 +150,7 @@ defineIcon('equip_g_dragon_scale', P.greenD, (p) => {
   p.px(2, 7, P.white); p.px(4, 7, P.bone); p.px(6, 6, P.bone);        // 獠牙
   p.px(2, 3, lighten(P.toxic, 0.3));
   p.rimLight(P.aurora, 0.5);
-}, { kira: true });
+});
 
 // 符文道袍：肩軛橫桿＋垂直符文列＋大 A 字下擺（無兜帽，與斗篷/兜帽類分家）
 defineIcon('equip_g_runic_vestment', P.purpleD, (p) => {
@@ -168,7 +168,7 @@ defineIcon('equip_g_runic_vestment', P.purpleD, (p) => {
   for (const y of [5, 6, 10, 12]) p.px(8, y, y < 8 ? P.manaL : lighten(P.manaL, 0.3)); // 符文列
   p.px(6, 11, P.manaL); p.px(10, 13, P.manaL);
   p.rimLight(P.astralL, 0.5);
-}, { kira: true });
+});
 
 // ---- trinkets --------------------------------------------------------------
 // 貪婪之戒：改成「俯視平躺的寬扁金環」，環心堆著金幣 —— 與直立戒指的正圓輪廓分家
@@ -186,7 +186,7 @@ defineIcon('equip_g_greed_ring', '#5a4a1a', (p) => {
   p.ellipse(9.6, 10.4, 1.5, 1.0, P.goldD); p.ellipse(9.6, 10, 1.1, 0.7, P.gold);
   p.px(5, 9, P.white); p.px(6, 6, P.glint); p.px(9, 10, P.holyL);
   p.rimLight(P.holy, 0.5);
-}, { kira: true });
+});
 
 // 暴擊項鍊：V 形鏈條吊著一枚「獠牙形」紅寶石（下端收成尖），非圓墜
 defineIcon('equip_g_crit_pendant', P.blood, (p) => {
@@ -204,7 +204,7 @@ defineIcon('equip_g_crit_pendant', P.blood, (p) => {
   }
   p.px(7, 9, P.white); p.px(8, 10, lighten(P.redL, 0.25)); p.px(8, 14, P.laser);
   p.rimLight(P.rim, 0.45);
-}, { kira: true });
+});
 
 // 幻影披風：斜掃向右下的「飄起斗篷」——左上一根領扣橫桿，下襬撕裂成尖角、半透
 defineIcon('equip_g_phantom_cloak', P.blueD, (p) => {
@@ -224,7 +224,7 @@ defineIcon('equip_g_phantom_cloak', P.blueD, (p) => {
   }
   p.speckle(4, 6, 8, 6, withAlpha(P.ice, 0.45), 6, 41);               // 幻影閃粒
   p.rimLight(P.rimCool, 0.55);
-}, { kira: true });
+});
 
 // 狂戰護腕：尖刺鉚釘皮腕帶 — studded leather bracer with iron spikes
 defineIcon('equip_g_berserker_band', '#5a2a1a', (p) => {
@@ -250,4 +250,4 @@ defineIcon('equip_g_berserker_band', '#5a2a1a', (p) => {
   p.glow(8, 8, 2, P.red, 0.18, 2);
   p.rimLight(P.rim, 0.4);
   p.softShadow(8, 12, 5, 1, 0.32);
-}, { kira: true });   // R28 B-rework: baseline 已是可辨的皮腕帶（已合格），只把 kira 收歸 defineIcon
+});   // R28 B-rework: baseline 已是可辨的皮腕帶（已合格），只把 kira 收歸 defineIcon

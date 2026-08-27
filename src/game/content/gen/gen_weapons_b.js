@@ -70,7 +70,7 @@ defineIcon('weapon_g_laserbeam', P.redD, (p) => {   // R28 B-rework
   p.ellipse(13, 8, 1.6, 2.2, P.redD); p.ellipse(13, 8, 0.9, 1.4, P.laser);   // 透鏡
   p.px(13, 8, P.white);
   p.hline(14, 15, 8, P.laser); p.hline(14, 15, 7, withAlpha(P.emberL, 0.7)); // 射出的光束
-}, { kira: true });
+});
 
 // 十字彈幕 — 一座四管十字砲台：中央圓形轉盤＋上下左右四根短砲管，管口各噴一顆彈。
 defineIcon('weapon_g_crossbarrage', P.blueD, (p) => {   // R28 B-rework
@@ -104,7 +104,7 @@ defineIcon('weapon_g_ricochet', '#5a4a1a', (p) => {   // R28 B-rework
   p.px(6, 5, P.woodL);
   p.ellipse(8, 7, 1.7, 1.7, P.goldD);                              // 魂珠
   p.ellipse(8, 7, 1, 1, P.gold); p.px(7, 6, P.white);
-}, { kira: true });
+});
 
 // 虛空黑洞 — 一個帶傾斜吸積盤的黑洞：純黑核球＋斜視角的橢圓吸積環＋
 // 兩道被潮汐拉長的碎屑流。傾斜的扁橢圓讓它與 g_halo 的正圓光輪不會撞形。
@@ -126,7 +126,7 @@ defineIcon('weapon_g_blackhole', P.purpleD, (p) => {   // R28 B-rework
   p.ellipse(8, 8, 3, 3, P.shadow); p.ellipse(8, 8, 2.4, 2.4, P.ink);   // 事件視界
   p.ring(8, 8, 3, withAlpha(P.magentaL, 0.9));
   p.px(6, 6, P.white);
-}, { kira: true });
+});
 
 // 神聖光輪 — 一圈天使光輪：斜視角的扁橢圓金環，環下展開左右兩片羽翼。
 // 羽翼把輪廓撐成「環＋翼」，與任何純同心圓都分得開。
@@ -148,7 +148,7 @@ defineIcon('weapon_g_halo', P.goldD, (p) => {   // R28 B-rework
     p.px(Math.round(8 + Math.cos(a) * 4.3), Math.round(3 + Math.sin(a) * 1.9), Math.sin(a) < 0 ? P.gold : darken(P.goldD, 0.45));
   }
   p.px(5, 1, P.white);
-}, { kira: true });
+});
 
 // 飛鏢扇 — 三支各自獨立的飛鏢：菱形鏢頭＋細鏢桿＋兩瓣尾羽，扇形排開。
 // 鏢與鏢之間留空隙（不像 w_fan 的實心扇面），所以兩張扇形不會混。

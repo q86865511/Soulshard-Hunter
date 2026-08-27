@@ -377,7 +377,7 @@ defineIcon('weapon_g_boomer', P.shardD, (p) => {   // R28 B-rework
   p.ellipse(8, 5, 1.6, 1.6, P.shardD); p.px(8, 4, P.white);        // 肘部晶核
   p.px(3, 11, P.shardL); p.px(13, 11, P.shardL);                   // 臂端
   p.px(5, 7, P.white);
-}, { kira: true });
+});
 
 // 魂能地雷 — 一顆觸發式水雷：球殼＋六根觸角刺＋紅色感應眼＋下方底座卡榫。
 defineIcon('weapon_g_mine', P.gray1, (p) => {   // R28 B-rework
@@ -397,7 +397,7 @@ defineIcon('weapon_g_mine', P.gray1, (p) => {   // R28 B-rework
   p.hline(4, 11, 12, P.gray1); p.hline(5, 10, 13, darken(P.gray1, 0.45));  // 底座卡榫
   p.ellipse(9.4, 9.4, 1.7, 1.7, P.redD);                           // 感應眼
   p.ellipse(9.4, 9.4, 1, 1, P.red); p.px(9, 9, P.redL);
-}, { kira: true });
+});
 
 // 召喚靈體 — 一隻小幽靈：圓頭＋兩顆點眼＋兩支短臂＋波浪狀下擺（無角、圓潤）。
 // 進化版 g_spirit_evo 才長角、拖長尾、繞著魂核——base/evo 靠這個形差分開。
@@ -413,7 +413,7 @@ defineIcon('weapon_g_spirit', P.purpleD, (p) => {   // R28 B-rework
   p.px(4, 8, P.manaL); p.px(11, 8, P.manaL);                       // 短臂
   p.ellipse(6.5, 7.5, 1, 1.2, P.void); p.ellipse(9.5, 7.5, 1, 1.2, P.void);   // 點眼
   p.px(6, 6, P.white);
-}, { kira: true });
+});
 
 // 劇毒霧域 — 一只毒氣噴罐：圓肚陶罐＋封蠟瓶頸＋側噴嘴，三團毒霧自噴嘴湧出。
 // （霧氣本身是次要提示；主體是那只罐子——所以它不是又一團色雲。）
@@ -430,7 +430,7 @@ defineIcon('weapon_g_venomfog', P.poisonD, (p) => {   // R28 B-rework
   p.rect(9, 6, 4, 2, P.iron); p.hline(9, 12, 6, P.gray4);          // 側噴嘴
   p.px(13, 7, P.toxic);
   p.ellipse(6, 10, 1.4, 1.4, P.poison); p.px(6, 10, P.toxic);      // 罐身毒液窗
-}, { kira: true });
+});
 
 // 寒冰錐 — 一支冰晶長矛：寬葉形多面矛頭＋繩束環＋長柄＋柄尾錐。
 // 頭是「有寬度的多面葉片」而不是一顆色點，柄上有束繩——與飛鏢/箭矢區隔。

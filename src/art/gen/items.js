@@ -125,7 +125,7 @@ defineIcon('item_g_inferno_bomb', P.gray1, (p) => {
   p.line(3, 12, 1, 14, P.gray4); p.line(12, 12, 14, 14, P.gray4);    // 尾翼
   p.line(4, 12, 2, 14, darken(P.gray1, 0.3)); p.line(11, 12, 13, 14, darken(P.gray1, 0.3));
   p.px(1, 14, P.steelL);
-}, { kira: true });
+});
 
 // 3) berserk_tonic — 狂戰藥湯：一只寬口木碗盛著滾燙紅湯，上方蒸氣捲成怒焰
 defineIcon('item_g_berserk_tonic', '#5a1a1a', (p) => {
@@ -145,7 +145,7 @@ defineIcon('item_g_berserk_tonic', '#5a1a1a', (p) => {
   p.rect(6, 13, 4, 1, darken(P.woodD, 0.5));                         // 碗足
   p.px(4, 8, P.glint);
   p.rimLight(P.laser, 0.4);
-}, { kira: true });
+});
 
 // 4) ward_stone — 守護結晶：一根立起的護符晶柱，底下一圈刻著符文的石座與守護環
 defineIcon('item_g_ward_stone', P.blueD, (p) => {
@@ -162,7 +162,7 @@ defineIcon('item_g_ward_stone', P.blueD, (p) => {
   p.px(5, 12, P.shardL); p.px(8, 12, P.shardL); p.px(11, 12, P.shardL); // 座上符文
   p.aura(8, 7, 6, P.rimCool, 0.0, 1);                                // 守護環
   p.rimLight(P.rimCool, 0.5);
-}, { kira: true });
+});
 
 // 5) lure_horn — magnet all drops (curved horn + attraction sparkles)
 defineIcon('item_g_lure_horn', '#5a4a1a', (p) => {
@@ -209,7 +209,7 @@ defineIcon('item_g_shard_cache', P.shardD, (p) => {
     p.px(x, top, P.white);
   }
   p.px(12, 4, P.glint);
-}, { kira: true });
+});
 
 // 7) purge_wave — 淨化衝擊波：一道從地面竄起的「垂直光柱」＋腳下兩圈擴散環
 defineIcon('item_g_purge_wave', '#3a1a4a', (p) => {
@@ -226,7 +226,7 @@ defineIcon('item_g_purge_wave', '#3a1a4a', (p) => {
   p.ellipse(8, 12, 2.2, 0.8, P.holyL);
   p.px(2, 12, P.astralL); p.px(13, 12, P.astralL);
   p.px(4, 4, withAlpha(P.holyL, 0.7)); p.px(12, 7, withAlpha(P.holyL, 0.7)); // 淨化星屑
-}, { kira: true });
+});
 
 // 8) swift_draught — 疾風靈藥：細長試管（筆直窄筒、無球肚），斜倚著疾風雪佛龍
 defineIcon('item_g_swift_draught', '#1a2a5a', (p) => {

@@ -118,7 +118,7 @@ A({
 // R28 W3-B-rework — 這 8 張原本全是「sym.<通用符號> ＋ 一兩個像素點」的組合
 // （劍＋旗、電＋人字、星、橢圓、環＋電、星、魂晶＋水滴、劍＋環），在 16px 下
 // 只剩顏色可分——正是 ART_SPEC 第 5 節鐵律要擋的病症。改為八個各自可命名的實體。
-// kira 依 def 的 tier：>= 2 才傳 { kira: true }。
+// kira 不給一般被動（R28 收緊：只給進化/epic/隱藏獎勵，ART_SPEC 第 5 節）。
 
 // 戰旗鼓舞 — 旗桿＋槍尖＋飄揚的燕尾旗（旗上金色紋章）。原本借用 sym.sword() 是武器輪廓。
 defineIcon('ability_ac_warbanner', P.blood, (p) => {   // R28 W3-B-rework
@@ -179,7 +179,7 @@ defineIcon('ability_ac_ironhide', P.steelD, (p) => {   // R28 W3-B-rework
     p.hline(2, 13, y + 2, P.ink2);
   }
   p.px(3, 3, P.gray4); p.px(2, 5, P.gray4); p.px(8, 8, P.gray4);
-}, { kira: true });   // tier 2 → kira
+});   // tier 2 → kira
 
 // 靜電力場 — 一座特斯拉線圈（寬底座＋支柱＋放電球頂＋向外竄的電弧）。
 // 「連鎖閃電」是裸閃電、「過載核心」是有殼電池——三者輪廓互不重疊。
@@ -196,7 +196,7 @@ defineIcon('ability_ac_static_field', P.blueD, (p) => {   // R28 W3-B-rework
   p.line(5, 3, 2, 5, P.neonL); p.line(11, 3, 14, 5, P.neonL);     // 電弧
   p.line(4, 5, 3, 7, withAlpha(P.neonL, 0.7)); p.line(12, 5, 13, 7, withAlpha(P.neonL, 0.7));
   p.px(2, 5, P.white); p.px(14, 5, P.white);
-}, { kira: true });   // tier 2 → kira
+});   // tier 2 → kira
 
 // 易爆彈藥 — 一枚直立的黃銅彈殼（彈頭＋殼身＋底火座），殼上裂紋外洩火星。
 // 與「引爆印記」的球形炸彈是完全不同的量體（柱狀 vs 球狀）。
@@ -215,7 +215,7 @@ defineIcon('ability_ac_volatile_rounds', '#5a2a1a', (p) => {   // R28 W3-B-rewor
   p.ellipse(8, 13, 1, 0.8, P.ember);
   p.line(7, 8, 9, 11, P.laser); p.px(8, 9, P.white);              // 裂紋
   p.px(3, 8, P.emberL); p.px(12, 10, P.ember);
-}, { kira: true });   // tier 3 → kira
+});   // tier 3 → kira
 
 // 魂魄收割 — 一盞收魂提燈（提環＋燈頂＋玻璃燈體內的魂火＋燈底），旁有逸散的魂點。
 defineIcon('ability_ac_soul_harvest', P.greenD, (p) => {   // R28 W3-B-rework
@@ -228,7 +228,7 @@ defineIcon('ability_ac_soul_harvest', P.greenD, (p) => {   // R28 W3-B-rework
   p.ellipse(8, 10, 1.2, 1.6, P.toxic); p.px(8, 10, P.white); p.px(8, 7, P.toxic);
   p.rect(4, 12, 9, 2, P.gray1); p.hline(4, 12, 12, P.gray3);      // 燈底
   p.px(3, 6, withAlpha(P.toxic, 0.8)); p.px(13, 8, withAlpha(P.toxic, 0.7));
-}, { kira: true });   // tier 3 → kira
+});   // tier 3 → kira
 
 // 反擊架式 — 一面斜置的擋板把入射的紅色攻擊彈開（V 形反彈箭頭＋撞擊火花）。
 // 原本是 sym.sword()＋環（武器輪廓＋通用環），兩項都違反被動的文法。
@@ -244,4 +244,4 @@ defineIcon('ability_ac_riposte', P.steelD, (p) => {   // R28 W3-B-rework
   p.hline(11, 13, 10, P.hiSky); p.vline(8, 10, 13, P.hiSky);
   p.star4(9, 6, 3, withAlpha(P.glint, 0.9), P.white);             // 撞擊火花
   p.px(6, 9, P.white);
-}, { kira: true });   // tier 3 → kira
+});   // tier 3 → kira

@@ -49,10 +49,10 @@ export function exclusiveFor(charId) { return CHAR_EXCLUSIVE[charId] || null; }
 
 // helper to register one exclusive weapon + its icon
 // R28 B-rework: every exclusive is tier 3, so the kira glint is always on
-// (ART_SPEC 第 5 節 — kira marks rare+; opt-in because defineIcon can't see the def).
+// (ART_SPEC 第 5 節 — kira 只給進化/epic/隱藏獎勵；專屬武器是每個英雄的常規解鎖，不標).
 function X(o) {
   const icon = 'equip_' + o.id;
-  defineIcon(icon, o.bg, o.draw, { kira: true });
+  defineIcon(icon, o.bg, o.draw);
   Equipment.register({ id: o.id, name: o.name, slot: 'weapon', tier: 3, weight: 0, price: o.price || 120, exclusive: true, icon, desc: o.desc, weapon: o.weapon });
 }
 

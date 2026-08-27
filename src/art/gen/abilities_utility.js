@@ -92,7 +92,7 @@ defineIcon('ability_g_iron_skin', P.blueD, (p) => {   // R28 W3-B-rework
   }
   p.px(5, 3, P.white); p.px(11, 6, P.hiSky);
   p.sparkle(12, 4, P.hiSky, 1);
-}, { kira: true });   // tier 2 → kira
+});   // tier 2 → kira
 
 // BLINK MASTER — a teleport rift: an icy slit splitting two phase halves, with
 // a converging arrow burst and a white singularity core.
@@ -108,7 +108,7 @@ defineIcon('ability_g_blink_master', P.blueD, (p) => {
   p.line(8, 5, 4, 8, withAlpha(P.neonL, 0.7)); p.line(8, 11, 4, 8, withAlpha(P.neonL, 0.7));
   p.px(8, 8, P.white); p.glow(8, 8, 1.6, P.white, 0.5, 2);
   p.star4(12, 8, 2, withAlpha(P.neon, 0.85), P.white);
-}, { kira: true });   // R28 W3-B-rework: tier 2 → kira
+});   // R28 W3-B-rework: tier 2 → kira
 
 // 血之契約 — 一只高腳聖杯盛著血，上方一滴血正落下。
 // 心臟形留給「生命寶石」，獠牙留給「吸血鬼牙」，這裡是器皿。
@@ -123,7 +123,7 @@ defineIcon('ability_g_blood_pact', P.blood, (p) => {   // R28 W3-B-rework
   p.rect(5, 12, 6, 2, P.goldD); p.hline(5, 10, 12, P.gold);                 // 底座
   p.ellipse(8, 3, 1, 1.4, P.red); p.px(8, 2, P.redL); p.px(8, 4, P.laser);  // 落下的血滴
   p.px(4, 5, P.white);
-}, { kira: true });   // tier 2 → kira
+});   // tier 2 → kira
 
 // 魂晶結界 — 一顆六邊形能量泡（雙層六角框＋內部蜂巢格線＋中央結晶）。
 // 刻意不是盾牌形：盾形會跟「鋼鐵之肌」「鐵壁之軀」擠在同一個輪廓家族。
@@ -144,7 +144,7 @@ defineIcon('ability_g_aegis', P.blueD, (p) => {   // R28 W3-B-rework
   p.line(13, 10, 10, 9, withAlpha(P.shard, 0.6));
   p.ellipse(8, 8, 1.4, 1.6, P.shard); p.px(8, 7, P.white);
   p.px(5, 5, P.hiSky);
-}, { kira: true });   // tier 3 → kira
+});   // tier 3 → kira
 
 // 背水反擊 — 一根燃燒的鳳凰羽毛（羽軸＋兩側羽枝＋竄起的火星）。
 // 原本是「綠十字＋光環」：十字是通用符號，正是同質化的來源。
@@ -161,7 +161,7 @@ defineIcon('ability_g_second_wind', P.blood, (p) => {   // R28 W3-B-rework
   p.px(11, 3, P.white); p.px(10, 4, P.holyL);
   p.px(4, 11, P.emberL); p.px(3, 9, P.ember); p.px(13, 6, P.emberL);
   p.sparkle(13, 4, P.holyL, 1);
-}, { kira: true });   // tier 3 → kira
+});   // tier 3 → kira
 
 // ---- additive utility variants (extra polish, optional) --------------------
 // These are NEW names only — they do not replace or alter any contract above.
@@ -185,7 +185,7 @@ defineIcon('ability_g_iron_skin_plus', P.blueD, (p) => {   // R28 W3-B-rework
   p.line(4, 5, 3, 2, P.goldL); p.line(12, 5, 12, 2, P.goldL); // 肩尖（第二層形狀）
   p.px(3, 2, P.white); p.px(12, 2, P.white);
   p.sparkle(10, 3, P.hiSky, 1);
-}, { kira: true });   // 進化變體 → kira
+});   // 進化變體 → kira
 
 // 尋寶直覺（遠距版）— 同一枚金幣，但雷達從同心圈升級為「扇形掃描區＋掃描臂」，
 // 一眼就能與基礎版分開（ART_SPEC：進化版要多一層形狀，不能只換光效）。
@@ -206,6 +206,6 @@ defineIcon('ability_g_treasure_sense_far', '#5a4a1a', (p) => {   // R28 W3-B-rew
   p.line(8, 8, 13, 4, P.holyL); p.px(13, 4, P.white);           // 掃描臂
   p.line(8, 8, 8, 2, withAlpha(P.holyL, 0.5));
   p.star4(13, 4, 2, withAlpha(P.holy, 0.85), P.white);
-}, { kira: true });   // 進化變體 → kira
+});   // 進化變體 → kira
 
 export const ABILITIES_UTILITY_READY = true;
