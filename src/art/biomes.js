@@ -63,7 +63,13 @@ const FLOORS = {
       p.speckle(1, 1, 14, 14, withAlpha(P.shardL, 0.16), 5, 17);
       return;
     }
-    plainFloor(p, v === 1 ? mix(b.floor, b.floor2, 0.45) : b.floor, withAlpha(P.ink, 0.22), v === 1 ? 113 : 211);
+    // R28/W2-D: v1 is a REAL step now (damp, slightly lifted flagstone) instead of an
+    // 8-value nudge. R26 kept it near-invisible because the variant was a per-tile coin
+    // flip and any contrast turned to salt-and-pepper; maps.js now places v1 in 2-5 tile
+    // value-noise CLUSTERS, so the contrast reads as damp DISTRICTS. Coupled change —
+    // strengthening this without the clustering would bring the old noise straight back.
+    plainFloor(p, v === 1 ? lighten(b.floor2, 0.04) : b.floor, withAlpha(P.ink, 0.22), v === 1 ? 113 : 211,
+      v === 1 ? (q) => { q.speckle(1, 1, 14, 14, withAlpha(P.shardL, 0.1), 5, 283); } : null);
   },
   // ── cavern: damp rock, crystal-vein feature ────────────────────────────────
   cavern: (p, b, v) => {
@@ -142,19 +148,32 @@ const FLOORS = {
   },
   // ── desert: warm sand dunes + sandstone; feature = cracked oasis/quicksand ─
   desert: (p, b, v) => {
-    if (v === 2) { // shallow oasis water — distributed ripples (was concentric centred ellipses → bullseye array)
+    if (v === 2) { // shallow oasis water — noise-seeded ripple + scattered glints (R28/W2-D fix: this
+      // single static tile is placed in big contiguous pool blobs — a regular p.dither() checkerboard
+      // + two fixed-position ripple ellipses + two fixed px highlights all landed on the SAME relative
+      // spot in every tile, so a multi-tile pond read as an obvious repeating wallpaper (checkerboard +
+      // a fixed "blue dot" glint in the same corner of every block). Swapped for plainFloor-style layered
+      // speckle, which tiles as continuous noise instead of a discrete repeating landmark.
       p.gradV(0, 0, 16, 16, mix(b.floor, P.oceanL, 0.30), mix(b.floor, P.ocean, 0.42));   // R26/B1c: oasis anchored to sand floor
-      p.dither(1, 5, 14, 8, mix(b.floor, P.oceanL, 0.32), mix(b.floor, P.ocean, 0.44));    // rippling surface
-      p.ellipse(4, 6, 3, 1.6, withAlpha(P.oceanL, 0.45)); p.ellipse(11, 10, 3.5, 1.8, withAlpha(P.skyL, 0.32)); // 2 offset ripples
-      p.line(2, 12, 8, 13, withAlpha(P.clay, 0.4)); p.line(9, 3, 14, 5, withAlpha(P.clay, 0.4)); // shore cracks
-      p.px(5, 5, P.hiSky); p.px(12, 9, withAlpha(P.white, 0.6));
+      p.speckle(0, 1, 16, 14, mix(b.floor, P.oceanL, 0.34), 20, 157);                      // rippling surface (was a regular 2px dither)
+      p.speckle(0, 2, 16, 13, withAlpha(mix(b.floor, P.ocean, 0.5), 0.55), 13, 173);
+      p.speckle(0, 0, 16, 16, withAlpha(P.clay, 0.3), 6, 181);                             // scattered silt/shore grit (was 2 fixed crack lines)
+      p.speckle(1, 1, 14, 14, withAlpha(P.hiSky, 0.4), 3, 199);                            // sparse sun glints (was 2 fixed px dots)
       return;
     }
-    plainFloor(p, v === 1 ? mix(b.floor, b.floor2, 0.45) : b.floor, withAlpha(P.sandL, 0.28), v === 1 ? 211 : 163,
-      (q) => {   // wind-ripple lines kept OFF the tile edges + a couple of grains
-        q.line(3, 7, 11, 5, withAlpha(P.sandD, 0.30)); q.line(5, 12, 13, 10, withAlpha(P.sandD, 0.24));
-        q.px(13, 5, P.sandL); q.px(3, 11, withAlpha(P.clay, 0.5));
-      });
+    // R28/W2-D: v1 becomes wind-PACKED coarse sand — a genuine darker step with its own
+    // grit texture, so the noise-clustered patches read as scoured ground rather than a
+    // 6-value nudge. v0 keeps the soft ripple lines (kept off the tile edges).
+    plainFloor(p, v === 1 ? darken(b.floor, 0.1) : b.floor, withAlpha(P.sandL, 0.28), v === 1 ? 211 : 163,
+      v === 1
+        ? (q) => {   // packed grit: denser, coarser speckle instead of drift ripples
+          q.speckle(1, 1, 14, 14, withAlpha(P.sandD, 0.42), 9, 293);
+          q.speckle(1, 1, 14, 14, withAlpha(P.clay, 0.24), 5, 311);
+        }
+        : (q) => {   // wind-ripple lines kept OFF the tile edges + a couple of grains
+          q.line(3, 7, 11, 5, withAlpha(P.sandD, 0.30)); q.line(5, 12, 13, 10, withAlpha(P.sandD, 0.24));
+          q.px(13, 5, P.sandL); q.px(3, 11, withAlpha(P.clay, 0.5));
+        });
   },
   // ── swamp: murky bog greens; feature = bubbling toxic water ────────────────
   swamp: (p, b, v, f = 0) => {
@@ -194,16 +213,26 @@ const FLOORS = {
     if (v === 2) { // starlit rift — a violet-tinted lift of the cloud floor (was a stark dark-purple tile)
       const fb = mix(b.floor, P.astral, 0.3);
       p.rect(0, 0, 16, 16, fb);
-      p.glow(8, 8, 6, P.astralL, 0.18, 4);
-      p.star4(8, 8, 3, P.holyL, P.white);
-      p.sparkle(4, 11, withAlpha(P.astralL, 0.8), 1); p.sparkle(12, 4, withAlpha(P.holyL, 0.8), 1);
-      p.px(5 + f, 5, P.white); p.px(11 - f, 11, P.astralL);
+      // R28/W2-D: the big centred star4(8,8,3) put an identical bright glyph at the
+      // MIDDLE of every rift tile, so a rift region printed a regular star grid. Now two
+      // small OFF-centre glints of unequal weight + seeded dust — no tile-centre motif.
+      p.glow(5, 6, 4, P.astralL, 0.16, 4); p.glow(12, 11, 3, P.astralL, 0.11, 3);
+      p.star4(5, 6, 2, withAlpha(P.holyL, 0.8), withAlpha(P.white, 0.85));
+      p.speckle(0, 0, 16, 16, withAlpha(P.star, 0.7), 3, 307);
+      p.sparkle(12, 11, withAlpha(P.holyL, 0.6), 1);
+      p.px(11 + f, 3, withAlpha(P.white, 0.8)); p.px(3, 13 - f, P.astralL);
       return;
     }
-    plainFloor(p, v === 1 ? mix(b.floor, b.floor2, 0.45) : b.floor, withAlpha(P.cloud, 0.26), v === 1 ? 271 : 217,
-      (q) => {   // marble veining (interior) + tiny stars at SEEDED positions (was a fixed "+" → wallpaper lattice)
-        q.line(3, 12, 9, 5, withAlpha(P.cloud, 0.30)); q.line(9, 5, 13, 9, withAlpha(P.skyL, 0.26));
-        q.speckle(0, 0, 16, 16, withAlpha(P.star, 0.8), 2, v === 1 ? 281 : 229);   // R26/B1d: star density −~30% (3→2)
+    // R28/W2-D: the fixed "V" marble vein sat at the SAME two coordinates on EVERY tile
+    // and tiled into a printed chevron wallpaper across the whole biome (the R26 鐵律 —
+    // caught in the W2-D opening shot). Veining moves to the decal channel
+    // (decal_celestial_marblecrack), which maps.js places per-map and cannot tile; the
+    // tile keeps seeded grain only. v1 becomes a real pale-marble step, readable now
+    // that maps.js places variants in 2-5 tile clusters rather than per-tile.
+    plainFloor(p, v === 1 ? lighten(b.floor2, 0.08) : b.floor, withAlpha(P.cloud, 0.26), v === 1 ? 271 : 217,
+      (q) => {
+        q.speckle(1, 1, 14, 14, withAlpha(P.cloud, 0.2), 5, v === 1 ? 283 : 293);   // marble grain
+        q.speckle(0, 0, 16, 16, withAlpha(P.star, 0.8), 2, v === 1 ? 281 : 229);    // R26/B1d: star density −~30% (3→2)
       });
   },
 };
@@ -300,11 +329,190 @@ const WALLS = {
     p.gradV(0, 0, 16, 16, darken(b.wall, 0.24), darken(b.wall, 0.40));
     p.hline(0, 15, 0, b.wallL);                                        // marble lit crown
     p.speckle(0, 1, 16, 7, darken(b.wall, 0.12), 6, 53); p.speckle(0, 8, 16, 8, darken(b.wall, 0.42), 6, 89);
-    p.line(2, 13, 9, 4, withAlpha(P.cloud, 0.35)); p.line(9, 4, 14, 9, withAlpha(P.skyL, 0.30)); // veins
+    // R28/W2-D: the two vein lines met at (9,4) and printed an identical "Λ" chevron on
+    // EVERY wall tile — a stacked wall field tiled it into a zigzag wallpaper (visible in
+    // the W2-D celestial shot, same 鐵律 as the floor's V vein). Replaced with ONE short,
+    // open, off-centre vein that can't close into a motif, plus grain.
+    p.line(3, 12, 7, 6, withAlpha(P.cloud, 0.26));
+    p.speckle(1, 1, 14, 14, withAlpha(P.cloud, 0.16), 5, 157);
     p.px(12, 3, P.star); p.px(4, 10, withAlpha(P.astralL, 0.5));
     wallBase(p, b, 0.1);
   },
 };
+
+// ═══════════════════════════════════════════════════════════════════════════
+// R28/W2-D — biome IDENTITY wall set (ART_SPEC §6).
+// Per-biome wall VARIANTS (≥2) + a BROKEN state + a deep-mass core tile + a
+// per-biome FAR/horizon band for the out-of-bounds ring. Only the three
+// value-extreme biomes opt in for this slice — crypt (darkest) / celestial
+// (brightest) / desert (warmest); the other seven leave BIOME_MACRO empty and
+// keep the single-sprite wall path, so their tiles render byte-identically.
+//
+// Rules honoured here:
+//  • every variant reuses its biome's own `base` gradient + lit crown + wallBase()
+//    so the VALUE matches the stock wall exactly — only the SURFACE pattern
+//    changes. A wall field then reads as varied masonry, never as a brightness rash.
+//  • no feature sits at a position shared by every tile (R26 鐵律): variants are
+//    hash-selected per tile and their details are interior + asymmetric.
+//  • `deep` is the depth-2 fill (interior of a rock outcrop) — flat mass, no crown,
+//    no foot shade, two seed variants so a big core never repeats one speckle map.
+//  • `far(k)` (k = 0..2) is the OOB horizon language, drawn faded with distance.
+// ═══════════════════════════════════════════════════════════════════════════
+const WALL_VARIANTS = {
+  // ── 幽影地穴: cold ashlar masonry swallowed by fog ────────────────────────
+  crypt: {
+    foot: 0.16,
+    base: (p, b) => { p.gradV(0, 0, 16, 16, darken(b.wall, 0.62), darken(b.wall, 0.78)); p.hline(0, 15, 0, b.wallL); },
+    // crypt is the darkest biome, so its variants need MORE internal contrast than the
+    // other two or the surface pattern vanishes into the body (checked on the W2-D
+    // contact sheet, where v1/v2 were indistinguishable from the base at 3×).
+    v1: (p, b) => {   // large ashlar course + offset head joints + a shallow carved niche
+      p.speckle(0, 1, 16, 7, darken(b.wall, 0.4), 6, 101); p.speckle(0, 8, 16, 8, darken(b.wall, 0.74), 5, 131);
+      p.line(2, 9, 14, 9, withAlpha(lighten(b.wall, 0.14), 0.5));
+      p.vline(1, 8, 4, withAlpha(darken(b.wall, 0.92), 0.7));
+      p.vline(10, 15, 11, withAlpha(darken(b.wall, 0.92), 0.6));
+      p.rect(11, 2, 3, 4, withAlpha(darken(b.wall, 0.93), 0.65));
+      p.px(11, 2, withAlpha(lighten(b.wall, 0.2), 0.55)); p.px(13, 5, withAlpha(P.bone, 0.22));
+    },
+    v2: (p, b) => {   // mortar loss: a fissure with a couple of dislodged bricks
+      p.speckle(0, 1, 16, 7, darken(b.wall, 0.46), 6, 109); p.speckle(0, 8, 16, 8, darken(b.wall, 0.78), 5, 127);
+      p.line(6, 1, 8, 7, withAlpha(darken(b.wall, 0.94), 0.8));
+      p.line(8, 7, 7, 14, withAlpha(darken(b.wall, 0.94), 0.7));
+      p.px(7, 4, withAlpha(lighten(b.wall, 0.16), 0.4));                     // lit lip of the fissure
+      p.px(3, 5, withAlpha(darken(b.wall, 0.94), 0.7)); p.px(12, 9, withAlpha(darken(b.wall, 0.94), 0.65));
+      p.px(12, 8, withAlpha(lighten(b.wall, 0.18), 0.5)); p.px(3, 4, withAlpha(lighten(b.wall, 0.14), 0.4));
+      p.px(2, 11, withAlpha(P.moss, 0.32)); p.px(13, 13, withAlpha(P.moss, 0.24));
+    },
+    bk: (p, b) => {   // BROKEN: crown sheared off, top-right corner collapsed away
+      p.gradV(0, 0, 16, 16, darken(b.wall, 0.62), darken(b.wall, 0.78));
+      p.hline(0, 9, 0, b.wallL);
+      for (let i = 0; i < 5; i++) p.hline(11 + (i > 2 ? 1 : 0), 15, i, withAlpha(darken(b.wall, 0.93), 0.92));
+      p.px(10, 1, withAlpha(lighten(b.wall, 0.12), 0.4)); p.px(11, 3, withAlpha(lighten(b.wall, 0.08), 0.3));
+      p.line(5, 4, 4, 11, withAlpha(darken(b.wall, 0.9), 0.5));
+      p.px(3, 13, withAlpha(P.bone, 0.22)); p.px(7, 12, withAlpha(P.moss, 0.25));
+      p.speckle(0, 1, 16, 7, darken(b.wall, 0.5), 5, 167); p.speckle(0, 8, 16, 8, darken(b.wall, 0.8), 5, 181);
+    },
+    deep: (p, b, s) => {
+      p.gradV(0, 0, 16, 16, darken(b.wall, 0.84), darken(b.wall, 0.9));
+      p.speckle(0, 0, 16, 16, darken(b.wall, 0.92), 7, 179 + s * 43);
+      p.speckle(0, 0, 16, 16, withAlpha(lighten(b.wall, 0.06), 0.22), 4, 199 + s * 47);
+    },
+    far: (p, b, k) => {   // fog-drowned tomb field beyond the edge
+      const fog = mix(darken(b.wall, 0.86), P.ink, 0.5);
+      p.gradV(0, 0, 16, 16, lighten(fog, 0.06), fog);
+      if (k === 0) {
+        p.line(1, 12, 6, 6, withAlpha(darken(b.wall, 0.78), 0.9)); p.line(6, 6, 11, 12, withAlpha(darken(b.wall, 0.78), 0.9));
+        p.rect(3, 10, 7, 6, withAlpha(darken(b.wall, 0.8), 0.85)); p.px(6, 5, withAlpha(b.wallL, 0.25));
+      } else if (k === 1) {
+        p.rect(2, 8, 3, 8, withAlpha(darken(b.wall, 0.8), 0.8)); p.rect(8, 10, 2, 6, withAlpha(darken(b.wall, 0.82), 0.75));
+        p.line(12, 15, 13, 9, withAlpha(darken(b.wall, 0.8), 0.7)); p.px(9, 9, withAlpha(P.shardL, 0.18));
+      } else {
+        p.ellipse(9, 11, 7, 3, withAlpha(lighten(fog, 0.1), 0.5));
+        p.glow(5, 6, 3, P.shardL, 0.1, 3); p.px(5, 6, withAlpha(P.shardL, 0.3));
+      }
+      p.speckle(0, 0, 16, 16, withAlpha(P.ink, 0.3), 5, 269 + k * 11);
+    },
+  },
+
+  // ── 天界雲海: astral marble over an open cloud sea ────────────────────────
+  celestial: {
+    foot: 0.1,
+    base: (p, b) => { p.gradV(0, 0, 16, 16, darken(b.wall, 0.24), darken(b.wall, 0.4)); p.hline(0, 15, 0, b.wallL); },
+    v1: (p, b) => {   // fluted pilaster — unevenly spaced channels (2/7/13, never a regular comb)
+      p.speckle(0, 1, 16, 7, darken(b.wall, 0.14), 5, 107); p.speckle(0, 8, 16, 8, darken(b.wall, 0.44), 5, 137);
+      p.vline(2, 15, 2, withAlpha(P.white, 0.22)); p.vline(2, 15, 3, withAlpha(darken(b.wall, 0.5), 0.34));
+      p.vline(1, 14, 7, withAlpha(P.cloud, 0.2)); p.vline(1, 14, 8, withAlpha(darken(b.wall, 0.5), 0.3));
+      p.vline(3, 15, 13, withAlpha(P.white, 0.16)); p.vline(3, 15, 14, withAlpha(darken(b.wall, 0.5), 0.26));
+      p.px(11, 4, withAlpha(P.star, 0.45));
+    },
+    v2: (p, b) => {   // gilt rosette medallion set off-centre in the marble
+      p.speckle(0, 1, 16, 7, darken(b.wall, 0.16), 5, 113); p.speckle(0, 8, 16, 8, darken(b.wall, 0.46), 5, 139);
+      p.ring(5, 8, 3, withAlpha(P.gold, 0.24)); p.ring(5, 8, 2, withAlpha(P.goldL, 0.16));
+      p.px(5, 8, withAlpha(P.holyL, 0.35));
+      p.line(10, 3, 13, 7, withAlpha(P.cloud, 0.3)); p.line(13, 7, 12, 12, withAlpha(P.skyL, 0.24));
+      p.px(12, 11, withAlpha(P.star, 0.4));
+    },
+    bk: (p, b) => {   // BROKEN: a wedge shattered out of the top-right, open sky behind
+      p.gradV(0, 0, 16, 16, darken(b.wall, 0.24), darken(b.wall, 0.4));
+      p.hline(0, 8, 0, b.wallL);
+      for (let i = 0; i < 6; i++) p.hline(10 + i, 15, i, withAlpha(mix(P.sky, P.ink, 0.45), 0.9));
+      p.line(9, 0, 15, 6, withAlpha(mix(b.wall, P.ink, 0.5), 0.85));
+      p.px(9, 1, withAlpha(P.white, 0.7)); p.px(11, 3, withAlpha(P.cloud, 0.5));
+      p.line(4, 6, 6, 13, withAlpha(darken(b.wall, 0.55), 0.5));
+      p.px(6, 9, withAlpha(P.gold, 0.35));
+      p.speckle(0, 8, 16, 8, darken(b.wall, 0.44), 5, 149);
+    },
+    deep: (p, b, s) => {
+      p.gradV(0, 0, 16, 16, darken(b.wall, 0.46), darken(b.wall, 0.58));
+      p.speckle(0, 0, 16, 16, darken(b.wall, 0.62), 7, 191 + s * 37);
+      p.speckle(0, 0, 16, 16, withAlpha(P.cloud, 0.12), 4, 211 + s * 41);
+    },
+    far: (p, b, k) => {   // the cloud sea the sanctum floats on
+      p.rect(0, 0, 16, 16, mix(P.sky, P.ink, 0.42));
+      if (k === 0) {
+        p.ellipse(5, 6, 6, 3.2, withAlpha(P.cloud, 0.55)); p.ellipse(11, 9, 5, 2.6, withAlpha(P.cloud, 0.4));
+        p.ellipse(4, 5, 3, 1.6, withAlpha(P.white, 0.35)); p.px(13, 4, withAlpha(P.star, 0.5));
+      } else if (k === 1) {
+        p.ellipse(9, 11, 7, 3, withAlpha(P.cloud, 0.42));
+        p.line(3, 12, 4, 4, withAlpha(mix(P.cloud, P.ink, 0.4), 0.85)); p.line(4, 4, 5, 12, withAlpha(mix(P.cloud, P.ink, 0.4), 0.85));
+        p.px(4, 3, withAlpha(P.goldL, 0.6));
+        p.speckle(0, 0, 16, 8, withAlpha(P.star, 0.35), 3, 233);
+      } else {
+        p.ellipse(12, 13, 5, 2.2, withAlpha(P.cloud, 0.28));
+        p.speckle(0, 0, 16, 12, withAlpha(P.star, 0.45), 5, 239); p.px(6, 5, withAlpha(P.white, 0.5));
+      }
+    },
+  },
+
+  // ── 流沙荒漠: carved sandstone bleeding into dune haze ────────────────────
+  desert: {
+    foot: 0.13,
+    base: (p, b) => { p.gradV(0, 0, 16, 16, darken(b.wall, 0.06), darken(b.wall, 0.2)); p.hline(0, 15, 0, b.wallL); },
+    v1: (p, b) => {   // a recessed glyph register cut into the strata
+      p.speckle(0, 4, 16, 4, withAlpha(b.wallD, 0.7), 6, 103); p.speckle(0, 10, 16, 4, withAlpha(b.wallD, 0.6), 6, 139);
+      p.rect(2, 4, 11, 6, withAlpha(darken(b.wall, 0.28), 0.42));
+      p.hline(2, 12, 4, withAlpha(P.sandL, 0.22));
+      p.px(4, 6, withAlpha(darken(b.wall, 0.45), 0.7)); p.vline(6, 8, 4, withAlpha(darken(b.wall, 0.45), 0.6));
+      p.px(7, 7, withAlpha(darken(b.wall, 0.45), 0.7)); p.hline(9, 11, 6, withAlpha(darken(b.wall, 0.45), 0.6));
+      p.px(10, 8, withAlpha(P.sandL, 0.3));
+    },
+    v2: (p, b) => {   // tafoni — wind-scoured honeycomb pitting
+      p.speckle(0, 1, 16, 14, withAlpha(b.wallD, 0.55), 8, 149);
+      const pit = (x, y, r) => { p.ellipse(x, y, r, r * 0.8, withAlpha(darken(b.wall, 0.35), 0.55)); p.px(x, y - Math.round(r), withAlpha(P.sandL, 0.28)); };
+      pit(4, 5, 2); pit(11, 4, 1.6); pit(7, 11, 2.2); pit(13, 10, 1.4); pit(2, 12, 1.3);
+      p.px(9, 8, withAlpha(P.sandL, 0.35));
+    },
+    bk: (p, b) => {   // BROKEN: a breached block with sand pouring out of the cavity
+      p.gradV(0, 0, 16, 16, darken(b.wall, 0.06), darken(b.wall, 0.2));
+      p.hline(0, 6, 0, b.wallL); p.hline(11, 15, 0, b.wallL);
+      for (let i = 0; i < 4; i++) p.hline(7 - (i > 1 ? 1 : 0), 10 + (i > 2 ? 1 : 0), i, withAlpha(darken(b.wall, 0.55), 0.9));
+      p.rect(7, 3, 3, 4, withAlpha(darken(b.wall, 0.62), 0.7));
+      p.line(8, 6, 7, 13, withAlpha(P.sandL, 0.35)); p.line(9, 6, 11, 12, withAlpha(P.sand, 0.28));
+      p.ellipse(9, 14, 4, 1.6, withAlpha(P.sandL, 0.3));
+      p.speckle(0, 8, 16, 7, withAlpha(b.wallD, 0.5), 6, 157);
+    },
+    deep: (p, b, s) => {
+      p.gradV(0, 0, 16, 16, darken(b.wall, 0.34), darken(b.wall, 0.46));
+      p.speckle(0, 0, 16, 16, darken(b.wall, 0.5), 7, 173 + s * 31);
+      p.speckle(0, 0, 16, 16, withAlpha(P.sandD, 0.2), 4, 197 + s * 29);
+    },
+    far: (p, b, k) => {   // dune ridges dissolving into heat haze
+      const haze = mix(P.sandD, P.clay, 0.5);
+      p.gradV(0, 0, 16, 16, lighten(haze, 0.1), darken(haze, 0.22));
+      if (k === 0) { p.line(0, 9, 7, 5, withAlpha(P.sandL, 0.45)); p.line(7, 5, 15, 10, withAlpha(P.sand, 0.35)); p.px(7, 5, withAlpha(P.sandL, 0.6)); }
+      else if (k === 1) { p.line(0, 6, 9, 11, withAlpha(P.sand, 0.4)); p.line(9, 11, 15, 7, withAlpha(P.sandL, 0.3)); p.speckle(0, 0, 16, 6, withAlpha(P.sandL, 0.2), 4, 251); }
+      else { p.line(0, 12, 6, 8, withAlpha(P.sandL, 0.3)); p.line(6, 8, 15, 12, withAlpha(P.sand, 0.26)); p.ellipse(11, 4, 5, 2, withAlpha(lighten(haze, 0.16), 0.4)); }
+      p.speckle(0, 0, 16, 16, withAlpha(P.sandL, 0.12), 5, 263 + k * 7);
+    },
+  },
+};
+
+// biomeId -> { bands, oob } consumed by maps.js (tileset) and world.js (drawTiles).
+// EMPTY for the seven biomes without a WALL_VARIANTS entry → they never opt into
+// wallBands, so `_buildWallDepth` stays skipped and drawTiles takes the old path.
+// bands[0] is never reached for WALL tiles (the depth BFS seeds on FLOOR, so a
+// floor-adjacent wall is depth 1) — it mirrors bands[1] so the array is total.
+export const BIOME_MACRO = {};
 
 const WALLTOPS = {
   crypt: (p, b) => { p.gradV(0, 0, 16, 8, darken(b.wallD, 0.12), darken(b.wallD, 0.26)); p.rect(0, 0, 16, 2, b.wallL); p.rect(0, 2, 16, 1, b.wall); },
@@ -342,6 +550,25 @@ function tileset(b) {
   }
   defineSprite('wall_' + id, 16, 16, (p) => Wd(p, b), { anchor: [0, 0] });
   defineSprite('walltop_' + id, 16, 8, (p) => Wt(p, b), { anchor: [0, 0] });
+  // R28/W2-D — opt-in wall variants / broken state / deep mass / horizon band.
+  const wv = WALL_VARIANTS[id];
+  if (!wv) return;
+  const tile = (n, fn) => defineSprite(n, 16, 16, fn, { anchor: [0, 0] });
+  tile('wallv1_' + id, (p) => { wv.base(p, b); wv.v1(p, b); wallBase(p, b, wv.foot); });
+  tile('wallv2_' + id, (p) => { wv.base(p, b); wv.v2(p, b); wallBase(p, b, wv.foot); });
+  tile('wallbk_' + id, (p) => { wv.bk(p, b); wallBase(p, b, wv.foot); });
+  tile('walldeep_' + id, (p) => wv.deep(p, b, 0));
+  tile('walldeep2_' + id, (p) => wv.deep(p, b, 1));
+  tile('wallfar_' + id, (p) => wv.far(p, b, 0));
+  tile('wallfar2_' + id, (p) => wv.far(p, b, 1));
+  tile('wallfar3_' + id, (p) => wv.far(p, b, 2));
+  // hash5 (world.js drawTiles) buckets 0..4 → a 5-slot face array gives an exact
+  // 40 / 20 / 20 / 20 mix of stock wall / variant A / variant B / broken.
+  const face = ['wall_' + id, 'wall_' + id, 'wallv1_' + id, 'wallv2_' + id, 'wallbk_' + id];
+  BIOME_MACRO[id] = {
+    bands: [face, face, ['walldeep_' + id, 'walldeep2_' + id]],
+    oob: ['wallfar_' + id, 'wallfar2_' + id, 'wallfar3_' + id],
+  };
 }
 BIOMES.forEach(tileset);
 

@@ -1,9 +1,9 @@
 // Large open biome maps for the continuous-survival run structure.
 import { rng, dist } from '../engine/math.js';
 import { WALL, FLOOR, TS } from './world.js';
-import { BIOMES } from '../art/biomes.js';
+import { BIOMES, BIOME_MACRO } from '../art/biomes.js';
 import { DECOR_SETS, DECOR_CLUSTERS } from '../art/biome_decor.js';
-import { DECAL_SETS } from '../art/biome_decals.js';
+import { DECAL_SETS, LANDMARK_SETS, AMBIENT_SETS } from '../art/biome_decals.js';
 import { BALANCE } from './balance.js';
 
 export function biomeForStage(stage) { return BIOMES[(stage - 1) % BIOMES.length]; }
@@ -45,6 +45,50 @@ function placeCluster(decor, tiles, tw, th, anchor, sprite, n) {
   }
 }
 
+// ───────────────────────────────────────────────────────────────────────────
+// R28/W2-D — macro variation (ART_SPEC §6). Same value-noise as the ruin-town
+// ground pass in world.js: a hashed lattice with smoothstep interpolation, so
+// nearby tiles agree and the result is contiguous PATCHES instead of per-tile
+// salt-and-pepper. Deterministic on (x,y) — it consumes NO rng, which is what
+// lets the macro path keep the layout rng stream byte-identical.
+// ───────────────────────────────────────────────────────────────────────────
+function vh(x, y, s) {
+  let n = (x * 374761393 + y * 668265263 + s * 2246822519) >>> 0;
+  n = ((n ^ (n >>> 13)) * 1274126177) >>> 0;
+  return ((n ^ (n >>> 16)) >>> 0) / 4294967296;
+}
+function vnoise(x, y, sc, s) {
+  const fx = x / sc, fy = y / sc, ix = Math.floor(fx), iy = Math.floor(fy);
+  const tx = fx - ix, ty = fy - iy, sx = tx * tx * (3 - 2 * tx), sy = ty * ty * (3 - 2 * ty);
+  const a = vh(ix, iy, s), b = vh(ix + 1, iy, s), c = vh(ix, iy + 1, s), d = vh(ix + 1, iy + 1, s);
+  return (a * (1 - sx) + b * sx) * (1 - sy) + (c * (1 - sx) + d * sx) * sy;
+}
+// large low-frequency "rest" zones: no alt-shade, no decals — the eye needs somewhere
+// to stop, and unbroken texture everywhere is what made every biome read the same.
+function inCalmZone(tx, ty, M) { return vnoise(tx + 70, ty - 40, M.CALM_SC, 7717) > M.CALM_T; }
+function macroFloorVar(tx, ty, M) {
+  if (inCalmZone(tx, ty, M)) return 0;
+  return vnoise(tx, ty, M.FLOOR_SC, 3313) > M.FLOOR_T ? 1 : 0;
+}
+// A spot whose whole (2*halfW+1)×(2*halfH+1) tile neighbourhood is open FLOOR, found in a
+// ring `rmin..rmax` TILES from the spawn. `maxDX/maxDY` additionally clamp the offset so a
+// landmark can be forced inside the opening viewport (26×15 tiles at zoom 3).
+function openSpot(tiles, tw, th, sx, sy, rmin, rmax, halfW, halfH, maxDX, maxDY) {
+  for (let i = 0; i < 500; i++) {
+    const a = rng.next() * Math.PI * 2, r = rmin + rng.next() * (rmax - rmin);
+    const dx = Math.round(Math.cos(a) * r), dy = Math.round(Math.sin(a) * r);
+    if (maxDX && (Math.abs(dx) > maxDX || Math.abs(dy) > maxDY)) continue;
+    const tx = sx + dx, ty = sy + dy;
+    if (tx < halfW + 2 || ty < halfH + 2 || tx >= tw - halfW - 2 || ty >= th - halfH - 2) continue;
+    let ok = true;
+    for (let j = -halfH; j <= halfH && ok; j++) {
+      for (let k = -halfW; k <= halfW; k++) if (tiles[(ty + j) * tw + (tx + k)] !== FLOOR) { ok = false; break; }
+    }
+    if (ok) return { x: (tx + 0.5) * TS, y: (ty + 1) * TS };   // feet on the tile's bottom edge
+  }
+  return null;
+}
+
 // One big persistent battleground for the single-stage continuous-survival mode.
 // Bigger than any old stage, with more obstacle/event terrain + scattered hazards.
 export function generateWorld(seedBiome) {
@@ -52,10 +96,18 @@ export function generateWorld(seedBiome) {
   const tw = BALANCE.MAP_W, th = BALANCE.MAP_H;
   const tiles = new Uint8Array(tw * th);
   const floorVar = new Uint8Array(tw * th);
+  // R28/W2-D: biomes listed in BIOME_MACRO get the identity treatment (clustered floor
+  // variants, rest zones, wall variants, clustered decals, landmarks, ambient motion).
+  // Everything else falls through the original path. Note the rng.next() below is drawn
+  // in BOTH branches: the macro path picks its variant from position-hashed noise, so the
+  // layout rng stream (obstacle blobs, POIs, decor scatter) stays byte-identical either way.
+  const mac = BIOME_MACRO[biome.id] || null;
+  const M = BALANCE.ARTV.MACRO;
   for (let y = 0; y < th; y++) for (let x = 0; x < tw; x++) {
     const border = x === 0 || y === 0 || x === tw - 1 || y === th - 1;
     tiles[y * tw + x] = border ? WALL : FLOOR;
-    floorVar[y * tw + x] = rng.next() < 0.07 ? 1 : 0;   // calm: only a subtle alt shade; feature regions (v2) are painted in blobs below
+    const r = rng.next();
+    floorVar[y * tw + x] = mac ? macroFloorVar(x, y, M) : (r < 0.07 ? 1 : 0);   // calm: only a subtle alt shade; feature regions (v2) are painted in blobs below
   }
   const start = { x: (tw / 2) * TS, y: (th / 2) * TS };
   const far = (px, py, d) => dist(px, py, start.x, start.y) > d;
@@ -142,9 +194,42 @@ export function generateWorld(seedBiome) {
   const clusterPool = DECOR_CLUSTERS[biome.id] || pool;
   const pick = (a) => a[rng.int(0, a.length - 1)];
   const D = BALANCE.DECOR;
-  for (let i = 0; i < Math.round(D.SINGLES * k); i++) { const t = randFloor(tiles, tw, th); if (t && far(t.x, t.y, 40)) decor.push({ sprite: pick(pool), x: t.x, y: t.y, phase: rng.int(0, 2) }); }
-  for (let c = 0; c < Math.round(D.CLUSTERS * k); c++) { const t = randFloor(tiles, tw, th); if (t && far(t.x, t.y, 70)) placeCluster(decor, tiles, tw, th, t, pick(clusterPool), rng.int(3, 6)); }
-  for (let i = 0; i < Math.round(D.WALL * k); i++) { const t = nearWallFloor(tiles, tw, th); if (t && far(t.x, t.y, 50)) decor.push({ sprite: pick(pool), x: t.x, y: t.y, phase: rng.int(0, 2) }); }
+
+  // R28/W2-D LANDMARKS — two per macro biome, pushed FIRST so they sit at the bottom
+  // of the decor draw order. #1 lands inside the opening viewport (26×15 tiles at
+  // zoom 3) so a run OPENS on a silhouette; #2 is a 15-26 tile walk (< 6 s at the
+  // base 82 px/s). Both need a fully open 7×5 tile pad, so they never plug a corridor.
+  // They carry NO `solid` flag on purpose: the co-op map wire format (protocol.js
+  // serializeMap) keeps only sprite/x/y/phase, so a host-side collider would be
+  // invisible to a guest's local prediction and desync it. They are pure silhouette.
+  const landmarks = [];
+  if (mac) {
+    const lm = LANDMARK_SETS[biome.id] || [];
+    const sx = Math.floor(tw / 2), sy = Math.floor(th / 2);
+    const near = lm[0] && openSpot(tiles, tw, th, sx, sy, M.LMK_NEAR[0], M.LMK_NEAR[1], 3, 2, 9, 5);
+    if (near) landmarks.push({ sprite: lm[0], x: near.x, y: near.y, phase: 0 });
+    const away = lm[1] && openSpot(tiles, tw, th, sx, sy, M.LMK_FAR[0], M.LMK_FAR[1], 3, 2, 0, 0);
+    if (away) landmarks.push({ sprite: lm[1], x: away.x, y: away.y, phase: 1 });
+    for (const l of landmarks) decor.push(l);
+  }
+  // keep the ordinary scatter off a landmark so nothing pokes through its silhouette
+  const clearOfLmk = (x, y) => {
+    for (const l of landmarks) if (Math.abs(x - l.x) < M.LMK_CLEAR && Math.abs(y - l.y) < M.LMK_CLEAR) return false;
+    return true;
+  };
+
+  for (let i = 0; i < Math.round(D.SINGLES * k); i++) { const t = randFloor(tiles, tw, th); if (t && far(t.x, t.y, 40) && clearOfLmk(t.x, t.y)) decor.push({ sprite: pick(pool), x: t.x, y: t.y, phase: rng.int(0, 2) }); }
+  for (let c = 0; c < Math.round(D.CLUSTERS * k); c++) { const t = randFloor(tiles, tw, th); if (t && far(t.x, t.y, 70) && clearOfLmk(t.x, t.y)) placeCluster(decor, tiles, tw, th, t, pick(clusterPool), rng.int(3, 6)); }
+  for (let i = 0; i < Math.round(D.WALL * k); i++) { const t = nearWallFloor(tiles, tw, th); if (t && far(t.x, t.y, 50) && clearOfLmk(t.x, t.y)) decor.push({ sprite: pick(pool), x: t.x, y: t.y, phase: rng.int(0, 2) }); }
+
+  // R28/W2-D ambient motion — the biome's signature animated prop, scattered thinly.
+  if (mac) {
+    const amb = AMBIENT_SETS[biome.id] || [];
+    for (let i = 0; amb.length && i < Math.round(M.AMBIENT * k); i++) {
+      const t = randFloor(tiles, tw, th);
+      if (t && far(t.x, t.y, 60) && clearOfLmk(t.x, t.y)) decor.push({ sprite: pick(amb), x: t.x, y: t.y, phase: rng.int(0, 3) });
+    }
+  }
 
   // R26/B1 ground-DECAL channel — render-only flat marks on FLOOR tiles. Sampled
   // LAST (after every gameplay-affecting placement) and ONLY when the biome has a
@@ -152,15 +237,52 @@ export function generateWorld(seedBiome) {
   const decals = [];
   const decalPool = DECAL_SETS[biome.id];
   if (decalPool && decalPool.length) {
-    for (let i = 0; i < Math.round(D.DECALS * k); i++) {
-      const t = randFloor(tiles, tw, th);
-      if (t) decals.push({ sprite: decalPool[rng.int(0, decalPool.length - 1)], x: t.x, y: t.y });
+    const budget = Math.round(D.DECALS * k);
+    const decal = (x, y) => decals.push({ sprite: decalPool[rng.int(0, decalPool.length - 1)], x, y });
+    if (mac) {
+      // R28/W2-D: cluster the ground marks instead of dusting them evenly. Centres are
+      // rejection-sampled onto value-noise PEAKS, so weathered patches gather into
+      // districts; rest zones get nothing. The TOTAL stays the BALANCE.DECOR budget —
+      // this redistributes density, it doesn't add any.
+      const clusterBudget = Math.round(budget * M.DECAL_CLUSTER_FRAC);
+      let placed = 0;
+      for (let guard = 0; placed < clusterBudget && guard < 4000; guard++) {
+        const t = randFloor(tiles, tw, th);
+        if (!t) break;
+        const ctx = t.x / TS, cty = t.y / TS;
+        if (inCalmZone(ctx, cty, M) || vnoise(ctx, cty, M.DECAL_SC, 5107) < M.DECAL_PEAK_T) continue;
+        const n = Math.min(M.DECAL_PER_CLUSTER, clusterBudget - placed);
+        for (let j = 0; j < n; j++) {
+          const a = rng.next() * Math.PI * 2, rr = Math.sqrt(rng.next()) * M.DECAL_CLUSTER_R;
+          const dx = t.x + Math.cos(a) * rr, dy = t.y + Math.sin(a) * rr;
+          const gx = Math.floor(dx / TS), gy = Math.floor(dy / TS);
+          if (gx < 1 || gy < 1 || gx >= tw - 1 || gy >= th - 1) continue;
+          if (tiles[gy * tw + gx] !== FLOOR) continue;
+          decal(dx, dy); placed++;
+        }
+      }
+      for (let i = placed; i < budget; i++) {   // the rest: sparse singles, still skipping rest zones
+        const t = randFloor(tiles, tw, th);
+        if (t && !inCalmZone(t.x / TS, t.y / TS, M)) decal(t.x, t.y);
+      }
+    } else {
+      for (let i = 0; i < budget; i++) {
+        const t = randFloor(tiles, tw, th);
+        if (t) decal(t.x, t.y);
+      }
     }
   }
 
   return {
     tw, th, tiles, floorVar, decor, decals, biome, boss: false,
-    tileset: { floor: ['floor_' + biome.id, 'floor2_' + biome.id, 'floorx_' + biome.id], wall: 'wall_' + biome.id, wallTop: 'walltop_' + biome.id },
+    // R28/W2-D: `wallBands` + `oobBand` are present ONLY for macro biomes — the other
+    // seven leave them undefined and take world.js's original single-sprite wall path
+    // (and skip the wall-depth BFS entirely), so their tiles render byte-identically.
+    tileset: {
+      floor: ['floor_' + biome.id, 'floor2_' + biome.id, 'floorx_' + biome.id],
+      wall: 'wall_' + biome.id, wallTop: 'walltop_' + biome.id,
+      ...(mac ? { wallBands: mac.bands, oobBand: mac.oob } : null),
+    },
     entrance: start, center: start, chests, secret, shrine, hazards, npcs, hiddenRooms, featureRooms, vault,
   };
 }

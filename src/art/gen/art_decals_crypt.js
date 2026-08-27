@@ -3,7 +3,7 @@ import { defineSprite, defineAnim, Painter } from '../../engine/sprites.js';
 import { P, lighten, darken, mix, withAlpha } from '../../engine/palette.js';
 import { defineIcon, panel, sym } from '../icons.js';
 import { drawSlime, drawBat, drawWisp, drawBrute, drawHunter, registerHeroBody, drawHeroBody } from '../core.js';
-import { registerDecals } from '../biome_decals.js';
+import { registerDecals, registerLandmarks, registerAmbient } from '../biome_decals.js';
 import { DECOR_SETS, DECOR_CLUSTERS } from '../biome_decor.js';
 
 // ============================ CRYPT 幽影地穴 — ground decals + standing decor ============================
@@ -189,6 +189,120 @@ defineSprite('bdx_crypt_urn', 12, 14, (p) => {              // cracked funerary 
   p.outline(P.ink);
 }, { anchor: [6, 13] });
 
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// R28 W2-D HAND-EDIT — (d) LANDMARKS + signature environment motion (ART_SPEC §6).
+// Landmarks are ≥3×3 tile silhouettes placed by maps.js (one inside the opening
+// viewport, one a short walk out) so the biome is identifiable WITHOUT colour.
+// Finish differs from the small props on purpose: the ground contact is an OPAQUE
+// rubble mound that belongs to the silhouette, and the soft shadow is laid down
+// AFTER outline() — a 50 px softShadow drawn before outline() would get ringed in
+// ink and read as a hard black ellipse.
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+
+defineSprite('lmk_crypt_mausoleum', 56, 72, (p) => {        // 塌陷靈廟 — collapsed mausoleum
+  const stone = P.gray2, lit = P.gray3, dark = darken(P.gray1, 0.18);
+  // rubble mound the whole structure has settled into
+  p.ellipse(28, 65, 24, 5, darken(P.gray1, 0.34));
+  p.ellipse(26, 63, 20, 4, darken(P.gray1, 0.2));
+  // stepped plinth
+  p.rect(8, 57, 40, 8, P.gray1); p.hline(8, 47, 57, lit);
+  p.rect(11, 52, 34, 6, stone); p.hline(11, 44, 52, lighten(lit, 0.1));
+  // cella body
+  p.rect(12, 26, 32, 27, stone);
+  p.rect(12, 26, 5, 27, lit);
+  p.rect(40, 26, 4, 27, dark);
+  // flanking columns (uneven — the right one has lost its top drum)
+  p.rect(17, 29, 4, 24, lit); p.vline(29, 52, 20, dark);
+  p.rect(35, 33, 4, 20, lit); p.vline(33, 52, 38, dark); p.px(35, 33, lighten(lit, 0.2));
+  // arched doorway into the dark, with cold soul-light bleeding out of it
+  p.rect(23, 36, 11, 17, P.ink);
+  p.ellipse(28, 36, 5.5, 4, P.ink);
+  p.glow(28, 46, 6, P.shard, 0.3, 4);
+  p.ellipse(28, 49, 3.5, 5, withAlpha(P.shard, 0.14));
+  p.rectLine(22, 32, 13, 21, darken(lit, 0.1));
+  // entablature
+  p.rect(10, 22, 36, 4, lit); p.rect(10, 26, 36, 1, dark);
+  // roof: left gable still standing, right half caved in (the gap between them is
+  // deliberately transparent — outline() turns it into torn sky through the ruin)
+  for (let y = 8; y <= 22; y++) {
+    const t = (y - 8) / 14;
+    p.hline(Math.round(24 - t * 18), Math.round(24 + t * 4), y, mix(lit, P.gray1, t * 0.55));
+  }
+  for (let y = 15; y <= 22; y++) {
+    const t = (y - 15) / 7;
+    p.hline(Math.round(41 - t * 5), Math.round(41 + t * 6), y, mix(stone, P.gray1, 0.3 + t * 0.4));
+  }
+  p.line(24, 8, 7, 22, lighten(lit, 0.16));
+  // a soulshard set in the pediment, still faintly lit
+  p.glow(22, 15, 4, P.shardL, 0.22, 3);
+  p.star4(22, 15, 2, P.shard, P.white);
+  // decay: cracks, slipped slabs, moss creeping up the base
+  p.line(15, 31, 18, 46, darken(P.gray1, 0.3));
+  p.line(39, 34, 36, 48, darken(P.gray1, 0.26));
+  p.rect(45, 47, 7, 4, P.gray1); p.hline(45, 51, 47, lit);
+  p.rect(4, 51, 6, 4, P.gray1); p.hline(4, 9, 51, lit);
+  p.px(13, 51, P.moss); p.px(43, 50, darken(P.moss, 0.12)); p.px(9, 60, P.moss);
+  p.speckle(13, 28, 30, 24, darken(P.gray1, 0.22), 12, 71);
+  p.speckle(9, 57, 38, 7, darken(P.gray1, 0.3), 9, 89);
+  p.rimLight(P.rimCool, 0.36);
+  p.outline(P.ink);
+  p.ellipse(28, 68, 25, 3.4, withAlpha(P.shadow, 0.34));    // contact shadow, after outline
+}, { anchor: [28, 70] });
+
+defineAnim('lmk_crypt_obelisk', 44, 80, 2, (p, f) => {      // 巨型魂晶碑 — fractured soulshard monolith
+  const stone = P.gray2, lit = P.gray3;
+  p.ellipse(22, 73, 18, 4, darken(P.gray1, 0.32));           // rubble ring
+  p.ellipse(20, 71, 13, 3, darken(P.gray1, 0.18));
+  p.rect(10, 62, 24, 10, P.gray1); p.hline(10, 33, 62, lit);
+  p.rect(13, 56, 18, 7, stone); p.hline(13, 30, 56, lighten(lit, 0.08));
+  // tapering shaft (wide at the plinth, narrow at the snapped top)
+  for (let y = 12; y <= 56; y++) {
+    const t = (y - 12) / 44, hw = 5 + t * 5;
+    const x0 = Math.round(22 - hw), x1 = Math.round(22 + hw);
+    p.hline(x0, x1, y, stone);
+    p.hline(x0, x0 + 2, y, lit);
+    p.px(x1, y, darken(P.gray1, 0.2));
+  }
+  // the shear line where the upper section slipped
+  p.line(15, 27, 22, 24, darken(P.gray1, 0.38));
+  p.line(22, 24, 29, 28, darken(P.gray1, 0.38));
+  p.px(22, 23, lighten(lit, 0.2));
+  // embedded soulshard vein running the height of the stone (slow pulse)
+  const vc = f ? P.shardL : P.shard;
+  const vein = [[21, 54], [23, 47], [20, 39], [22, 32], [21, 25], [23, 17], [22, 10]];
+  for (let i = 0; i < vein.length - 1; i++) p.line(vein[i][0], vein[i][1], vein[i + 1][0], vein[i + 1][1], vc);
+  p.glow(22, 36, 7, P.shard, f ? 0.3 : 0.22, 4);
+  p.glow(22, 14, 5, P.shardL, f ? 0.28 : 0.18, 3);
+  // raw crystal breaking out of the crown
+  p.line(22, 12, 19, 4, P.shardD); p.line(22, 12, 22, 1, vc); p.line(22, 12, 26, 6, P.shardD);
+  p.px(22, 1, P.white);
+  // rusted chains still pinning it down
+  p.line(11, 61, 17, 46, P.iron); p.line(33, 61, 27, 42, darken(P.iron, 0.1));
+  p.px(14, 54, lighten(P.iron, 0.15)); p.px(30, 51, lighten(P.iron, 0.12));
+  p.speckle(14, 16, 16, 40, darken(P.gray1, 0.26), 11, 43);
+  p.px(8, 68, P.moss); p.px(35, 69, darken(P.moss, 0.1));
+  p.rimLight(P.rimCool, 0.4);
+  p.outline(P.ink);
+  p.ellipse(22, 76, 18, 3, withAlpha(P.shadow, 0.34));
+  if (f) p.sparkle(26, 20, withAlpha(P.shardL, 0.7), 1);
+}, { anchor: [22, 78], fps: 1.2 });
+
+defineAnim('bdxa_crypt_soulwisp', 12, 18, 4, (p, f) => {    // signature motion — a soul flame over a broken marker
+  const bob = [0, -1, -2, -1][f];
+  p.rect(3, 12, 6, 5, P.gray2); p.rect(3, 12, 2, 5, P.gray3);
+  p.px(6, 13, darken(P.gray1, 0.3)); p.line(5, 13, 7, 16, darken(P.gray1, 0.25));
+  p.px(3, 16, P.moss);
+  p.rimLight(P.rimCool, 0.34);
+  p.outline(P.ink);
+  // flame sits ON TOP of the outline so it keeps its glow instead of an ink rim
+  const y = 7 + bob;
+  p.glow(6, y, 3.4, P.shard, 0.3, 3);
+  p.ellipse(6, y, 1.6, 2.4, withAlpha(P.shard, 0.85));
+  p.ellipse(6, y, 0.9, 1.5, withAlpha(P.shardL, 0.9));
+  p.px(6, y - 1, P.white);
+  if (f & 1) p.px(8, y - 3, withAlpha(P.shardL, 0.55)); else p.px(4, y - 4, withAlpha(P.shardL, 0.45));
+}, { anchor: [6, 17], fps: 3 });
+
 // ---------------------------------------------------------------------------------------------
 // (c) registry hookup
 // ---------------------------------------------------------------------------------------------
@@ -216,4 +330,9 @@ registerDecals('crypt', [
   'bdx_crypt_sarcophagus',
   'bdx_crypt_ironfence'
 );
+
+// R28 W2-D HAND-EDIT — landmarks are placed explicitly by maps.js (NOT part of the
+// scatter pool, or they'd carpet the map); the wisp is the biome's ambient motion.
+registerLandmarks('crypt', ['lmk_crypt_mausoleum', 'lmk_crypt_obelisk']);
+registerAmbient('crypt', ['bdxa_crypt_soulwisp']);
 

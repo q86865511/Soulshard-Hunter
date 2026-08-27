@@ -615,8 +615,17 @@ export class World {
     const voidSp = ts.voidTile ? getSprite(ts.voidTile) : null;
     const aoSp = getSprite('fx_wallao');   // R26/B1 wall-foot ambient occlusion
     const hash5 = (tx, ty) => (((tx * 73856093) ^ (ty * 19349663)) >>> 0) % 5;
+    // R28/W2-D — the biome's own horizon band. The run camera is clamped to the map
+    // (aimCamera), so the true out-of-bounds ring is never more than a 1-tile sliver;
+    // the map's OUTER WALL RING is what a player actually reads as "the edge of the
+    // world". When a biome supplies `oobBand`, that ring is painted with the horizon
+    // sprites too, so the map dissolves into fog / cloud sea / dune haze over two tiles
+    // instead of ending in a hard wall. Biomes (and the town) without it are untouched.
+    const horizon = ts.oobBand ? ts.oobBand.map((n) => getSprite(n)) : null;
+    const lastX = this.tw - 1, lastY = this.th - 1;
     // pick the band/variant sprite for a WALL tile (banded fill or plain ts.wall)
     const wallSprite = (tx, ty) => {
+      if (horizon && (tx === 0 || ty === 0 || tx === lastX || ty === lastY)) return horizon[hash5(tx, ty) % horizon.length].frames[0];
       if (!bands) return wallSp.frames[0];
       const d = (this.wallDepth ? this.wallDepth[ty * tw + tx] : 0) | 0;
       const arr = bands[Math.min(d, bands.length - 1)];
@@ -625,8 +634,12 @@ export class World {
     // R17 B14 / R20 B2: the void beyond the map edge used to render pure black. Fill the visible
     // out-of-bounds band with dimmed wall tiles (when banded, use band-2 receding cliff/skyline so it
     // reads as far rock fading with distance past the edge). Town + runs alike.
+    // R28/W2-D: a biome may claim its OWN horizon language for the out-of-bounds ring
+    // (`ts.oobBand`) instead of reusing the deep-wall band — crypt fades into a fog-drowned
+    // tomb field, celestial into the cloud sea it floats on, desert into dune haze. Biomes
+    // (and the town) without `oobBand` keep the exact previous band + alpha curve.
     if (rx0 < 0 || ry0 < 0 || rx1 >= this.tw || ry1 >= this.th) {
-      const oobBand = bands ? bands[Math.min(2, bands.length - 1)] : null;
+      const oobBand = horizon || (bands ? bands[Math.min(2, bands.length - 1)] : null);
       for (let ty = ry0; ty <= ry1; ty++) for (let tx = rx0; tx <= rx1; tx++) {
         if (tx >= 0 && tx < this.tw && ty >= 0 && ty < this.th) continue;
         const hsh = hash5(tx, ty);
@@ -637,7 +650,9 @@ export class World {
           // additional fade with distance past the nearest edge
           const dpx = Math.max(0, -tx, tx - (this.tw - 1)), dpy = Math.max(0, -ty, ty - (this.th - 1));
           const distPast = Math.max(dpx, dpy);
-          alpha = (0.55 + (hsh % 3) * 0.06) * Math.max(0.4, 1 - distPast * 0.12);
+          alpha = horizon
+            ? (0.72 + (hsh % 3) * 0.06) * Math.max(0.22, 1 - distPast * 0.10)   // reads as receding distance, not a dim wall
+            : (0.55 + (hsh % 3) * 0.06) * Math.max(0.4, 1 - distPast * 0.12);
         }
         drawSprite(fr, tx * TS, ty * TS, { ax: 0, ay: 0, alpha });
       }
@@ -798,8 +813,13 @@ export class World {
     this.drawDecals(cb);           // R26/B1 flat ground marks (after tiles, before hazards)
     this.drawHazards();
     // decor (torches etc.) — viewport-culled (R26/B1)
+    // R28/W2-D: `lmk_*` landmarks are up to 5 tiles wide/tall, so the standard prop
+    // margins in _cullBounds would pop them in at the screen edge; they get a wider
+    // box. The prefix (not a flag) is the test on purpose — it survives the co-op map
+    // wire format, which carries decor sprite NAMES but drops every other field.
     for (const d of this.decor) {
-      if (d.x < cb.x0 || d.x > cb.x1 || d.y < cb.y0 || d.y > cb.y1) continue;
+      const m = d.sprite.startsWith('lmk_') ? 48 : 0;
+      if (d.x < cb.x0 - m || d.x > cb.x1 + m || d.y < cb.y0 - m || d.y > cb.y1 + m) continue;
       const sp = getSprite(d.sprite);
       drawSprite(frameAt(sp, this.time, d.phase || 0), d.x, d.y, { ax: sp.ax, ay: sp.ay });
     }

@@ -3,7 +3,7 @@ import { defineSprite, defineAnim, Painter } from '../../engine/sprites.js';
 import { P, lighten, darken, mix, withAlpha } from '../../engine/palette.js';
 import { defineIcon, panel, sym } from '../icons.js';
 import { drawSlime, drawBat, drawWisp, drawBrute, drawHunter, registerHeroBody, drawHeroBody } from '../core.js';
-import { registerDecals } from '../biome_decals.js';
+import { registerDecals, registerLandmarks, registerAmbient } from '../biome_decals.js';
 import { DECOR_SETS, DECOR_CLUSTERS } from '../biome_decor.js';
 
 // desert (流沙荒漠) ground decals + standing decor — low-contrast sand-tone decals
@@ -129,6 +129,136 @@ defineSprite('bdx_desert_rockpile', 16, 10, (p) => {         // sun-baked rock p
   p.outline(P.ink);
 }, { anchor: 'feet' });
 
+// ── R28 W2-D HAND-EDIT — (d) LANDMARKS + signature environment motion ───────
+// ART_SPEC §6: ≥3×3 tile silhouettes placed explicitly by maps.js so the biome is
+// identifiable without colour. Ground contact is an OPAQUE sand mound inside the
+// silhouette; the soft shadow goes down AFTER outline() (a 50 px softShadow drawn
+// first would be ringed in ink — very visible on bright sand).
+
+defineSprite('lmk_desert_colossus', 56, 80, (p) => {         // 半埋巨像 — a colossus drowned in the dune
+  // P.gray1-3 are COOL blue-greys; a 50/50 mix read as a grey lump on warm sand, so the
+  // colossus is cut from weathered SANDSTONE (mostly P.sandD, only nudged cool) and the
+  // face plate is lifted a full step so brow/eye/mouth survive at zoom 3.
+  const stone = mix(P.sandD, P.gray2, 0.3);
+  const litS = lighten(stone, 0.22), darkS = darken(stone, 0.26);
+  // dune the statue has sunk into
+  p.ellipse(28, 68, 27, 9, P.sandD);
+  p.ellipse(24, 64, 22, 6, P.sand);
+  p.ellipse(18, 62, 12, 3.4, lighten(P.sand, 0.12));
+  // nemes headdress: flares outward toward the sand line
+  for (let y = 12; y <= 58; y++) {
+    const t = (y - 12) / 46, hw = 12 + t * 8;
+    p.hline(Math.round(28 - hw), Math.round(28 + hw), y, stone);
+  }
+  p.rect(16, 12, 5, 44, litS);
+  p.rect(38, 14, 4, 42, darkS);
+  p.ellipse(28, 13, 12, 5, stone); p.ellipse(26, 12, 9, 3.4, litS);   // crown of the headdress
+  // headdress banding — uneven spacing so two statues never read as a striped pattern
+  p.hline(17, 39, 20, darken(stone, 0.26));
+  p.hline(16, 40, 27, darken(stone, 0.22));
+  p.hline(15, 41, 37, darken(stone, 0.26));
+  // face: brow shadow, sunken eyes, a nose broken clean off, a flat mouth
+  const skin = mix(stone, P.sand, 0.42);
+  p.rect(21, 21, 14, 17, skin);
+  p.rect(21, 21, 5, 17, lighten(skin, 0.14));
+  p.rect(33, 21, 2, 17, darken(skin, 0.2));
+  p.rect(21, 23, 14, 2, darken(stone, 0.36));                         // heavy brow ridge
+  p.ellipse(24, 27, 2.2, 1.4, darken(stone, 0.5)); p.px(24, 27, P.ink); p.px(23, 26, P.ink);
+  p.ellipse(31, 27, 2.2, 1.4, darken(stone, 0.46)); p.px(31, 27, P.ink);
+  p.hline(22, 26, 25, lighten(skin, 0.2)); p.hline(30, 33, 25, lighten(skin, 0.16));   // lids catching light
+  p.line(28, 29, 27, 33, darken(stone, 0.38));
+  p.line(26, 31, 31, 30, lighten(skin, 0.26));                        // the shear where the nose broke
+  p.hline(24, 32, 35, darken(stone, 0.42)); p.hline(24, 32, 36, lighten(skin, 0.12));
+  p.rect(26, 38, 5, 8, stone); p.rect(26, 38, 2, 8, litS);            // ceremonial beard, half-buried
+  // an arm broken free, fingers clawing out of the sand
+  p.ellipse(9, 60, 8, 4, stone); p.ellipse(8, 58, 6, 2.6, litS);
+  p.rect(4, 54, 3, 6, stone); p.rect(8, 52, 3, 8, stone); p.rect(12, 54, 3, 6, darkS);
+  p.px(4, 54, litS); p.px(8, 52, lighten(litS, 0.1));
+  // weathering: wind-scour, cracks, a drift piling against the right cheek
+  p.line(19, 30, 17, 48, darken(stone, 0.3));
+  p.line(41, 26, 39, 44, darken(stone, 0.26));
+  p.speckle(17, 16, 22, 40, darken(stone, 0.22), 13, 79);
+  p.speckle(17, 16, 22, 40, withAlpha(P.sandL, 0.3), 9, 97);
+  p.ellipse(40, 56, 9, 4, withAlpha(P.sandL, 0.55));
+  p.ellipse(43, 58, 7, 3, withAlpha(P.sand, 0.7));
+  p.rimLight(P.rim, 0.34);
+  p.outline(P.ink);
+  p.ellipse(30, 72, 26, 3.4, withAlpha(P.shadow, 0.3));
+}, { anchor: [28, 74] });
+
+defineSprite('lmk_desert_ribcage', 68, 52, (p) => {          // 龍骨化石 — a dragon's ribs arching out of the dune
+  const bone = mix(P.bone, P.sandD, 0.28);
+  const boneL = lighten(bone, 0.16), boneD = darken(bone, 0.22);
+  // dune ridge the skeleton lies in
+  p.ellipse(34, 45, 33, 7, P.sandD);
+  p.ellipse(28, 42, 26, 5, P.sand);
+  p.ellipse(46, 43, 16, 3.4, lighten(P.sand, 0.1));
+  // spine: vertebrae marching along the ridge, sinking to the right
+  for (let i = 0; i < 9; i++) {
+    const x = 12 + i * 6, y = 40 - Math.round(Math.sin(i * 0.5) * 2);
+    p.rect(x, y, 4, 4, bone); p.px(x, y, boneL); p.px(x + 3, y + 3, boneD);
+    p.vline(y - 2, y, x + 1, bone);
+  }
+  // ribs: arcs that rise, then CURL BACK inward over the spine. The first pass swept
+  // almost straight up and the set read as a comb rather than a cage (W2-D contact
+  // sheet), so each rib now closes toward the centre and carries a 2 px shaft.
+  const rib = (x0, y0, h, lean, col) => {
+    for (let t = 0; t <= 1; t += 0.015) {
+      const a = t * Math.PI * 0.62;
+      const x = Math.round(x0 + lean * (Math.sin(a) * 9 + t * t * 9));
+      const y = Math.round(y0 - h * Math.sin(a * 1.05));
+      p.px(x, y, col); p.px(x + 1, y, darken(col, 0.18)); p.px(x, y + 1, col);
+    }
+  };
+  rib(15, 40, 26, 1.0, boneL);
+  rib(23, 39, 29, 0.95, bone);
+  rib(32, 40, 26, 0.85, boneL);
+  rib(41, 41, 20, 0.75, bone);
+  rib(50, 42, 13, 0.6, boneD);
+  // skull, half-buried and turned away, at the head of the spine
+  p.ellipse(9, 36, 8, 5, bone); p.ellipse(7, 34, 5.4, 3.4, boneL);
+  p.line(2, 38, 9, 41, bone);                                          // snout into the sand
+  p.ellipse(8, 34, 2, 1.5, darken(P.sandD, 0.4)); p.px(8, 34, P.ink);  // eye socket
+  p.px(5, 30, boneD); p.line(12, 31, 15, 27, bone);                    // a broken horn
+  p.px(4, 39, boneD); p.px(6, 40, boneD); p.px(8, 40, boneD);          // teeth
+  // scattered fragments + sand drifted over the lower bones
+  p.ellipse(58, 40, 4, 2, bone); p.px(58, 39, boneL);
+  p.ellipse(63, 43, 3, 1.6, boneD);
+  p.ellipse(20, 43, 10, 3, withAlpha(P.sandL, 0.5));
+  p.ellipse(44, 44, 12, 3, withAlpha(P.sand, 0.6));
+  p.speckle(6, 26, 56, 16, withAlpha(P.sandL, 0.28), 11, 131);
+  p.rimLight(P.rim, 0.34);
+  p.outline(P.ink);
+  p.ellipse(34, 48, 30, 3, withAlpha(P.shadow, 0.28));
+}, { anchor: [34, 50] });
+
+defineAnim('bdxa_desert_dustdevil', 14, 26, 4, (p, f) => {   // signature motion — a wandering sand devil
+  // ground scuff: a low PALE ring of kicked-up grit (dark tones here made the whole
+  // prop read as a brown mound instead of airborne dust — caught in the W2-D shot)
+  p.ellipse(7, 23, 5, 1.3, withAlpha(P.sandL, 0.4));
+  p.ellipse(7, 23, 3, 0.8, withAlpha(P.dune, 0.38));
+  // the vortex: a narrow base flaring upward, every slice phase-shifted so the column
+  // reads as ONE rotating spiral instead of a stack of rings. Pale + translucent, and
+  // it fades toward the top so the tip dissolves into the air.
+  for (let i = 0; i < 11; i++) {
+    const y = 22 - i * 2;
+    const ph = f * 1.57 + i * 0.66;
+    const cx = 7 + Math.cos(ph) * (0.4 + i * 0.16);
+    const rx = 1.1 + i * 0.42;
+    p.ellipse(cx, y, rx, 0.7, withAlpha(i > 6 ? P.sandL : (i > 3 ? P.sand : P.dune), 0.44 - i * 0.022));
+    p.px(Math.round(cx + rx), y, withAlpha(P.sandL, 0.5));     // lit windward edge
+  }
+  // grit torn loose and flung out of the vortex
+  for (let i = 0; i < 3; i++) {
+    const a = f * 1.57 + i * 2.1;
+    p.px(Math.round(7 + Math.cos(a) * (3 + i)), Math.round(13 - i * 3 + Math.sin(a) * 1.5), withAlpha(P.clay, 0.5));
+  }
+  p.px(7, 2, withAlpha(P.sandL, 0.4));
+  // a dust column must not carry a hard ink rim — outline in a translucent sand-dark
+  // so the silhouette rule is still honoured without a black-edged blob.
+  p.outline(withAlpha(P.sandD, 0.3));
+}, { anchor: [7, 24], fps: 5 });
+
 // ── (c) registration ────────────────────────────────────────────────────────
 registerDecals('desert', [
   'decal_desert_ripple', 'decal_desert_crack', 'decal_desert_pebbles', 'decal_desert_patch',
@@ -141,4 +271,9 @@ registerDecals('desert', [
 (DECOR_CLUSTERS['desert'] = DECOR_CLUSTERS['desert'] || []).push(
   'bdx_desert_rockpile', 'bdx_desert_deadbush',
 );
+
+// R28 W2-D HAND-EDIT — landmarks are placed explicitly by maps.js (kept OUT of the
+// scatter pool); the sand devil is the biome's ambient motion.
+registerLandmarks('desert', ['lmk_desert_colossus', 'lmk_desert_ribcage']);
+registerAmbient('desert', ['bdxa_desert_dustdevil']);
 

@@ -222,6 +222,24 @@ export const BALANCE = {
     BOSS_RING_A: 0.18,
     DECO_PARTICLE_ALPHA: 0.5,
     GLOW_DECO_ALPHA: 0.35,
+    // R28/W2-D — biome macro-variation (ART_SPEC §6). Consumed ONLY by the biomes
+    // that opt in via BIOME_MACRO (crypt / celestial / desert this slice); the other
+    // seven never read these, so retuning here cannot move their tiles.
+    // Thresholds are calibrated against the value-noise distribution on a 138×102
+    // map: FLOOR_T 0.63 @ sc 2.8 ≈ 32% cover with ~4-tile runs (spec asks 2-5);
+    // CALM_T 0.80 @ sc 7.5 ≈ 13% (spec asks 10-15%).
+    MACRO: {
+      FLOOR_SC: 2.8, FLOOR_T: 0.63,        // v1 alt-shade patches: clustered, not per-tile
+      CALM_SC: 7.5, CALM_T: 0.80,          // large "rest" zones — no v1, no decals
+      DECAL_SC: 5.0, DECAL_PEAK_T: 0.62,   // decal clusters only ride noise peaks
+      DECAL_CLUSTER_FRAC: 0.7,             // share of the DECOR.DECALS budget spent in clusters
+      DECAL_PER_CLUSTER: 9, DECAL_CLUSTER_R: 34,
+      LMK_NEAR: [4.5, 8.5], LMK_FAR: [15, 26],   // landmark distance rings, in TILES from spawn
+      LMK_CLEAR: 40,                       // px: keep scatter decor this far off a landmark
+      AMBIENT: 18,                         // signature animated props per map (× area factor k) —
+                                           // ~1 in view per viewport; 8 was so sparse the biome's
+                                           // signature motion was usually off-screen entirely
+    },
   },
 };
 
