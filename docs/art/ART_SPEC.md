@@ -25,7 +25,7 @@
 - 頭身：英雄約 40% 頭、60% 身（Q 版三頭身內），臉部至少 2 階明暗＋1 px 眼位；武器/職業符號必須出現在輪廓層（不只在配色層）。
 - 輪廓密度：實心像素佔畫布 ≥55%（避免「薄」——hunter/shadow/g_revenant 病因）；禁止單像素寬的肢體超過 2 節。
 - 明暗：每 sprite 3–4 階＋`rimLight`（光源統一**左上**）＋`shadeBottom`；地面接觸點必有 `softShadow` 或引擎 drawShadow。
-- reaper 重製至 Mini-boss 級：提高明度對比（現況過暗融背景）、鐮刀輪廓進 silhouette。
+- reaper 重製至 **Final-boss 級畫布**（2026-08-27 架構師修正：其戲劇地位為終 Boss 後的招牌敵人，且程式中 mini-boss 池實際使用 38×40 畫布；28-32 檔不存在）：提高明度對比、鐮刀輪廓進 silhouette；def.scale 不動。
 - boss_pillar：道具級重畫（16×20，發光魂晶紋理＋裂損 3 階段），不升級距。
 
 ## 2. 戰鬥繪製分層與亮度預算（ART-02）

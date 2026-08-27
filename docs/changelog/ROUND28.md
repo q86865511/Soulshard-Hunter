@@ -113,3 +113,49 @@
   slice 6 角色原稿已生成(`docs/reviews/art-improve-2026-08/portraits-raw/`),整合批待 W2-E。
 - beam 不擴欄位(co-op bm 快照通道),所有權以顏色家族簽名——架構師修正審核建議。
 - 敵人視覺量體不動 def.scale(連動碰撞),以 sprite 畫布填充率解決(W3)。
+
+## W2-D 三生態身份 slice(ART-04+11;crypt/celestial/desert)
+
+- 地板 variant 由 per-tile 均勻 rng 改 value-noise 群聚(2-5 tile 連續片+留白區),v1 對比度
+  同步提升(與群聚耦合,單做一半會退回胡椒鹽雜訊);decal 70% 預算群聚化,總量守 BALANCE.DECOR。
+- run biome 首次牆 variant:每生態 wallv1/wallv2/wallbk+深層岩心,走既有 wallBands hash 路徑。
+- 每生態 2 大型地標(crypt 塌陷靈廟+魂晶碑/celestial 斷裂天梯+聖環殘骸/desert 半埋巨像+龍骨)
+  +1 環境動態(魂焰/光塵/沙塵捲);地標不帶 solid(protocol serializeMap 不傳 solid,guest 會
+  回彈)改以 7×5 開放空地保證走位;`lmk_` 前綴加寬剔除框。
+- 邊界語法:`ts.oobBand`+地圖外圈牆環改地平線 sprite(霧鎖墓野/雲海/沙丘熱霾)。
+- 順手修掉 celestial 三處既有固定紋違規(V 形地磚紋/Λ 牆紋/中央星格陣)與 desert 綠洲水面
+  v2 的固定圖騰壁紙(棋盤格+定位藍點→分層 speckle,保留水色機能)。
+- 其餘 7 生態逐位元不變證明:固定種子生成雜湊 before/after 相同(cavern/frost/inferno/void/
+  verdant/swamp/abyss);渲染新分支全部 gate 在新資料存在與否。
+- 驗證:smoke 59/59;截圖 docs/reviews/art-improve-2026-08/w2d-after/(開場/壓力/邊界/灰階/
+  sprite 對照表/控制組)。
+
+## W2-E 角色商品層 slice(ART-01+05)
+
+- **sprite 重建**(heroes.js 4 archetype+gen_heroes3 h3_plague):hunter/shadow/g_revenant/
+  h2_voidcaller/h3_plague 依 ART_SPEC 尺度階梯重建——填充率全數 ≥76%、頭身/眼位/武器入
+  輪廓/3-4 階明暗逐項自檢通過;關鍵發現:病因除填充率外是值階分離(collar 分離線/臉腔 2 階/
+  武器暗隙)。
+- **reaper**:38×40 Final-boss 級重繪(架構師裁決:戲劇地位+程式無 28-32 檔;def.scale 2.2
+  不動,場上 ≈84×88px)。並修掉兩個既有 bug:glow/aura/star4 被餵 rgba 字串→NaN fillStyle
+  →墨色圓盤蓋頭;lighten/darken 傳 22/26/30(應為 0-1)→亮階夾白暗階夾黑——此二者才是
+  「reaper 過暗」主因。**美術慣例新增:不要把 rgba 字串餵給 glow/aura/star4/softShadow。**
+- **boss_pillar**:16×20 重繪(魂晶脈絡+裂損+符文環,靜態階段2,未動邏輯)。
+- **肖像層**(ART-05):方向 A 厚塗 6 張(hunter/pyro/guardian/ranger/stormcaller/shadow)
+  後製 128×128(LANCZOS+80 色 MEDIANCUT+FS 抖動,每張 ~10-11KB)進 assets/portraits/;
+  新增 src/game/ui/portraits.js 惰性載入(失敗 fallback 原 sprite);出擊角色卡接入
+  (render_personal.js drawSortie);sw.js 動態 cache-first 自動涵蓋、未改;零第三方請求不變。
+- 驗證:smoke 59/59(含刪檔 fallback 測試);三張 sheet 零缺圖;sortie 截圖
+  docs/reviews/art-improve-2026-08/w2e-portraits-after/、w2e-sprites-after/。
+
+## W2 結構性遺留(W3+ 決策清單)
+
+1. v2 特徵地磚單張必然成規則格——需 floorVar 多變體或特徵全交 decal 通道(全 10 生態通用問題)。
+2. 其餘 7 生態的固定紋母題(frost 裂紋線/desert v0 風紋/abyss 焦散)未處理(本輪只准動三生態)。
+3. 城鎮 ts.wallFace/wallCap 是死碼(_buildWallDepth 以 FLOOR 為種子,貼地牆深度為 1)——
+   修深度起算或移除路徑,影響城鎮外觀,待裁決。
+4. 大型地標 decor 不參與 actor y-sort,角色可走到地標「後方」仍被蓋——正解需把大型 decor
+   併入 y-sort,渲染層改動待排。
+5. equip_leather_armor 16px 讀形不穩(W2-F 遺留),W3 圖示批量時重審。
+6. 手改 gen 檔清單新增:gen_weapons_b.js(beam 色族)、gen_heroes3.js(h3_plague 重繪)、
+   art_decals_{crypt,celestial,desert}.js(地標/動態/註冊)——re-integration 前必須重套。
