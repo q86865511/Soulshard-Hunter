@@ -66,15 +66,28 @@ defineSprite('fx_blade', 8, 10, (p) => {
 // Each icon commits to a top-left light, a glowing focal point and a neon/energy
 // accent for "anime weapon UI" pop. Icon panel + final ink outline come from the
 // shared defineIcon wrapper.
+//
+// R28 (ART-06): the kira glint is no longer automatic — it marks 稀有以上 only,
+// so it is passed here per weapon from the tier in content/weapons.js
+// (w_soulbolt / w_fan are tier 1 = 普通 and deliberately have none).
+
+// A diamond bolt head — the weapon dialect's "射出" shape, lit from the top-left.
+function boltHead(p, cx, cy, r, col) {
+  const dk = darken(col, 0.42), lt = lighten(col, 0.45);
+  const dia = (x, y, rr, c) => { for (let d = -rr; d <= rr; d++) { const w = rr - Math.abs(d); p.hline(x - w, x + w, y + d, c); } };
+  dia(cx, cy, r, col);
+  if (r >= 2) { dia(cx + 1, cy + 1, r - 2, dk); dia(cx - 1, cy - 1, r - 2, lt); }
+  p.px(cx - 1, cy - 1, P.white);
+}
+
+// BASE 魂晶彈 — one bolt, one trail, no ring. Reads as a single shot.
 defineIcon('weapon_w_soulbolt', P.shardD, (p) => {
-  p.glow(8, 8, 4.5, P.shard, 0.4, 3);
-  sym.shardSym(p, P.shard);
-  // energy bolt trail streaking off the shard
-  p.line(2, 13, 13, 9, P.shardL);
-  p.line(3, 12, 12, 9, withAlpha(P.shardL, 0.6));
-  p.px(13, 9, P.white);
-  p.star4(8, 6, 2, P.shardL, P.white);
-  p.sparkle(3, 12, P.shardL, 1);
+  p.glow(10, 5, 2.6, P.shard, 0.18, 3);
+  // 分離的速度虛線（不接觸彈體，動勢才讀得出來，不會併成一塊大結晶）
+  p.line(7, 9, 8, 8, P.shardL); p.line(6, 10, 7, 9, darken(P.shard, 0.2));
+  p.line(4, 12, 5, 11, P.shard); p.line(3, 13, 4, 12, darken(P.shard, 0.3));
+  boltHead(p, 10, 5, 2, P.shard);
+  p.line(12, 2, 13, 1, P.shardL);                   // 破空短線
 });
 
 defineIcon('weapon_w_fan', '#5a3a1a', (p) => {
@@ -87,7 +100,7 @@ defineIcon('weapon_w_fan', '#5a3a1a', (p) => {
     p.px(x + 1, 3 - i, P.holyL);
     p.px(x + 1, 4 - i, P.emberL);
   }
-  p.star4(11, 2, 2, P.emberL, P.white);
+  p.sparkle(11, 3, P.emberL, 1);
 });
 
 defineIcon('weapon_w_orbit', P.shardD, (p) => {
@@ -100,20 +113,22 @@ defineIcon('weapon_w_orbit', P.shardD, (p) => {
   p.glow(13, 9, 1.6, P.shard, 0.6, 2); p.ellipse(13, 9, 1.4, 2, P.shardL);
   p.glow(4, 10, 1.6, P.shard, 0.6, 2); p.ellipse(4, 10, 1.4, 2, P.shardL);
   p.sparkle(8, 8, P.shardL, 1);
-});
+}, { kira: true });
 
+// BASE 灼蝕光環 — ONE broken sweep arc (open toward the lower-left) around a
+// single ember core. The old version was concentric rings, i.e. the same
+// composition as w_inferno with a different hue — the ART-06 complaint itself.
 defineIcon('weapon_w_aura', '#5a2a1a', (p) => {
-  p.glow(8, 8, 6.5, P.ember, 0.32, 4);
-  // concentric pulsing aura rings (cool warm trim using withWarm hook)
-  p.ring(8, 8, 5.5, withWarm(P.ember, 0.0));
-  p.ring(8, 8, 5.5, P.ember);
-  p.ring(8, 8, 4.5, withAlpha(P.holy, 0.7));
-  p.ring(8, 8, 3.5, P.emberL);
-  // blazing core
-  p.glow(8, 8, 2, P.holyL, 0.7, 3);
-  p.ellipse(8, 8, 1.6, 1.6, P.white);
-  p.star4(8, 8, 3, P.emberL, P.white);
-});
+  p.glow(8, 8, 5.5, withWarm(P.ember, 0), 0.3, 4);
+  for (let a = -150; a <= 60; a += 6) {
+    const t = a * Math.PI / 180;
+    p.px(Math.round(8 + Math.cos(t) * 5.2), Math.round(8 + Math.sin(t) * 5.2), a < -100 ? withAlpha(P.ember, 0.5) : P.emberL);
+    p.px(Math.round(8 + Math.cos(t) * 4.3), Math.round(8 + Math.sin(t) * 4.3), withAlpha(P.ember, 0.75));
+  }
+  p.ellipse(8, 8, 2.2, 2.2, P.ember);
+  p.ellipse(7.5, 7.5, 1.3, 1.3, P.holyL);
+  p.px(7, 7, P.white);
+}, { kira: true });
 
 defineIcon('weapon_w_whip', P.shardD, (p) => {
   p.glow(13, 3, 3, P.shardL, 0.4, 3);
@@ -126,7 +141,7 @@ defineIcon('weapon_w_whip', P.shardD, (p) => {
   p.line(7, 10, 10, 5, withAlpha(P.shard, 0.5));
   p.px(13, 2, P.white);
   p.star4(13, 3, 2, P.shardL, P.white);
-});
+}, { kira: true });
 
 defineIcon('weapon_w_nova', P.purpleD, (p) => {
   p.glow(8, 8, 6, P.mana, 0.4, 4);
@@ -136,7 +151,7 @@ defineIcon('weapon_w_nova', P.purpleD, (p) => {
   sym.star(p, P.white);
   p.glow(8, 8, 2, P.astralL, 0.6, 2);
   p.star4(8, 8, 4, P.manaL, P.white);
-});
+}, { kira: true });
 
 defineIcon('weapon_w_homing', P.purpleD, (p) => {
   p.glow(11, 5, 3.5, P.mana, 0.4, 3);
@@ -149,7 +164,7 @@ defineIcon('weapon_w_homing', P.purpleD, (p) => {
   p.px(12, 4, P.white);
   p.px(3, 12, P.white);
   p.sparkle(11, 5, P.astralL, 1);
-});
+}, { kira: true });
 
 defineIcon('weapon_w_lightning', '#5a4a1a', (p) => {
   p.glow(8, 8, 5.5, P.holy, 0.3, 3);
@@ -158,34 +173,43 @@ defineIcon('weapon_w_lightning', '#5a4a1a', (p) => {
   sym.bolt(p, P.emberL);
   p.px(8, 8, P.white);
   p.star4(9, 4, 2, P.holyL, P.white);
-});
+}, { kira: true });
 
+// EVO of w_soulbolt — the base bolt PLUS a second layer of shape (a containment
+// 光環 + two 裂變 sub-bolts), not just a recolour, per ART_SPEC 第 5 節.
 defineIcon('weapon_w_soulstorm', P.shardD, (p) => {
-  p.glow(8, 8, 6.5, P.shard, 0.35, 4);
-  // swirling storm spokes, alternating light/dark for energy crackle
-  for (let i = 0; i < 8; i++) {
-    const a = i / 8 * Math.PI * 2;
-    p.line(8, 8, 8 + Math.cos(a) * 6, 8 + Math.sin(a) * 6, i % 2 ? P.shard : P.shardL);
-  }
-  // bright tips on a couple of spokes for sparkle
-  p.px(Math.round(8 + Math.cos(0) * 6), 8, P.white);
-  p.px(8, Math.round(8 + Math.sin(Math.PI / 2) * 6), P.white);
-  p.glow(8, 8, 2.5, P.shardL, 0.6, 2);
-  p.ellipse(8, 8, 2, 2, P.white);
-  p.star4(8, 8, 3, P.shardL, P.white);
-});
+  p.glow(8, 8, 2.6, P.shard, 0.18, 3);
+  p.ring(8, 8, 5.2, P.shardL);                      // 第二層：環繞光環
+  p.ring(8, 8, 4.4, darken(P.shard, 0.4));
+  boltHead(p, 8, 8, 2, P.shardL);                   // 主彈（與 base 同語彙）
+  // 第二層：四枚裂變副彈環繞主彈
+  boltHead(p, 8, 2, 1, P.shard); boltHead(p, 8, 14, 1, P.shard);
+  boltHead(p, 2, 8, 1, P.shard); boltHead(p, 14, 8, 1, P.shard);
+}, { kira: true });
 
+// EVO of w_aura — keeps the sweep arc, then adds the second layer: six outward
+// flame 角 breaking the silhouette, and a 裂變 three-lobed core.
 defineIcon('weapon_w_inferno', '#5a1a1a', (p) => {
-  p.glow(8, 8, 7, P.red, 0.35, 4);
-  // layered fire rings cooling outward, blistering core
-  p.ring(8, 8, 6, P.red);
-  p.ring(8, 8, 6, withAlpha(P.laser, 0.5));
-  p.ring(8, 8, 4.5, P.ember);
-  p.ring(8, 8, 3, P.emberL);
-  p.glow(8, 8, 2, P.holyL, 0.7, 3);
-  p.ellipse(8, 8, 1.6, 1.6, P.white);
-  p.star4(8, 8, 4, P.emberL, P.white);
-});
+  p.glow(8, 8, 6.5, P.red, 0.34, 4);
+  // 第二層：向外爆出的火焰角（進 silhouette，32x32 下一眼與 base 分開）
+  for (let i = 0; i < 6; i++) {
+    const t = (-150 + i * 40) * Math.PI / 180;
+    p.line(8 + Math.cos(t) * 4, 8 + Math.sin(t) * 4, 8 + Math.cos(t) * 5.8, 8 + Math.sin(t) * 5.8, i % 2 ? P.ember : P.emberL);
+    p.px(Math.round(8 + Math.cos(t) * 5.8), Math.round(8 + Math.sin(t) * 5.8), P.holyL);
+  }
+  // 掃擊弧（與 base 同語彙，但雙層且更熱）
+  for (let a = -150; a <= 60; a += 6) {
+    const t = a * Math.PI / 180;
+    p.px(Math.round(8 + Math.cos(t) * 4.4), Math.round(8 + Math.sin(t) * 4.4), P.laser);
+    p.px(Math.round(8 + Math.cos(t) * 3.5), Math.round(8 + Math.sin(t) * 3.5), withAlpha(P.emberL, 0.8));
+  }
+  // 裂變核心：三瓣而非單一圓核
+  for (let i = 0; i < 3; i++) {
+    const t = (-90 + i * 120) * Math.PI / 180;
+    p.ellipse(8 + Math.cos(t) * 1.3, 8 + Math.sin(t) * 1.3, 1.2, 1.2, P.holyL);
+  }
+  p.ellipse(8, 8, 1.1, 1.1, P.white);
+}, { kira: true });
 
 // Optional warm-trim hook for aura rings; identity by default (kept from the
 // original so weapon_w_aura's call shape is unchanged). Accepts an optional

@@ -2,64 +2,235 @@
 // Convention: ability icons are named `ability_<id>`, items `item_<id>`,
 // equipment `equip_<id>`. Workflow content follows the same naming.
 //
-// ENHANCED EDITION (art_v2): drop-in replacement.
-//   • panel()  — rounded bevel, top sheen, inner vignette, corner studs.
-//   • sym.*    — same call signatures, but crisper, 3-4 tonal steps, soft glow
-//                cores and a tiny specular glint each.
-//   • defineIcon() — adds a subtle rim-light pass + one "kira" glint per icon
-//                so every ability reads with anime pop while staying 16x16.
+// R28 (ART-06) — icon CATEGORY GRAMMAR:
+//   • panel()  — six category frame shapes (see the grammar block below); the
+//                bevel/vignette/sheen are derived from the shape, not hard-coded.
+//   • sym.*    — same call signatures, crisper 3-4 tonal steps + specular glint.
+//   • defineIcon() — infers the category from the name prefix, clips the glyph to
+//                the frame, rim-lights it, and draws the "kira" glint ONLY when
+//                the call site opts in (rare+ per ART_SPEC; it used to be on
+//                every icon, which is why they all looked alike).
 // All exported symbols, names, sizes, anchors and import paths are unchanged.
 import { defineSprite } from '../engine/sprites.js';
 import { P, darken, lighten, mix, withAlpha } from '../engine/palette.js';
 
-// ── panel: framed plaque the symbol sits on ────────────────────────────────
-// Signature kept exactly: panel(p, bg). Now with a rounded bevel, a glossy top
-// sheen, an inner vignette to push the symbol forward, and tiny corner studs.
-export function panel(p, bg) {
-  const edge = darken(bg, 0.42);
-  const edgeHi = mix(bg, P.ink, 0.5);
-  const topHi = lighten(bg, 0.26);
-  const botSh = darken(bg, 0.22);
+// ═══════════════════════════════════════════════════════════════════════════
+//  ICON CATEGORY GRAMMAR  (ART_SPEC 第 5 節 / ART-06)
+// ═══════════════════════════════════════════════════════════════════════════
+// Before R28 every one of the ~216 icons wore the SAME dark rounded plaque, so
+// 武器/被動/道具/裝備/天賦/設施 were indistinguishable by shape — the frame
+// carried zero information. Now each category owns a FRAME CORNER SYNTAX:
+//
+//   武器 weapon    左上/右下斜切     — a blade-cut parallelogram
+//   被動 passive   圓角徽章          — a round medal
+//   道具 item      直角＋底座線      — a square case on a wide plinth
+//   裝備 equip     方肩框            — pauldrons over a tapered cuirass
+//   天賦 talent    上尖飾            — a crest spire over the plaque
+//   設施 facility  底寬梯形飾        — a building that widens into its footing
+//
+// The shape is authored ONCE as a per-row span table; the bevel/vignette/sheen
+// are then derived by eroding that mask, so every category gets identical
+// lighting on a different silhouette (and reads in greyscale, per spec).
+//
+// BACKWARDS COMPATIBLE: callers keep passing (name, bg, draw) — the category is
+// inferred from the icon-name prefix. Anything that is not one of the six
+// (patron_, boss icons, fx, …) keeps the legacy plaque silhouette byte-for-byte
+// in outline terms, so no unrelated art shifts.
 
-  // dark rounded outer frame (corners clipped for a soft plaque shape)
-  p.rect(2, 1, 12, 14, edge);
-  p.rect(1, 2, 14, 12, edge);
-  p.px(2, 2, P.ink); p.px(13, 2, P.ink); p.px(2, 13, P.ink); p.px(13, 13, P.ink);
-
-  // body as a soft vertical gradient (lit top -> shaded bottom)
-  p.gradV(2, 2, 12, 12, lighten(bg, 0.08), botSh);
-  p.rect(2, 2, 1, 1, edgeHi); p.rect(13, 2, 1, 1, edgeHi); // re-soften corners
-  p.rect(2, 13, 1, 1, edgeHi); p.rect(13, 13, 1, 1, edgeHi);
-
-  // inner vignette — darker rim, brighter centre, so the symbol pops
-  p.rectLine(3, 3, 10, 10, darken(bg, 0.12));
-  p.rect(5, 5, 6, 6, lighten(bg, 0.05));
-
-  // glossy top sheen (a couple of bright rows fading down) + a diagonal glint
-  p.rect(3, 2, 10, 1, topHi);
-  p.rect(3, 3, 9, 1, mix(topHi, bg, 0.5));
-  p.px(4, 2, P.white); p.px(5, 2, lighten(bg, 0.4));
-
-  // grounded bottom shade
-  p.rect(3, 12, 10, 1, botSh);
-  p.rect(3, 13, 9, 1, darken(bg, 0.34));
-
-  // little corner rivets/studs for a crafted look
-  p.px(3, 3, lighten(bg, 0.3)); p.px(12, 3, lighten(bg, 0.3));
-  p.px(3, 12, darken(bg, 0.3)); p.px(12, 12, darken(bg, 0.3));
+const CAT_PREFIX = [
+  ['weapon_', 'weapon'], ['ability_', 'passive'], ['item_', 'item'],
+  ['equip_', 'equip'], ['talent_', 'talent'], ['facility_', 'facility'],
+];
+// The icon-name prefix IS the category signal (see registry.js naming contract).
+export function catFromName(name) {
+  for (let i = 0; i < CAT_PREFIX.length; i++) if (name.indexOf(CAT_PREFIX[i][0]) === 0) return CAT_PREFIX[i][1];
+  return 'neutral';
 }
 
-// defineIcon(name, bg, draw) — signature kept exactly (16x16, anchor [8,8]).
-// Adds a gentle rim-light on the symbol edges and a single kira glint so the
-// art feels lit and "anime" without changing any contract.
-export function defineIcon(name, bg, draw) {
+// Per-row spans of the frame silhouette. rows[y] = [[x0,x1], …] (inclusive).
+function spansFor(cat) {
+  const rows = [];
+  const add = (y, x0, x1) => { (rows[y] || (rows[y] = [])).push([x0, x1]); };
+  const band = (y0, y1, x0, x1) => { for (let y = y0; y <= y1; y++) add(y, x0, x1); };
+  switch (cat) {
+    case 'weapon': // 左上/右下斜切
+      add(1, 5, 14); add(2, 4, 14); add(3, 3, 14); add(4, 2, 14);
+      band(5, 10, 1, 14);
+      add(11, 1, 13); add(12, 1, 12); add(13, 1, 11); add(14, 1, 10);
+      break;
+    case 'passive': // 圓角徽章
+      add(1, 5, 10); add(2, 3, 12); add(3, 2, 13); add(4, 1, 14); add(5, 1, 14);
+      band(6, 9, 0, 15);
+      add(10, 1, 14); add(11, 1, 14); add(12, 2, 13); add(13, 3, 12); add(14, 5, 10);
+      break;
+    case 'item': // 直角＋底座線
+      band(1, 11, 2, 13);
+      add(12, 1, 14); add(13, 0, 15); add(14, 0, 15);
+      break;
+    case 'equip': // 方肩框
+      add(0, 1, 4); add(0, 11, 14);
+      band(1, 12, 1, 14);
+      add(13, 2, 13); add(14, 4, 11);
+      break;
+    case 'talent': // 上尖飾
+      add(0, 7, 8); add(1, 6, 9); add(2, 5, 10);
+      band(3, 13, 1, 14); add(14, 2, 13);
+      break;
+    case 'facility': // 底寬梯形飾
+      for (let y = 1; y <= 12; y++) { const x0 = Math.round(5 - (y - 1) * (4 / 11)); add(y, x0, 15 - x0); }
+      add(13, 0, 15); add(14, 0, 15);
+      break;
+    default: // legacy plaque
+      add(1, 2, 13); band(2, 13, 1, 14); add(14, 2, 13);
+  }
+  return rows;
+}
+
+function maskOf(rows) {
+  const m = new Uint8Array(256);
+  for (let y = 0; y < 16; y++) {
+    const rs = rows[y]; if (!rs) continue;
+    for (let i = 0; i < rs.length; i++) {
+      for (let x = Math.max(0, rs[i][0]); x <= Math.min(15, rs[i][1]); x++) m[y * 16 + x] = 1;
+    }
+  }
+  return m;
+}
+// 4-neighbour erosion; off-canvas counts as empty so edge rows keep a rim.
+function erode(m) {
+  const o = new Uint8Array(256);
+  const at = (x, y) => (x < 0 || y < 0 || x > 15 || y > 15) ? 0 : m[y * 16 + x];
+  for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
+    if (m[y * 16 + x] && at(x - 1, y) && at(x + 1, y) && at(x, y - 1) && at(x, y + 1)) o[y * 16 + x] = 1;
+  }
+  return o;
+}
+
+// Where the rare+ kira glint sits — a point comfortably inside each silhouette.
+const KIRA_AT = {
+  weapon: [6, 4], passive: [4, 5], item: [5, 4],
+  equip: [4, 4], talent: [4, 6], facility: [6, 7], neutral: [4, 4],
+};
+
+const FRAMES = {};
+function frameOf(cat) {
+  let F = FRAMES[cat];
+  if (!F) {
+    const m0 = maskOf(spansFor(cat)), m1 = erode(m0), m2 = erode(m1);
+    F = FRAMES[cat] = { cat, m0, m1, m2, m3: erode(m2), kira: KIRA_AT[cat] || KIRA_AT.neutral };
+  }
+  return F;
+}
+
+// Erase anything the draw body pushed outside the frame — this is what keeps the
+// category silhouette readable no matter what a 234-call-site glyph does.
+function clipTo(p, m) {
+  const img = p.ctx.getImageData(0, 0, 16, 16);
+  const a = img.data;
+  for (let i = 0; i < 256; i++) if (!m[i]) a[i * 4 + 3] = 0;
+  p.ctx.putImageData(img, 0, 0);
+}
+
+// Bevel + vignette + shape-following sheen, derived from the eroded masks.
+function paintPanel(p, bg, F) {
+  // R28 value pass: the plate is pushed a full step DOWN from the caller's bg.
+  // Several bg keys (P.shardD #1f9a92, P.greenD, P.steelD…) are mid-value, and
+  // the old plate lightened them further — a shard-family glyph on a shard-family
+  // plate had nowhere left to go, which is half of why icons read as flat discs.
+  // Hue identity is preserved; only the value drops, so every glyph gains headroom.
+  const base = darken(bg, 0.34);
+  const edge = darken(base, 0.45);
+  const rim = darken(base, 0.18);
+  const topHi = lighten(base, 0.22);
+  const botSh = darken(base, 0.26);
+  const bodyTop = lighten(base, 0.12), bodyBot = darken(base, 0.18);
+  const core = lighten(base, 0.2);
+  const { m0, m1, m2, m3 } = F;
+  for (let y = 0; y < 16; y++) {
+    const body = mix(bodyTop, bodyBot, y / 15);
+    for (let x = 0; x < 16; x++) {
+      const i = y * 16 + x;
+      if (!m0[i]) continue;
+      if (!m1[i]) { p.px(x, y, edge); continue; }        // outer ink-dark frame
+      if (!m2[i]) { p.px(x, y, rim); continue; }         // inner vignette ring
+      p.px(x, y, m3[i] ? mix(body, core, 0.45) : body);  // lit body / brighter core
+    }
+  }
+  // Sheen follows the SHAPE (per column), so a chamfer/dome/pediment all light
+  // correctly from the top-left without any per-category lighting code.
+  for (let x = 0; x < 16; x++) {
+    let top = -1, bot = -1;
+    for (let y = 0; y < 16; y++) if (m2[y * 16 + x]) { if (top < 0) top = y; bot = y; }
+    if (top < 0) continue;
+    p.px(x, top, topHi);
+    if (top + 1 <= bot) p.px(x, top + 1, mix(topHi, base, 0.55));
+    p.px(x, bot, botSh);
+    if (bot - 1 > top + 1) p.px(x, bot - 1, mix(botSh, base, 0.5));
+  }
+}
+
+// One crafted detail per category — all coordinates verified inside the mask.
+function frameAccent(p, bg, cat) {
+  const base = darken(bg, 0.34);
+  const hi = lighten(base, 0.5), dk = darken(base, 0.45);
+  switch (cat) {
+    case 'weapon': // honed bevel down the top-left cut, shadow on the bottom-right cut
+      p.line(5, 2, 2, 5, hi); p.px(4, 3, P.rim);
+      p.line(13, 11, 10, 14, dk);
+      break;
+    case 'passive': // medal beading
+      p.px(3, 3, hi); p.px(12, 3, hi); p.px(3, 12, dk); p.px(12, 12, dk);
+      break;
+    case 'item': // the 底座線 that names the category
+      p.hline(2, 13, 12, dk); p.hline(1, 14, 13, lighten(base, 0.22));
+      break;
+    case 'equip': // pauldron rivets
+      p.px(2, 1, hi); p.px(13, 1, hi); p.px(3, 2, dk); p.px(12, 2, dk);
+      break;
+    case 'talent': // lit crest tip
+      p.px(7, 0, P.rim); p.px(8, 0, hi); p.px(7, 1, hi);
+      break;
+    case 'facility': // footing shadow under the flange
+      p.hline(1, 14, 12, dk); p.hline(0, 15, 14, dk);
+      break;
+    default:
+      p.px(3, 3, hi); p.px(12, 3, hi); p.px(3, 12, dk); p.px(12, 12, dk);
+  }
+}
+
+// ── panel: framed plaque the symbol sits on ────────────────────────────────
+// panel(p, bg) keeps working (legacy plaque); panel(p, bg, cat) opts into one of
+// the six category frames.
+export function panel(p, bg, cat) {
+  const key = cat || 'neutral';
+  paintPanel(p, bg, frameOf(key));
+  frameAccent(p, bg, key);
+}
+
+// defineIcon(name, bg, draw, opts?) — 16x16, anchor [8,8]. opts:
+//   cat  — override the prefix-inferred category ('weapon'|'passive'|'item'|
+//          'equip'|'talent'|'facility'|'neutral').
+//   kira — draw the top-left kira glint. Per ART_SPEC 第 5 節 the glint marks
+//          **rare and above ONLY**; common icons must not have it (every icon
+//          wearing one was a main cause of the same-ness complaint). Rarity is
+//          NOT knowable here — rarityOf() (game/progression.js) needs the content
+//          def, and sprites bake eagerly at art-module import time, before the
+//          registries exist. So it is a call-site opt-in: content authors who
+//          know the def's tier pass { kira: true } for tier >= 2 / evolved /
+//          exclusive. Default false.
+export function defineIcon(name, bg, draw, opts) {
+  const o = opts || {};
+  const cat = o.cat || catFromName(name);
+  const F = frameOf(cat);
+  const kira = !!o.kira;
   defineSprite(name, 16, 16, (p) => {
-    panel(p, bg);
+    paintPanel(p, bg, F);
+    frameAccent(p, bg, cat);
     draw(p);
+    clipTo(p, F.m0);
     p.rimLight(P.rim, 0.4, -1, -1);
+    if (kira) { p.star4(F.kira[0], F.kira[1], 2, withAlpha(P.glint, 0.9), P.white); clipTo(p, F.m0); }
     p.outline(P.ink);
-    // top-left kira glint sits over the finished icon as a final flourish
-    p.star4(4, 4, 2, withAlpha(P.glint, 0.9), P.white);
   }, { anchor: [8, 8] });
 }
 
@@ -175,8 +346,43 @@ export const sym = {
 };
 
 // ---- core ability icons ----------------------------------------------------
-defineIcon('ability_power', P.blood, (p) => sym.sword(p));
-defineIcon('ability_haste', '#5a4a1a', (p) => sym.bolt(p, P.emberL));
+// R28 (ART-06): passives speak the 中心對稱符號/身體部位 dialect. 力量 used to
+// borrow sym.sword() — a WEAPON silhouette — which is exactly what made passives
+// unreadable next to weapons; it is now a mirror-symmetric gauntleted fist.
+defineIcon('ability_power', P.blood, (p) => {
+  p.glow(8, 8, 4.5, P.red, 0.18, 4);
+  // 16px 下「少即是多」：兩個大指節凸起，內部只留一條拇指橫壓
+  p.rect(4, 3, 3, 2, P.steelL); p.rect(9, 3, 3, 2, P.steelL);
+  p.rect(7, 4, 2, 1, P.iron);
+  for (let y = 4; y <= 10; y++) {
+    const w = y <= 5 ? 4 : (y <= 8 ? 5 : 4);
+    p.hline(8 - w, 7 + w, y, y <= 5 ? P.steel : (y <= 8 ? mix(P.steel, P.iron, 0.35) : P.steelD));
+  }
+  p.hline(4, 11, 4, P.steelL);                                 // 受光上緣
+  p.rect(4, 7, 8, 2, P.iron); p.hline(4, 11, 7, P.steelL);     // 拇指橫壓
+  // 護腕：金色，與紅底拉開明度，也把拳體「切」出來
+  p.rect(5, 11, 6, 3, P.goldD); p.rect(5, 11, 6, 1, P.goldL);
+  p.hline(6, 9, 13, darken(P.goldD, 0.4));
+  p.px(4, 5, P.rim);
+});
+// 急速：一對疾風之翼（冷色）夾住中央閃電（暖色）——左右鏡射，與武器的單向動勢區隔。
+defineIcon('ability_haste', '#5a4a1a', (p) => {
+  p.glow(8, 8, 4, P.emberL, 0.18, 3);
+  for (const s of [-1, 1]) {
+    for (let i = 0; i < 3; i++) {
+      const tip = 8 + s * (6 - i);
+      p.hline(8 + s * 2, tip, 5 + i * 2, i === 0 ? P.bone : (i === 1 ? darken(P.bone, 0.22) : darken(P.bone, 0.42)));
+      p.px(tip, 5 + i * 2, P.rimCool);                          // 羽尖
+    }
+  }
+  // 中央閃電：先描一圈暗影再上亮色，才不會和羽片黏成一塊
+  p.line(10, 3, 6, 9, P.ink2); p.line(7, 3, 4, 9, P.ink2);
+  p.line(11, 8, 7, 14, P.ink2); p.line(8, 8, 5, 14, P.ink2);
+  p.line(9, 3, 6, 8, P.ember); p.line(8, 3, 5, 8, darken(P.ember, 0.25));
+  p.hline(5, 10, 8, P.emberL);
+  p.line(10, 8, 7, 13, P.emberL); p.line(9, 8, 6, 13, P.ember);
+  p.px(8, 8, P.white); p.px(7, 5, P.holyL);
+});
 defineIcon('ability_swift', P.blueD, (p) => {
   p.glow(8, 8, 5, P.ice, 0.2, 3);
   p.hline(3, 9, 5, P.ice); p.hline(3, 8, 6, P.iceD);
@@ -184,7 +390,16 @@ defineIcon('ability_swift', P.blueD, (p) => {
   p.hline(3, 8, 11, P.ice); p.hline(3, 7, 12, P.iceD);
   p.px(9, 5, P.white); p.sparkle(11, 11, P.hiSky, 1);
 });
-defineIcon('ability_vitality', P.blood, (p) => sym.heart(p, P.red));
+// 活力：心臟（身體部位）＋左右對稱的護肋，讓輪廓比純心形寬、在 16px 可讀。
+defineIcon('ability_vitality', P.blood, (p) => {
+  p.glow(8, 7, 3.2, P.red, 0.14, 3);
+  sym.heart(p, P.redL);
+  // 心跳線橫貫心臟中央——對稱、與心形一起把「生命」講清楚
+  p.hline(3, 5, 8, P.white);
+  p.line(5, 8, 6, 6, P.white); p.line(6, 6, 7, 10, P.white);
+  p.line(7, 10, 8, 7, P.white); p.line(8, 7, 9, 8, P.white);
+  p.hline(9, 12, 8, P.white);
+});
 defineIcon('ability_crit', '#5a4a1a', (p) => { sym.ring(p, P.goldL, 4); sym.cross(p, P.gold); p.px(8, 8, P.white); });
 defineIcon('ability_multishot', P.greenD, (p) => {
   p.line(4, 12, 12, 4, darken(P.green, 0.3));
@@ -231,7 +446,18 @@ defineIcon('ability_orbit', P.shardD, (p) => {
   p.ellipse(12.5, 8, 1, 1, P.neonL);
 });
 defineIcon('ability_nova', '#5a2a1a', (p) => { p.glow(8, 8, 5, P.ember, 0.26, 3); sym.star(p, P.emberL); p.star4(8, 8, 3, withAlpha(P.holy, 0.7), P.white); });
-defineIcon('ability_thorns', P.greenD, (p) => sym.spikes(p, P.bone));
+// 荊棘：環繞己身的荊棘環（中心對稱）——舊版的單排尖刺讀起來像武器的揮擊排列。
+defineIcon('ability_thorns', P.greenD, (p) => {
+  p.glow(8, 8, 3, P.toxic, 0.14, 3);
+  p.ring(8, 8, 4.6, P.greenD);
+  p.ring(8, 8, 4, P.leafL);
+  for (let i = 0; i < 8; i++) {
+    const t = i * Math.PI / 4;
+    p.line(8 + Math.cos(t) * 4.2, 8 + Math.sin(t) * 4.2, 8 + Math.cos(t) * 6.2, 8 + Math.sin(t) * 6.2, i % 2 ? P.bone : P.leafL);
+    p.px(Math.round(8 + Math.cos(t) * 6.2), Math.round(8 + Math.sin(t) * 6.2), P.white);
+  }
+  p.ellipse(8, 8, 1.8, 1.8, P.leaf); p.px(7, 7, P.toxic);
+});
 defineIcon('ability_dash', P.blueD, (p) => {
   p.glow(8, 8, 4.5, P.ice, 0.2, 3);
   p.hline(2, 9, 8, darken(P.iceD, 0.15)); p.hline(3, 10, 7, P.iceD);
