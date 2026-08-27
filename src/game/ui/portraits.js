@@ -19,6 +19,7 @@ const MANIFEST = new Set([
   'h4_paladin', 'h4_chronomancer', 'h4_puppeteer', 'h4_gravekeeper', 'h4_starcaller',
   'g_revenant', 'h4_bladedancer', 'h2_duelist', 'h2_warlock', 'h2_trapper',
   'h2_voidcaller', 'h2_warder', 'h3_spearmaiden', 'h3_plague', 'h3_beastfang',
+  'h3_dragoon',
 ]);
 
 // Returns the loaded <img> once ready, else null (caller should fall back to sprite art).
