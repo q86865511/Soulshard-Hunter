@@ -12,7 +12,7 @@ import { Weapons, Abilities, Equipment } from './registry.js';
 import { Projectile } from '../projectile.js';
 import { BALANCE } from '../balance.js';
 import { defineIcon } from '../../art/icons.js';
-import { P, withAlpha } from '../../engine/palette.js';
+import { P, withAlpha, darken } from '../../engine/palette.js';
 import { Sfx } from '../../engine/audio.js';
 
 // local damage roll (mirrors weapons.js — kept local to avoid an import cycle)
@@ -28,12 +28,27 @@ defineIcon('weapon_hr_archive_codex', '#1c1430', (p) => {   // open forbidden to
   p.glow(8, 5, 4, P.manaL, 0.3, 3); p.star4(8, 5, 2, P.manaL, P.white); p.px(5, 4, P.magenta); p.px(11, 4, P.magenta);
   p.rimLight(P.rim, 0.4);
 });
-defineIcon('ability_hr_relic_heart', '#3a2a10', (p) => {    // radiant reliquary heart
-  p.ellipse(6, 7, 2.4, 2.4, '#ffe9a0'); p.ellipse(10, 7, 2.4, 2.4, '#ffe9a0');
-  p.rect(4, 7, 9, 3, '#ffe9a0'); p.px(8, 12, '#ffe9a0'); p.hline(6, 10, 11, '#ffe9a0');
-  p.ellipse(8, 8, 1.6, 1.8, P.gold); p.px(8, 8, P.white);
-  p.glow(8, 8, 5, '#ffe9a0', 0.3, 4); p.star4(12, 3, 2, P.goldL, P.white); p.star4(3, 11, 1.5, P.goldL, P.white);
-});
+// R28 W3-B-rework — 聖物之心：一具金色聖物匣（拱頂＋匣身＋立柱底座），中央光窗
+// 透出心形聖光。原本是一顆裸露的金色心臟，與「生命寶石」「吸血鬼牙」「血之契約」
+// 擠在同一個心形輪廓家族（ART_SPEC 第 5 節鐵律：同類別不得同輪廓）；現在的輪廓
+// 是一只有拱頂的方匣，跟任何一顆心都不會混。
+defineIcon('ability_hr_relic_heart', '#3a2a10', (p) => {   // R28 W3-B-rework
+  p.glow(8, 8, 6, '#ffe9a0', 0.26, 4);
+  for (let i = 0; i < 3; i++) {                              // 拱頂
+    const w = 4 - i;
+    p.hline(8 - w, 7 + w, 5 - i, i ? P.gold : P.goldL);
+  }
+  p.rect(3, 6, 11, 7, P.goldD);                              // 匣身
+  p.gradV(3, 6, 11, 7, P.gold, darken(P.goldD, 0.28));
+  p.hline(3, 13, 6, P.goldL); p.vline(6, 12, 3, P.goldL);
+  p.rect(6, 8, 5, 4, '#2a1c06');                             // 光窗
+  p.ellipse(7, 9, 1.1, 1.1, '#ffe9a0'); p.ellipse(9, 9, 1.1, 1.1, '#ffe9a0');
+  p.rect(6, 9, 5, 2, '#ffe9a0'); p.hline(7, 9, 11, '#ffe9a0'); p.px(8, 12, '#ffe9a0');
+  p.px(8, 10, P.white); p.px(7, 9, P.white);
+  p.hline(3, 12, 13, P.goldD);                               // 底座
+  p.vline(7, 12, 4, P.gold); p.vline(7, 12, 12, darken(P.goldD, 0.2));
+  p.star4(4, 4, 2, P.goldL, P.white);
+}, { kira: true });   // tier 3 → kira
 defineIcon('equip_hr_vault_sigil', '#3a2c0a', (p) => {      // coin-sigil over a keyhole
   p.ellipse(8, 8, 5, 5, P.goldD); p.ellipse(8, 8, 4, 4, P.gold); p.ring(8, 8, 5, P.goldL);
   p.ellipse(8, 7, 1.5, 1.5, P.ink2); p.rect(7, 8, 3, 3, P.ink2);

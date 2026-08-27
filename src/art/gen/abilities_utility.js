@@ -15,36 +15,44 @@ import { defineIcon, panel, sym } from '../icons.js';
 import { drawSlime, drawBat, drawWisp, drawBrute, drawHunter } from '../core.js';
 
 // ---- utility / survival ability icons --------------------------------------
+// R28 W3-B-rework — ART_SPEC 第 5 節鐵律：glyph 畫具體物件，同類別不得同輪廓。
+// 這一包裡最容易撞的是「防禦」三兄弟：鋼鐵之肌＝身上的鐵鱗、鐵壁之軀＝磚牆
+// （在 gen_abilities_c.js）、魂晶結界＝六邊形能量泡——三種完全不同的量體。
 
-// DODGE STEP — an after-image side-step: ghost trail boot + a burst "poof" ring
-// and a bright motion cross, all on an aurora-mint glow so it reads as evasion.
-defineIcon('ability_g_dodge_step', P.greenD, (p) => {
+// 閃身步法 — 一枚清楚的腳掌印（五趾＋前掌＋腳跟），身後兩枚遞淡的殘影腳印。
+// 與「疾風之靴」的立體靴、「瞬影」的奔跑人形都是不同輪廓。
+defineIcon('ability_g_dodge_step', P.greenD, (p) => {   // R28 W3-B-rework
   p.glow(8, 9, 5.5, P.aurora, 0.2, 3);
-  // after-image trail discs fading left -> right
-  p.ellipse(4, 9, 1.6, 1.6, withAlpha(P.toxic, 0.35));
-  p.ellipse(6, 9, 1.7, 1.7, withAlpha(P.toxic, 0.55));
-  // puff ring (the spot just vacated)
-  p.ring(8, 9, 4, P.toxic); p.ring(8, 9, 4.4, withAlpha(P.aurora, 0.5));
-  // crossing motion strokes with a lit leading edge
-  p.line(4, 4, 12, 12, darken(P.green, 0.2));
-  p.line(4, 4, 12, 12, P.greenL);
-  p.line(12, 4, 4, 12, darken(P.green, 0.2));
-  p.line(12, 4, 4, 12, P.greenL);
-  p.px(8, 8, P.white);
-  p.sparkle(12, 5, P.auroraL, 1);
+  // 腳印＝腳趾／前掌／腳跟三段，段與段之間留空隙，16px 下才不會糊成一團
+  const foot = (ox, c, lt) => {
+    p.ellipse(7 + ox, 8.6, 2.4, 2.1, c);               // 前掌
+    p.ellipse(7 + ox, 13, 1.7, 1.3, c);                // 腳跟
+    p.px(5 + ox, 5, c); p.px(6 + ox, 4, c); p.px(7 + ox, 4, c);   // 腳趾
+    p.px(8 + ox, 5, c); p.px(9 + ox, 6, c);
+    if (lt) { p.ellipse(6 + ox, 8, 1.2, 1.2, lt); p.px(6 + ox, 4, lt); p.px(6 + ox, 12, lt); }
+  };
+  foot(-5, withAlpha(P.bone, 0.24), null);             // 殘影腳印
+  foot(2, P.ink2, null);                               // 主腳印的暗描邊
+  foot(1, P.bone, P.white);                            // 主腳印（亮，與綠底拉開明度）
+  p.sparkle(12, 4, P.auroraL, 1);
 });
 
-// TREASURE SENSE — a gleaming coin pinging out gold detector rings + kira.
-defineIcon('ability_g_treasure_sense', '#5a4a1a', (p) => {
-  p.glow(8, 8, 6, P.gold, 0.2, 3);
-  // detector "ping" rings radiating from the coin
-  p.ring(8, 8, 6, withAlpha(P.goldL, 0.5));
-  p.ring(8, 8, 5.5, P.goldL);
-  sym.coin(p);
-  // four cardinal sense-pulses
-  p.px(3, 8, P.goldL); p.px(13, 8, P.goldL);
-  p.px(8, 3, P.goldL); p.px(8, 13, P.goldL);
-  p.px(2, 8, withAlpha(P.holyL, 0.7)); p.px(14, 8, withAlpha(P.holyL, 0.7));
+// 尋寶直覺 — 一枚半埋在土堆裡的金幣，向上發出兩道偵測波紋。
+// 刻意做成「下有土堆」的不對稱量體，才不會跟「鷹眼瞄具」的中空靶環撞輪廓。
+defineIcon('ability_g_treasure_sense', '#5a4a1a', (p) => {   // R28 W3-B-rework
+  p.glow(8, 8, 5.5, P.gold, 0.2, 3);
+  for (let a = -Math.PI * 0.86; a < -Math.PI * 0.14; a += 0.06) {   // 上方兩道偵測波紋
+    p.px(Math.round(8 + Math.cos(a) * 6.2), Math.round(8 + Math.sin(a) * 6.2), withAlpha(P.holyL, 0.55));
+    p.px(Math.round(8 + Math.cos(a) * 4.8), Math.round(8 + Math.sin(a) * 4.8), P.goldL);
+  }
+  p.ellipse(8, 12, 5.4, 2.6, darken(P.wood, 0.25));                 // 土堆
+  p.ellipse(8, 11.4, 5, 2, P.wood);
+  p.ellipse(6, 10.8, 2.4, 1, P.woodL);
+  p.px(4, 12, P.barkD); p.px(12, 12, P.barkD); p.px(10, 13, P.woodL);
+  p.ellipse(8, 8, 3.2, 3.2, P.goldD);                               // 半埋的金幣
+  p.ellipse(8, 8, 2.6, 2.6, P.gold);
+  p.ellipse(7.2, 7.2, 1.5, 1.5, P.goldL);
+  p.vline(6, 10, 8, P.goldD); p.px(6, 6, P.white);
   p.star4(12, 4, 2, withAlpha(P.holy, 0.85), P.white);
 });
 
@@ -65,25 +73,26 @@ defineIcon('ability_g_scholar', '#5a4a1a', (p) => {
   p.star4(12, 4, 2, withAlpha(P.shard, 0.85), P.white);
 });
 
-// IRON SKIN — a heavy riveted shield-plate, beveled with a steel sheen and a
-// bright top rim, grounded by a cool steel glow.
-defineIcon('ability_g_iron_skin', P.blueD, (p) => {
-  p.glow(8, 8, 5.5, P.steelL, 0.16, 3);
-  for (let y = 3; y <= 12; y++) {
-    const t = (y - 3) / 9;
-    const w = 4.2 * (1 - t * 0.55) * (y > 9 ? (13 - y) / 3.5 : 1);
-    // 3-tone vertical shading: lit upper / mid / shadowed lower
-    const col = t < 0.28 ? P.steelL : t < 0.55 ? P.steel : P.steelD;
-    p.hline(8 - w, 7 + w, y, col);
+// 鋼鐵之肌 — 交錯排列的金屬鱗片（三排），畫的是「長在身上的鱗甲」而非一面盾。
+// 盾牌的錐形輪廓留給沒有的人：結界是六角泡、鐵壁是磚牆、反擊是斜擋板。
+defineIcon('ability_g_iron_skin', P.blueD, (p) => {   // R28 W3-B-rework
+  p.glow(8, 8, 5, P.steelL, 0.14, 3);
+  // 鱗片排成上下窄、中間寬的「一塊長在身上的甲」，四角留空——
+  // 這樣才不會跟「鐵壁之軀」那面填滿方框的磚牆撞成同一團灰。
+  for (let r = 0; r < 3; r++) {
+    const y = 4 + r * 3.4;
+    const n = (r === 1) ? 4 : 3;
+    for (let i = 0; i < n; i++) {
+      const cx = ((r === 1) ? 3.6 : 5.2) + i * 3.2;
+      p.ellipse(cx, y + 1, 1.7, 1.9, P.iron);          // 鱗片：上圓下收
+      p.ellipse(cx, y + 0.6, 1.4, 1.5, P.steel);
+      p.ellipse(cx - 0.5, y + 0.1, 0.9, 0.9, P.steelL);
+      p.px(Math.round(cx), Math.round(y + 2.7), darken(P.iron, 0.35));
+    }
   }
-  p.hline(5, 10, 3, P.steelL);   // top rim highlight
-  p.vline(4, 9, 8, P.steelL);    // central ridge sheen
-  p.hline(5, 10, 12, P.iron);    // bottom shade
-  // rivets
-  p.px(6, 5, P.gray4); p.px(10, 5, P.gray4);
-  p.px(8, 7, P.glint); p.px(8, 7, P.gray4);
-  p.sparkle(10, 4, P.hiSky, 1);
-});
+  p.px(5, 3, P.white); p.px(11, 6, P.hiSky);
+  p.sparkle(12, 4, P.hiSky, 1);
+}, { kira: true });   // tier 2 → kira
 
 // BLINK MASTER — a teleport rift: an icy slit splitting two phase halves, with
 // a converging arrow burst and a white singularity core.
@@ -99,84 +108,104 @@ defineIcon('ability_g_blink_master', P.blueD, (p) => {
   p.line(8, 5, 4, 8, withAlpha(P.neonL, 0.7)); p.line(8, 11, 4, 8, withAlpha(P.neonL, 0.7));
   p.px(8, 8, P.white); p.glow(8, 8, 1.6, P.white, 0.5, 2);
   p.star4(12, 8, 2, withAlpha(P.neon, 0.85), P.white);
-});
+}, { kira: true });   // R28 W3-B-rework: tier 2 → kira
 
-// BLOOD PACT — a dark sacrificial heart bleeding a vivid drop inside a blood
-// sigil ring, two side embers smouldering.
-defineIcon('ability_g_blood_pact', P.blood, (p) => {
-  p.glow(8, 8, 6, P.blood, 0.28, 3);
-  p.ring(8, 8, 5.4, withAlpha(P.red, 0.4));
-  sym.heart(p, P.redD);
-  sym.drop(p, P.redL);
-  p.px(5, 11, P.red); p.px(11, 11, P.red);
-  p.px(5, 11, P.laser); p.px(11, 11, P.laser);
-  p.px(6, 5, P.white); // heart catch-light
-});
-
-// AEGIS — a radiant warding shield: ice-blue layered plate ringed by a holy
-// barrier with a bright crest jewel.
-defineIcon('ability_g_aegis', P.blueD, (p) => {
-  p.glow(8, 8, 6, P.holy, 0.18, 3);
-  for (let y = 3; y <= 12; y++) {
-    const t = (y - 3) / 9;
-    const w = 4.4 * (1 - t * 0.5) * (y > 9 ? (13 - y) / 3.5 : 1);
-    const col = t < 0.28 ? lighten(P.ice, 0.1) : t < 0.55 ? P.ice : P.iceD;
-    p.hline(8 - w, 7 + w, y, col);
+// 血之契約 — 一只高腳聖杯盛著血，上方一滴血正落下。
+// 心臟形留給「生命寶石」，獠牙留給「吸血鬼牙」，這裡是器皿。
+defineIcon('ability_g_blood_pact', P.blood, (p) => {   // R28 W3-B-rework
+  p.glow(8, 8, 5.5, P.blood, 0.26, 3);
+  for (let y = 5; y <= 9; y++) {                       // 杯碗
+    const w = 4 - (y - 5) * 0.55;
+    p.hline(8 - w, 7 + w, y, y < 6 ? P.goldL : (y < 8 ? P.gold : P.goldD));
   }
-  p.hline(5, 10, 3, P.hiSky);    // top rim
-  p.vline(4, 8, 8, P.hiSky);     // central sheen
-  // warding ring + a second faint holy halo
-  p.ring(8, 8, 5.5, P.shardL);
-  p.ring(8, 8, 6, withAlpha(P.holyL, 0.45));
-  p.px(8, 6, P.white);           // crest jewel
-  p.glow(8, 6, 1.4, P.holyL, 0.5, 2);
-  p.star4(11, 4, 2, withAlpha(P.holy, 0.85), P.white);
-});
+  p.hline(5, 10, 5, P.redD); p.hline(5, 10, 6, P.red); p.px(6, 5, P.redL);  // 杯內血
+  p.vline(10, 11, 7, P.goldD); p.vline(10, 11, 8, P.gold);                  // 杯柄
+  p.rect(5, 12, 6, 2, P.goldD); p.hline(5, 10, 12, P.gold);                 // 底座
+  p.ellipse(8, 3, 1, 1.4, P.red); p.px(8, 2, P.redL); p.px(8, 4, P.laser);  // 落下的血滴
+  p.px(4, 5, P.white);
+}, { kira: true });   // tier 2 → kira
 
-// SECOND WIND — a revive surge: a glowing life-cross inside a vital toxic ring
-// with upward recovery sparks lifting off it.
-defineIcon('ability_g_second_wind', P.blood, (p) => {
-  p.glow(8, 8, 5.5, P.aurora, 0.22, 3);
-  sym.cross(p, P.greenL);
-  p.ring(8, 8, 5.5, P.toxic);
-  p.ring(8, 8, 6, withAlpha(P.aurora, 0.45));
-  // rising recovery sparks
-  p.px(3, 5, P.toxic); p.px(13, 5, P.toxic);
-  p.px(4, 3, withAlpha(P.auroraL, 0.8)); p.px(12, 3, withAlpha(P.auroraL, 0.8));
-  p.px(8, 8, P.white);
-  p.star4(12, 4, 2, withAlpha(P.toxic, 0.85), P.white);
-});
+// 魂晶結界 — 一顆六邊形能量泡（雙層六角框＋內部蜂巢格線＋中央結晶）。
+// 刻意不是盾牌形：盾形會跟「鋼鐵之肌」「鐵壁之軀」擠在同一個輪廓家族。
+defineIcon('ability_g_aegis', P.blueD, (p) => {   // R28 W3-B-rework
+  p.glow(8, 8, 6, P.holy, 0.2, 3);
+  const hex = (r, c) => {
+    for (let k = 0; k < 6; k++) {
+      const a1 = k * Math.PI / 3 - Math.PI / 6, a2 = (k + 1) * Math.PI / 3 - Math.PI / 6;
+      p.line(8 + Math.cos(a1) * r, 8 + Math.sin(a1) * r, 8 + Math.cos(a2) * r, 8 + Math.sin(a2) * r, c);
+    }
+  };
+  hex(6.6, withAlpha(P.holyL, 0.45));
+  hex(5.8, P.shardL);
+  hex(5.2, withAlpha(P.shard, 0.7));
+  hex(2.8, withAlpha(P.hiSky, 0.75));
+  p.line(8, 3, 8, 5, withAlpha(P.shard, 0.6));        // 蜂巢輻線
+  p.line(3, 10, 6, 9, withAlpha(P.shard, 0.6));
+  p.line(13, 10, 10, 9, withAlpha(P.shard, 0.6));
+  p.ellipse(8, 8, 1.4, 1.6, P.shard); p.px(8, 7, P.white);
+  p.px(5, 5, P.hiSky);
+}, { kira: true });   // tier 3 → kira
+
+// 背水反擊 — 一根燃燒的鳳凰羽毛（羽軸＋兩側羽枝＋竄起的火星）。
+// 原本是「綠十字＋光環」：十字是通用符號，正是同質化的來源。
+defineIcon('ability_g_second_wind', P.blood, (p) => {   // R28 W3-B-rework
+  p.glow(8, 8, 5.5, P.ember, 0.22, 3);
+  for (let i = 0; i < 10; i++) {                       // 羽枝（中段最寬）
+    const t = i / 9;
+    const x = Math.round(11 - t * 6), y = Math.round(3 + t * 10);
+    const len = Math.round(1 + Math.sin(t * Math.PI) * 3.2);
+    p.line(x, y, x - len, y - 1, (i % 2) ? P.emberL : P.ember);
+    p.line(x, y, x + len, y + 1, (i % 2) ? P.gold : P.goldD);
+  }
+  p.line(11, 3, 5, 13, P.bone);                        // 羽軸
+  p.px(11, 3, P.white); p.px(10, 4, P.holyL);
+  p.px(4, 11, P.emberL); p.px(3, 9, P.ember); p.px(13, 6, P.emberL);
+  p.sparkle(13, 4, P.holyL, 1);
+}, { kira: true });   // tier 3 → kira
 
 // ---- additive utility variants (extra polish, optional) --------------------
 // These are NEW names only — they do not replace or alter any contract above.
 
-// reinforced / hardened variant of iron skin (golden-banded plate)
-defineIcon('ability_g_iron_skin_plus', P.blueD, (p) => {
+// 鋼鐵之肌（強化版）— 同一批鐵鱗，但依 ART_SPEC「進化版必須增加第二層形狀」
+// 補上橫貫的金色加固帶與兩支肩尖，而不是只換個光色。
+defineIcon('ability_g_iron_skin_plus', P.blueD, (p) => {   // R28 W3-B-rework
   p.glow(8, 8, 5.5, P.gold, 0.16, 3);
-  for (let y = 3; y <= 12; y++) {
-    const t = (y - 3) / 9;
-    const w = 4.2 * (1 - t * 0.55) * (y > 9 ? (13 - y) / 3.5 : 1);
-    const col = t < 0.28 ? P.steelL : t < 0.55 ? P.steel : P.steelD;
-    p.hline(8 - w, 7 + w, y, col);
+  for (let r = 0; r < 3; r++) {
+    const y = 4 + r * 3.4;
+    const n = (r === 1) ? 4 : 3;
+    for (let i = 0; i < n; i++) {
+      const cx = ((r === 1) ? 3.6 : 5.2) + i * 3.2;
+      p.ellipse(cx, y + 1, 1.7, 1.9, P.iron);
+      p.ellipse(cx, y + 0.6, 1.4, 1.5, P.steel);
+      p.ellipse(cx - 0.5, y + 0.1, 0.9, 0.9, P.steelL);
+    }
   }
-  p.hline(5, 10, 3, P.steelL);
-  p.hline(8 - 3.4, 7 + 3.4, 7, P.gold);   // gold reinforcement band
-  p.hline(8 - 3.4, 7 + 3.4, 6, P.goldL);
-  p.px(6, 5, P.gray4); p.px(10, 5, P.gray4);
-  p.px(8, 11, P.goldD);
-  p.sparkle(10, 4, P.hiSky, 1);
-});
+  p.rect(2, 8, 12, 2, P.goldD); p.hline(2, 13, 8, P.gold);   // 金色加固帶
+  p.px(3, 8, P.goldL); p.px(12, 9, darken(P.goldD, 0.3));
+  p.line(4, 5, 3, 2, P.goldL); p.line(12, 5, 12, 2, P.goldL); // 肩尖（第二層形狀）
+  p.px(3, 2, P.white); p.px(12, 2, P.white);
+  p.sparkle(10, 3, P.hiSky, 1);
+}, { kira: true });   // 進化變體 → kira
 
-// long-range treasure radar (sakura-tinted detector sweep)
-defineIcon('ability_g_treasure_sense_far', '#5a4a1a', (p) => {
+// 尋寶直覺（遠距版）— 同一枚金幣，但雷達從同心圈升級為「扇形掃描區＋掃描臂」，
+// 一眼就能與基礎版分開（ART_SPEC：進化版要多一層形狀，不能只換光效）。
+defineIcon('ability_g_treasure_sense_far', '#5a4a1a', (p) => {   // R28 W3-B-rework
   p.glow(8, 8, 6, P.gold, 0.2, 3);
-  p.ring(8, 8, 6.4, withAlpha(P.sakuraL, 0.4));
-  p.ring(8, 8, 6, withAlpha(P.goldL, 0.5));
-  p.ring(8, 8, 4.6, withAlpha(P.gold, 0.6));
-  sym.coin(p);
-  // sweeping radar arm
-  p.line(8, 8, 12, 4, P.holyL); p.px(12, 4, P.white);
-  p.star4(12, 4, 2, withAlpha(P.holy, 0.85), P.white);
-});
+  for (let a = -Math.PI / 2; a < 0.02; a += 0.05) {            // 扇形掃描區（第二層形狀）
+    for (let rr = 3.2; rr < 7; rr += 0.8) {
+      p.px(Math.round(8 + Math.cos(a) * rr), Math.round(8 + Math.sin(a) * rr), withAlpha(P.sakuraL, 0.3));
+    }
+  }
+  p.ring(8, 8, 6.4, withAlpha(P.sakura, 0.55));
+  p.ellipse(8, 12, 5.4, 2.6, darken(P.wood, 0.25));             // 同一座土堆（基礎版的形）
+  p.ellipse(8, 11.4, 5, 2, P.wood);
+  p.ellipse(6, 10.8, 2.4, 1, P.woodL);
+  p.ellipse(8, 8, 3.2, 3.2, P.goldD);
+  p.ellipse(8, 8, 2.6, 2.6, P.gold);
+  p.ellipse(7.2, 7.2, 1.5, 1.5, P.goldL); p.px(6, 6, P.white);
+  p.line(8, 8, 13, 4, P.holyL); p.px(13, 4, P.white);           // 掃描臂
+  p.line(8, 8, 8, 2, withAlpha(P.holyL, 0.5));
+  p.star4(13, 4, 2, withAlpha(P.holy, 0.85), P.white);
+}, { kira: true });   // 進化變體 → kira
 
 export const ABILITIES_UTILITY_READY = true;

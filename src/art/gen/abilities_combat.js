@@ -11,110 +11,82 @@ import { defineIcon, panel, sym } from '../icons.js';
 import { drawSlime, drawBat, drawWisp, drawBrute, drawHunter } from '../core.js';
 
 // ===== abilities_combat icons =====
+// R28 W3-B-rework — ART_SPEC 第 5 節鐵律：類別文法只活在框上，glyph 一定要畫出
+// 「這個被動具體是什麼」，同類別內任兩個 glyph 的輪廓不得雷同。武器輪廓（劍/刀）
+// 一律不用在被動上（那是武器類的 silhouette 文法）。
 
-// crossed swords (heavy damage) — twin neon-edged blades, gold crossguards,
-// a hot impact spark where they meet.
-defineIcon('ability_g_brutality', P.blood, (p) => {
-  // dark ambient backwash so the blades pop
-  p.glow(8, 8, 6, P.laser, 0.22, 3);
-
-  // blade A (bottom-left -> top-right)
-  p.line(3, 13, 11, 3, darken(P.steelD, 0.1));   // shadow core
-  p.line(3, 12, 11, 2, P.steel);                 // body
-  p.line(4, 12, 12, 2, P.steelL);                // light face
-  p.px(11, 2, P.white); p.px(12, 2, P.glint);    // tip glint
-  // blade B (bottom-right -> top-left)
-  p.line(12, 13, 4, 3, darken(P.steelD, 0.1));   // shadow core
-  p.line(12, 12, 4, 2, P.steel);                 // body
-  p.line(13, 12, 5, 2, P.steelL);                // light face
-  p.px(4, 2, P.white); p.px(3, 2, P.glint);      // tip glint
-
-  // gold guards + grips at the lower ends
-  p.rect(2, 11, 3, 2, P.gold); p.px(2, 11, P.goldL); p.px(4, 12, P.goldD);
-  p.rect(11, 11, 3, 2, P.gold); p.px(13, 11, P.goldL); p.px(11, 12, P.goldD);
-  p.px(3, 13, P.wood); p.px(13, 13, P.wood);
-
-  // clash spark
-  p.glow(8, 7, 2.4, P.emberL, 0.6, 3);
-  p.star4(8, 7, 3, P.glint, P.white);
-  p.sparkle(11, 4, P.rim, 1);
+// 狂暴核心 — 一對向上外彎的獸角，角根之間嵌著一顆赤紅怒核。
+// （原本是交叉雙劍：那是武器的 silhouette，被動不能用。）
+defineIcon('ability_g_brutality', P.blood, (p) => {   // R28 W3-B-rework
+  p.glow(8, 10, 5.5, P.laser, 0.2, 3);
+  for (const s of [-1, 1]) {                          // 左右鏡射的角
+    for (let i = 0; i < 8; i++) {
+      const t = i / 7;
+      const x = Math.round(8 + s * (2.2 + t * 4.2));
+      const y = Math.round(11 - t * 8.4);
+      const w = Math.max(0, 1.8 - t * 1.6);
+      p.hline(x - w, x + w, y, i < 3 ? P.bone : (i < 6 ? darken(P.bone, 0.14) : P.white));
+      if (i < 5) p.px(Math.round(x - s), y, lighten(P.bone, 0.2));
+    }
+  }
+  p.ellipse(8, 11, 2.6, 2.4, P.redD);                 // 怒核
+  p.ellipse(8, 11, 1.6, 1.5, P.laser);
+  p.px(8, 11, P.white); p.px(7, 10, P.redL);
+  p.px(3, 4, P.rim); p.px(13, 4, P.rim);
 });
 
-// targeting reticle + crosshair (deadeye crit) — glowing gold lock-on ring,
-// crisp ticks, neon centre pip.
-defineIcon('ability_g_deadeye', P.woodD, (p) => {
-  p.glow(8, 8, 6, P.gold, 0.2, 3);
-
-  // double lock ring
-  sym.ring(p, P.goldL, 5); sym.ring(p, darken(P.gold, 0.1), 5.6);
-  sym.ring(p, P.gold, 3);
-  // corner brackets for a "scope locked" feel
-  p.px(4, 4, P.goldL); p.px(11, 4, P.goldL);
-  p.px(4, 11, P.gold); p.px(11, 11, P.gold);
-
-  // crosshair ticks (outer = bright, gap near centre)
-  p.vline(2, 5, 8, P.goldL); p.vline(11, 14, 8, P.goldL);
-  p.hline(2, 5, 8, P.goldL); p.hline(11, 14, 8, P.goldL);
-  p.px(8, 2, P.white); p.px(8, 14, P.gold);
-  p.px(2, 8, P.white); p.px(14, 8, P.gold);
-
-  // hot centre pip
-  p.glow(8, 8, 2, P.laser, 0.6, 3);
-  p.px(8, 8, P.white); p.px(8, 7, P.glint);
-  p.star4(8, 8, 2, P.rim);
+// 鷹眼瞄具 — 一具中空的瞄準環：鎖定圈 + 四段刻度臂 + 四角括號 + 中心紅點。
+// 與「銳利之眼」（實體眼睛）、「尋寶直覺」（實心金幣＋環）刻意分開。
+defineIcon('ability_g_deadeye', P.woodD, (p) => {   // R28 W3-B-rework
+  p.glow(8, 8, 5.5, P.gold, 0.18, 3);
+  p.ring(8, 8, 5.4, darken(P.gold, 0.25));            // 鎖定圈（中空）
+  p.ring(8, 8, 4.8, P.goldL);
+  p.px(5, 5, P.white);
+  p.vline(1, 4, 8, P.goldL); p.vline(12, 15, 8, P.gold);   // 刻度臂（中心留空）
+  p.hline(1, 4, 8, P.goldL); p.hline(12, 15, 8, P.gold);
+  p.px(8, 1, P.white); p.px(1, 8, P.white);
+  const brk = (x, y, dx, dy) => { p.px(x, y, P.gold); p.px(x + dx, y, P.gold); p.px(x, y + dy, P.gold); };
+  brk(4, 4, 1, 1); brk(11, 4, -1, 1); brk(4, 11, 1, -1); brk(11, 11, -1, -1);
+  p.ellipse(8, 8, 1.2, 1.2, P.laser); p.px(8, 8, P.white);  // 中心紅點
 });
 
-// arrow punching through an armor plate (armor pierce) — riveted plate split by
-// a glowing steel bolt, sparks at the breach.
-defineIcon('ability_g_armorpierce', P.steelD, (p) => {
-  // armor plate (right side) with a vertical highlight + rivets
-  p.rect(9, 3, 4, 11, P.iron);
-  p.gradH(9, 3, 4, 11, lighten(P.iron, 0.15), darken(P.iron, 0.2));
-  p.vline(3, 13, 9, P.steelL);                 // left lit edge
-  p.px(11, 4, P.steelD); p.px(11, 8, P.steelD); p.px(11, 12, P.steelD); // rivets
-  p.px(11, 4, P.gray4); p.px(11, 8, P.gray4);
-
-  // breach where the bolt goes through (dark notch)
-  p.rect(8, 7, 3, 3, P.shadow);
-
-  // the piercing bolt (shaft + arrowhead) blasting through
-  p.hline(2, 13, 8, P.steel);
-  p.hline(2, 13, 8, P.steelL);                  // bright shaft
-  p.line(11, 5, 14, 8, P.steelL); p.line(11, 11, 14, 8, P.steelL); // head
-  p.line(12, 6, 14, 8, P.white); p.line(12, 10, 14, 8, P.white);
-  // fletching at the back
-  p.px(2, 7, P.neon); p.px(2, 9, P.neon); p.px(3, 8, P.neonL);
-
-  // breach sparks
-  p.px(14, 8, P.glint); p.glow(8, 8, 2.2, P.neonL, 0.5, 3);
-  p.star4(13, 8, 2, P.glint, P.white);
-  p.sparkle(8, 5, P.rimCool, 1); p.sparkle(9, 11, P.neon, 1);
+// 破甲彈頭 — 一枚粗短的錐形穿甲彈（金色彈帶）＋四散的碎甲片。
+// 與「貫穿之矢」（細長帶羽的箭）刻意做成不同的量體。
+defineIcon('ability_g_armorpierce', P.steelD, (p) => {   // R28 W3-B-rework
+  p.glow(9, 8, 5, P.neonL, 0.16, 3);
+  p.rect(2, 4, 3, 2, P.iron); p.px(2, 4, P.steel);    // 碎甲片
+  p.rect(2, 10, 4, 2, P.iron); p.px(2, 10, P.steel);
+  p.rect(11, 2, 3, 2, P.iron); p.px(11, 2, P.steel);
+  p.rect(11, 12, 3, 2, P.iron); p.px(11, 12, P.steel);
+  p.rect(3, 5, 3, 6, P.goldD); p.hline(3, 5, 5, P.gold); p.px(3, 5, P.goldL); // 彈帶
+  for (let i = 0; i < 8; i++) {                       // 錐形彈頭（朝右）
+    const x = 6 + i, w = Math.max(0, 3 - i * 0.42);
+    p.vline(8 - w, 7 + w, x, i < 2 ? P.steel : (i < 5 ? P.steelL : P.white));
+    p.px(x, Math.round(8 + w), P.steelD);
+  }
+  p.vline(6, 9, 7, lighten(P.steelL, 0.2));
+  p.px(14, 8, P.glint); p.star4(13, 8, 2, P.glint, P.white);
+  p.sparkle(9, 3, P.rimCool, 1); p.sparkle(8, 13, P.neon, 1);
 });
 
-// bloody fangs (savagery / heavy crit dmg) — open maw of glinting fangs with a
-// crimson glow and a dripping blood bead.
-defineIcon('ability_g_savagery', P.blood, (p) => {
-  p.glow(8, 7, 6, P.red, 0.22, 3);
-
-  // dark mouth interior
-  p.ellipse(8, 5, 4, 2.2, darken(P.blood, 0.3));
-
-  // outer fangs (large)
-  p.line(4, 3, 5, 11, P.bone); p.line(11, 3, 10, 11, P.bone);
-  p.line(4, 3, 7, 6, P.white); p.line(11, 3, 8, 6, P.white); // lit faces
-  // inner fangs (smaller)
-  p.line(6, 3, 7, 9, P.bone); p.line(9, 3, 8, 9, P.bone);
-  p.px(6, 3, P.white); p.px(9, 3, P.white);
-  // fang tips razor-bright
-  p.px(5, 11, P.white); p.px(10, 11, P.white);
-  p.px(7, 9, P.rim); p.px(8, 9, P.rim);
-
-  // crimson blood smear on a fang + a falling drop
-  p.px(5, 9, P.red); p.px(10, 9, P.red);
-  sym.drop(p, P.red);
-  p.px(8, 12, P.redL);
-  p.sparkle(4, 3, P.glint, 1); p.sparkle(11, 3, P.glint, 1);
-});
+// 殘虐之刃 — 一隻有掌的三爪獸手（爪尖沾血）。
+// 與「裂創」的三道無實體撕裂痕、「吸血鬼牙」的一對獠牙都是不同輪廓。
+defineIcon('ability_g_savagery', P.blood, (p) => {   // R28 W3-B-rework
+  p.glow(8, 10, 5.5, P.red, 0.22, 3);
+  p.ellipse(8, 12, 4.4, 2.8, darken(P.leather, 0.35));  // 掌（寬而扁，明確是一隻手）
+  p.ellipse(8, 12, 3.9, 2.3, P.leather);
+  p.ellipse(6.6, 11.2, 2.4, 1.4, lighten(P.leather, 0.34));
+  p.hline(5, 11, 11, darken(P.leather, 0.5));           // 指節線
+  for (let k = -1; k <= 1; k++) {                       // 三根「向內鉤」的利爪
+    const bx = 8 + k * 3.4;
+    p.line(bx, 10, bx + k * 1.4, 6, darken(P.steel, 0.2));
+    p.line(bx + 1, 10, bx + k * 1.4 + 1, 6, P.steel);
+    p.line(bx + k * 1.4, 6, bx + k * 0.2, 3, P.steelL);   // 鉤回中央的爪尖
+    p.px(Math.round(bx + k * 0.2), 3, P.white);
+  }
+  p.px(6, 4, P.red); p.px(10, 4, P.redL); p.px(8, 3, P.red);  // 爪尖血
+  p.ellipse(4, 8, 1, 1.1, P.red); p.px(12, 7, P.redL);
+}, { kira: true });
 
 // fanned triple bolt (split shot) — three energy darts splaying from one toxic
 // core, neon-green tracers.
@@ -138,7 +110,7 @@ defineIcon('ability_g_splitshot', P.greenD, (p) => {
   p.ellipse(3, 8, 1.6, 1.6, P.greenL);
   p.px(3, 8, P.white); p.px(2, 7, P.glint);
   p.star4(3, 8, 2, P.toxic);
-});
+}, { kira: true });   // R28 W3-B-rework: tier 2 → kira
 
 // branching lightning (chain) — forked electric arc, cyan-hot core with neon
 // glow and crackle nodes.
@@ -165,7 +137,7 @@ defineIcon('ability_g_chainlight', P.blueD, (p) => {
   p.px(6, 13, P.neonL);
   p.star4(8, 2, 2, P.glint);
   p.sparkle(11, 9, P.neonL, 1);
-});
+}, { kira: true });   // R28 W3-B-rework: tier 2 → kira
 
 // bomb-core with ignition pips (detonate on stacked hits) — round bomb with a
 // metal sheen, a hissing sparking fuse and ignition embers about to blow.
@@ -193,36 +165,23 @@ defineIcon('ability_g_detonate', P.ink2, (p) => {
   p.px(4, 6, P.emberL); p.px(12, 8, P.ember); p.px(5, 13, P.ember);
   p.px(11, 12, P.emberL);
   p.sparkle(12, 8, P.ember, 1);
-});
+}, { kira: true });   // R28 W3-B-rework: tier 3 → kira
 
-// skull over a blade edge (executioner) — pale glowing skull, hollow eyes lit
-// from within, set on a keen guillotine edge with a void-purple aura.
-defineIcon('ability_g_executioner', P.purpleD, (p) => {
-  // ominous astral aura behind the skull
-  p.glow(8, 6, 6, P.astral, 0.25, 3);
-
-  // skull cranium + jaw (bone with top-left light)
-  p.ellipse(8, 5, 3.2, 3, P.bone);
-  p.ellipse(7, 4, 2, 1.6, lighten(P.bone, 0.18)); // lit dome
-  p.rect(6, 6, 5, 3, P.bone);
-  p.px(6, 8, darken(P.bone, 0.2)); p.px(10, 8, darken(P.bone, 0.2));
-
-  // glowing hollow eye sockets + nasal
-  p.glow(6, 6, 1.6, P.magenta, 0.7, 3);
-  p.glow(10, 6, 1.6, P.magenta, 0.7, 3);
-  p.px(6, 6, P.ink); p.px(10, 6, P.ink);
-  p.px(6, 5, P.magentaL); p.px(10, 5, P.magentaL); // eye glints
-  p.px(8, 8, P.ink);
-  // teeth
-  p.px(7, 9, P.bone); p.px(8, 9, darken(P.bone, 0.15)); p.px(9, 9, P.bone);
-
-  // guillotine / executioner blade beneath
-  p.hline(2, 13, 12, P.steel);
-  p.hline(2, 13, 11, P.steelL);                  // bright keen edge
-  p.px(13, 11, P.white); p.px(2, 12, P.steelD);
-  // purple energy crackle on the blade ends
-  p.px(2, 11, P.purpleL); p.px(13, 12, P.purpleL);
-  p.glow(13, 11, 1.6, P.astralL, 0.5, 2);
-  p.star4(8, 3, 2, P.astralL);
-  p.sparkle(11, 4, P.rim, 1);
-});
+// 處決者 — 一顆填滿畫面的骷髏頭（顱骨＋上下顎＋發光眼窩），額上一道紅色處決印。
+// 原本骷髏下還壓著一把斷頭刃（武器輪廓）——移除，讓輪廓就是「頭骨」本身。
+defineIcon('ability_g_executioner', P.purpleD, (p) => {   // R28 W3-B-rework
+  p.glow(8, 7, 6, P.astral, 0.24, 3);
+  p.ellipse(8, 6, 4.2, 3.7, darken(P.bone, 0.18));   // 顱骨
+  p.ellipse(8, 6, 3.8, 3.3, P.bone);
+  p.ellipse(6.8, 4.8, 2.3, 1.7, lighten(P.bone, 0.2));
+  p.rect(5, 8, 7, 3, P.bone); p.hline(5, 11, 10, darken(P.bone, 0.22));  // 上顎
+  p.rect(6, 11, 5, 2, darken(P.bone, 0.08));                             // 下顎
+  p.hline(6, 10, 12, darken(P.bone, 0.35));
+  p.rect(5, 5, 3, 3, P.ink); p.rect(9, 5, 3, 3, P.ink);                  // 眼窩
+  p.glow(6, 6, 1.8, P.magenta, 0.75, 3); p.glow(10, 6, 1.8, P.magenta, 0.75, 3);
+  p.px(6, 6, P.magentaL); p.px(10, 6, P.magentaL);
+  p.px(8, 8, P.ink); p.px(8, 7, P.ink2);                                 // 鼻腔
+  p.vline(11, 12, 7, darken(P.bone, 0.4)); p.vline(11, 12, 9, darken(P.bone, 0.4)); // 牙縫
+  p.hline(6, 10, 3, P.laser); p.px(8, 2, P.laser);                       // 額上處決印
+  p.px(5, 4, P.rim);
+}, { kira: true });
