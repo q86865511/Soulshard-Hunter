@@ -92,7 +92,7 @@ W({
   },
   draw(world, p, inst) {
     const l = inst.level, n = 2 + Math.floor(l * 0.7), R = 30 + l * 3, sp = getSprite('fx_blade');
-    for (let i = 0; i < n; i++) { const a = (inst.st.a || 0) + i / n * TAU, ox = p.x + Math.cos(a) * R, oy = p.y + Math.sin(a) * R; glowWorld(ox, oy, 6, P.shardL, 0.4); drawSprite(sp.frames[0], ox, oy, { ax: sp.ax, ay: sp.ay, rot: a + Math.PI / 2 }); }
+    for (let i = 0; i < n; i++) { const a = (inst.st.a || 0) + i / n * TAU, ox = p.x + Math.cos(a) * R, oy = p.y + Math.sin(a) * R; glowWorld(ox, oy, 6, P.shardL, 0.4, { deco: true }); drawSprite(sp.frames[0], ox, oy, { ax: sp.ax, ay: sp.ay, rot: a + Math.PI / 2 }); }
   },
   desc: '召喚環繞的魂刃，持續切割周圍敵人。',
 });

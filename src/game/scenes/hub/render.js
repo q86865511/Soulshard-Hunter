@@ -34,11 +34,11 @@ export const renderMixin = {
     if (this.area === 'town') {
       for (const id of ['plaza', 'garden', 'market']) {
         const rm = this.rooms[id]; const col = ROOM_THEME[id]; if (!rm || !col) continue;
-        glowWorld(rm.cx, rm.cy, 130, col, 0.05);
+        glowWorld(rm.cx, rm.cy, 130, col, 0.05, { deco: true });
       }
     } else {
       const col = ROOM_THEME[this.area];
-      if (col && this.world) { glowWorld(this.hero.x, this.hero.y, 220, col, 0.06); uiRect(0, 0, view.W, view.H, withAlpha(col, 0.04)); }
+      if (col && this.world) { glowWorld(this.hero.x, this.hero.y, 220, col, 0.06, { deco: true }); uiRect(0, 0, view.W, view.H, withAlpha(col, 0.04)); }
     }
     // R20/B3: the walk-in door circles — a pulsing soul glow over the ruin_doorglow decal,
     // plus a「踏入光圈」hint when the hero is about to step on one
@@ -46,7 +46,7 @@ export const renderMixin = {
       const h0 = this.hero;
       for (const g of this.world.triggers) {
         const gx = (g.tx + 0.5) * TS, gy = (g.ty + 0.5) * TS;
-        glowWorld(gx, gy, 11, P.shardL, 0.16 + 0.10 * Math.sin(this.t * 3 + g.tx));
+        glowWorld(gx, gy, 11, P.shardL, 0.16 + 0.10 * Math.sin(this.t * 3 + g.tx), { deco: true });
         if (h0 && dist(h0.x, h0.y, gx, gy) < TS * 1.6 && (this.doorCd || 0) <= 0) {
           const ss0 = worldToScreen(gx, gy - 16);
           uiText(g.target === 'town' ? '踏入光圈 離開' : '踏入光圈 進入', ss0.x, ss0.y, { size: UI.FONT_BODY * S, align: 'center', color: withAlpha(P.shardL, 0.85), weight: '800' });
@@ -57,18 +57,18 @@ export const renderMixin = {
     for (const s of this.stations) {
       // R19: a door-station has no sprite — the facade door IS the visual; just a soft warm glow
       // (brighter when the hero is near) so the player reads "enterable".
-      if (s.kind === 'door') { glowWorld(s.x, s.y - 6, 18, s.color, 0.08 + (this.near === s ? 0.18 : 0)); continue; }
+      if (s.kind === 'door') { glowWorld(s.x, s.y - 6, 18, s.color, 0.08 + (this.near === s ? 0.18 : 0), { deco: true }); continue; }
       const sp = getSprite(s.sprite);
       const bob = s.id === 'sortie' ? Math.sin(this.t * 2) * 1.5 : 0;
       const portalGlow = s.id === 'sortie' ? 0.26 : 0.14;   // R19: the grand portal is the centrepiece — strong glow
-      glowWorld(s.x, s.y - 8, s.id === 'sortie' ? 28 : 16, s.color, portalGlow + (this.near === s ? 0.16 : 0));
+      glowWorld(s.x, s.y - 8, s.id === 'sortie' ? 28 : 16, s.color, portalGlow + (this.near === s ? 0.16 : 0), { deco: true });
       drawShadow(s.x, s.y, sp.w * 0.3);
       drawSprite(frameAt(sp, this.t), s.x, s.y + bob, { ax: sp.ax, ay: sp.ay });
     }
     for (const n of this.npcs) {
       const sp = getSprite(n.def.sprite);
       drawShadow(n.x, n.y, sp.w * 0.28);
-      glowWorld(n.x, n.y - 8, 12, n.def.color, this.near === n ? 0.16 : 0.0);
+      glowWorld(n.x, n.y - 8, 12, n.def.color, this.near === n ? 0.16 : 0.0, { deco: true });
       drawSprite(frameAt(sp, n.t), n.x, n.y, { ax: sp.ax, ay: sp.ay, flipX: n.facing < 0 });
     }
     const h = this.hero; const psp = getSprite(this.heroSprite || 'player');

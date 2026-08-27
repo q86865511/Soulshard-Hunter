@@ -16,6 +16,12 @@ import { META } from './state.js';   // P1-2: 傷害數字開關
 // "this body" and "this telegraph" read as the same author at a glance.
 const BOSS_RIM_COLOR = (BALANCE.ARTV && BALANCE.ARTV.BEAM_FAM_BOSS && BALANCE.ARTV.BEAM_FAM_BOSS[1]) || '#ff8a50';
 const BOSS_RIM_OFFSETS = [[-1, 0], [1, 0], [0, -1], [0, 1]];
+// R28/FIX-1 (gate 中項「elite 三階失效」) — elite tier had ONE cue, `this.tint`, and 41 of 63
+// enemy defs ship their own `tint`, so `def.tint ?? gold` swallowed the gold on two thirds of
+// the roster: an elite crypt bat glowed the same purple as a normal one. Elite rank now rides
+// an INDEPENDENT channel that no def can overwrite — the same 4-offset silhouette rim as the
+// boss, in gold. Cheap: it reuses the boss rim's tintedFrame WeakMap cache.
+const ELITE_RIM_COLOR = P.gold;
 
 export class Enemy {
   constructor(def, x, y, world, opts = {}) {
@@ -286,10 +292,13 @@ export class Enemy {
     // tintedFrame WeakMap (one bake per frame canvas, not per game frame), and the offsets
     // are screen-space so the rim stays 1 px at any zoom. Elites/normals are untouched —
     // elites keep their glow, normals keep the clean three-step contrast.
-    if (this.boss && this.flash <= 0) {
+    // R28/FIX-1: elites get the SAME rim treatment in gold (see ELITE_RIM_COLOR) — a rank cue
+    // that survives any def.tint. Guardians keep their crown on top of it; bosses stay warm.
+    if ((this.boss || this.elite) && this.flash <= 0) {
       const frame = frameAt(sp, this.t), o = 1 / camera.zoom;
       const rimOpts = { ax: sp.ax, ay: sp.ay, flipX: this.facing > 0, scale: sc };
-      for (const [dx, dy] of BOSS_RIM_OFFSETS) drawSpriteTint(frame, this.x + dx * o, this.y + hopY + dy * o, BOSS_RIM_COLOR, 0.9, rimOpts);
+      const rimCol = this.boss ? BOSS_RIM_COLOR : ELITE_RIM_COLOR;
+      for (const [dx, dy] of BOSS_RIM_OFFSETS) drawSpriteTint(frame, this.x + dx * o, this.y + hopY + dy * o, rimCol, 0.9, rimOpts);
     }
     if (this.flash > 0) { opts.tint = '#ffffff'; opts.tintAmt = 0.9; }
     else if (this.tint) { opts.tint = this.tint; opts.tintAmt = 0.22; }

@@ -102,7 +102,7 @@ function chronoUpdate(world, p, inst, dt, { slowOnHit }) {
 function chronoDraw(world, p, inst) {
   const blades = inst.st.blades; if (!blades) return;
   const sp = getSprite('r20_fx_chrono');
-  for (const b of blades) { glowWorld(b.x, b.y, 7, P.neonL, 0.4); drawSprite(sp.frames[0], b.x, b.y, { ax: sp.ax, ay: sp.ay, rot: b.spin }); }
+  for (const b of blades) { glowWorld(b.x, b.y, 7, P.neonL, 0.4, { deco: true }); drawSprite(sp.frames[0], b.x, b.y, { ax: sp.ax, ay: sp.ay, rot: b.spin }); }
 }
 W({
   id: 'w_h4_chronoblade', name: '迴時刃', icon: 'weapon_w_h4_chronoblade', tier: 2, weight: 7, maxLevel: 7,
@@ -149,7 +149,7 @@ function puppetDraw(world, p, inst) {
   const sp = getSprite('r20_fx_puppet');
   for (const t of ps) {
     const oy = Math.sin(t.bob || 0) * 1.5;
-    glowWorld(t.x, t.y - 10 + oy, 4, P.sakura, 0.3);
+    glowWorld(t.x, t.y - 10 + oy, 4, P.sakura, 0.3, { deco: true });
     world.particles && Math.random() < 0.08 && world.particles.spawn({ x: t.x, y: t.y - 16 + oy, life: 0.3, size: 1.5, color: P.sakuraL, glow: true });
     drawSprite(sp.frames[0], t.x, t.y + oy, { ax: sp.ax, ay: sp.ay });
   }
@@ -245,7 +245,7 @@ function starDraw(world, p, inst) {
     const k = 1 - s.t / s.max;                                 // telegraph fills toward impact
     fillCircleWorld(s.x, s.y, s.R, withAlpha(P.gold, 0.08));
     fillCircleWorld(s.x, s.y, s.R * k, withAlpha(P.emberL, 0.14));
-    glowWorld(s.x, s.y, 4 + k * 5, P.goldL, 0.35 + k * 0.3);
+    glowWorld(s.x, s.y, 4 + k * 5, P.goldL, 0.35 + k * 0.3, { deco: true });
     if (Math.random() < 0.3) world.particles.spawn({ x: s.x + (Math.random() - 0.5) * s.R, y: s.y - 20 - Math.random() * 16, life: 0.25, size: 2, color: P.goldL, glow: true, grav: 220 });
   }
 }
@@ -288,7 +288,7 @@ function waltzDrawRing(p, inst, { n, R, dir, phase }) {
   for (let i = 0; i < n; i++) {
     const a = (inst.st.a || 0) * dir + i / n * TAU + (phase || 0);
     const ox = p.x + Math.cos(a) * R, oy = p.y + Math.sin(a) * R;
-    glowWorld(ox, oy, 6, P.sakuraL, 0.35);
+    glowWorld(ox, oy, 6, P.sakuraL, 0.35, { deco: true });
     drawSprite(sp.frames[0], ox, oy, { ax: sp.ax, ay: sp.ay, rot: a * dir + Math.PI / 2 });
   }
 }
@@ -508,16 +508,23 @@ defineIcon('weapon_w_h4_gravescythe', '#1a3a2a', (p) => {
   p.px(9, 3, P.white);
   p.sparkle(12, 7, P.auroraL, 1);
 });
-// 萬魂收割: the scythe wreathed in harvested souls
+// 萬魂收割: paired reaper blades crossed in an X, wreathed by a soul halo
+// R28 FIX-2: base+evo shared one blade silhouette, only recoloured (gate flagged
+// as recolor-only, see docs/reviews/art-improve-2026-08/gate/GATE_REPORT.md) —
+// evo now adds a second crossing blade + a soul-halo ring, per ART_SPEC 第 5 節.
 defineIcon('weapon_w_h4_gravescythe_evo', '#241a3a', (p) => {
   p.glow(8, 8, 6, P.purple, 0.4, 4);
-  p.line(5, 13, 9, 4, P.woodD);                  // snath
-  for (let x = 5; x <= 12; x++) { const y = 3 + Math.round(Math.pow((x - 5) / 7, 2) * 4); p.px(x, y, P.purpleL); p.px(x, y + 1, P.purple); }   // soul blade
-  p.ellipse(3, 6, 1.4, 1.4, P.mana);             // orbiting souls
-  p.ellipse(12, 11, 1.4, 1.4, P.mana);
-  p.px(3, 5, P.white); p.px(12, 10, P.white);
+  p.line(5, 13, 9, 4, P.woodD);                  // primary snath
+  for (let x = 5; x <= 12; x++) { const y = 3 + Math.round(Math.pow((x - 5) / 7, 2) * 4); p.px(x, y, P.purpleL); p.px(x, y + 1, P.purple); }   // primary soul blade
+  // 第二層：交叉的副鐮，反向弧線在下方展開，與主鐮形成 X 形輪廓
+  p.line(11, 13, 7, 4, P.woodD);                 // secondary snath, opposite diagonal
+  for (let x = 4; x <= 11; x++) { const y = 13 - Math.round(Math.pow((x - 4) / 7, 2) * 4); p.px(x, y, withAlpha(P.manaL, 0.9)); p.px(x, y - 1, withAlpha(P.mana, 0.75)); }   // secondary soul blade
+  p.ring(8, 8, 5.5, withAlpha(P.purpleL, 0.4)); // 亡魂環繞行光環
+  p.ellipse(2, 8, 1.3, 1.3, P.mana);             // orbiting souls riding the halo
+  p.ellipse(13, 8, 1.3, 1.3, P.mana);
+  p.px(2, 7, P.white); p.px(13, 7, P.white);
   p.px(12, 7, P.white);
-  p.star4(9, 3, 2, P.purpleL, P.white);
+  p.star4(8, 3, 2, P.purpleL, P.white);
 });
 // 星隕呼喚: a falling star streaking to a marked sigil
 defineIcon('weapon_w_h4_starfall', '#2a2a5a', (p) => {

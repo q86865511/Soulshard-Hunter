@@ -7,10 +7,19 @@ import { roundRectPath, ctxRaw } from '../../engine/renderer.js';
 
 const cache = new Map();   // charId -> { img, ready, failed }
 
+// R28/FIX-1 (gate 低項「肖像 404 噪音」) — WHICH ids actually have a file on disk. Without it
+// every one of the other 21 heroes fired a request that 404'd (once per id per session, and
+// again on every hard reload) and filled the console with red — noise that buries real errors,
+// and needless traffic in a runtime that otherwise makes zero requests it doesn't need.
+// ADDING A PORTRAIT: drop assets/portraits/<id>.png in AND add <id> to this Set. An id that is
+// not listed never gets fetched, so a file present but unlisted stays invisible.
+const MANIFEST = new Set(['hunter', 'ranger', 'pyro', 'guardian', 'shadow', 'stormcaller']);
+
 // Returns the loaded <img> once ready, else null (caller should fall back to sprite art).
 // First call for an id kicks off the fetch; onload/onerror flip state for the NEXT call —
 // this frame still falls back, same pattern as sprite lazy-bake misses elsewhere in the UI.
 export function getPortrait(charId) {
+  if (!MANIFEST.has(charId)) return null;
   let e = cache.get(charId);
   if (!e) {
     e = { img: new Image(), ready: false, failed: false };

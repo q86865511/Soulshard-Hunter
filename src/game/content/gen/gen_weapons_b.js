@@ -132,8 +132,8 @@ Weapons.register({
   draw(w, p, inst) {
     // HAND-EDIT — R28 W1-B beam 色族, re-integration 前需重套 (glow follows the beam to cold).
     for (const s of (inst.st.shots || [])) {
-      glowWorld(s.x1, s.y1, 7, P.shardL, 0.5);
-      glowWorld((s.x0 + s.x1) / 2, (s.y0 + s.y1) / 2, 6, P.iceD, 0.25);
+      glowWorld(s.x1, s.y1, 7, P.shardL, 0.5, { deco: true });   // HAND-EDIT R28/FIX-1: deco glow channel
+      glowWorld((s.x0 + s.x1) / 2, (s.y0 + s.y1) / 2, 6, P.iceD, 0.25, { deco: true });   // HAND-EDIT R28/FIX-1: deco glow channel
     }
   },
   levelDesc: (l) => `光束 ${1 + Math.floor((l - 1) / 3)}・每跳 ${(8 + l * 2.2) | 0}・射程 ${230 + l * 14}`,
@@ -274,7 +274,7 @@ Weapons.register({
       const k = Math.max(0, Math.min(1, h.life / h.max));
       fillCircleWorld(h.x, h.y, h.R, withAlpha(P.void, 0.12));
       fillCircleWorld(h.x, h.y, 6 + (1 - k) * 3, withAlpha(P.ink, 0.85));
-      glowWorld(h.x, h.y, h.R * 0.6, P.purpleL, 0.18 + (1 - k) * 0.1);
+      glowWorld(h.x, h.y, h.R * 0.6, P.purpleL, 0.18 + (1 - k) * 0.1, { deco: true });   // HAND-EDIT R28/FIX-1: deco glow channel
       if (Math.random() < 0.6) {
         const a = Math.random() * TAU, rr = h.R * (0.6 + Math.random() * 0.4);
         w.particles.spawn({ x: h.x + Math.cos(a) * rr, y: h.y + Math.sin(a) * rr, vx: -Math.cos(a) * 40, vy: -Math.sin(a) * 40, life: 0.35, size: 2, color: P.manaL, glow: true, drag: 0.92 });
@@ -322,7 +322,7 @@ Weapons.register({
     for (let i = 0; i < n; i++) {
       const a = (inst.st.a || 0) + i / n * TAU;
       const ox = p.x + Math.cos(a) * R, oy = p.y + Math.sin(a) * R;
-      glowWorld(ox, oy, 7, P.goldL, 0.4);
+      glowWorld(ox, oy, 7, P.goldL, 0.4, { deco: true });   // HAND-EDIT R28/FIX-1: deco glow channel
       drawSprite(sp.frames[0], ox, oy, { ax: sp.ax, ay: sp.ay, rot: a });
     }
   },

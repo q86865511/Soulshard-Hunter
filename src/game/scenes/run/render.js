@@ -83,7 +83,7 @@ export const renderMixin = {
     const p = this.shrinePos; if (!p) return; const S = uiScale();
     const sp = getSprite('hub_altar');
     const used = this.shrineUsed;
-    glowWorld(p.x, p.y - 8, 14, used ? P.gray2 : P.shardL, used ? 0.08 : 0.22 + Math.sin(this.t * 3) * 0.06);
+    glowWorld(p.x, p.y - 8, 14, used ? P.gray2 : P.shardL, used ? 0.08 : 0.22 + Math.sin(this.t * 3) * 0.06, { deco: true });
     drawShadow(p.x, p.y, sp.w * 0.3);
     drawSprite(frameAt(sp, this.t), p.x, p.y, { ax: sp.ax, ay: sp.ay, alpha: used ? 0.45 : 1 });
     if (used) return;
@@ -106,7 +106,7 @@ export const renderMixin = {
       const sp = getSprite(k.sprite);
       const scale = n.kind === 'shard' ? 1.6 : 1;
       if (n.fresh > 0) n.fresh -= 1 / 60;
-      glowWorld(n.x, n.y - 6, 12 + (n.fresh > 0 ? 8 * n.fresh : 0), k.color, 0.16 + Math.sin(this.t * 3 + n.x * 0.1) * 0.05);
+      glowWorld(n.x, n.y - 6, 12 + (n.fresh > 0 ? 8 * n.fresh : 0), k.color, 0.16 + Math.sin(this.t * 3 + n.x * 0.1) * 0.05, { deco: true });
       drawShadow(n.x, n.y, sp.w * 0.28 * scale);
       drawSprite(frameAt(sp, this.t), n.x, n.y, { ax: sp.ax, ay: sp.ay, scale });
       const ns = worldToScreen(n.x, n.y - sp.h * scale - 2);

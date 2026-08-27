@@ -139,7 +139,11 @@ export class Particles {
       // read as atmosphere behind the actors instead of competing with them. Warning/damage
       // particles pass through at full strength, and their glow stays off the deco channel.
       const deco = !p.warn;
-      const a = deco ? Math.min(lin, decoAlpha) : lin;
+      // R28/FIX-1 (Codex #4): was `Math.min(lin, decoAlpha)`, which CLIPPED the fade — a
+      // decorative particle sat flat at the cap for most of its life and then fell off a
+      // cliff at the end. Scaling instead keeps the fade linear across the whole lifetime;
+      // the peak (lin = 1) is unchanged at decoAlpha, only the tail actually recedes.
+      const a = deco ? lin * decoAlpha : lin;
       const color = deco ? desaturate(p.color) : p.color;
       const col = withAlpha(color, a);
       if (p.glow) glowWorld(p.x, p.y, p.size * 1.6, color, a * 0.5, { deco });

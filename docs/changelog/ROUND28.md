@@ -159,3 +159,30 @@
 5. equip_leather_armor 16px 讀形不穩(W2-F 遺留),W3 圖示批量時重審。
 6. 手改 gen 檔清單新增:gen_weapons_b.js(beam 色族)、gen_heroes3.js(h3_plague 重繪)、
    art_decals_{crypt,celestial,desert}.js(地標/動態/註冊)——re-integration 前必須重套。
+
+## Vertical Slice Gate(獨立審查+Codex 第二審)與修正批
+
+**Gate 判定：有條件通過**(報告 docs/reviews/art-improve-2026-08/gate/GATE_REPORT.md,76 證據檔;
+Codex 第二審 0高/2中/3低,協定 SHA 相同、gameplay 數值零變動、地標放置無死迴圈皆獲獨立驗證)。
+四解析度(含補上審核缺的 2560×1440 全高)、灰階、三色覺、缺圖、7 生態回歸全過;
+退回項由 FIX-1/FIX-2 修復:
+
+- 【高】60 敵圍身時玩家被 y-sort 淹沒 → PLAYER_RING 增強+警示層 1.5px 頂層細環
+  (drawPlayerTopRing,不動 y-sort)+beacon 青白化 0.65;guest 同步。
+- 【中】41/63 敵 def 自帶 tint 使 elite 金色失效 → elite 金色 1px 描邊獨立通道(tintedFrame 快取)。
+- 【中】macro 生態地標/群聚消耗全域 rng ~390 次平移 gameplay 隨機序 → fork artRng,
+  layout/art 雙雜湊證明佈局零平移(fix1-after/mapsig-split-*.txt)。
+- 【中】glow 預算僅蓋粒子 → 42 處分類、25 處補 {deco:true}(純 metadata,現值零像素變化)。
+- 【中】兩對 evo 圖示只換色 → gravescythe_evo 雙鐮X+亡魂環、g_scatter_evo 三管扇形+擴散環。
+- 【中】ranger 肖像與 sprite 配不起(色相差 76°) → 重生成(森林綠主導)後製替換。
+- 【低】guest 缺 decals/光池層、deco 粒子衰減形狀、coop/title 字級殘留 22 處、
+  addBeam 預設色琥珀(改冷色)、肖像 404 噪音(MANIFEST 白名單)、evidence 工具 Boss 預警
+  誤用事件色(修為 #ff5a3c)。
+- 規格勘誤:英雄可視高度表列 14-16 改為實測 17-18(含 outline);已知取捨:非 macro 7 生態
+  decal 仍走全域串流(它是生成最後一步,現況不平移 gameplay;日後在 decal 後加 gameplay
+  邏輯此洞會復活)。
+- 驗證:smoke 59/59(修正批後集中重跑)、三支 co-op 自測全綠、固定種子雜湊、
+  fix1-after/fix2-after 截圖組。
+
+**Gate 未能驗證項(誠實列示)**:ART-02 的 5 位真人測試者項以遮擋計數推論替代;
+boss_pillar 三階裂損未逐幀目視;ART-07/08 不在 slice 範圍。

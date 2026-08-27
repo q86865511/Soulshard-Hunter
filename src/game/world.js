@@ -268,7 +268,12 @@ export class World {
   }
   addProjectile(p) { if (!p.src) p.src = this._curSrc; this.projectiles.push(p); }   // 原#16: stamp damage source
   addPickup(type, x, y, value = 1, opts = {}) { this.pickups.push(new Pickup({ type, x, y, value, ...opts })); }
-  addBeam(x0, y0, x1, y1, color = P.emberL) { this.beams.push({ x0, y0, x1, y1, color, life: 0.14, max: 0.14 }); }
+  // R28/FIX-1 (Codex #8): the default was the warm P.emberL, which beamFamily() resolves into
+  // the EVENT warning family — a weapon that forgot its colour would have silently borrowed
+  // the 4 px amber "field hazard" styling. The default is now a cold player-family hex, so a
+  // missing colour degrades into the harmless 3 px player look. Verified render-only: all 12
+  // call sites (boss_moves ×4, events ×4, weapons ×4) pass an explicit family colour today.
+  addBeam(x0, y0, x1, y1, color = '#9adcff') { this.beams.push({ x0, y0, x1, y1, color, life: 0.14, max: 0.14 }); }
 
   dropLoot(e) {
     if (e.guardian) { this.addPickup('key', e.x, e.y, 1); this.addPickup('chest', e.x, e.y, 2); }   // #8: room guardian → key + chest
@@ -749,7 +754,10 @@ export class World {
   // R26/B1 — additive light channel: a pool under each emissive decor (culled +
   // flickered) then the local player's cold-white identity pool. After decor,
   // before actors, so pools sit on the ground beneath everything that moves.
-  drawSceneLights(cb) {
+  // R28/FIX-1 (Codex #3): `player`/`bossList` are parameters so the co-op GUEST can render
+  // this exact layer for its own avatar + snapshot-puppet bosses instead of skipping it —
+  // the guest's avatar is `coopScene.self`, never `world.player`.
+  drawSceneLights(cb, player = this.player, bossList = this.enemies) {
     for (const d of this.decor) {
       const li = LIGHT_BY_SPRITE[d.sprite];
       if (!li) continue;
@@ -757,11 +765,31 @@ export class World {
       const flick = li.flicker
         ? 1 - li.flicker * 0.5 + li.flicker * 0.5 * Math.sin(this.time * (li.speed || 4) + (d.phase || 0) * 2.1)
         : 1;
-      glowWorldCached(d.x, d.y - (li.oy || 0), li.r, li.color, li.a * flick);
+      glowWorldCached(d.x, d.y - (li.oy || 0), li.r, li.color, li.a * flick, { deco: true });
     }
-    const p = this.player, fx = BALANCE.SCENE_FX;
+    const p = player, fx = BALANCE.SCENE_FX;
     if (p && !p.dead && fx) glowWorldCached(p.x, p.y - 4, fx.PLAYER_RING_R, PLAYER_RING_COLOR, fx.PLAYER_RING_A);
-    this.drawBossRings(cb);        // R28/W1-B boss contact rings share the ground-pool layer
+    this.drawBossRings(cb, bossList);   // R28/W1-B boss contact rings share the ground-pool layer
+  }
+
+  // R28/FIX-1 (gate 高項「玩家淹沒」) — the TOP-layer half of the player identity mark. The
+  // ground pool at layer 2 is painted over by every body that y-sorts after the avatar, so at
+  // 60 enemies the player disappeared entirely. This thin cold-white foot ellipse is drawn
+  // ABOVE the actors (see draw(), after the beams): 1.5 screen px at half alpha, so it never
+  // covers the sprite — it only says "your feet are HERE" when the sprite itself is buried.
+  // Local avatar only (never remote co-op players), same as the ground pool and the beacon.
+  drawPlayerTopRing(player = this.player) {
+    const p = player, fx = BALANCE.SCENE_FX;
+    if (!p || p.dead || !fx) return;
+    const r = fx.PLAYER_RING_TOP_R || 10;
+    const s = worldToScreen(p.x, p.y), z = camera.zoom, ctx = ctxRaw();
+    ctx.save();
+    ctx.strokeStyle = withAlpha(PLAYER_RING_COLOR, fx.PLAYER_RING_TOP_A ?? 0.5);
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.ellipse(s.x, s.y, r * z, r * 0.5 * z, 0, 0, TAU);
+    ctx.stroke();
+    ctx.restore();
   }
 
   // R28/W1-B — persistent ground ring under every `boss:true` enemy (ART_SPEC 2.3).
@@ -791,20 +819,25 @@ export class World {
   }
 
   // R26/B1 — "surrounded" beacon: when ≥N enemies crowd the LOCAL player, redraw
-  // its current frame as a pulsing white silhouette so it never gets lost in a mob.
-  drawSurroundBeacon() {
-    const p = this.player, fx = BALANCE.SCENE_FX;
+  // its current frame as a pulsing silhouette so it never gets lost in a mob.
+  // R28/FIX-1: pure white lost against pale/bleached mobs (crypt bone, celestial), so the
+  // silhouette moved to the cold 青白 shard hue — the same identity family as the ground
+  // ring — and the pulse ceiling went up. `player`/`list` are parameters so the co-op guest
+  // can run the same beacon off its snapshot enemies (it has no host spatial grid).
+  drawSurroundBeacon(player = this.player, list = null) {
+    const p = player, fx = BALANCE.SCENE_FX;
     if (!p || p.dead || !fx) return;
     let near = 0;
-    this.forEachNear(p.x, p.y, fx.SURROUND_R, (e) => {
-      if (!e.dead && e.spawnT <= 0 && dist2(p.x, p.y, e.x, e.y) < fx.SURROUND_R * fx.SURROUND_R) near++;
-    });
+    const R2 = fx.SURROUND_R * fx.SURROUND_R;
+    const count = (e) => { if (!e.dead && e.spawnT <= 0 && dist2(p.x, p.y, e.x, e.y) < R2) near++; };
+    if (list) { for (const e of list) count(e); }
+    else this.forEachNear(p.x, p.y, fx.SURROUND_R, count);
     if (near < fx.SURROUND_N) return;
     const sp = getSprite(p.spriteName || 'player');
     const frame = p.moving ? frameAt(sp, p.walkT, 0) : frameAt(sp, p.t * 0.4);
     const hopY = p.hop > 0 ? -Math.sin(Math.min(1, p.hop / 0.6) * Math.PI) * 6 : 0;
     const a = fx.SURROUND_A_MIN + (fx.SURROUND_A_MAX - fx.SURROUND_A_MIN) * (0.5 + 0.5 * Math.sin(this.time * 9));
-    drawSpriteTint(frame, p.x, p.y + hopY, '#ffffff', a, { ax: sp.ax, ay: sp.ay, flipX: p.faceX < 0, scale: 0.9 });
+    drawSpriteTint(frame, p.x, p.y + hopY, P.shardL, a, { ax: sp.ax, ay: sp.ay, flipX: p.faceX < 0, scale: 0.9 });
   }
 
   draw() {
@@ -853,6 +886,9 @@ export class World {
       lineWorld(b.x0, b.y0, b.x1, b.y1, withAlpha('#ffffff', a * 0.85), st.core);
       this.drawBeamCues(b, a, st);
     }
+    // R28/FIX-1 — player identity, top half: shares the beam/telegraph layer so it sits above
+    // every body. Cheap (one stroked ellipse) and always on, unlike the surround beacon.
+    this.drawPlayerTopRing();
     // particles
     this.particles.draw();
     // R26/B1 "surrounded" beacon — local player only, on top of the in-world layer

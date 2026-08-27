@@ -1,5 +1,5 @@
 // Large open biome maps for the continuous-survival run structure.
-import { rng, dist } from '../engine/math.js';
+import { rng, makeRng, dist } from '../engine/math.js';
 import { WALL, FLOOR, TS } from './world.js';
 import { BIOMES, BIOME_MACRO } from '../art/biomes.js';
 import { DECOR_SETS, DECOR_CLUSTERS } from '../art/biome_decor.js';
@@ -9,8 +9,10 @@ import { BALANCE } from './balance.js';
 export function biomeForStage(stage) { return BIOMES[(stage - 1) % BIOMES.length]; }
 export function isBossStage(stage) { return stage % 5 === 0; }
 
-function randFloor(tiles, tw, th) {
-  for (let i = 0; i < 80; i++) { const tx = rng.int(2, tw - 3), ty = rng.int(2, th - 3); if (tiles[ty * tw + tx] === FLOOR) return { x: (tx + 0.5) * TS, y: (ty + 0.5) * TS }; }
+// `R` (R28/FIX-1) selects the stream: the layout stream by default, the forked ART stream
+// for placements that exist only to be looked at. See `artRng` in generateWorld().
+function randFloor(tiles, tw, th, R = rng) {
+  for (let i = 0; i < 80; i++) { const tx = R.int(2, tw - 3), ty = R.int(2, th - 3); if (tiles[ty * tw + tx] === FLOOR) return { x: (tx + 0.5) * TS, y: (ty + 0.5) * TS }; }
   return null;
 }
 // a floor tile adjacent to a wall (for props that line up against walls — built-up feel)
@@ -73,9 +75,9 @@ function macroFloorVar(tx, ty, M) {
 // A spot whose whole (2*halfW+1)×(2*halfH+1) tile neighbourhood is open FLOOR, found in a
 // ring `rmin..rmax` TILES from the spawn. `maxDX/maxDY` additionally clamp the offset so a
 // landmark can be forced inside the opening viewport (26×15 tiles at zoom 3).
-function openSpot(tiles, tw, th, sx, sy, rmin, rmax, halfW, halfH, maxDX, maxDY) {
+function openSpot(tiles, tw, th, sx, sy, rmin, rmax, halfW, halfH, maxDX, maxDY, R = rng) {
   for (let i = 0; i < 500; i++) {
-    const a = rng.next() * Math.PI * 2, r = rmin + rng.next() * (rmax - rmin);
+    const a = R.next() * Math.PI * 2, r = rmin + R.next() * (rmax - rmin);
     const dx = Math.round(Math.cos(a) * r), dy = Math.round(Math.sin(a) * r);
     if (maxDX && (Math.abs(dx) > maxDX || Math.abs(dy) > maxDY)) continue;
     const tx = sx + dx, ty = sy + dy;
@@ -202,13 +204,21 @@ export function generateWorld(seedBiome) {
   // They carry NO `solid` flag on purpose: the co-op map wire format (protocol.js
   // serializeMap) keeps only sprite/x/y/phase, so a host-side collider would be
   // invisible to a guest's local prediction and desync it. They are pure silhouette.
+  // R28/FIX-1 (Codex #1) — the macro ART channel (landmarks · ambient props · clustered ground
+  // decals) draws from its OWN stream. It is forked from the layout stream with exactly ONE
+  // draw, so re-tuning or switching off any pure-art knob shifts nothing downstream: the art
+  // placements used to be rejection-sampled (openSpot burns up to 1000 draws, the decal
+  // clusterer up to 4000), which meant a decal-density tweak silently re-rolled every later
+  // roll off the shared Math.random stream (hidden room, guardians, vault, enemy pools).
+  // Non-macro biomes fork nothing and consume nothing → their maps stay byte-identical.
+  const artRng = mac ? makeRng((rng.next() * 4294967296) >>> 0) : null;
   const landmarks = [];
   if (mac) {
     const lm = LANDMARK_SETS[biome.id] || [];
     const sx = Math.floor(tw / 2), sy = Math.floor(th / 2);
-    const near = lm[0] && openSpot(tiles, tw, th, sx, sy, M.LMK_NEAR[0], M.LMK_NEAR[1], 3, 2, 9, 5);
+    const near = lm[0] && openSpot(tiles, tw, th, sx, sy, M.LMK_NEAR[0], M.LMK_NEAR[1], 3, 2, 9, 5, artRng);
     if (near) landmarks.push({ sprite: lm[0], x: near.x, y: near.y, phase: 0 });
-    const away = lm[1] && openSpot(tiles, tw, th, sx, sy, M.LMK_FAR[0], M.LMK_FAR[1], 3, 2, 0, 0);
+    const away = lm[1] && openSpot(tiles, tw, th, sx, sy, M.LMK_FAR[0], M.LMK_FAR[1], 3, 2, 0, 0, artRng);
     if (away) landmarks.push({ sprite: lm[1], x: away.x, y: away.y, phase: 1 });
     for (const l of landmarks) decor.push(l);
   }
@@ -226,8 +236,8 @@ export function generateWorld(seedBiome) {
   if (mac) {
     const amb = AMBIENT_SETS[biome.id] || [];
     for (let i = 0; amb.length && i < Math.round(M.AMBIENT * k); i++) {
-      const t = randFloor(tiles, tw, th);
-      if (t && far(t.x, t.y, 60) && clearOfLmk(t.x, t.y)) decor.push({ sprite: pick(amb), x: t.x, y: t.y, phase: rng.int(0, 3) });
+      const t = randFloor(tiles, tw, th, artRng);
+      if (t && far(t.x, t.y, 60) && clearOfLmk(t.x, t.y)) decor.push({ sprite: amb[artRng.int(0, amb.length - 1)], x: t.x, y: t.y, phase: artRng.int(0, 3) });
     }
   }
 
@@ -238,7 +248,7 @@ export function generateWorld(seedBiome) {
   const decalPool = DECAL_SETS[biome.id];
   if (decalPool && decalPool.length) {
     const budget = Math.round(D.DECALS * k);
-    const decal = (x, y) => decals.push({ sprite: decalPool[rng.int(0, decalPool.length - 1)], x, y });
+    const decal = (x, y, R = rng) => decals.push({ sprite: decalPool[R.int(0, decalPool.length - 1)], x, y });
     if (mac) {
       // R28/W2-D: cluster the ground marks instead of dusting them evenly. Centres are
       // rejection-sampled onto value-noise PEAKS, so weathered patches gather into
@@ -247,23 +257,23 @@ export function generateWorld(seedBiome) {
       const clusterBudget = Math.round(budget * M.DECAL_CLUSTER_FRAC);
       let placed = 0;
       for (let guard = 0; placed < clusterBudget && guard < 4000; guard++) {
-        const t = randFloor(tiles, tw, th);
+        const t = randFloor(tiles, tw, th, artRng);
         if (!t) break;
         const ctx = t.x / TS, cty = t.y / TS;
         if (inCalmZone(ctx, cty, M) || vnoise(ctx, cty, M.DECAL_SC, 5107) < M.DECAL_PEAK_T) continue;
         const n = Math.min(M.DECAL_PER_CLUSTER, clusterBudget - placed);
         for (let j = 0; j < n; j++) {
-          const a = rng.next() * Math.PI * 2, rr = Math.sqrt(rng.next()) * M.DECAL_CLUSTER_R;
+          const a = artRng.next() * Math.PI * 2, rr = Math.sqrt(artRng.next()) * M.DECAL_CLUSTER_R;
           const dx = t.x + Math.cos(a) * rr, dy = t.y + Math.sin(a) * rr;
           const gx = Math.floor(dx / TS), gy = Math.floor(dy / TS);
           if (gx < 1 || gy < 1 || gx >= tw - 1 || gy >= th - 1) continue;
           if (tiles[gy * tw + gx] !== FLOOR) continue;
-          decal(dx, dy); placed++;
+          decal(dx, dy, artRng); placed++;
         }
       }
       for (let i = placed; i < budget; i++) {   // the rest: sparse singles, still skipping rest zones
-        const t = randFloor(tiles, tw, th);
-        if (t && !inCalmZone(t.x / TS, t.y / TS, M)) decal(t.x, t.y);
+        const t = randFloor(tiles, tw, th, artRng);
+        if (t && !inCalmZone(t.x / TS, t.y / TS, M)) decal(t.x, t.y, artRng);
       }
     } else {
       for (let i = 0; i < budget; i++) {

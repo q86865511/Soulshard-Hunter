@@ -111,7 +111,7 @@ Weapons.register({
     const blades = inst.st.blades; if (!blades) return;
     const sp = getSprite('g_fx_chakram');
     for (const b of blades) {
-      glowWorld(b.x, b.y, 7, P.shardL, 0.4);
+      glowWorld(b.x, b.y, 7, P.shardL, 0.4, { deco: true });   // HAND-EDIT R28/FIX-1: deco glow channel
       drawSprite(sp.frames[0], b.x, b.y, { ax: sp.ax, ay: sp.ay, rot: b.spin });
     }
   },
@@ -163,7 +163,7 @@ Weapons.register({
     for (const m of mines) {
       const armed = m.arm <= 0;
       const blink = armed ? (0.4 + 0.4 * (0.5 + 0.5 * Math.sin(m.pulse))) : 0.2;
-      glowWorld(m.x, m.y, 5, armed ? P.red : P.emberL, blink);
+      glowWorld(m.x, m.y, 5, armed ? P.red : P.emberL, blink, { deco: true });   // HAND-EDIT R28/FIX-1: deco glow channel
       drawSprite(sp.frames[0], m.x, m.y, { ax: sp.ax, ay: sp.ay });
     }
   },
@@ -400,13 +400,25 @@ defineIcon('weapon_g_icespear', P.blueD, (p) => {
   p.px(3, 13, P.blueL);
 });
 
-// scatter_evo: golden multi-barrel storm cannon
+// scatter_evo: golden triple-barrel storm cannon with a two-tier fanned muzzle blast
+// R28 FIX-2 HAND-EDIT: base+evo were near-identical (single straight barrel, only
+// recoloured — gate flagged as recolor-only, see
+// docs/reviews/art-improve-2026-08/gate/GATE_REPORT.md). Evo now fans three barrels
+// + adds an inner/outer pellet fan and a muzzle shock ring, so the silhouette
+// itself changes, not just the palette. Re-integration will overwrite this —
+// re-apply from this comment if `integrate.mjs` runs again.
 defineIcon('weapon_g_scatter_evo', '#5a4a1a', (p) => {
   p.rect(2, 6, 6, 2, P.goldD);
   p.rect(2, 9, 6, 2, P.goldD);
   p.rect(2, 6, 6, 1, P.goldL);
-  p.rect(7, 5, 2, 7, P.gold);
+  // 第二層：三管扇形槍管，破除與 base 相同的單一直管輪廓
+  p.rect(7, 5, 2, 6, P.gold);                                              // centre barrel
+  p.line(7, 6, 11, 3, P.goldL); p.px(11, 3, P.white);                      // upper flared barrel
+  p.line(7, 10, 11, 13, P.goldL); p.px(11, 13, P.white);                   // lower flared barrel
+  // 第二層：內外雙圈裂變彈頭扇形 + 擴散環
   for (let i = 0; i < 5; i++) { const a = -0.7 + i * 0.35; p.px(11 + Math.cos(a) * 3, 8 + Math.sin(a) * 3, P.goldL); p.px(13 + Math.cos(a) * 3, 8 + Math.sin(a) * 3, P.gold); }
+  for (let i = 0; i < 4; i++) { const a = -0.9 + i * 0.55; p.px(13 + Math.cos(a) * 4.5, 8 + Math.sin(a) * 4.5, withAlpha(P.goldL, 0.75)); }
+  p.ring(12, 8, 4.5, withAlpha(P.gold, 0.35));                             // 擴散環
   p.px(2, 7, P.white);
 });
 

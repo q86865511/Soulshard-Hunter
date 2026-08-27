@@ -199,10 +199,15 @@ export const BALANCE = {
   DECOR: { SINGLES: 75, CLUSTERS: 20, WALL: 24, DECALS: 360 },   // R26/B1b density pass (was 55/14/20/90); DECALS = render-only ground-mark channel (empty pools → no-op)
 
   // ---- R26/B1 scene-composition FX (render-only tuning) ------------------
+  // R28/FIX-1 (gate 高項「玩家淹沒」): at 60 enemies the ground pool + beacon were both too
+  // faint to find the avatar in the pile. Three knobs move together — a stronger/wider ground
+  // pool, a NEW top-layer foot ring (drawn above every actor, see world.drawPlayerTopRing),
+  // and a brighter beacon. All render-only: no sim value reads SCENE_FX.
   SCENE_FX: {
-    PLAYER_RING_R: 20, PLAYER_RING_A: 0.12,   // local-player cold-white ground pool (identity)
+    PLAYER_RING_R: 24, PLAYER_RING_A: 0.30,   // local-player cold-white ground pool (identity; was 20 / 0.12)
+    PLAYER_RING_TOP_R: 10, PLAYER_RING_TOP_A: 0.5,   // top-layer 1.5 px foot ring — the only mark that survives being fully covered
     SURROUND_N: 4, SURROUND_R: 14,            // ≥N enemies within R px of the player → "surrounded" beacon
-    SURROUND_A_MIN: 0.25, SURROUND_A_MAX: 0.45,  // beacon silhouette pulse range
+    SURROUND_A_MIN: 0.25, SURROUND_A_MAX: 0.65,  // beacon silhouette pulse range (max was 0.45)
     WALL_AO_ALPHA: 0.35,                       // south-edge wall-foot ambient-occlusion strength
   },
 

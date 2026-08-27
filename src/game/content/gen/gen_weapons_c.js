@@ -213,7 +213,7 @@ Weapons.register({
     const blades = inst.st.blades; if (!blades) return;
     const sp = getSprite('wc_fx_boomerang');
     for (const b of blades) {
-      glowWorld(b.x, b.y, 7, P.steelL, 0.4);
+      glowWorld(b.x, b.y, 7, P.steelL, 0.4, { deco: true });   // HAND-EDIT R28/FIX-1: deco glow channel
       drawSprite(sp.frames[0], b.x, b.y, { ax: sp.ax, ay: sp.ay, rot: b.spin });
     }
   },
@@ -292,8 +292,8 @@ Weapons.register({
   },
   draw(world, p, inst) {
     const s = inst.st.shot; if (!s) return;
-    glowWorld(s.x1, s.y1, 7, P.blueL, 0.5);
-    glowWorld((s.x0 + s.x1) / 2, (s.y0 + s.y1) / 2, 6, P.iceD, 0.22);
+    glowWorld(s.x1, s.y1, 7, P.blueL, 0.5, { deco: true });   // HAND-EDIT R28/FIX-1: deco glow channel
+    glowWorld((s.x0 + s.x1) / 2, (s.y0 + s.y1) / 2, 6, P.iceD, 0.22, { deco: true });   // HAND-EDIT R28/FIX-1: deco glow channel
   },
   levelDesc: (l) => '每跳 ' + ((7 + l * 2.0) | 0) + '・射程 ' + (WC_BAL.AIM_RANGE + l * 10) + '・持續灼燒',
   desc: '鎖定最近敵人持續灼燒的聚能光束，貫穿一線上的所有敵人。',
@@ -347,7 +347,7 @@ Weapons.register({
         fillCircleWorld(s.x, s.y, s.r * 0.6, withAlpha(P.iceD, 0.10));
       } else {
         const k = Math.max(0, Math.min(1, (s.life + s.warn) / s.life));   // 1 -> 0 fade
-        glowWorld(s.x, s.y, 8, P.ice, 0.35 * k);
+        glowWorld(s.x, s.y, 8, P.ice, 0.35 * k, { deco: true });   // HAND-EDIT R28/FIX-1: deco glow channel
         drawSprite(sp.frames[0], s.x, s.y, { ax: sp.ax, ay: sp.ay, scale: 0.7 + k * 0.5 });
       }
     }
@@ -449,7 +449,7 @@ Weapons.register({
     const turrets = inst.st.turrets; if (!turrets) return;
     const sp = getSprite('wc_fx_turret');
     for (const t of turrets) {
-      glowWorld(t.x, t.y, 7, P.purpleL, 0.35);
+      glowWorld(t.x, t.y, 7, P.purpleL, 0.35, { deco: true });   // HAND-EDIT R28/FIX-1: deco glow channel
       drawSprite(sp.frames[0], t.x, t.y, { ax: sp.ax, ay: sp.ay, rot: t.a });
     }
   },
