@@ -4,7 +4,7 @@ import { Enemies, Equipment, Items } from './content/registry.js';
 import { equipItem } from './content/equipment.js';
 import { Enemy } from './enemy.js';
 import { Pickup } from './pickup.js';
-import { drawSprite, fillRectWorld, fillCircleWorld, glowWorld, glowWorldCached, drawSpriteTint, lineWorld, strokeCircleWorld, uiText, ctxRaw, camera, view, worldToScreen, addShake } from '../engine/renderer.js';
+import { drawSprite, fillRectWorld, fillCircleWorld, glowWorld, glowWorldCached, drawSpriteTint, lineWorld, strokeCircleWorld, uiText, uiRect, textWidth, UI, ctxRaw, camera, view, worldToScreen, addShake } from '../engine/renderer.js';
 import { getSprite, frameAt, hasSprite, defineSprite } from '../engine/sprites.js';
 import { circleHit, dist, dist2, clamp, rng, TAU } from '../engine/math.js';
 import { P, withAlpha } from '../engine/palette.js';
@@ -77,6 +77,10 @@ export class World {
     this.pickups = [];
     this.keys = 0;   // #8: keys dropped by room guardians, spent to open locked vault chests
     this.beams = [];        // transient lightning/laser visuals
+    // R28/W5-fix (ART_SPEC 9, defect 8a-1) — boss move call-out captions. A dedicated list
+    // (not routed through Particles.text()) so the offset can be derived from the boss
+    // sprite's OWN anchor and a dark pill can be painted behind the text; see addMoveLabel().
+    this.moveLabels = [];
     this.hazards = [];      // trap-terrain zones (lava/spikes/poison/thorns)
     this.particles = new Particles();
     this.player = null;          // the LOCAL keyboard-controlled player (single-player + co-op host's own avatar)
@@ -434,6 +438,12 @@ export class World {
     this.projectiles = this.projectiles.filter((p) => !p.dead);
     this.pickups = this.pickups.filter((p) => !p.dead);
     for (let i = this.beams.length - 1; i >= 0; i--) { this.beams[i].life -= dt; if (this.beams[i].life <= 0) this.beams.splice(i, 1); }
+    for (let i = this.moveLabels.length - 1; i >= 0; i--) {
+      const t = this.moveLabels[i];
+      t.life -= dt;
+      if (t.life <= 0) { this.moveLabels.splice(i, 1); continue; }
+      t.y += t.vy * dt;
+    }
     this.particles.update(dt);
   }
 
@@ -712,6 +722,19 @@ export class World {
   // P1-2: beam telegraph shape/motion cues — animated flow-dashes + a start dot / end
   // arrowhead. Pure canvas line/polygon work (no particle allocation) so it stays cheap
   // even with a dozen-plus simultaneous beams.
+  // R28/W5-fix (ART_SPEC 9, defect 8a-1) — boss move call-out caption. Replaces the old
+  // `world.particles.text(e.x, e.y - e.radius*e.scale - 10, ...)` call sites in boss_moves.js:
+  // that offset used the enemy's hit-radius, which is unrelated to the SPRITE's drawn height,
+  // so on big boss canvases (28-40 px, ART_SPEC ART-01) the caption landed on the body
+  // (measured 2.69:1 in the final regression). Here the offset comes from the sprite's own
+  // anchor (`sp.ay` = local-space distance from the drawn top to the feet anchor, scaled by
+  // the entity's own `scale`) so it always clears the actual head, regardless of tier.
+  addMoveLabel(e, str, color = P.emberL) {
+    const sp = getSprite(e.sprite);
+    const y = e.y - (sp ? sp.ay * e.scale : e.radius * e.scale * 1.6) - 10;
+    this.moveLabels.push({ x: e.x, y, str, color, vy: -34, life: 0.8, max: 0.8 });
+  }
+
   // R28/W1-B: `st` = the ownership family's style row (see BEAM_STYLE) — the arrowhead grows
   // with the family so weight is a second, colour-independent ownership cue.
   drawBeamCues(b, a, st = BEAM_STYLE.player) {
@@ -721,11 +744,17 @@ export class World {
     const ux = dx / len, uy = dy / len, nx = -uy, ny = ux;
     const ctx = ctxRaw();
     ctx.save();
+    // R28/W5-fix (ART_SPEC 9, defect 3-a): dark outline UNDER the flow-dashes — same bright-
+    // background problem as the beam body (see the beam loop in draw()), applied to the cue
+    // layer per spec ("`drawBeamCues` 的虛線與箭頭同樣加深色描邊").
+    ctx.strokeStyle = withAlpha(P.ink, a * 0.9);
+    ctx.lineWidth = 3.5;
+    ctx.setLineDash([6, 10]);
+    ctx.lineDashOffset = -((this.time * 90) % 16);
+    ctx.beginPath(); ctx.moveTo(p0.x, p0.y); ctx.lineTo(p1.x, p1.y); ctx.stroke();
     // directional flow dashes (animated offset -> reads as motion toward the impact end)
     ctx.strokeStyle = withAlpha('#ffffff', a * 0.9);
     ctx.lineWidth = 1.5;
-    ctx.setLineDash([6, 10]);
-    ctx.lineDashOffset = -((this.time * 90) % 16);
     ctx.beginPath(); ctx.moveTo(p0.x, p0.y); ctx.lineTo(p1.x, p1.y); ctx.stroke();
     ctx.setLineDash([]);
     // start marker: small dot
@@ -734,6 +763,17 @@ export class World {
     // end marker: arrowhead pointing along the beam (shape info independent of colour)
     const ah = st.ah, aw = st.aw;
     const bx = p1.x - ux * ah, by = p1.y - uy * ah;
+    // dark outline behind the arrowhead: same triangle, enlarged by a constant outward
+    // margin, dark-filled, painted BEFORE the white arrowhead on top.
+    const om = 2;
+    const bx2 = p1.x - ux * (ah + om), by2 = p1.y - uy * (ah + om);
+    ctx.beginPath();
+    ctx.moveTo(p1.x + ux * om, p1.y + uy * om);
+    ctx.lineTo(bx2 + nx * (aw + om), by2 + ny * (aw + om));
+    ctx.lineTo(bx2 - nx * (aw + om), by2 - ny * (aw + om));
+    ctx.closePath();
+    ctx.fillStyle = withAlpha(P.ink, a);
+    ctx.fill();
     ctx.beginPath();
     ctx.moveTo(p1.x, p1.y);
     ctx.lineTo(bx + nx * aw, by + ny * aw);
@@ -915,6 +955,13 @@ export class World {
     for (const b of this.beams) {
       const a = Math.max(0, b.life / b.max);
       const st = BEAM_STYLE[beamFamily(b.color)];
+      // R28/W5-fix (ART_SPEC 9, defect 3-a): a near-black outline UNDER the family colour line.
+      // The desert stress test measured shoulder contrast 1.07-1.59:1 and core 1.89-2.31:1 —
+      // all <3:1 in normal vision AND all three CVD sims — because a bright family colour +
+      // white core have no dark edge on bright sand. +2px per family keeps the boss(5)/
+      // event(4)/player(3) weight ladder distinguishable through the added ink; alpha tracks
+      // the same beam-life fade as the rest of the beam ("同步").
+      lineWorld(b.x0, b.y0, b.x1, b.y1, withAlpha(P.ink, a), st.lw + 2);
       lineWorld(b.x0, b.y0, b.x1, b.y1, withAlpha(b.color, a), st.lw);
       lineWorld(b.x0, b.y0, b.x1, b.y1, withAlpha('#ffffff', a * 0.85), st.core);
       this.drawBeamCues(b, a, st);
@@ -922,6 +969,19 @@ export class World {
     // R28/FIX-1 — player identity, top half: shares the beam/telegraph layer so it sits above
     // every body. Cheap (one stroked ellipse) and always on, unlike the surround beacon.
     this.drawPlayerTopRing();
+    // R28/W5-fix (ART_SPEC 9, defect 8a-1) — boss move captions: dark pill behind the text so
+    // it holds ≥4.5:1 against ANY background, then the text on top. Sits in the same
+    // always-above-actors layer as the beam cues (drawn just before, same reasoning).
+    for (const t of this.moveLabels) {
+      const a = Math.max(0, Math.min(1, t.life / t.max));
+      const s = worldToScreen(t.x, t.y);
+      const size = UI.FONT_BODY;
+      const padX = 8, padY = 5;
+      const w = textWidth(t.str, size, UI.WEIGHT_HEADING) + padX * 2;
+      const h = size + padY * 2;
+      uiRect(s.x - w / 2, s.y - h / 2, w, h, withAlpha(P.ink, a * 0.72), { radius: h / 2 });
+      uiText(t.str, s.x, s.y, { size, color: withAlpha(t.color, a), align: 'center', baseline: 'middle', weight: UI.WEIGHT_HEADING, shadow: false });
+    }
     // particles
     this.particles.draw();
     // R26/B1 "surrounded" beacon — local player only, on top of the in-world layer

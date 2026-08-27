@@ -318,6 +318,9 @@ export const coopScene = {
     for (const b of this.guest.beams) {
       const a = Math.max(0, b.life / b.max);
       const st = BEAM_STYLE[beamFamily(b.color)];
+      // R28/W5-fix (defect 3-a): dark outline under the family line, same as the host loop in
+      // world.js draw() — without it the guest loses telegraphs on bright ground (desert).
+      lineWorld(b.x0, b.y0, b.x1, b.y1, withAlpha(P.ink, a), st.lw + 2);
       lineWorld(b.x0, b.y0, b.x1, b.y1, withAlpha(b.color, a), st.lw);
       lineWorld(b.x0, b.y0, b.x1, b.y1, withAlpha('#ffffff', a * 0.85), st.core);
       this.world.drawBeamCues(b, a, st);

@@ -63,7 +63,7 @@ export const BOSS_MOVES = {
     start(e, world) {
       const p = nearest(world, e.x, e.y);
       if (!p || p.dead) return null;
-      world.particles.text(e.x, e.y - e.radius * e.scale - 10, '蓄力跳躍！', { color: P.emberL, size: 12, weight: '800' });
+      world.addMoveLabel(e, '蓄力跳躍！', P.emberL);   // R28/W5-fix: sprite-anchor offset + dark pill (ART_SPEC 9)
       return { ph: 'crouch', t: 0.5, tel: 0 };
     },
     tick(e, world, dt, st) {
@@ -109,7 +109,7 @@ export const BOSS_MOVES = {
     start(e, world) {
       const p = nearest(world, e.x, e.y);
       if (!p || p.dead) return null;
-      world.particles.text(e.x, e.y - e.radius * e.scale - 10, '魂柱囚籠！', { color: P.purpleL, size: 12, weight: '800' });
+      world.addMoveLabel(e, '魂柱囚籠！', P.purpleL);   // R28/W5-fix: sprite-anchor offset + dark pill (ART_SPEC 9)
       return { ph: 'cast', t: 0.8, tel: 0, px: p.x, py: p.y };
     },
     tick(e, world, dt, st) {
@@ -140,7 +140,7 @@ export const BOSS_MOVES = {
     start(e, world) {
       const p = nearest(world, e.x, e.y);
       if (!p || p.dead) return null;
-      world.particles.text(e.x, e.y - e.radius * e.scale - 10, '連續衝撞！', { color: P.redL, size: 12, weight: '800' });
+      world.addMoveLabel(e, '連續衝撞！', P.redL);   // R28/W5-fix: sprite-anchor offset + dark pill (ART_SPEC 9)
       return { ph: 'tel', t: 0.35, n: 3, tel: 0 };
     },
     tick(e, world, dt, st) {
@@ -191,7 +191,7 @@ export const BOSS_MOVES = {
       const n = BALANCE.BOSSMOVE_SHOCK_RAYS + e.phase, off = Math.random() * TAU;
       const rays = [];
       for (let i = 0; i < n; i++) rays.push({ a: off + (i / n) * TAU, hitSet: new Set() });
-      world.particles.text(e.x, e.y - e.radius * e.scale - 10, '地裂衝擊！', { color: P.emberL, size: 12, weight: '800' });
+      world.addMoveLabel(e, '地裂衝擊！', P.emberL);   // R28/W5-fix: sprite-anchor offset + dark pill (ART_SPEC 9)
       return { ph: 'cast', t: 0.6, rays, d: 14, tel: 0 };
     },
     tick(e, world, dt, st) {

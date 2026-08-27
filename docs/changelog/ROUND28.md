@@ -380,3 +380,29 @@ hub-interiors.png`)的病徵是「對稱、空曠、鏡像擺設、下半畫面�
   標題四解析度截圖 docs/reviews/art-improve-2026-08/w4h-after/。
 - 誠實記錄:子代理環境無法合成瀏覽器畫面,DOM 四 modal 像素截圖未產出,改以結構化驗證
   ＋主迴圈實測替代;`.net-card h2` 既有漸層文字與 DOM「角切」是否要做斜切造型留待裁決。
+
+## W5 最終回歸與修正
+
+**回歸取證**（`docs/reviews/art-improve-2026-08/final/`，98 張證據＋FINAL_REGRESSION.md）：
+10 生態壓力景、四解析度（**含補上原審核缺的 2560×1440 真全高**）、三色覺模擬、contact sheets
+（27/63/219 missing:[]）、灰階十格 10/10 互辨、smoke 59/59、co-op 三自測、以及原審核列為
+「未能觀察」的補做——自然 Boss 招式時間軸（4 招各 2 幀，非受控 beam）、完整 bank 面板、
+結算畫面（通關/死亡兩態）。
+
+**回歸揪出並修正的兩個中度缺陷**：
+- 3-a 亮背景光束對比不足：desert 實測肩部 1.07-1.59:1、核心 2.03-2.31:1，正常視覺與三種
+  色覺**全部 <3:1**（預警在亮生態等同失效）。修法＝族色線下方加近黑描邊（lw+2），cues 的
+  虛線與箭頭同步；host 與 co-op guest 兩條繪製路徑都套用。
+  **修正後實測 5.56-5.78:1**（normal/protanopia/deuteranopia/tritanopia 皆是），
+  證據 `w5fix-after/beam-outline-desert-3x.png`。
+- 8a-1 Boss 招式標語被身體吃掉（2.69:1）：原偏移用 `e.radius*scale`（碰撞半徑，與 sprite
+  繪製高度無關），大型 Boss 畫布 28-40px 時字落在身上。修法＝新增 `world.addMoveLabel()`，
+  偏移改由 sprite 自身 anchor 推導、字後加深色圓角底板、字級走 UI token；boss_moves.js
+  四個呼叫點全部改用。
+
+**設計檢查工具（impeccable）兩則發現的處置**：
+- `social.js` 區段標題的 3px 左側強調條（早於本輪，`430443c` 即有）→ 依 ART-08「統一標題帶」
+  改為 Canvas `drawPanelFrame` 的 DOM 對應（全寬填色帶＋底線＋上圓角）。
+- `index.html` 載入進度條的 `transition: width` → **判定誤報保留**：寬度是進度條的語義屬性、
+  該元素獨處 fixed 覆蓋層無 layout thrash 成本、且背景是橫向漸層，改 `transform:scaleX` 會
+  拉伸變形。未加抑制註解，理由記錄於此。

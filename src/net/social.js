@@ -62,7 +62,9 @@ function ensureStyles() {
     .sl-tabs button:focus-visible{outline:2px solid var(--chrome-focus-ring);outline-offset:1px}
     .sl-tabs button.on{background:linear-gradient(180deg,#2c3a8a,#1f2a66);color:#fff;border-color:var(--chrome-accent);box-shadow:0 0 12px rgba(72,224,208,.35)}
     .sl-sec{margin:14px 0}
-    .sl-sec h3{margin:0 0 9px;padding-left:9px;font-size:var(--chrome-font-caption);color:var(--chrome-text-dim);font-weight:var(--chrome-weight-heading);letter-spacing:1px;text-transform:uppercase;border-left:3px solid var(--chrome-accent);line-height:1.1;display:flex;align-items:center;gap:6px}
+    /* Section header echoes the canvas panel title band (hub/render.js drawPanelFrame: a
+       full-width filled bar + separator), not a left accent tick. */
+    .sl-sec h3{margin:0 0 9px;padding:6px 9px;font-size:var(--chrome-font-caption);color:var(--chrome-text-dim);font-weight:var(--chrome-weight-heading);letter-spacing:1px;text-transform:uppercase;background:linear-gradient(180deg,rgba(31,37,66,.9),rgba(31,37,66,.35));border-bottom:1px solid var(--chrome-border-soft);border-radius:var(--chrome-radius-sm) var(--chrome-radius-sm) 0 0;line-height:1.1;display:flex;align-items:center;gap:6px}
     .sl-row{display:flex;gap:var(--chrome-gap-sm);align-items:center;margin:6px 0}
     .sl-row input,.sl-row select{flex:1;box-sizing:border-box;padding:9px 10px;border-radius:var(--chrome-radius-sm);border:var(--chrome-border-w) solid var(--chrome-border);background:var(--chrome-ink);color:#fff;font-size:var(--chrome-font-body);transition:.15s}
     .sl-row input:focus,.sl-row select:focus,.sl-row input:focus-visible,.sl-row select:focus-visible{outline:none;border-color:var(--chrome-accent);box-shadow:0 0 0 3px rgba(72,224,208,.28)}
