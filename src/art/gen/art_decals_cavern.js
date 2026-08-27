@@ -3,7 +3,7 @@ import { defineSprite, defineAnim, Painter } from '../../engine/sprites.js';
 import { P, lighten, darken, mix, withAlpha } from '../../engine/palette.js';
 import { defineIcon, panel, sym } from '../icons.js';
 import { drawSlime, drawBat, drawWisp, drawBrute, drawHunter, registerHeroBody, drawHeroBody } from '../core.js';
-import { registerDecals } from '../biome_decals.js';
+import { registerDecals, registerLandmarks, registerAmbient } from '../biome_decals.js';
 import { DECOR_SETS, DECOR_CLUSTERS } from '../biome_decor.js';
 
 // ============================ CAVERN 水晶洞窟 — ground decals + standing decor ============================
@@ -137,6 +137,128 @@ defineAnim('bdx_cavern_geode', 18, 16, 2, (p, f) => {       // split boulder, cr
 }, { anchor: 'feet', fps: 2 });
 
 // ---------------------------------------------------------------------------
+// (d) R28 W3-C2 HAND-EDIT — LANDMARKS + signature environment motion
+// ART_SPEC §6: ≥3×3 tile silhouettes placed explicitly by maps.js (see the W3-C1 frost
+// pack for the pattern). Ground contact is an OPAQUE mound INSIDE the silhouette; the
+// soft contact shadow goes down AFTER outline(), or it comes back ringed in ink.
+// ---------------------------------------------------------------------------
+
+const CAV_ROCK = '#2e4a4e';
+
+defineSprite('lmk_cavern_crystalspire', 52, 80, (p) => {     // 巨型晶簇 — the vein broken out into the open
+  const rock = mix(CAV_ROCK, P.ink, 0.2), rockL = lighten(rock, 0.26), rockD = darken(rock, 0.34);
+  // the rock plinth it grew out of (back half — the front lip is laid over the shard feet later)
+  p.ellipse(26, 71, 23, 8, rockD);
+  p.ellipse(25, 68, 19, 6, rock);
+  p.speckle(6, 63, 40, 10, darken(rock, 0.2), 14, 31);
+  // one shard: a tapering prism from (bx,by) up to (tx,ty)
+  const shard = (bx, by, tx, ty, hw, c) => {
+    const n = by - ty;
+    for (let i = 0; i <= n; i++) {
+      const t = i / n, x = bx + (tx - bx) * t, w = Math.max(0.5, hw * (1 - t * 0.88)), y = by - i;
+      p.hline(Math.round(x - w), Math.round(x + w), y, c);
+      p.px(Math.round(x - w), y, lighten(c, 0.3));                                  // lit left facet
+      p.px(Math.round(x + w), y, darken(c, 0.32));                                  // shaded right facet
+      if (i % 7 === 2) p.px(Math.round(x), y, lighten(c, 0.18));                    // internal flaw catching light
+    }
+    p.px(Math.round(tx), ty, P.white);
+  };
+  // back rank first, front rank over it — heights and lean deliberately unequal
+  shard(12, 66, 8, 30, 4.5, P.shardD);
+  shard(41, 67, 45, 34, 4, P.shardD);
+  shard(19, 69, 16, 14, 5.5, darken(P.shard, 0.08));
+  shard(34, 69, 37, 20, 5, darken(P.shard, 0.05));
+  shard(27, 71, 29, 4, 7, P.shard);                                                 // the spire
+  shard(23, 71, 21, 26, 4, lighten(P.shard, 0.12));
+  p.speckle(14, 20, 26, 40, withAlpha(P.shardL, 0.28), 12, 47);                      // glitter inside the cluster
+  // the front lip of the plinth, drawn OVER the shard feet → growing OUT of it, not standing on it
+  p.ellipse(22, 68, 15, 5, rock);
+  p.ellipse(16, 66, 8, 3, rockL);
+  p.ellipse(36, 70, 11, 4, darken(rock, 0.1));
+  p.line(6, 72, 17, 67, withAlpha(rockD, 0.85)); p.line(32, 68, 45, 72, withAlpha(rockD, 0.75));
+  p.px(15, 65, withAlpha(P.shard, 0.5)); p.px(38, 69, withAlpha(P.shardL, 0.35));    // shard stubs in the rock
+  p.rimLight(P.rimCool, 0.4);
+  p.outline(P.ink);
+  // AFTER outline, always: a glow that spills past the body gets TRACED, and the cluster
+  // came back wearing a dark arch halo (same family as the bdxa ambient rule — outline()
+  // must never see a soft light layer). Contact shadow last, for the same reason.
+  p.glow(29, 22, 8, P.shard, 0.24, 4);
+  p.glow(17, 34, 5, P.shard, 0.16, 3);
+  p.star4(29, 8, 3, withAlpha(P.shardL, 0.8), P.white);
+  p.ellipse(26, 76, 22, 3.2, withAlpha(P.shadow, 0.3));
+}, { anchor: [26, 76] });
+
+defineSprite('lmk_cavern_collapsedmine', 64, 60, (p) => {    // 崩塌礦坑 — an adit the mountain took back
+  const rock = mix(CAV_ROCK, P.ink, 0.24), rockL = lighten(rock, 0.24), rockD = darken(rock, 0.36);
+  const beam = mix(P.woodD, CAV_ROCK, 0.3);
+  // the rock face the shaft was cut into. Its top edge is BROKEN — a ruled bright bar read
+  // as a mantelpiece, and a short-period tooth pattern read as castle battlements, so the
+  // profile comes off a hash with a long, uneven period and the catch-light is 1 px.
+  p.rect(4, 4, 56, 42, rock);
+  const h1 = (x) => { let n = (x * 374761393) >>> 0; n = ((n ^ (n >>> 13)) * 1274126177) >>> 0; return ((n ^ (n >>> 16)) >>> 0) / 4294967296; };
+  for (let x = 4; x < 60; x++) {
+    const top = 4 + Math.round(h1(x) * 2) + Math.round(Math.sin(x / 9) * 1.5 + 1.5);
+    p.rect(x, 4, 1, top - 4, mix(rock, P.ink, 0.5));                                  // the sky-side bite out of the ridge
+    p.px(x, top, rockL);
+    if (h1(x + 91) > 0.82) { p.px(x, top - 1, darken(rock, 0.06)); p.px(x, top + 1, darken(rock, 0.14)); }   // loose blocks on the lip
+  }
+  p.rect(4, 43, 56, 3, rockD);
+  p.line(4, 4, 1, 16, rock); p.line(59, 4, 62, 18, rockD);
+  p.rect(0, 14, 5, 30, rockD); p.rect(59, 17, 5, 27, rockD);                          // the shoulders
+  p.speckle(5, 7, 54, 36, darken(rock, 0.22), 20, 53);
+  p.line(13, 8, 10, 42, darken(rock, 0.3)); p.line(44, 9, 48, 43, darken(rock, 0.26)); // strata
+  // the mouth: a dark arch, choked with fallen rock
+  p.ellipse(30, 34, 15, 17, mix(P.ink, rockD, 0.25));
+  p.rect(15, 34, 31, 13, mix(P.ink, rockD, 0.25));
+  p.ellipse(30, 33, 11, 13, P.ink);
+  p.rect(19, 33, 23, 14, P.ink);
+  // the timber frame, snapped on one side
+  p.rect(15, 20, 4, 27, beam); p.rect(15, 20, 1, 27, lighten(beam, 0.22));
+  p.rect(42, 24, 4, 23, beam); p.rect(42, 24, 1, 23, lighten(beam, 0.18));
+  p.rect(13, 17, 34, 4, beam); p.rect(13, 17, 34, 1, lighten(beam, 0.2));
+  p.line(46, 21, 55, 29, darken(beam, 0.2)); p.line(47, 22, 54, 31, beam);            // the snapped brace, hanging
+  p.px(46, 21, lighten(beam, 0.3)); p.px(19, 20, withAlpha(P.moss, 0.45));
+  // the cave-in: a rubble slope rising INTO the opening (an empty black arch read as a
+  // fireplace — the point of the piece is that the shaft is CHOKED)
+  for (let x = 20; x <= 42; x++) {
+    const top = 47 - Math.round(9 * Math.sin((x - 19) / 24 * Math.PI)) - Math.round(h1(x + 13) * 2);
+    p.vline(top, 47, x, rock);
+    p.px(x, top, rockL);
+  }
+  p.speckle(20, 38, 23, 10, darken(rock, 0.3), 12, 83);
+  // the cave-in spilling out of the mouth
+  p.ellipse(30, 48, 20, 6, rock);
+  p.ellipse(24, 46, 11, 4, rockL);
+  p.ellipse(38, 49, 9, 3.4, darken(rock, 0.12));
+  p.speckle(11, 42, 39, 10, darken(rock, 0.26), 16, 71);
+  p.ellipse(22, 44, 3, 2.2, rockL); p.ellipse(36, 46, 2.4, 1.8, rock);                // individual blocks
+  // the vein that made it worth digging, glinting in the rubble and the walls
+  p.px(24, 44, P.shardL); p.px(52, 20, withAlpha(P.shardL, 0.7));
+  p.px(9, 28, withAlpha(P.shard, 0.5)); p.px(40, 12, withAlpha(P.shard, 0.45));
+  p.rimLight(P.rimCool, 0.35);
+  p.outline(P.ink);
+  p.glow(24, 44, 3, P.shard, 0.2, 3);                                                 // glows AFTER outline (see crystalspire)
+  p.glow(52, 20, 3, P.shard, 0.14, 3);
+  p.ellipse(32, 55, 24, 3.2, withAlpha(P.shadow, 0.28));
+}, { anchor: [32, 56] });
+
+defineAnim('bdxa_cavern_sporeglow', 16, 18, 4, (p, f) => {   // signature motion — glow-spores lifting off a lichen shelf
+  // outline() runs BEFORE the motes, exactly as in bdxa_frost_snowveil: tracing them after
+  // the fact rims every drifting spore in ink and the column reads as a dotted comb.
+  p.ellipse(8, 16, 6, 1.6, withAlpha(mix(P.moss, CAV_ROCK, 0.4), 0.7));               // the lichen shelf they rise from
+  p.ellipse(6, 15, 3, 1, withAlpha(P.moss, 0.5));
+  p.px(5, 15, withAlpha(P.toxic, 0.45));
+  p.outline(withAlpha(P.ink, 0.35));                                                  // only the shelf is rimmed
+  for (let i = 0; i < 8; i++) {                                                       // spores rising, spiralling, fading out
+    const t = ((i * 3 + f) % 8) / 8;
+    const x = 8 + Math.sin(t * 4.4 + i) * (3.4 - t * 1.6);
+    const y = 14 - t * 12;
+    p.ellipse(x, y, Math.max(0.6, 1.5 - t), 0.7, withAlpha(t > 0.55 ? P.shardL : P.toxic, 0.5 - t * 0.32));
+  }
+  p.px(Math.round(8 + Math.cos(f * 1.57) * 4), Math.round(6 + Math.sin(f * 1.57) * 2), withAlpha(P.white, 0.45));
+}, { anchor: [8, 17], fps: 5 });
+
+// ---------------------------------------------------------------------------
 // (c) registration
 // ---------------------------------------------------------------------------
 
@@ -150,4 +272,9 @@ registerDecals('cavern', [
 (DECOR_CLUSTERS['cavern'] = DECOR_CLUSTERS['cavern'] || []).push(
   'bdx_cavern_shardlet', 'bdx_cavern_geode'
 );
+
+// R28 W3-C2 HAND-EDIT — landmarks are placed explicitly by maps.js (kept OUT of the
+// scatter pool); the rising glow-spores are the biome's ambient motion.
+registerLandmarks('cavern', ['lmk_cavern_crystalspire', 'lmk_cavern_collapsedmine']);
+registerAmbient('cavern', ['bdxa_cavern_sporeglow']);
 

@@ -3,7 +3,7 @@ import { defineSprite, defineAnim, Painter } from '../../engine/sprites.js';
 import { P, lighten, darken, mix, withAlpha } from '../../engine/palette.js';
 import { defineIcon, panel, sym } from '../icons.js';
 import { drawSlime, drawBat, drawWisp, drawBrute, drawHunter, registerHeroBody, drawHeroBody } from '../core.js';
-import { registerDecals } from '../biome_decals.js';
+import { registerDecals, registerLandmarks, registerAmbient } from '../biome_decals.js';
 import { DECOR_SETS, DECOR_CLUSTERS } from '../biome_decor.js';
 
 // ============================ SWAMP 腐沼濕地 — ground decals + standing decor ============================
@@ -141,6 +141,138 @@ defineSprite('bdx_swamp_bogpost', 13, 18, (p) => {            // rotted marker p
   p.outline(P.ink);
 }, { anchor: 'feet' });
 
+// ============================ (d) R28 W3-C2 HAND-EDIT — LANDMARKS + AMBIENT ============================
+// ART_SPEC §6: ≥3×3 tile silhouettes placed explicitly by maps.js (pattern from the W3-C1
+// frost pack). Ground contact is an OPAQUE mound INSIDE the silhouette; the soft contact
+// shadow goes down AFTER outline(), or it comes back ringed in ink.
+
+defineSprite('lmk_swamp_sunkenidol', 56, 68, (p) => {         // 沉沒神像 — a colossal head the bog swallowed
+  const st = mix(P.gray1, P.bog, 0.4), stL = lighten(st, 0.24), stD = darken(st, 0.36);
+  const water = mix(swFloor, P.murk, 0.45);
+  // the standing water it is sinking into (back half — the near surface goes over the jaw later)
+  p.ellipse(28, 58, 26, 8, darken(water, 0.1));
+  p.ellipse(27, 55, 21, 5.5, water);
+  // The head. First pass drew it as a rounded rect and it read as a BUCKET — a head needs a
+  // narrow crown, a widest point at the cheekbone and a chin that tapers back in, plus a
+  // lean. Row-by-row profile, so all three happen at once.
+  const prof = (y) => {                                                                // → [centreX, halfWidth] at row y
+    const t = (y - 10) / 44;
+    return [26 + t * 4, 8 + Math.sin(Math.min(1, t * 1.15) * Math.PI) * 11];
+  };
+  for (let y = 10; y <= 54; y++) {
+    const [cx, hw] = prof(y);
+    p.hline(Math.round(cx - hw), Math.round(cx + hw), y, st);
+    p.hline(Math.round(cx - hw), Math.round(cx - hw) + 4, y, stL);                      // lit cheek
+    p.hline(Math.round(cx + hw) - 3, Math.round(cx + hw), y, stD);
+  }
+  // the headdress: a tapered crown sitting ON the skull, not a full-width bar
+  for (let y = 4; y <= 12; y++) {
+    const w = 7 + (y - 4) * 1.1, cx = 25 + (y - 4) * 0.2;
+    p.hline(Math.round(cx - w), Math.round(cx + w), y, y < 6 ? stL : st);
+    p.px(Math.round(cx - w), y, lighten(stL, 0.16));
+    p.px(Math.round(cx + w), y, stD);
+  }
+  p.line(15, 12, 12, 22, stD); p.line(37, 12, 41, 23, stD);                             // the lappets down each side
+  p.px(20, 6, lighten(stL, 0.2)); p.px(31, 8, stD);
+  // the face: brow ridge, sunken eyes, a broken nose, a mouth going under
+  const [bcx, bhw] = prof(25);
+  p.rect(Math.round(bcx - bhw + 3), 24, Math.round(bhw * 2 - 6), 3, stD);
+  p.ellipse(20, 31, 4, 3, darken(stD, 0.34)); p.ellipse(35, 32, 3.4, 2.6, darken(stD, 0.38));
+  p.px(20, 30, withAlpha(P.toxic, 0.4)); p.px(35, 31, withAlpha(P.toxic, 0.3));         // something living behind the eyes
+  p.rect(26, 33, 4, 8, stD); p.px(26, 33, stL);                                         // nose, broad and snapped off
+  p.hline(24, 32, 41, darken(stD, 0.24));
+  p.hline(21, 36, 47, darken(stD, 0.3)); p.hline(21, 36, 48, withAlpha(stL, 0.3));      // the mouth, half drowned
+  // the crack that runs through it
+  p.line(31, 5, 29, 26, withAlpha(darken(stD, 0.4), 0.8));
+  p.line(29, 26, 34, 46, withAlpha(darken(stD, 0.4), 0.7));
+  p.px(30, 18, withAlpha(stL, 0.5));
+  // moss, weed and rot creeping up out of the water
+  p.speckle(9, 34, 38, 18, withAlpha(P.moss, 0.4), 20, 151);
+  p.speckle(12, 44, 32, 10, withAlpha(P.slimeBog, 0.4), 12, 157);
+  p.ellipse(15, 42, 4, 2.4, withAlpha(P.moss, 0.5)); p.ellipse(40, 45, 3.4, 2, withAlpha(P.bogL, 0.45));
+  // the near water surface, laid OVER the jaw → it is IN the bog, not standing on it
+  p.ellipse(24, 55, 18, 4.6, water);
+  p.ellipse(17, 53, 9, 2.6, lighten(water, 0.12));
+  p.ellipse(38, 57, 11, 3.4, darken(water, 0.06));
+  p.line(6, 59, 18, 54, withAlpha(darken(water, 0.16), 0.85)); p.line(32, 55, 47, 59, withAlpha(darken(water, 0.16), 0.7));
+  p.speckle(6, 50, 42, 10, withAlpha(P.slimeBog, 0.3), 12, 163);
+  p.px(20, 52, withAlpha(P.bogL, 0.5)); p.px(36, 56, withAlpha(P.toxic, 0.3));
+  p.rimLight(P.rimCool, 0.32);
+  p.outline(P.ink);
+  p.ellipse(28, 63, 25, 3.2, withAlpha(P.shadow, 0.28));
+}, { anchor: [28, 64] });
+
+defineSprite('lmk_swamp_deadarch', 64, 76, (p) => {           // 枯樹拱門 — two dead giants fallen into each other
+  const bark = mix(P.barkD, P.murk, 0.35), barkL = mix(P.bark, P.bog, 0.3), barkD = darken(bark, 0.3);
+  const water = mix(swFloor, P.murk, 0.45);
+  // the mire the trunks stand in (back half)
+  p.ellipse(32, 66, 29, 8, darken(water, 0.1));
+  p.ellipse(31, 63, 23, 5.5, water);
+  // the two leaning trunks: unequal thickness, meeting off-centre
+  const trunk = (bx, by, tx, ty, bw, tw) => {
+    const n = by - ty;
+    for (let i = 0; i <= n; i++) {
+      const t = i / n, x = bx + (tx - bx) * t, w = bw + (tw - bw) * t, y = by - i;
+      p.hline(Math.round(x - w), Math.round(x + w), y, bark);
+      p.px(Math.round(x - w), y, barkL);
+      p.px(Math.round(x + w), y, barkD);
+    }
+  };
+  // First pass had both trunks taper to a POINT at the same spot: it read as a teepee, not
+  // an arch. They now stop short and a spanning limb bridges them, so the opening beneath
+  // is the shape you actually see.
+  trunk(9, 64, 22, 22, 5, 3);
+  trunk(55, 65, 42, 20, 4.4, 2.8);
+  for (let x = 19; x <= 45; x++) {                                                     // the span they grew into each other
+    const y = 20 + Math.round(Math.sin((x - 19) / 26 * Math.PI) * -3);
+    p.vline(y, y + 3, x, bark);
+    p.px(x, y, barkL); p.px(x, y + 3, barkD);
+  }
+  p.ellipse(22, 21, 4, 3, bark); p.ellipse(42, 19, 3.4, 2.6, bark);                    // the knuckles where they lock
+  p.line(24, 20, 14, 8, bark); p.line(40, 18, 51, 7, bark);                            // dead limbs clawing out
+  p.line(18, 12, 11, 11, barkD); p.line(46, 11, 54, 12, barkD);
+  p.line(31, 17, 29, 5, bark); p.line(32, 17, 37, 8, barkD);
+  p.speckle(9, 22, 46, 40, darken(bark, 0.22), 22, 167);                               // rotted grain
+  p.speckle(12, 30, 40, 30, withAlpha(P.moss, 0.28), 14, 173);
+  // moss hanging off the SPAN only — strands of unequal length, muted so they read as
+  // hanging weed rather than glowing bars (first pass used full-strength bogL)
+  for (let i = 0; i < 7; i++) {
+    const x = 20 + i * 4, len = 7 + ((i * 5) % 4) * 4 + (i % 3) * 3;
+    const top = 22 - Math.round(Math.sin((x - 19) / 26 * Math.PI) * 3);
+    p.vline(top, top + len, x, withAlpha(mix(P.bog, P.moss, 0.3), 0.6));
+    p.px(x, top + len, withAlpha(P.bogL, 0.45));
+    if (i % 2 === 0) p.px(x + 1, top + Math.round(len * 0.5), withAlpha(P.slimeBog, 0.28));
+  }
+  // the near water surface, over the trunk feet
+  p.ellipse(26, 63, 20, 4.6, water);
+  p.ellipse(19, 61, 9, 1.8, withAlpha(lighten(water, 0.12), 0.6));   // a soft sheen, not a pasted block
+  p.ellipse(44, 65, 12, 3.4, darken(water, 0.06));
+  p.line(6, 67, 20, 62, withAlpha(darken(water, 0.16), 0.85)); p.line(36, 63, 54, 67, withAlpha(darken(water, 0.16), 0.7));
+  p.speckle(6, 58, 52, 10, withAlpha(P.slimeBog, 0.3), 14, 179);
+  p.px(23, 60, withAlpha(P.bogL, 0.5)); p.px(46, 64, withAlpha(P.toxic, 0.3));
+  p.rimLight(P.rimCool, 0.3);
+  p.outline(P.ink);
+  p.ellipse(32, 71, 28, 3.2, withAlpha(P.shadow, 0.28));
+}, { anchor: [32, 72] });
+
+defineAnim('bdxa_swamp_gasplume', 16, 18, 4, (p, f) => {      // signature motion — marsh gas belching up through the scum
+  // outline() BEFORE the bubbles (bdxa_frost_snowveil lesson): tracing afterwards rims each
+  // bubble in ink and the plume reads as a beaded chain instead of gas.
+  p.ellipse(8, 16, 6, 1.8, withAlpha(darken(P.murk, 0.1), 0.8));                       // the seep it comes out of
+  p.ellipse(8, 16, 4, 1.2, withAlpha(mix(P.bog, P.slimeBog, 0.4), 0.7));
+  p.px(6, 15, withAlpha(P.toxic, 0.5)); p.px(10, 16, withAlpha(P.slimeBog, 0.5));
+  p.outline(withAlpha(P.ink, 0.35));                                                   // only the seep is rimmed
+  for (let i = 0; i < 7; i++) {                                                        // bubbles rising, swelling, thinning to gas
+    const t = ((i * 3 + f) % 7) / 7;
+    const x = 8 + Math.sin(t * 3.6 + i * 1.3) * 2.6;
+    const y = 14 - t * 12;
+    const r = 0.7 + t * 1.4;
+    p.ellipse(x, y, r, r * 0.85, withAlpha(t > 0.6 ? P.poison : P.toxic, 0.5 - t * 0.3));
+    if (t > 0.75) p.px(Math.round(x - r), Math.round(y - r), withAlpha(P.slimeBog, 0.35));   // it comes apart at the top
+  }
+  p.px(Math.round(8 + Math.cos(f * 1.57) * 3), 4, withAlpha(P.slimeBog, 0.32));
+}, { anchor: [8, 17], fps: 5 });
+
 // ============================ (c) registration ============================
 registerDecals('swamp', [
   'decal_swamp_mudpatch', 'decal_swamp_puddle', 'decal_swamp_algae', 'decal_swamp_moss',
@@ -152,4 +284,9 @@ registerDecals('swamp', [
 (DECOR_CLUSTERS['swamp'] = DECOR_CLUSTERS['swamp'] || []).push(
   'bdx_swamp_fungusCluster', 'bdx_swamp_sunkenstump'
 );
+
+// R28 W3-C2 HAND-EDIT — landmarks are placed explicitly by maps.js (kept OUT of the
+// scatter pool); the marsh-gas plume is the biome's ambient motion.
+registerLandmarks('swamp', ['lmk_swamp_sunkenidol', 'lmk_swamp_deadarch']);
+registerAmbient('swamp', ['bdxa_swamp_gasplume']);
 

@@ -217,3 +217,50 @@ W2-D 的機制層原封不動:在 `biomes.js` 的 `WALL_VARIANTS` 補一組資�
   L 不變、A 改變(FIX-1 的 artRng fork 自動生效);截圖組
   `docs/reviews/art-improve-2026-08/w3c1-after/`(開場/壓力/邊界/灰階,含六格灰階並排
   `gray-6up-identity.png`)。
+
+## W3-C2 四生態身份收官＋v2 種子顆粒化回套(ART-04+11;cavern/verdant/swamp/abyss)
+
+機制層仍原封不動:在 `biomes.js` 的 `WALL_VARIANTS` 補資料即自動開啟 `BIOME_MACRO`
+(群聚地板/decal 群聚/地標/邊界),maps.js / world.js / balance.js 一行未動。
+**至此 10 生態全數納入身份治理**(W2-D 三 + W3-C1 三 + 本輪四)。
+
+- **牆材質語言**(每生態 wallv1/wallv2/wallbk + 深層岩心 ×2 + 地平線 ×3):
+  cavern 鐘乳石柱/晶簇嵌壁/塌落斷面、verdant 藤蔓纏石/苔蝕磚/樹根穿牆、
+  swamp 朽木樁牆/泥沼滲層/菌斑蝕面、abyss 深海蝕岩/發光珊瑚縫/壓裂紋。
+  全部沿用該生態 `base` 漸層與 lit crown,只換表面圖案,值階與原版牆一致。
+- **地標各 2 個**(≥3×3 tile,不帶 solid,7×5 開放空地):cavern 巨型晶簇/崩塌礦坑、
+  verdant 巨樹/苔封石環、swamp 沉沒神像/枯樹拱門、abyss 鯨落骨骸/沉船艏。
+- **環境動態**:`bdxa_cavern_sporeglow`(螢光孢子上升)/`bdxa_verdant_pollen`(花粉飄散)/
+  `bdxa_swamp_gasplume`(沼氣泡騰)/`bdxa_abyss_bubblecolumn`(冷泉氣泡柱)。
+- **邊界語法** `oobBand`:洞窟深處(鐘乳＋遠處晶光)/深林霧牆/霧鎖枯林/海溝消隱。
+- **v1 值階連調**(與群聚耦合):cavern 濕蝕岩床、verdant 林蔭腐土、swamp 藻膜淺灘、
+  abyss 石灰沉積灘——四者原本都只是 `mix(floor,floor2,0.45)` 的 6 值微調。
+- **v2 種子顆粒化(本輪四生態)**:cavern 三個固定晶芽＋雙固定 glow、verdant 兩組
+  5 像素花朵玫瑰結、swamp 全寬 `dither` 浮渣帶＋三個固定欄位氣泡、abyss 雙固定噴口
+  十字 → 全改分層種子顆粒;swamp/abyss 為動畫磚,以 frame 滾動種子製造流動感;
+  四者的 `gradV` 一律改平底色(每 16 列一條橫紋的根因)。
+- **W2 遺留 #1 回套(crypt/celestial/desert)**:crypt v2 四段 grout 仍碰磚緣→相鄰磚接成
+  16px 尺規格線;celestial v2 的 (5,6)/(12,11) 兩處固定 glow＋star4/sparkle 仍是每磚同位;
+  desert 綠洲 v2 的 `gradV` 未除。三者全部改為平底色＋分層種子顆粒(celestial 隨 frame
+  滾動),特徵 GLYPH 一律交還 decal 通道(decal_crypt_seam/_crack、
+  decal_celestial_stardust/_marblecrack)。**美術雜湊變、佈局雜湊不變**(見下)。
+- **迭代修正**(以 tiled-field 對照表＋9× zoom 自檢後改):巨樹首版讀成蘑菇→樹冠改七團
+  凹凸輪廓＋枝幹伸出冠外＋主幹傾斜收分;神像首版讀成水桶→改逐列側寫(窄顱頂/顴骨最寬/
+  下頜收) ;枯樹拱門首版讀成三腳帳→兩幹改止於半空並加橫跨枝,拱下留空;沉船艏首版讀成
+  巫師帽→改非對稱(艏柱長邊＋單側船身＋撕裂艉緣);鯨肋 `sin(t*1.5)` 單調上升畫成梳齒→
+  改 `sin(t*2.1)` 讓肋尖回捲,遠近兩排分明暗;花粉首版用 1.6 半徑橢圓連成一根棍→改單像素
+  散點;abyss 氣泡半徑上限 1.3→0.6+0.6t(否則糊成煙柱)。
+- **美術慣例新增**:`glow/star4` 若外溢出本體,必須畫在 `p.outline()` **之後**——否則 outline
+  會把柔光層一起描邊,晶簇長出一圈墨色拱形光暈(與「ambient 的 outline 在飛塵之前」同源)。
+  另:牆磚 variant 的**重複「列」比重複「點」更致命**——swamp v2 的水平滲層即使內縮仍每 16
+  列成紋,改以垂直流痕承重才解;verdant v2 全寬磚縫同理改成斷續短段;abyss v1 的閉合
+  `ring()` 是最容易在平鋪下被認出的形狀,改種子結殼。
+- **驗證**:smoke 59/59;固定種子**三欄**雜湊 `mapsig-split-{before,after}.txt`
+  (工具升為 `tools/_wf_mapsig4.mjs`,新增 T=磚面像素雜湊;A 只含 sprite 名稱,看不見純重繪,
+  欄位語意與逐生態預期見同目錄 `hash-note.txt`)——**全 10 生態 L 不變**;
+  cavern/verdant/swamp/abyss 的 A 變(新入 macro)、crypt/celestial/desert 的 A 不變而 T 變
+  (純重繪)、frost/inferno/void 的 A 與 T 皆不變;截圖組
+  `docs/reviews/art-improve-2026-08/w3c2-after/`(開場/壓力/邊界/灰階、平鋪對照表
+  `sheet-w3c2.png`,含十格灰階並排 `gray-10up-identity.png`)。
+- **已知取捨**:牆磚 `base()` 的全寬 lit crown 在單一磚平鋪時每 16 列一條亮線,這是自 R26
+  起 10 生態共有的既有設計(標示牆頂),非本輪引入,未動。

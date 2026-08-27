@@ -1,0 +1,37 @@
+R28 / W3-C2 — deterministic signature columns (tools/_wf_mapsig4.mjs, fixed seed 0x9e3779b9)
+
+W3-C1 used _wf_mapsig3.mjs, which reports two columns:
+  L = LAYOUT / gameplay stream — tiles, chests, secret, shrine, hazards, npcs,
+      hiddenRooms, featureRooms, vault, entrance. Everything drawn from `rng`
+      BEFORE maps.js forks `artRng` (R28/FIX-1).
+  A = ART PLACEMENT channel — floorVar, decor, decals, tileset SPRITE NAMES.
+
+W3-C2 also repaints v2 feature tiles in three biomes that were ALREADY macro
+(crypt / celestial / desert — the W2 遺留 #1 roll-back). That is a pure PIXEL
+change: it moves nothing in floorVar/decor/decals and renames no sprite, so the
+A column cannot see it and stays byte-identical by construction. mapsig4 adds:
+  T = TILE PIXELS — FNV-1a over the baked bitmaps of floor_/floor2_/floorx_/
+      wall_/walltop_/wallv1_/wallv2_/wallbk_/walldeep_/walldeep2_/wallfar_1-3
+      for that biome (`tiles=` counts how many of those 13 exist).
+
+Expected result of this batch, and what before/after actually shows:
+
+  biome      L        A        T        meaning
+  crypt      same     same     CHANGED  v2 flagstone re-granulated (pixels only)
+  cavern     same     CHANGED  CHANGED  newly opted into BIOME_MACRO + repaint
+  frost      same     same     same     untouched
+  inferno    same     same     same     untouched
+  void       same     same     same     untouched
+  verdant    same     CHANGED  CHANGED  newly opted into BIOME_MACRO + repaint
+  desert     same     same     CHANGED  oasis v2 gradV -> flat base (pixels only)
+  swamp      same     CHANGED  CHANGED  newly opted into BIOME_MACRO + repaint
+  abyss      same     CHANGED  CHANGED  newly opted into BIOME_MACRO + repaint
+  celestial  same     same     CHANGED  rift v2 re-granulated (pixels only)
+
+L is identical across all 10 rows because the layout stream does not depend on
+the biome — that is the point: it proves gameplay placement did not shift for
+ANY biome, including the four that newly fork artRng.
+
+The four newly-macro biomes also move from tiles=5 -> 13, lmk 0 -> 2, amb 0 -> 31,
+and their floor-variant mix moves to the clustered distribution (v1% 6.4 -> 27.2)
+shared by the six biomes already on the macro path.

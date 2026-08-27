@@ -3,7 +3,7 @@ import { defineSprite, defineAnim, Painter } from '../../engine/sprites.js';
 import { P, lighten, darken, mix, withAlpha } from '../../engine/palette.js';
 import { defineIcon, panel, sym } from '../icons.js';
 import { drawSlime, drawBat, drawWisp, drawBrute, drawHunter, registerHeroBody, drawHeroBody } from '../core.js';
-import { registerDecals } from '../biome_decals.js';
+import { registerDecals, registerLandmarks, registerAmbient } from '../biome_decals.js';
 import { DECOR_SETS, DECOR_CLUSTERS } from '../biome_decor.js';
 
 // VERDANT 翠野林地 — ground decal pack + standing decor pack.
@@ -146,6 +146,111 @@ defineSprite('bdx_verdant_berry_shrub', 14, 10, (p) => {      // low dense berry
   p.outline(P.ink);
 }, { anchor: [7, 9] });
 
+// ============================ R28 W3-C2 HAND-EDIT — LANDMARKS + AMBIENT ============================
+// ART_SPEC §6: ≥3×3 tile silhouettes placed explicitly by maps.js (pattern from the W3-C1
+// frost pack). Ground contact is an OPAQUE mound INSIDE the silhouette; the soft contact
+// shadow goes down AFTER outline(), or a wide softShadow comes back ringed in ink.
+
+defineSprite('lmk_verdant_greattree', 56, 92, (p) => {        // 巨樹 — the tree the forest grew around
+  const bark = P.barkD, barkL = P.bark, barkD = darken(P.barkD, 0.3);
+  // buttress roots gripping the ground (back half — the front roots go over the trunk later)
+  p.ellipse(28, 82, 24, 7, darken(P.leafD, 0.35));
+  p.ellipse(27, 79, 19, 5, mix(P.barkD, P.leafD, 0.4));
+  // trunk: wide, tapering, leaning — a straight rectangle under a smooth dome read as a
+  // mushroom on the first pass, so the trunk now leans and the crown breaks into limbs.
+  for (let y = 78; y >= 34; y--) {
+    const t = (78 - y) / 44, cx = 28 - t * 3, hw = 10 - t * 5.4;
+    p.hline(Math.round(cx - hw), Math.round(cx + hw), y, bark);
+    p.hline(Math.round(cx - hw), Math.round(cx - hw) + 3, y, barkL);                   // lit flank
+    p.hline(Math.round(cx + hw) - 2, Math.round(cx + hw), y, barkD);
+  }
+  p.speckle(19, 36, 19, 42, darken(bark, 0.22), 22, 101);                              // bark furrows
+  p.speckle(20, 40, 7, 36, withAlpha(P.woodL, 0.2), 9, 103);
+  p.px(22, 55, withAlpha(P.moss, 0.6)); p.px(24, 68, withAlpha(P.moss, 0.45));
+  // limbs — drawn to reach PAST the canopy edge so the crown has structure, not a dome
+  const limb = (x0, y0, x1, y1, w) => { for (let i = 0; i < w; i++) { p.line(x0 + i, y0, x1 + Math.round(i * 0.6), y1, i === 0 ? barkL : bark); } };
+  limb(20, 40, 6, 22, 3); limb(31, 38, 48, 24, 3); limb(24, 36, 20, 14, 2); limb(29, 35, 38, 12, 2);
+  p.line(9, 26, 3, 20, bark); p.line(46, 27, 52, 21, bark);
+  // canopy: seven unequal clumps, LOBED so the silhouette is never a smooth dome, three
+  // tonal steps, light from the upper left. Small satellite clumps sit off the main mass.
+  p.ellipse(26, 21, 20, 12, P.leafD);
+  p.ellipse(11, 20, 9, 7, P.leafD);
+  p.ellipse(43, 24, 11, 8, P.leafD);
+  p.ellipse(36, 14, 9, 6, darken(P.leaf, 0.05));
+  p.ellipse(20, 14, 12, 8, P.leaf);
+  p.ellipse(45, 17, 6, 4.4, P.leaf);
+  p.ellipse(8, 14, 5, 4, darken(P.leaf, 0.08));
+  p.ellipse(16, 9, 8, 5, P.leafL);
+  p.ellipse(31, 8, 5, 3.4, lighten(P.leaf, 0.12));
+  p.ellipse(50, 21, 4, 3, P.leafD);
+  p.speckle(7, 7, 42, 22, withAlpha(P.leafL, 0.35), 26, 107);                          // leaf sparkle (kept INSIDE the canopy —
+  p.speckle(8, 13, 38, 18, withAlpha(P.leafD, 0.4), 20, 109);                          //  spilling past it left outlined dots
+  p.speckle(11, 7, 30, 14, withAlpha(P.holyL, 0.3), 10, 113);                          //  floating in the sky)
+  // front buttress roots, drawn OVER the trunk foot → gripping the ground, not standing on it
+  const root = (x0, y0, x1, y1, w) => { for (let i = 0; i < w; i++) p.line(x0, y0 + i, x1, y1 + i, i === 0 ? barkL : bark); };
+  root(22, 68, 5, 82, 4); root(33, 70, 50, 80, 4); root(28, 74, 27, 84, 3); root(24, 72, 14, 83, 2);
+  p.ellipse(28, 82, 17, 4.4, mix(P.barkD, P.leafD, 0.5));
+  p.speckle(10, 76, 38, 9, withAlpha(P.moss, 0.35), 12, 127);
+  p.px(12, 80, withAlpha(P.leafL, 0.4)); p.px(44, 80, withAlpha(P.moss, 0.5));
+  p.rimLight(P.rim, 0.4);
+  p.outline(P.ink);
+  p.glow(16, 10, 6, P.leafL, 0.16, 4);                                                 // glow AFTER outline, or the canopy gets a traced halo
+  p.ellipse(28, 87, 24, 3.4, withAlpha(P.shadow, 0.3));
+}, { anchor: [28, 88] });
+
+defineSprite('lmk_verdant_stonecircle', 68, 56, (p) => {      // 苔封石環 — standing stones the forest sealed over
+  const st = mix(P.gray1, P.leafD, 0.22), stL = lighten(st, 0.26), stD = darken(st, 0.34);
+  // the trodden clearing they stand in
+  p.ellipse(34, 44, 31, 10, mix(P.barkD, P.leafD, 0.55));
+  p.ellipse(33, 42, 25, 7, mix(P.barkD, P.leafD, 0.4));
+  p.speckle(6, 36, 56, 13, withAlpha(P.moss, 0.3), 20, 131);
+  // one megalith: unequal heights and lean, back rank first
+  const stone = (x, top, w, lean, cap) => {
+    const h = 44 - top;
+    for (let i = 0; i < h; i++) {
+      const y = top + i, off = Math.round(lean * (1 - i / h));
+      p.hline(x + off, x + off + w - 1, y, st);
+      p.px(x + off, y, stL);
+      p.px(x + off + w - 1, y, stD);
+    }
+    p.hline(x + lean, x + lean + w - 1, top, cap ? stL : st);
+    p.speckle(x - 1, top, w + 2, h, withAlpha(P.moss, 0.3), Math.round(h / 3), 137 + x);
+    p.px(x + 1, top + Math.round(h * 0.6), withAlpha(P.moss, 0.6));
+  };
+  stone(9, 16, 8, 2, true); stone(24, 8, 9, -1, true); stone(43, 13, 7, 1, true); stone(56, 20, 6, -2, false);
+  // the fallen one, over the near edge of the ring
+  p.rect(14, 38, 22, 6, st); p.rect(14, 38, 22, 2, stL); p.rect(14, 43, 22, 1, stD);
+  p.line(36, 38, 40, 41, stD); p.px(35, 38, stL);
+  p.speckle(15, 38, 20, 6, withAlpha(P.moss, 0.4), 9, 149);
+  p.ellipse(20, 40, 3, 1.6, withAlpha(P.moss, 0.45)); p.px(20, 39, withAlpha(P.leafL, 0.5));
+  // ferns and saplings taking the ring back
+  const fern = (x, y, h) => { for (let i = -2; i <= 2; i++) p.line(x, y, x + i * 2, y - h + Math.abs(i), i === 0 ? P.leaf : P.leafD); };
+  fern(6, 45, 7); fern(39, 46, 6); fern(63, 44, 6); fern(50, 46, 5);
+  p.px(24, 44, withAlpha(P.leafL, 0.5)); p.px(48, 43, withAlpha(P.moss, 0.5));
+  p.rimLight(P.rim, 0.34);
+  p.outline(P.ink);
+  p.ellipse(34, 50, 30, 3.2, withAlpha(P.shadow, 0.26));
+}, { anchor: [34, 51] });
+
+defineAnim('bdxa_verdant_pollen', 18, 16, 4, (p, f) => {      // signature motion — pollen drifting through a sunbeam
+  // outline() BEFORE the motes (bdxa_frost_snowveil lesson): tracing afterwards rims every
+  // grain in ink and the drift reads as a dotted comb instead of floating light.
+  p.ellipse(9, 14, 6, 1.6, withAlpha(P.moss, 0.4));                                    // the flowering tuft shedding it
+  p.ellipse(7, 14, 3, 1, withAlpha(P.leafL, 0.35));
+  p.px(6, 13, withAlpha(P.gold, 0.5)); p.px(11, 14, withAlpha(P.sakura, 0.4));
+  p.outline(withAlpha(P.leafD, 0.3));                                                  // only the tuft is rimmed
+  // grains lifting downwind and thinning out. They must be SINGLE pixels scattered off the
+  // path: 1.6-radius ellipses on a smooth curve overlapped into one solid diagonal bar that
+  // read as a stick, not as pollen.
+  for (let i = 0; i < 11; i++) {
+    const t = ((i * 3 + f) % 11) / 11;
+    const x = Math.round(2 + t * 14 + Math.sin(i * 2.3) * 1.4);
+    const y = Math.round(12 - t * 9 + Math.sin(i * 1.7) * 2);
+    p.px(x, y, withAlpha(i % 3 === 0 ? P.holyL : P.gold, 0.6 - t * 0.32));
+    if (i % 4 === 1) p.px(x, y - 1, withAlpha(P.sakuraL, 0.3));
+  }
+}, { anchor: [9, 15], fps: 6 });
+
 // ============================ REGISTRATION ============================
 
 registerDecals('verdant', [
@@ -172,4 +277,9 @@ registerDecals('verdant', [
   'bdx_verdant_tree_b',
   'bdx_verdant_berry_shrub',
 );
+
+// R28 W3-C2 HAND-EDIT — landmarks are placed explicitly by maps.js (kept OUT of the
+// scatter pool); the drifting pollen is the biome's ambient motion.
+registerLandmarks('verdant', ['lmk_verdant_greattree', 'lmk_verdant_stonecircle']);
+registerAmbient('verdant', ['bdxa_verdant_pollen']);
 

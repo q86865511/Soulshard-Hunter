@@ -1,0 +1,10 @@
+crypt      	L=1193e3ee	A=21a59044	T=019b0961	tiles=13	decor=362	decals=627	lmk=2	amb=31	v1%=27.2	v2%=6.8
+cavern     	L=1193e3ee	A=e7f0f67f	T=bc73e5c7	tiles=5	decor=331	decals=641	lmk=0	amb=0	v1%=6.4	v2%=6.8
+frost      	L=1193e3ee	A=24d54ad2	T=fd23fdae	tiles=13	decor=362	decals=627	lmk=2	amb=31	v1%=27.2	v2%=6.8
+inferno    	L=1193e3ee	A=2de83b4d	T=bf95d304	tiles=13	decor=362	decals=627	lmk=2	amb=31	v1%=27.2	v2%=6.8
+void       	L=1193e3ee	A=03905f4d	T=62048bfa	tiles=13	decor=362	decals=627	lmk=2	amb=31	v1%=27.2	v2%=6.8
+verdant    	L=1193e3ee	A=f3e7536f	T=c0c2802f	tiles=5	decor=331	decals=641	lmk=0	amb=0	v1%=6.4	v2%=6.8
+desert     	L=1193e3ee	A=d0d21dbe	T=4d5bbc2d	tiles=13	decor=362	decals=627	lmk=2	amb=31	v1%=27.2	v2%=6.8
+swamp      	L=1193e3ee	A=1a3a85c8	T=596dbfdf	tiles=5	decor=331	decals=641	lmk=0	amb=0	v1%=6.4	v2%=6.8
+abyss      	L=1193e3ee	A=ea2073db	T=2c0d184b	tiles=5	decor=331	decals=641	lmk=0	amb=0	v1%=6.4	v2%=6.8
+celestial  	L=1193e3ee	A=2ab70685	T=01d4d7eb	tiles=13	decor=362	decals=627	lmk=2	amb=31	v1%=27.2	v2%=6.8
