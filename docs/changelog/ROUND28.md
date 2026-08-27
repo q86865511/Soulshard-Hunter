@@ -186,3 +186,34 @@ Codex 第二審 0高/2中/3低,協定 SHA 相同、gameplay 數值零變動、�
 
 **Gate 未能驗證項(誠實列示)**:ART-02 的 5 位真人測試者項以遮擋計數推論替代;
 boss_pillar 三階裂損未逐幀目視;ART-07/08 不在 slice 範圍。
+
+## W3-C1 三生態身份推廣(ART-04+11;frost/inferno/void)
+
+W2-D 的機制層原封不動:在 `biomes.js` 的 `WALL_VARIANTS` 補一組資料即自動開啟
+`BIOME_MACRO`(群聚地板/decal 群聚/地標/邊界),maps.js / world.js / balance.js 一行未動。
+
+- **牆材質語言**(每生態 wallv1/wallv2/wallbk + 深層岩心 ×2 + 地平線 ×3):
+  frost 冰蝕裂縫/凍層/雪簷崩角、inferno 玄武岩柱/熔縫發光/焦裂spall、
+  void 虛空侵蝕(蝕穿孔洞)/星屑嵌縫/剝離浮塊。全部沿用該生態 `base` 漸層與 lit crown,
+  只換表面圖案,值階與原版牆一致。
+- **地標各 2 個**(≥3×3 tile,不帶 solid,7×5 開放空地):frost 冰封巨劍/凍結瀑布、
+  inferno 熔岩瀑斷橋/焚毀巨門、void 破碎星環/懸浮方尖碑。
+- **環境動態**:`bdxa_frost_snowveil`(低伏雪絮)/`bdxa_inferno_emberrise`(餘燼上升)/
+  `bdxa_void_dustmote`(虛空塵螺旋)。
+- **邊界語法** `oobBand`:雪霧稜線 / 熔光地裂 / 星淵消散。
+- **v1 色階連調**(與群聚耦合):frost 風積雪脊、inferno 冷卻灰燼殼、void 星屑沉積。
+- **固定紋母題清除**(R26 鐵律,W2 遺留 #1/#2 的三生態份):
+  frost v0/v1 每格同位置裂紋線+glint → 種子 speckle(裂紋歸 decal 通道);
+  void v0/v1 每格同位置 2 點 → 種子星屑;
+  frost v2 雪原 `dither` 帶+固定 sparkle、void v2 每格中央 star4 對(遊戲內最刺眼的一處)、
+  inferno v2 三條固定熔流線+三個固定 glow 中心 → 全改分層種子顆粒(v2 以 frame 滾動種子製造
+  流動感);inferno/void v2 的 `gradV`+`shadeBottom` 造成每 16 列一條橫紋 → 改平底色。
+- **迭代修正**(以 tiled-field 對照表自檢後改):巨劍首版刃寬 15px 讀成噴泉→窄刃 5px+
+  寬護手上翹;方尖碑首版讀成木箱堆→細長 4.5:1、斷口加寬並偏移;ambient 的 outline 改在
+  motes 之前呼叫(否則每顆飛塵被描邊成點陣梳);inferno 斷橋玄武岩偏冷(讀成水泥)→偏暖,
+  懸垂柱 1px→3px(1px 讀成冰柱)。
+- **驗證**:smoke 59/59;固定種子雙雜湊 `mapsig-split-{before,after}.txt` ——
+  cavern/verdant/swamp/abyss(及 W2-D 三生態)L 與 A 皆不變,frost/inferno/void
+  L 不變、A 改變(FIX-1 的 artRng fork 自動生效);截圖組
+  `docs/reviews/art-improve-2026-08/w3c1-after/`(開場/壓力/邊界/灰階,含六格灰階並排
+  `gray-6up-identity.png`)。

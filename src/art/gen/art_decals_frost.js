@@ -3,7 +3,7 @@ import { defineSprite, defineAnim, Painter } from '../../engine/sprites.js';
 import { P, lighten, darken, mix, withAlpha } from '../../engine/palette.js';
 import { defineIcon, panel, sym } from '../icons.js';
 import { drawSlime, drawBat, drawWisp, drawBrute, drawHunter, registerHeroBody, drawHeroBody } from '../core.js';
-import { registerDecals } from '../biome_decals.js';
+import { registerDecals, registerLandmarks, registerAmbient } from '../biome_decals.js';
 import { DECOR_SETS, DECOR_CLUSTERS } from '../biome_decor.js';
 
 // ============================ FROST 霜寒冰原 — ground decals + standing decor ============================
@@ -144,6 +144,121 @@ defineAnim('bdx_frost_iciclecluster', 16, 20, 2, (p, f) => { // standing icicle 
 }, { anchor: [8, 18], fps: 3 });
 
 // ---------------------------------------------------------------------------------------
+// (d) R28 W3-C1 HAND-EDIT — LANDMARKS + signature environment motion
+// ART_SPEC §6: ≥3×3 tile silhouettes placed explicitly by maps.js (see the W2-D desert
+// pack for the pattern). Ground contact is an OPAQUE ice mound INSIDE the silhouette; the
+// contact shadow goes down AFTER outline(), or a 50 px softShadow comes back ringed in ink.
+// ---------------------------------------------------------------------------------------
+
+defineSprite('lmk_frost_greatsword', 48, 82, (p) => {        // 冰封巨劍 — a giant's sword frozen into the field
+  // First pass read as a birdbath: the blade was 15 px wide against a 34 px guard, and the
+  // leather grip went brown. The sword silhouette needs a NARROW blade (7→5 px), a wide
+  // lens-shaped guard with quillons swept UP, and an all-cold palette.
+  const steel = mix(P.steel, P.ice, 0.25), steelL = lighten(steel, 0.22), steelD = darken(steel, 0.3);
+  const glaze = mix(P.ice, P.white, 0.3);
+  const grip = mix(P.gray1, P.blueD, 0.4);
+  // the ice sheet it stands in (back half — the front crest is laid over the blade later)
+  p.ellipse(24, 70, 19, 6.5, P.iceD);
+  p.ellipse(23, 68, 15, 4.5, darken(P.ice, 0.12));
+  // pommel: a faceted disc with a shard set into it
+  p.ellipse(24, 7, 5, 4, steel); p.ellipse(23, 6, 3.4, 2.6, steelL);
+  p.ellipse(24, 7, 2.4, 1.6, P.ice); p.px(24, 7, P.hiSky);
+  p.glow(24, 7, 4, P.ice, 0.2, 3);
+  // grip, wrapped and frost-bound
+  p.rect(22, 11, 5, 10, grip); p.rect(22, 11, 2, 10, lighten(grip, 0.2)); p.rect(26, 11, 1, 10, darken(grip, 0.25));
+  p.hline(22, 26, 13, darken(grip, 0.35)); p.hline(22, 26, 16, darken(grip, 0.35)); p.hline(22, 26, 19, darken(grip, 0.35));
+  p.px(22, 12, P.ice); p.px(26, 17, withAlpha(P.ice, 0.5));
+  // crossguard: a long lens, quillons swept up into points
+  p.hline(8, 40, 21, steel); p.hline(6, 42, 22, steel); p.hline(5, 43, 23, steel); p.hline(8, 40, 24, steelD);
+  p.hline(9, 39, 21, steelL); p.hline(7, 41, 22, lighten(steel, 0.12));
+  p.line(5, 23, 1, 15, steel); p.line(6, 23, 2, 15, steelL); p.px(1, 14, glaze);
+  p.line(43, 23, 47, 15, steelD); p.line(42, 23, 46, 15, steel); p.px(47, 14, steelD);
+  p.rect(21, 20, 6, 6, steel); p.rect(21, 20, 2, 6, steelL); p.px(26, 25, steelD);        // the ricasso block
+  // blade — narrow, long, driven deep into the ice
+  for (let y = 26; y <= 69; y++) {
+    const t = (y - 26) / 43, hw = Math.round(3 - t * 1);
+    p.hline(24 - hw, 24 + hw, y, steel);
+    p.px(24 - hw, y, steelL);
+    p.px(24 + hw, y, steelD);
+    if ((y & 3) === 1) p.px(24, y, lighten(steelL, 0.14));                 // fuller catching light
+  }
+  p.px(21, 38, darken(steel, 0.45)); p.px(21, 39, darken(steel, 0.45));    // a notch battered into the edge
+  p.px(20, 38, glaze);
+  // icicles hanging off the guard
+  const icicle = (x, len) => { p.vline(25, 25 + len, x, P.ice); p.px(x, 25 + len, glaze); p.px(x, 25, P.hiSky); };
+  icicle(9, 8); icicle(13, 4); icicle(16, 6); icicle(33, 5); icicle(37, 10); icicle(40, 4);
+  // rime crusted along the windward face of the blade
+  p.speckle(20, 30, 3, 32, withAlpha(glaze, 0.5), 8, 61);
+  p.speckle(25, 36, 3, 26, withAlpha(P.ice, 0.32), 5, 71);
+  // the ice crest that swallowed the blade's foot (drawn OVER it → frozen in, not standing on)
+  p.ellipse(21, 66, 14, 4.6, P.ice);
+  p.ellipse(16, 64, 8, 2.8, glaze);
+  p.ellipse(32, 68, 10, 3.2, darken(P.ice, 0.06));
+  p.line(9, 71, 18, 66, withAlpha(P.iceD, 0.8)); p.line(29, 67, 40, 71, withAlpha(P.iceD, 0.7));
+  p.speckle(7, 62, 34, 10, withAlpha(P.white, 0.35), 9, 89);
+  p.px(14, 63, P.white); p.px(34, 67, P.hiSky);
+  p.rimLight(P.rimCool, 0.4);
+  p.outline(P.ink);
+  p.ellipse(25, 76, 19, 3, withAlpha(P.shadow, 0.3));
+}, { anchor: [24, 78] });
+
+defineSprite('lmk_frost_frozenfall', 64, 76, (p) => {        // 凍結瀑布 — a waterfall caught mid-fall
+  const rock = mix(P.gray1, P.ice, 0.14), rockL = lighten(rock, 0.2), rockD = darken(rock, 0.28);
+  const glaze = mix(P.ice, P.white, 0.35);
+  // the frozen plunge pool (back half)
+  p.ellipse(32, 65, 27, 9, P.iceD);
+  p.ellipse(30, 62, 22, 6, darken(P.ice, 0.1));
+  // the cliff the water went over
+  p.rect(5, 6, 54, 26, rock);
+  p.rect(5, 6, 54, 3, rockL);                                              // snow-lit lip
+  p.rect(5, 29, 54, 3, rockD);
+  p.rect(2, 16, 4, 14, rockD); p.rect(58, 18, 4, 12, rockD);               // the shoulders
+  p.line(5, 6, 2, 17, rock); p.line(59, 6, 62, 19, rockD);
+  p.speckle(6, 9, 52, 21, darken(rock, 0.2), 15, 83);
+  p.speckle(6, 6, 52, 4, withAlpha(P.white, 0.45), 12, 97);                // snow packed on the lip
+  p.line(14, 10, 12, 28, darken(rock, 0.34)); p.line(38, 11, 41, 29, darken(rock, 0.3));   // strata in the rock face
+  // the curtain — columns of unequal width and length, stopped mid-fall
+  const fall = (x, w, len, c) => {
+    p.rect(x, 28, w, len, c);
+    p.rect(x, 28, 1, len, lighten(c, 0.24));
+    p.rect(x + w - 1, 28, 1, len, darken(c, 0.22));
+    p.ellipse(x + (w - 1) / 2, 28 + len, w / 2, 2, c);                     // bulbous frozen tip
+    p.px(Math.round(x + (w - 1) / 2), 28 + len + 1, glaze);
+  };
+  fall(9, 5, 25, P.iceD); fall(15, 7, 32, P.ice); fall(23, 4, 28, P.iceD);
+  fall(28, 8, 35, glaze); fall(37, 5, 30, P.ice); fall(43, 6, 24, P.iceD); fall(50, 4, 19, P.ice);
+  p.speckle(9, 30, 45, 28, withAlpha(P.white, 0.3), 16, 103);              // frozen spray on the curtain
+  p.px(30, 40, P.white); p.px(17, 46, P.hiSky); p.px(45, 36, P.white);
+  // the pool's front crest, over the base of the curtain
+  p.ellipse(28, 62, 20, 5, P.ice);
+  p.ellipse(20, 60, 11, 3, glaze);
+  p.line(10, 66, 22, 61, withAlpha(P.iceD, 0.8)); p.line(34, 62, 47, 67, withAlpha(P.iceD, 0.7));
+  p.speckle(8, 58, 46, 10, withAlpha(P.white, 0.32), 10, 109);
+  p.rimLight(P.rimCool, 0.42);
+  p.outline(P.ink);
+  p.ellipse(32, 71, 26, 3.2, withAlpha(P.shadow, 0.28));
+}, { anchor: [32, 72] });
+
+defineAnim('bdxa_frost_snowveil', 18, 16, 4, (p, f) => {     // signature motion — a veil of blowing snow
+  // First pass was a TALL column with a 0.28-alpha ice outline: it read as a grey rock
+  // chimney, not as snow. Wind-blown snow in this camera is LOW and WIDE, and it must not
+  // be traced — the outline is what turned scattered flake ellipses into a solid blob.
+  p.ellipse(9, 14, 6, 1.4, withAlpha(P.white, 0.3));                       // the drift it is lifting off
+  p.ellipse(7, 14, 3.4, 0.9, withAlpha(P.hiSky, 0.28));
+  p.outline(withAlpha(P.iceD, 0.2));                                       // only the drift is rimmed
+  for (let i = 0; i < 9; i++) {                                            // the veil streams downwind, rising and thinning
+    const t = ((i * 2 + f) % 9) / 9;
+    const x = 1 + t * 16;
+    const y = 12 - t * 8 - Math.sin(t * Math.PI) * 2;
+    p.ellipse(x, y, Math.max(0.7, 1.9 - t), 0.7, withAlpha(t > 0.5 ? P.white : P.hiSky, 0.44 - t * 0.3));
+  }
+  for (let i = 0; i < 3; i++) {                                            // flakes torn loose, tumbling
+    const a = f * 1.57 + i * 2.1;
+    p.px(Math.round(9 + Math.cos(a) * (4 + i)), Math.round(7 - i + Math.sin(a) * 2), withAlpha(P.white, 0.5));
+  }
+}, { anchor: [9, 15], fps: 6 });
+
+// ---------------------------------------------------------------------------------------
 // registration
 // ---------------------------------------------------------------------------------------
 registerDecals('frost', [
@@ -158,4 +273,9 @@ registerDecals('frost', [
 (DECOR_CLUSTERS['frost'] = DECOR_CLUSTERS['frost'] || []).push(
   'bdx_frost_iciclecluster'
 );
+
+// R28 W3-C1 HAND-EDIT — landmarks are placed explicitly by maps.js (kept OUT of the
+// scatter pool); the blowing-snow veil is the biome's ambient motion.
+registerLandmarks('frost', ['lmk_frost_greatsword', 'lmk_frost_frozenfall']);
+registerAmbient('frost', ['bdxa_frost_snowveil']);
 

@@ -3,7 +3,7 @@ import { defineSprite, defineAnim, Painter } from '../../engine/sprites.js';
 import { P, lighten, darken, mix, withAlpha } from '../../engine/palette.js';
 import { defineIcon, panel, sym } from '../icons.js';
 import { drawSlime, drawBat, drawWisp, drawBrute, drawHunter, registerHeroBody, drawHeroBody } from '../core.js';
-import { registerDecals } from '../biome_decals.js';
+import { registerDecals, registerLandmarks, registerAmbient } from '../biome_decals.js';
 import { DECOR_SETS, DECOR_CLUSTERS } from '../biome_decor.js';
 
 // INFERNO 熔火煉獄 — ground decals + standing decor pack.
@@ -142,6 +142,118 @@ defineSprite('bdx_inferno_slagspike', 12, 20, (p) => {        // twisted rebar/s
   p.outline(P.ink);
 }, { anchor: 'feet' });
 
+// ============ R28 W3-C1 HAND-EDIT — LANDMARKS + signature environment motion ============
+// ART_SPEC §6: ≥3×3 tile silhouettes placed explicitly by maps.js (pattern from the W2-D
+// desert pack). Ground contact is an OPAQUE scorched mound INSIDE the silhouette; the
+// contact shadow goes down AFTER outline(), or a 50 px softShadow comes back ink-ringed.
+
+defineSprite('lmk_inferno_lavafall', 72, 62, (p) => {       // 熔岩瀑斷橋 — a severed span still pouring
+  // P.gray1 is a COOL blue-grey; a light mix read as concrete on a red-black floor, so the
+  // basalt is pushed most of the way to P.woodD and only kept grey enough to stay stone.
+  const bas = mix(P.gray1, P.woodD, 0.55), basL = lighten(bas, 0.24), basD = darken(bas, 0.34);
+  // the pool the fall lands in
+  p.ellipse(44, 53, 24, 6.5, darken(P.ember, 0.55));
+  p.ellipse(44, 52, 19, 4.6, darken(P.ember, 0.28));
+  p.ellipse(41, 51, 12, 2.8, P.ember);
+  p.glow(44, 51, 8, P.emberL, 0.2, 4);
+  p.px(38, 50, P.emberL); p.px(49, 52, P.white);
+  // near abutment + the deck it carries
+  p.rect(6, 16, 18, 36, bas); p.rect(6, 16, 4, 36, basL); p.rect(21, 18, 3, 34, basD);
+  p.ellipse(15, 51, 12, 3.4, basD);
+  p.rect(4, 7, 50, 10, bas); p.rect(4, 7, 50, 2, basL); p.rect(4, 15, 50, 2, basD);
+  p.speckle(5, 9, 48, 6, darken(bas, 0.22), 14, 61);
+  p.speckle(7, 18, 16, 32, darken(bas, 0.26), 12, 71);
+  // columnar basalt hanging off the underside, uneven lengths
+  // 2 px wide, blunt-ended: 1 px spikes read as icicles, which is the wrong biome entirely
+  const hang = (x, len) => {
+    p.rect(x, 17, 3, len, bas); p.vline(17, 17 + len - 1, x, basL); p.vline(17, 17 + len - 1, x + 2, basD);
+    p.hline(x, x + 2, 17 + len - 1, darken(bas, 0.45));
+  };
+  hang(26, 6); hang(31, 11); hang(36, 7); hang(41, 13); hang(46, 5);
+  // the break: the deck sheared away on a jagged diagonal
+  p.line(54, 7, 49, 17, darken(bas, 0.5)); p.line(49, 17, 53, 24, darken(bas, 0.5));
+  p.px(53, 9, basL); p.px(51, 13, basL);
+  p.rect(56, 24, 12, 26, bas); p.rect(56, 24, 3, 26, basL); p.rect(65, 26, 3, 24, basD);   // the far stub, stranded
+  p.rect(54, 20, 16, 6, bas); p.rect(54, 20, 16, 1, basL);
+  p.speckle(57, 26, 10, 22, darken(bas, 0.26), 8, 79);
+  // the fall itself — brightest at the lip, cooling as it stretches toward the pool
+  for (let y = 17; y <= 50; y++) {
+    const t = (y - 17) / 33, hw = 2 + t * 2.4, cx = 50.5 + t * 1.6;
+    p.hline(Math.round(cx - hw), Math.round(cx + hw), y, mix(P.emberL, P.ember, t));
+    p.px(Math.round(cx - hw), y, P.emberL); p.px(Math.round(cx + hw), y, darken(P.ember, 0.2));
+  }
+  p.glow(52, 32, 6, P.ember, 0.18, 4);
+  p.px(51, 22, P.white); p.px(53, 38, P.white);
+  // spatter torn off the stream + a block that fell and is sinking
+  p.px(46, 27, P.emberL); p.px(58, 36, P.ember); p.px(45, 41, P.emberL);
+  p.ellipse(33, 50, 4, 2, basD); p.px(32, 49, basL);
+  p.rimLight(P.rim, 0.34);
+  p.outline(P.ink);
+  p.ellipse(38, 57, 28, 3.2, withAlpha(P.shadow, 0.3));
+}, { anchor: [36, 58] });
+
+defineSprite('lmk_inferno_burntgate', 56, 80, (p) => {      // 焚毀巨門 — a great gate burned off its hinges
+  const stone = mix(P.gray1, P.woodD, 0.3), stoneL = lighten(stone, 0.2), stoneD = darken(stone, 0.32);
+  const iron = darken(P.iron, 0.28), ironL = lighten(iron, 0.24), ironD = darken(iron, 0.38);
+  // scorched apron
+  p.ellipse(28, 70, 25, 7, darken(P.ember, 0.68));
+  p.ellipse(25, 68, 17, 4.2, darken(P.ember, 0.58));
+  p.line(8, 71, 20, 68, withAlpha(P.ember, 0.4)); p.line(34, 68, 46, 71, withAlpha(P.ember, 0.3));
+  // the doorway behind the leaves — heat glare
+  p.rect(13, 12, 30, 56, darken(P.ember, 0.76));
+  p.glow(28, 44, 12, P.ember, 0.14, 4);
+  // jambs + a cracked lintel
+  p.rect(2, 8, 12, 60, stone); p.rect(2, 8, 3, 60, stoneL); p.rect(11, 8, 3, 60, stoneD);
+  p.rect(42, 8, 12, 60, stone); p.rect(42, 8, 2, 60, lighten(stone, 0.1)); p.rect(51, 8, 3, 60, stoneD);
+  p.rect(0, 2, 56, 10, stone); p.rect(0, 2, 56, 2, stoneL); p.rect(0, 10, 56, 2, stoneD);
+  p.line(31, 2, 27, 11, darken(stone, 0.55)); p.px(30, 6, stoneL);
+  p.speckle(2, 12, 12, 54, darken(stone, 0.24), 12, 83); p.speckle(42, 12, 12, 54, darken(stone, 0.26), 12, 89);
+  p.speckle(1, 3, 54, 8, darken(stone, 0.2), 14, 97);
+  // LEFT leaf — still hinged at the top, swung inward and sagging out of true
+  for (let y = 14; y <= 62; y++) {
+    const t = (y - 14) / 48;
+    const x0 = 14 + Math.round(t * 6), x1 = 27 + Math.round(t * 2);
+    p.hline(x0, x1, y, iron); p.px(x0, y, ironL); p.px(x1, y, ironD);
+  }
+  p.hline(15, 28, 22, ironL); p.hline(17, 29, 40, ironL); p.hline(19, 29, 56, darken(ironL, 0.22));
+  p.px(16, 18, ironL); p.px(26, 30, ironL); p.px(22, 48, ironL);                 // rivets
+  // RIGHT leaf — eaten away from the bottom by the heat, still dripping
+  for (let y = 14; y <= 58; y++) {
+    const t = (y - 14) / 44;
+    const x1 = 42 - Math.round(t * t * 11);
+    if (x1 <= 30) break;
+    p.hline(30, x1, y, iron); p.px(30, y, ironL); p.px(x1, y, ironD);
+    if (y > 44) p.px(x1, y, withAlpha(P.ember, 0.55));                           // the melting edge glows
+  }
+  p.hline(30, 41, 24, ironL); p.hline(30, 39, 38, darken(ironL, 0.2));
+  p.line(37, 50, 36, 64, P.ember); p.px(36, 64, P.emberL); p.px(37, 57, P.emberL);
+  p.glow(36, 56, 4, P.ember, 0.2, 3);
+  // embers alive in the seam between the leaves + soot streaks up the jambs
+  p.vline(16, 60, 29, withAlpha(P.ember, 0.35));
+  p.px(29, 26, P.emberL); p.px(29, 45, P.ember);
+  p.speckle(3, 14, 9, 50, withAlpha(P.ink, 0.35), 9, 101);
+  p.speckle(44, 16, 9, 46, withAlpha(P.ink, 0.35), 9, 103);
+  p.rimLight(P.rim, 0.32);
+  p.outline(P.ink);
+  p.ellipse(28, 74, 24, 3, withAlpha(P.shadow, 0.32));
+}, { anchor: [28, 74] });
+
+defineAnim('bdxa_inferno_emberrise', 12, 26, 4, (p, f) => { // signature motion — embers lifting off a hot crack
+  p.ellipse(6, 23, 4, 1.3, darken(P.ember, 0.6));
+  p.line(3, 23, 8, 22, P.ember); p.px(5, 23, P.emberL);
+  // outline the CRACK only, then lay the sparks on top — outlining afterwards would trace
+  // every single airborne pixel and the trail would read as a dotted comb.
+  p.outline(withAlpha(darken(P.ember, 0.55), 0.35));
+  p.glow(6, 22, 3, P.ember, 0.22, 3);
+  for (let i = 0; i < 7; i++) {                                                  // each ember on its own phase
+    const ph = f * 1.57 + i * 0.9;
+    const y = 21 - ((i * 3 + f * 1.5) % 19);
+    const x = 6 + Math.cos(ph) * (0.6 + (21 - y) * 0.12);
+    const a = Math.max(0.06, 0.62 - (21 - y) * 0.026);
+    p.px(Math.round(x), Math.round(y), withAlpha(i & 1 ? P.emberL : P.ember, a));
+  }
+}, { anchor: [6, 24], fps: 5 });
+
 // ============================ REGISTRATION ============================
 registerDecals('inferno', [
   'decal_inferno_crack_a',
@@ -166,4 +278,9 @@ registerDecals('inferno', [
   'bdx_inferno_scoria',
   'bdx_inferno_snag',
 );
+
+// R28 W3-C1 HAND-EDIT — landmarks are placed explicitly by maps.js (kept OUT of the
+// scatter pool); the rising embers are the biome's ambient motion.
+registerLandmarks('inferno', ['lmk_inferno_lavafall', 'lmk_inferno_burntgate']);
+registerAmbient('inferno', ['bdxa_inferno_emberrise']);
 

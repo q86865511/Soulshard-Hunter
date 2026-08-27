@@ -87,42 +87,79 @@ const FLOORS = {
   // ── frost: dark ice, snow-field feature ────────────────────────────────────
   frost: (p, b, v) => {
     if (v === 2) { // snow-dusted ice sheet — anchored to the floor tone (was stark white/ice → read as a bright pasted tile)
+      // R28/W3-C1: the p.dither() band at (2,9) and the sparkle at (4,4) landed on the SAME
+      // spot in every tile, so a snow field printed a regular dotted grid (R26 鐵律 — caught
+      // on the W3-C1 tiled-field sheet, and plainly visible in the W2-D-era frost opening).
+      // Swapped for layered seeded speckle: it tiles as continuous snow, never as a motif.
       const fb = mix(b.floor, P.ice, 0.4);
       p.rect(0, 0, 16, 16, fb);
-      p.dither(2, 9, 12, 4, mix(fb, P.white, 0.22), fb);
-      p.speckle(0, 0, 16, 16, withAlpha(P.white, 0.4), 8, 19); p.speckle(0, 0, 16, 16, withAlpha(P.ice, 0.3), 6, 23);
-      p.sparkle(4, 4, withAlpha(P.white, 0.8), 1); p.px(11, 6, withAlpha(P.white, 0.7));
+      p.speckle(0, 0, 16, 16, mix(fb, P.white, 0.3), 22, 19);
+      p.speckle(0, 0, 16, 16, withAlpha(P.white, 0.45), 10, 23);
+      p.speckle(0, 0, 16, 16, withAlpha(P.ice, 0.35), 8, 29);
+      p.speckle(0, 0, 16, 16, withAlpha(darken(fb, 0.12), 0.5), 7, 31);
       return;
     }
-    plainFloor(p, v === 1 ? mix(b.floor, b.floor2, 0.45) : b.floor, withAlpha(P.white, 0.14), v === 1 ? 151 : 97,
-      (q) => { q.line(3, 11, 9, 5, withAlpha(P.ice, 0.16)); q.px(12, 6, withAlpha(P.white, 0.4)); });   // frost crack (interior)
+    // R28/W3-C1: the accent stamped the SAME crack line (3,11)-(9,5) and the SAME glint at
+    // (12,6) on EVERY tile — the R26 鐵律 violation left open by W2-D. Cracks move to the
+    // decal channel (decal_frost_crack_a/b, already in the pool and now clustered); the tile
+    // keeps seeded rime grain only. v1 becomes a REAL step — wind-packed snow drift over
+    // bare ice — readable now that maps.js places variants in 2-5 tile clusters. Coupled
+    // change: raising this contrast without the clustering brings back salt-and-pepper.
+    plainFloor(p, v === 1 ? mix(b.floor2, P.ice, 0.18) : b.floor, withAlpha(P.white, 0.14), v === 1 ? 151 : 97,
+      (q) => {
+        q.speckle(1, 1, 14, 14, withAlpha(P.ice, 0.2), 5, v === 1 ? 293 : 283);                              // rime grain
+        q.speckle(1, 1, 14, 14, withAlpha(P.white, 0.28), v === 1 ? 4 : 2, v === 1 ? 311 : 307);             // wind-polished glints
+      });
   },
   // ── inferno: scorched rock, molten lava feature (animated) ─────────────────
   inferno: (p, b, v, f = 0) => {
-    if (v === 2) { // molten lava — several OFFSET flow-pools (was one centred glow → tiled array); animated by brightness + tiny coherent drift
-      p.gradV(0, 0, 16, 16, darken(P.ember, 0.35), darken(P.red, 0.2));
-      const fl = [0, 1, -1][f];
-      p.glow(4, 5, 3, P.emberL, 0.22 + f * 0.04, 3); p.glow(11, 11, 3, P.ember, 0.20 + (2 - f) * 0.03, 3); p.glow(9, 4, 2, P.emberL, 0.16, 3);
-      p.line(1, 6, 6, 4, P.ember); p.line(9, 8, 15, 6, P.emberL); p.line(3, 13, 9, 12, darken(P.ember, 0.1));
-      p.px(4, 5 + fl, P.white); p.px(11, 11 - fl, P.emberL); p.px(9, 4, lighten(P.ember, 0.3));
-      p.shadeBottom(0.14);
+    if (v === 2) { // molten lava — a crawling magma surface, animated by re-seeding the grain
+      // R28/W3-C1: three fixed flow lines + three fixed glow centres put an IDENTICAL molten
+      // pattern in every tile, so a lava lake tiled into wallpaper (R26 鐵律), and the
+      // shadeBottom() darkened the same bottom rows in every tile → horizontal banding.
+      // Now: layered seeded grain whose seed rolls with the frame, so the lake crawls.
+      // FLAT base, not gradV: a 16 px vertical ramp inside every tile tiles into horizontal
+      // stripes across a lake (same root cause R26/B1b fixed for plainFloor).
+      p.rect(0, 0, 16, 16, mix(darken(P.ember, 0.4), darken(P.red, 0.26), 0.5));
+      p.speckle(0, 0, 16, 16, P.ember, 20, 353);
+      p.speckle(0, 0, 16, 16, withAlpha(P.emberL, 0.7), 11, 359 + f * 43);
+      p.speckle(0, 0, 16, 16, withAlpha(P.white, 0.5), 4, 367 + f * 47);
+      p.speckle(0, 0, 16, 16, withAlpha(darken(P.red, 0.4), 0.65), 10, 373);
       return;
     }
-    plainFloor(p, v === 1 ? mix(b.floor, b.floor2, 0.45) : b.floor, withAlpha(P.ink, 0.20), v === 1 ? 173 : 59,
-      (q) => { q.speckle(0, 0, 16, 16, withAlpha(P.ember, 0.32), 5, v === 1 ? 337 : 349); });   // R26/B1d: embers scattered via seed (was fixed px → satin grid)
+    // R28/W3-C1: v1 becomes cooled ASH CRUST — a desaturated warm-grey step over the charred
+    // rock, so the noise-clustered patches read as burnt-out districts instead of a 6-value
+    // nudge. Ember density drops on the crust (the fire moved on) and the ash grain lifts.
+    plainFloor(p, v === 1 ? mix(b.floor2, P.iron, 0.15) : b.floor, withAlpha(P.ink, 0.20), v === 1 ? 173 : 59,
+      (q) => {
+        q.speckle(0, 0, 16, 16, withAlpha(P.ember, v === 1 ? 0.18 : 0.32), 5, v === 1 ? 337 : 349);   // R26/B1d: embers scattered via seed (was fixed px → satin grid)
+        if (v === 1) q.speckle(1, 1, 14, 14, withAlpha(P.gray3, 0.22), 6, 367);                       // wind-lifted ash
+      });
   },
   // ── void: dark stone, rift feature (animated mana motes) ───────────────────
   void: (p, b, v, f = 0) => {
-    if (v === 2) { // void rift — a few small runes at varied offsets (was one centred glyph → tiled array)
-      p.gradV(0, 0, 16, 16, mix(b.floor, P.purple, 0.32), mix(b.floor, P.void, 0.42));   // R26/B1c: rift toned toward the floor
-      p.glow(5, 6, 4, P.purpleL, 0.18, 4); p.glow(11, 11, 3, P.astral, 0.14, 3);
-      p.star4(5, 5, 2, P.manaL, P.white); p.star4(11, 11, 1, P.purpleL, P.white);
-      p.px(9, 4 + f, P.manaL); p.px(3, 12 - f, P.purpleL); p.px(13, 7, P.manaL);
-      p.speckle(0, 0, 16, 16, withAlpha(P.purpleL, 0.3), 3, 419);
+    if (v === 2) { // void rift — raw void grit, animated by re-seeding the shimmer
+      // R28/W3-C1: the two star4 glyphs at (5,5)/(11,11) plus two fixed glow centres printed
+      // an identical bright cross-pair on EVERY rift tile, so a rift district tiled into a
+      // regular star lattice — the single loudest 鐵律 break in the biome (obvious in the
+      // W3-C1 opening shot). Texture only now; the star GLYPHS live in the decal channel
+      // (decal_void_stardust), which maps.js places per-map and cannot tile.
+      // FLAT base, not gradV — a per-tile vertical ramp tiles into horizontal stripes.
+      p.rect(0, 0, 16, 16, mix(mix(b.floor, P.purple, 0.32), mix(b.floor, P.void, 0.42), 0.5));   // R26/B1c: rift toned toward the floor
+      p.speckle(0, 0, 16, 16, mix(b.floor, P.purpleL, 0.42), 18, 419);
+      p.speckle(0, 0, 16, 16, withAlpha(P.manaL, 0.45), 9, 421 + f * 37);
+      p.speckle(0, 0, 16, 16, withAlpha(P.star, 0.5), 5, 433 + f * 41);
+      p.speckle(0, 0, 16, 16, withAlpha(P.void, 0.5), 8, 439);
       return;
     }
-    plainFloor(p, v === 1 ? mix(b.floor, b.floor2, 0.45) : b.floor, withAlpha(P.purpleL, 0.14), v === 1 ? 191 : 31,
-      (q) => { q.px(11, 8, withAlpha(P.purpleL, 0.4)); q.px(5, 12, withAlpha(P.manaL, 0.3)); });
+    // R28/W3-C1: the two accent pixels sat at (11,8)/(5,12) on EVERY tile and printed a
+    // regular 2-dot motif across the field (R26 鐵律) — replaced by seeded star grit. v1
+    // becomes 星屑沉積, a real violet step, readable now that maps.js clusters variants.
+    plainFloor(p, v === 1 ? mix(b.floor2, P.astral, 0.16) : b.floor, withAlpha(P.purpleL, 0.14), v === 1 ? 191 : 31,
+      (q) => {
+        q.speckle(1, 1, 14, 14, withAlpha(P.manaL, 0.26), 4, v === 1 ? 379 : 373);
+        q.speckle(1, 1, 14, 14, withAlpha(P.star, 0.32), v === 1 ? 3 : 2, v === 1 ? 389 : 383);
+      });
   },
 
   // ═══ NEW BIOMES ════════════════════════════════════════════════════════════
@@ -341,11 +378,12 @@ const WALLS = {
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
-// R28/W2-D — biome IDENTITY wall set (ART_SPEC §6).
+// R28/W2-D + W3-C1 — biome IDENTITY wall set (ART_SPEC §6).
 // Per-biome wall VARIANTS (≥2) + a BROKEN state + a deep-mass core tile + a
-// per-biome FAR/horizon band for the out-of-bounds ring. Only the three
-// value-extreme biomes opt in for this slice — crypt (darkest) / celestial
-// (brightest) / desert (warmest); the other seven leave BIOME_MACRO empty and
+// per-biome FAR/horizon band for the out-of-bounds ring. W2-D opted in the three
+// value-extreme biomes — crypt (darkest) / celestial (brightest) / desert
+// (warmest); W3-C1 adds the three elemental ones — frost / inferno / void. The
+// remaining four (cavern / verdant / swamp / abyss) leave BIOME_MACRO empty and
 // keep the single-sprite wall path, so their tiles render byte-identically.
 //
 // Rules honoured here:
@@ -503,6 +541,168 @@ const WALL_VARIANTS = {
       else if (k === 1) { p.line(0, 6, 9, 11, withAlpha(P.sand, 0.4)); p.line(9, 11, 15, 7, withAlpha(P.sandL, 0.3)); p.speckle(0, 0, 16, 6, withAlpha(P.sandL, 0.2), 4, 251); }
       else { p.line(0, 12, 6, 8, withAlpha(P.sandL, 0.3)); p.line(6, 8, 15, 12, withAlpha(P.sand, 0.26)); p.ellipse(11, 4, 5, 2, withAlpha(lighten(haze, 0.16), 0.4)); }
       p.speckle(0, 0, 16, 16, withAlpha(P.sandL, 0.12), 5, 263 + k * 7);
+    },
+  },
+
+  // ── 霜寒冰原 (W3-C1): glacier ice, cut by meltwater and stacked in strata ───
+  frost: {
+    foot: 0.14,
+    base: (p, b) => { p.gradV(0, 0, 16, 16, darken(b.wall, 0.46), darken(b.wall, 0.6)); p.hline(0, 15, 0, b.wallL); },
+    v1: (p, b) => {   // 冰蝕裂縫 — meltwater has cut runnels down the face, refrozen pale at the lip
+      p.speckle(0, 1, 16, 7, darken(b.wall, 0.2), 6, 103); p.speckle(0, 8, 16, 8, darken(b.wall, 0.54), 5, 133);
+      p.line(4, 0, 6, 7, withAlpha(darken(b.wall, 0.78), 0.75));
+      p.line(6, 7, 5, 15, withAlpha(darken(b.wall, 0.78), 0.6));
+      p.px(5, 3, withAlpha(P.hiSky, 0.45)); p.px(6, 9, withAlpha(P.ice, 0.4));           // refrozen lit lip
+      p.line(11, 2, 13, 8, withAlpha(darken(b.wall, 0.72), 0.55));                        // a second, shallower runnel
+      p.px(12, 5, withAlpha(P.ice, 0.3)); p.px(2, 12, withAlpha(P.white, 0.25));
+    },
+    v2: (p, b) => {   // 凍層 — banded ice strata, each shelf lit on top and dark beneath
+      p.speckle(0, 1, 16, 14, darken(b.wall, 0.24), 7, 109);
+      const shelf = (x0, x1, y) => { p.hline(x0, x1, y, withAlpha(P.ice, 0.3)); p.hline(x0, x1, y + 1, withAlpha(darken(b.wall, 0.72), 0.5)); };
+      shelf(0, 9, 3); shelf(6, 15, 8); shelf(2, 11, 13);                                  // uneven spans/heights: never a comb
+      p.px(3, 2, withAlpha(P.white, 0.35)); p.px(9, 7, withAlpha(P.hiSky, 0.3));
+      p.speckle(0, 8, 16, 8, darken(b.wall, 0.5), 4, 139);
+    },
+    bk: (p, b) => {   // BROKEN: 雪簷崩角 — the cornice sheared off the left, snow spilled at the foot
+      p.gradV(0, 0, 16, 16, darken(b.wall, 0.46), darken(b.wall, 0.6));
+      p.hline(6, 15, 0, b.wallL);
+      for (let i = 0; i < 5; i++) p.hline(0, 4 - (i > 2 ? 2 : 0), i, withAlpha(darken(b.wall, 0.88), 0.92));
+      p.px(5, 1, withAlpha(P.white, 0.5)); p.px(4, 3, withAlpha(P.ice, 0.4));             // fresh fracture face
+      p.ellipse(4, 14, 5, 2.2, withAlpha(P.white, 0.35)); p.ellipse(3, 15, 3, 1.4, withAlpha(P.hiSky, 0.3));
+      p.line(9, 4, 11, 12, withAlpha(darken(b.wall, 0.8), 0.5)); p.px(12, 6, withAlpha(P.ice, 0.3));
+      p.speckle(0, 1, 16, 7, darken(b.wall, 0.34), 5, 163); p.speckle(0, 8, 16, 8, darken(b.wall, 0.6), 5, 179);
+    },
+    deep: (p, b, s) => {
+      p.gradV(0, 0, 16, 16, darken(b.wall, 0.72), darken(b.wall, 0.8));
+      p.speckle(0, 0, 16, 16, darken(b.wall, 0.86), 7, 181 + s * 41);
+      p.speckle(0, 0, 16, 16, withAlpha(P.ice, 0.14), 4, 197 + s * 43);
+    },
+    far: (p, b, k) => {   // 雪霧稜線 — ridgelines dissolving into blowing snow
+      const fog = mix(darken(b.wall, 0.5), P.hiSky, 0.22);
+      p.gradV(0, 0, 16, 16, lighten(fog, 0.12), darken(fog, 0.18));
+      if (k === 0) {
+        p.line(0, 11, 6, 5, withAlpha(mix(fog, P.ink, 0.45), 0.85)); p.line(6, 5, 15, 12, withAlpha(mix(fog, P.ink, 0.45), 0.8));
+        p.px(6, 5, withAlpha(P.white, 0.5)); p.line(7, 5, 12, 3, withAlpha(P.white, 0.22));   // snow torn off the crest
+      } else if (k === 1) {
+        p.line(0, 8, 8, 12, withAlpha(mix(fog, P.ink, 0.4), 0.75)); p.line(8, 12, 15, 8, withAlpha(mix(fog, P.ink, 0.4), 0.7));
+        p.line(2, 14, 9, 15, withAlpha(mix(fog, P.ink, 0.55), 0.6));
+        p.speckle(0, 0, 16, 7, withAlpha(P.white, 0.2), 4, 241);
+      } else {
+        p.ellipse(6, 12, 8, 3, withAlpha(lighten(fog, 0.16), 0.45));
+        p.speckle(0, 0, 16, 16, withAlpha(P.white, 0.28), 6, 247); p.px(11, 4, withAlpha(P.hiSky, 0.4));
+      }
+      p.speckle(0, 0, 16, 16, withAlpha(P.hiSky, 0.1), 5, 257 + k * 13);
+    },
+  },
+
+  // ── 熔岩深淵 (W3-C1): columnar basalt still holding heat in its seams ──────
+  inferno: {
+    foot: 0.14,
+    base: (p, b) => { p.gradV(0, 0, 16, 16, darken(b.wall, 0.52), darken(b.wall, 0.66)); p.hline(0, 15, 0, b.wallL); },
+    v1: (p, b) => {   // 玄武岩柱 — columnar jointing, column widths deliberately unequal
+      p.speckle(0, 1, 16, 7, darken(b.wall, 0.26), 6, 101); p.speckle(0, 8, 16, 8, darken(b.wall, 0.58), 5, 131);
+      const col = (x) => { p.vline(0, 15, x, withAlpha(darken(b.wall, 0.84), 0.7)); p.vline(0, 15, x + 1, withAlpha(lighten(b.wall, 0.12), 0.3)); };
+      col(3); col(9);
+      p.vline(2, 15, 13, withAlpha(darken(b.wall, 0.8), 0.55)); p.px(14, 6, withAlpha(lighten(b.wall, 0.14), 0.35));
+      p.hline(4, 8, 10, withAlpha(darken(b.wall, 0.82), 0.5));                            // one column snapped short
+      p.px(6, 4, withAlpha(P.ember, 0.25));
+    },
+    v2: (p, b) => {   // 熔縫發光 — a seam of melt still live inside the rock
+      p.speckle(0, 1, 16, 14, darken(b.wall, 0.44), 8, 137);
+      p.line(2, 15, 6, 8, withAlpha(darken(b.wall, 0.86), 0.8));
+      p.line(6, 8, 5, 1, withAlpha(darken(b.wall, 0.86), 0.7));
+      p.glow(6, 9, 3, P.ember, 0.2, 3);
+      p.px(6, 9, P.emberL); p.px(5, 12, P.ember); p.px(6, 5, withAlpha(P.ember, 0.55));
+      p.px(11, 6, withAlpha(P.ember, 0.3)); p.px(12, 11, withAlpha(P.emberL, 0.25));
+    },
+    bk: (p, b) => {   // BROKEN: 焦裂 — the face spalled off in the heat, embers in the wound
+      p.gradV(0, 0, 16, 16, darken(b.wall, 0.52), darken(b.wall, 0.66));
+      p.hline(0, 10, 0, b.wallL);
+      for (let i = 0; i < 5; i++) p.hline(12 - (i > 2 ? 1 : 0), 15, i, withAlpha(darken(b.wall, 0.9), 0.92));
+      p.ellipse(7, 8, 4.5, 4, withAlpha(darken(b.wall, 0.8), 0.7));
+      p.ellipse(7, 8, 3, 2.6, withAlpha(darken(b.wall, 0.88), 0.75));                     // spall cavity
+      p.glow(7, 9, 3, P.ember, 0.18, 3); p.px(7, 9, P.ember); p.px(8, 11, withAlpha(P.emberL, 0.5));
+      p.px(3, 3, withAlpha(lighten(b.wall, 0.16), 0.4)); p.px(11, 2, withAlpha(lighten(b.wall, 0.1), 0.3));
+      p.speckle(0, 8, 16, 8, darken(b.wall, 0.66), 5, 167);
+    },
+    deep: (p, b, s) => {
+      p.gradV(0, 0, 16, 16, darken(b.wall, 0.76), darken(b.wall, 0.84));
+      p.speckle(0, 0, 16, 16, darken(b.wall, 0.9), 7, 173 + s * 37);
+      p.speckle(0, 0, 16, 16, withAlpha(P.ember, 0.16), 3, 193 + s * 39);
+    },
+    far: (p, b, k) => {   // 熔光地裂 — a burnt plain under smoke, fissures glowing far off
+      const smoke = mix(darken(b.wall, 0.72), P.ink, 0.42);
+      p.gradV(0, 0, 16, 16, lighten(smoke, 0.1), smoke);
+      if (k === 0) {
+        p.line(0, 10, 7, 8, withAlpha(P.ember, 0.5)); p.line(7, 8, 15, 11, withAlpha(P.ember, 0.35));
+        p.glow(7, 8, 3, P.ember, 0.14, 3); p.px(7, 8, withAlpha(P.emberL, 0.6));
+      } else if (k === 1) {
+        p.line(2, 15, 5, 7, withAlpha(darken(b.wall, 0.4), 0.7)); p.line(5, 7, 8, 14, withAlpha(darken(b.wall, 0.4), 0.6));
+        p.px(5, 7, withAlpha(P.ember, 0.4)); p.line(10, 12, 15, 10, withAlpha(P.ember, 0.28));
+      } else {
+        p.ellipse(9, 12, 7, 3, withAlpha(darken(smoke, 0.3), 0.6));
+        p.glow(4, 6, 3, P.ember, 0.1, 3); p.px(4, 6, withAlpha(P.ember, 0.35));
+        p.speckle(0, 0, 16, 10, withAlpha(P.ember, 0.18), 4, 251);
+      }
+      p.speckle(0, 0, 16, 16, withAlpha(P.ink, 0.3), 5, 269 + k * 11);
+    },
+  },
+
+  // ── 虛空裂界 (W3-C1): masonry being eaten by the void it borders ───────────
+  void: {
+    foot: 0.15,
+    base: (p, b) => { p.gradV(0, 0, 16, 16, darken(b.wall, 0.56), darken(b.wall, 0.7)); p.hline(0, 15, 0, b.wallL); },
+    v1: (p, b) => {   // 虛空侵蝕 — bites eaten clean through, opening onto nothing
+      p.speckle(0, 1, 16, 7, darken(b.wall, 0.34), 6, 103); p.speckle(0, 8, 16, 8, darken(b.wall, 0.66), 5, 131);
+      const bite = (x, y, r) => {
+        p.ellipse(x, y, r, r * 0.85, withAlpha(P.void, 0.85));
+        p.ellipse(x, y, r - 1, r * 0.5, withAlpha(P.ink, 0.8));
+        p.px(x - Math.round(r), y - 1, withAlpha(P.purpleL, 0.3));                        // lit rim on the light side
+      };
+      bite(4, 6, 3); bite(11, 11, 2.2); bite(13, 4, 1.4);
+      p.px(6, 12, withAlpha(P.manaL, 0.3));
+    },
+    v2: (p, b) => {   // 星屑嵌縫 — a seam packed with star grit, lit faintly from inside
+      p.speckle(0, 1, 16, 14, darken(b.wall, 0.42), 8, 137);
+      p.line(1, 12, 7, 6, withAlpha(darken(b.wall, 0.82), 0.7)); p.line(7, 6, 14, 3, withAlpha(darken(b.wall, 0.82), 0.6));
+      p.speckle(1, 3, 14, 10, withAlpha(P.star, 0.5), 6, 149);
+      p.glow(7, 6, 3, P.astral, 0.12, 3);
+      p.px(7, 6, withAlpha(P.manaL, 0.55)); p.px(4, 9, withAlpha(P.astralL, 0.4)); p.px(11, 4, withAlpha(P.star, 0.6));
+    },
+    bk: (p, b) => {   // BROKEN: 剝離浮塊 — a slab torn free and drifting, void showing in the tear
+      p.gradV(0, 0, 16, 16, darken(b.wall, 0.56), darken(b.wall, 0.7));
+      p.hline(0, 15, 0, b.wallL);
+      for (let x = 5; x < 16; x++) { const t = (x - 5) / 10; p.vline(3, 3 + Math.round(t * 5), x, withAlpha(P.void, 0.9)); }
+      p.line(5, 3, 15, 9, withAlpha(P.ink, 0.8));
+      p.px(6, 3, withAlpha(P.purpleL, 0.5)); p.px(10, 6, withAlpha(P.manaL, 0.35));       // torn edge catching light
+      p.rect(9, 10, 5, 4, withAlpha(darken(b.wall, 0.46), 0.9));                          // the detached block, hanging off
+      p.px(9, 10, withAlpha(lighten(b.wall, 0.2), 0.5)); p.px(13, 13, withAlpha(P.void, 0.6));
+      p.line(3, 6, 4, 14, withAlpha(darken(b.wall, 0.86), 0.55));
+      p.speckle(0, 8, 16, 8, darken(b.wall, 0.7), 5, 163);
+    },
+    deep: (p, b, s) => {
+      p.gradV(0, 0, 16, 16, darken(b.wall, 0.8), darken(b.wall, 0.88));
+      p.speckle(0, 0, 16, 16, darken(b.wall, 0.92), 7, 179 + s * 43);
+      p.speckle(0, 0, 16, 16, withAlpha(P.astralL, 0.14), 4, 199 + s * 47);
+    },
+    far: (p, b, k) => {   // 星淵消散 — past the edge the ground crumbles into the star abyss
+      const deepv = mix(darken(b.wall, 0.8), P.void, 0.5);
+      p.gradV(0, 0, 16, 16, lighten(deepv, 0.08), darken(deepv, 0.3));
+      if (k === 0) {
+        p.rect(2, 9, 5, 7, withAlpha(darken(b.wall, 0.6), 0.75));                          // the last stone, crumbling away
+        p.px(2, 9, withAlpha(P.purpleL, 0.35));
+        p.px(8, 12, withAlpha(darken(b.wall, 0.6), 0.5)); p.px(10, 14, withAlpha(darken(b.wall, 0.6), 0.4));
+        p.speckle(6, 0, 10, 12, withAlpha(P.star, 0.5), 5, 233);
+      } else if (k === 1) {
+        p.line(4, 15, 6, 6, withAlpha(darken(b.wall, 0.62), 0.7)); p.line(6, 6, 9, 11, withAlpha(darken(b.wall, 0.62), 0.6));
+        p.glow(11, 6, 4, P.astral, 0.12, 4); p.star4(11, 6, 2, P.astralL, P.white);
+        p.speckle(0, 0, 16, 16, withAlpha(P.star, 0.4), 4, 239);
+      } else {
+        p.ellipse(8, 12, 7, 2.6, withAlpha(mix(P.void, P.ink, 0.4), 0.6));
+        p.speckle(0, 0, 16, 14, withAlpha(P.star, 0.55), 7, 241);
+        p.px(5, 4, withAlpha(P.manaL, 0.45)); p.px(12, 9, withAlpha(P.purpleL, 0.35));
+      }
+      p.speckle(0, 0, 16, 16, withAlpha(P.ink, 0.26), 4, 271 + k * 7);
     },
   },
 };
