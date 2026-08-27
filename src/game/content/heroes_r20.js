@@ -145,6 +145,7 @@ function drawH4_chronomancer(p, f, a) {
 
   // face: silver side-swept hair + a gold monocle chain
   p.ellipse(8, 5 + oy, 2.4, 2.4, skin);
+  p.px(7, 4 + oy, lighten(skin, 0.18));         // R28 W3-A3: 2nd face step (brow highlight)
   glowEye(p, 7, 5 + oy, eye); glowEye(p, 9, 5 + oy, eye);
   p.px(10, 5 + oy, trim);                       // monocle rim
   p.px(10, 6 + oy, withAlpha(trim, 0.6));       // monocle chain
@@ -162,6 +163,7 @@ function drawH4_chronomancer(p, f, a) {
   p.px(12, 4 + oy, trim); p.px(14, 4 + oy, trim);
   p.glow(13, 3 + oy, 2.4, eye, 0.45, 3);
   p.sparkle(14, 0 + oy, eye, 1);
+  p.shadeBottom(0.2, 12);   // R28 W3-A3: value-tier gap fix — had rimLight but no shadeBottom
   rimFinish(p);
 }
 
@@ -193,6 +195,7 @@ function drawH4_puppeteer(p, f, a) {
 
   // head: slick combed-back hair + a glinting monocle
   p.ellipse(7, 6 + oy, 2.2, 2.2, skin);
+  p.px(6, 5 + oy, lighten(skin, 0.18));         // R28 W3-A3: 2nd face step (brow highlight)
   glowEye(p, 6, 6 + oy, eye); glowEye(p, 8, 6 + oy, eye);
   p.px(8, 6 + oy, P.glint);                     // monocle flash
   p.rect(5, 3 + oy, 5, 2, cloakD);              // slick hair
@@ -222,6 +225,7 @@ function drawH4_puppeteer(p, f, a) {
   p.px(11, 13 + dy, P.woodD); p.px(15, 13 + dy, P.woodD);   // doll arms (jointed)
   p.px(13, 12 + dy, mix(P.bone, eye, 0.4));      // painted face glint
   p.sparkle(14, 9 + oy, eye, 1);
+  p.shadeBottom(0.2, 12);   // R28 W3-A3: value-tier gap fix — had rimLight but no shadeBottom
   rimFinish(p);
 }
 
@@ -282,6 +286,7 @@ function drawH4_gravekeeper(p, f, a) {
   p.line(14, 13 + oy, 11, 16 + oy, withAlpha(eye, 0.45));   // soul-heat edge
   p.px(10, 16 + oy, P.glint);
   p.sparkle(4, 8 + oy, withAlpha(eye, 0.8), 1);  // drifting soul mote
+  p.shadeBottom(0.2, 12);   // R28 W3-A3: value-tier gap fix — had rimLight but no shadeBottom
   rimFinish(p);
 }
 
