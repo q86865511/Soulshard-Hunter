@@ -61,7 +61,9 @@ Enemies.register({
   bloodColor: P.iceD, tint: P.shard,
   desc: '披著結晶硬殼的洞窟蟹，成群橫行夾擊獵物。',
 });
-defineAnim('g_crystalcrab', 16, 12, 4, (p, f) => {
+defineAnim('g_crystalcrab', 16, 14, 4, (p, f) => {
+  // R28 W3-A2: standard-tier 16x14 canvas (was 16x12); +1px y-shift to recentre.
+  p.ctx.save(); p.ctx.translate(0, 1);
   const leg = [0, 1, 0, -1][f % 4];        // 步足擺動
   const cy = 7;
   // 八足
@@ -83,8 +85,11 @@ defineAnim('g_crystalcrab', 16, 12, 4, (p, f) => {
   p.vline(cy - 3, cy - 1, 6, P.iceD); p.vline(cy - 3, cy - 1, 10, P.iceD);
   p.px(6, cy - 4, P.ink); p.px(10, cy - 4, P.ink);
   p.px(6, cy - 4, P.red); p.px(10, cy - 4, P.red);
+  p.ctx.restore();
+  p.rimLight(P.rimCool, 0.4);
+  p.shadeBottom(0.2, 9);
   p.outline(P.ink);
-}, { anchor: [8, 11], fps: 7 });
+}, { anchor: [8, 12], fps: 7 });
 
 // ============================================================
 // ENEMY 2 — 霜翼蝠 (t1, flyer) 重用 drawBat 改色
@@ -95,15 +100,21 @@ Enemies.register({
   bloodColor: P.iceD, tint: P.blueL,
   desc: '振翅帶起寒風的洞窟蝙蝠，飄忽難測。',
 });
-defineAnim('g_frostbat', 16, 12, 2, (p, f) => {
+defineAnim('g_frostbat', 14, 12, 2, (p, f) => {
+  // R28 W3-A2: swarm-tier 14x12 canvas (was 16x12, matches core.js's 'bat' base
+  // after W3-A1's shrink); -1px x-shift to recentre.
+  p.ctx.save(); p.ctx.translate(-1, 0);
   drawBat(p, f, P.blue, P.blueD, P.ice);
   // 翼尖凝霜亮點
   if (f % 2 === 0) { p.px(2, 5, P.iceD); p.px(13, 5, P.iceD); }
   else { p.px(2, 8, P.iceD); p.px(13, 8, P.iceD); }
   p.px(7, 5, P.iceD); p.px(9, 5, P.iceD);   // 頭頂霜冠
   p.px(8, 4, P.ice);
+  p.ctx.restore();
+  p.rimLight(P.rimCool, 0.4);
+  p.shadeBottom(0.2, 8);
   p.outline(P.ink);
-}, { anchor: [8, 8], fps: 9 });
+}, { anchor: [7, 8], fps: 9 });
 
 // ============================================================
 // ENEMY 3 — 冰錐幽火 (t2, shooter) 重用 drawWisp 改色
@@ -115,7 +126,11 @@ Enemies.register({
   attack: { range: 155, cooldown: 1.8, projSpeed: 90, projDamage: 11, projColor: P.ice, projSprite: 'g_proj_frostshard', projRadius: 4, projLife: 3 },
   desc: '漂浮的寒霜精怪，射出沉緩卻刺骨的冰錐。',
 });
-defineAnim('g_iciclewisp', 16, 16, 3, (p, f) => {
+defineAnim('g_iciclewisp', 14, 14, 3, (p, f) => {
+  // R28 W3-A2: swarm-tier 14x14 canvas (was 16x16) — this was the worst-hit
+  // caller of core.js's W3-A1 drawWisp shrink (measured 48.8% fill, below the
+  // 55% floor); -1/-1px shift to recentre, plus the missing rimLight/shadeBottom.
+  p.ctx.save(); p.ctx.translate(-1, -1);
   drawWisp(p, f, P.ice, P.iceD, P.white);
   const yb = [0, -1, 0][f % 3];
   // 環繞冰錐
@@ -123,8 +138,11 @@ defineAnim('g_iciclewisp', 16, 16, 3, (p, f) => {
   p.line(13, 7 + yb, 14, 10 + yb, P.iceD); p.px(14, 10 + yb, P.ice);
   p.px(8, 1 + yb, P.blueL); p.px(8, 2 + yb, P.ice);
   p.px(7, 6 + yb, P.blueL);
+  p.ctx.restore();
+  p.rimLight(P.rimCool, 0.4);
+  p.shadeBottom(0.2, 9);
   p.outline(P.ink);
-}, { anchor: [8, 12], fps: 5 });
+}, { anchor: [7, 11], fps: 5 });
 
 // ============================================================
 // ENEMY 4 — 冰河史萊姆 (t2, chase) 重用 drawSlime 改色
@@ -144,6 +162,10 @@ defineAnim('g_glacierslime', 16, 14, 4, (p, f) => {
   // 表面碎冰
   p.px(5, 7 + yb, P.shardL); p.px(11, 8 + yb, P.shardL);
   frostCrystals(p, 6, 5 + yb, P.ice, P.white);
+  // R28 W3-A2: value-tier gap fix — canvas already standard-tier (16x14), had
+  // neither rimLight nor shadeBottom.
+  p.rimLight(P.rimCool, 0.4);
+  p.shadeBottom(0.2, 10);
   p.outline(P.ink);
 }, { anchor: [8, 13], fps: 6 });
 
@@ -157,7 +179,11 @@ Enemies.register({
   attack: { range: 150, cooldown: 1.8 },
   desc: '霜原狼王，蓄勢低伏後化作寒風般的撲咬。',
 });
-defineAnim('g_frostwolf', 18, 14, 4, (p, f) => {
+defineAnim('g_frostwolf', 18, 16, 4, (p, f) => {
+  // R28 W3-A2: large-tier 18x16 canvas (was 18x14, same orphan-size fix as
+  // g_scorpion — width 18 never fit standard, height 14 never fit large);
+  // +1px y-shift to recentre.
+  p.ctx.save(); p.ctx.translate(0, 1);
   const lope = [0, 1, 0, -1][f % 4];
   const by = 7;
   // 四腿
@@ -182,8 +208,11 @@ defineAnim('g_frostwolf', 18, 14, 4, (p, f) => {
   frostCrystals(p, 7, by - 2, P.ice, P.white);
   // 寒氣斑點
   p.px(5, by + 1, P.gray4); p.px(11, by + 1, P.gray4);
+  p.ctx.restore();
+  p.rimLight(P.rimCool, 0.4);
+  p.shadeBottom(0.2, 11);
   p.outline(P.ink);
-}, { anchor: [9, 13], fps: 8 });
+}, { anchor: [9, 14], fps: 8 });
 
 // ============================================================
 // ENEMY 6 — 寒霜鴉 (t3, shooter/flyer 取 shooter) 全新繪製
@@ -195,28 +224,35 @@ Enemies.register({
   attack: { range: 175, cooldown: 1.6, projSpeed: 150, projDamage: 13, projColor: P.blueL, projSprite: 'g_proj_frostfeather', projRadius: 3, projLife: 2.4, burst: 3, spread: 0.22 },
   desc: '盤旋霜空的鴉群之主，振翅灑下三道羽刃霜彈。',
 });
+// R28 W3-A2: canvas already standard-tier (16x14) — measured 50.9% fill (a
+// thin-frame bird, mostly line-drawn wings on an empty canvas). Body/wings/head
+// widened to clear the >=55% floor; no rimLight/shadeBottom before, both added.
 defineAnim('g_snowraven', 16, 14, 4, (p, f) => {
   const flap = [0, -2, 0, 1][f % 4];     // 拍翅幅度
   const by = 8;
-  // 身體
-  p.ellipse(8, by, 2.6, 3.4, P.gray1);
-  p.ellipse(8, by - 0.5, 1.8, 2.6, P.gray2);
+  // 身體 (加大)
+  p.ellipse(8, by, 3, 3.8, P.gray1);
+  p.ellipse(8, by - 0.5, 2.2, 3, P.gray2);
   p.px(8, by + 3, P.gray2);            // 尾根
-  // 尾羽
-  p.vline(by + 2, by + 4, 7, P.gray1); p.vline(by + 2, by + 4, 9, P.gray1); p.vline(by + 2, by + 5, 8, P.gray2);
-  // 雙翼（依拍翅）
-  p.line(6, by - 1, 1, by - 1 + flap, P.gray1); p.line(1, by - 1 + flap, 5, by + 1, P.gray1);
-  p.line(10, by - 1, 15, by - 1 + flap, P.gray1); p.line(15, by - 1 + flap, 11, by + 1, P.gray1);
-  p.ellipse(3, by + flap * 0.5, 2.2, 1.4, P.gray2); p.ellipse(13, by + flap * 0.5, 2.2, 1.4, P.gray2);
+  // 尾羽 (加粗)
+  p.vline(by + 2, by + 5, 6, P.gray1); p.vline(by + 2, by + 5, 10, P.gray1); p.vline(by + 2, by + 6, 8, P.gray2);
+  // 雙翼（依拍翅，加寬且以填色梯形取代細線）
+  p.line(6, by - 1, 1, by - 1 + flap, P.gray1); p.line(6, by, 1, by + flap, P.gray1);
+  p.line(1, by - 1 + flap, 5, by + 1, P.gray1); p.line(1, by + flap, 5, by + 2, P.gray1);
+  p.line(10, by - 1, 15, by - 1 + flap, P.gray1); p.line(10, by, 15, by + flap, P.gray1);
+  p.line(15, by - 1 + flap, 11, by + 1, P.gray1); p.line(15, by + flap, 11, by + 2, P.gray1);
+  p.ellipse(3, by + flap * 0.5, 3, 2.1, P.gray2); p.ellipse(13, by + flap * 0.5, 3, 2.1, P.gray2);
   // 翼尖霜羽
   p.px(1, by - 1 + flap, P.gray4); p.px(15, by - 1 + flap, P.gray4);
-  // 頭與喙
-  p.ellipse(8, by - 3, 2, 1.8, P.gray2);
+  // 頭與喙 (加大)
+  p.ellipse(8, by - 3, 2.4, 2.2, P.gray2);
   p.px(8, by - 5, P.gray1); p.px(7, by - 5, P.gray1);    // 額羽
   p.line(8, by - 3, 8, by - 1, P.iceD);                  // 喙（朝下）
   p.px(8, by - 2, P.ice);
   // 寒光眼
   p.px(7, by - 3, P.blueL); p.px(9, by - 3, P.blueL);
+  p.rimLight(P.rimCool, 0.4);
+  p.shadeBottom(0.2, 10);
   p.outline(P.ink);
 }, { anchor: [8, 13], fps: 9 });
 
