@@ -429,85 +429,114 @@ defineSprite('r20_fx_waltz', 8, 10, (p) => {
 // ===========================================================================
 // 審判戰錘: golden warhammer haloed in holy light
 defineIcon('weapon_w_h4_judgment', '#5a4a1a', (p) => {
-  p.glow(9, 5, 4, P.holy, 0.4, 3);
-  p.line(4, 13, 10, 7, P.wood);                  // haft
-  p.line(5, 13, 11, 7, P.woodD);
-  p.rect(8, 3, 6, 5, P.gold);                    // hammer head
-  p.rect(8, 3, 6, 1, P.goldL);
-  p.rect(8, 7, 6, 1, P.goldD);
-  p.vline(3, 7, 11, P.holyL);                    // holy seam
+  p.glow(10, 5, 4, P.holy, 0.24, 3);
+  // Heavy diagonal haft, broad head and cross-guard read as a warhammer.
+  p.line(3, 14, 10, 7, P.woodD);
+  p.line(4, 14, 11, 7, P.wood);
+  p.rect(8, 3, 6, 5, P.goldD);
+  p.rect(8, 3, 6, 2, P.goldL);
+  p.rect(7, 5, 8, 2, P.gold);
   p.px(9, 4, P.white);
-  p.star4(13, 3, 2, P.holyL, P.white);
-});
+  // Detached descending swing arc.
+  p.line(3, 4, 5, 2, withAlpha(P.holyL, 0.75));
+  p.line(2, 7, 2, 5, withAlpha(P.goldL, 0.55));
+}, { kira: true });
 // 黎明聖印: the hammer crowned by a rising dawn seal
 defineIcon('weapon_w_h4_judgment_evo', '#6a4a10', (p) => {
-  p.glow(8, 6, 6, P.holy, 0.45, 4);
-  p.ring(8, 6, 5, P.goldL);                      // dawn seal ring
-  p.ring(8, 6, 5, withAlpha(P.holy, 0.6));
-  p.rect(6, 4, 4, 4, P.gold);                    // floating hammer head
-  p.rect(6, 4, 4, 1, P.goldL);
-  p.vline(8, 12, 8, P.woodD);                    // short haft below
-  for (let i = 0; i < 4; i++) { const a = -0.5 + i * 1.05; p.px(8 + Math.cos(a) * 7, 6 + Math.sin(a) * 7, P.holyL); }   // radiant dawn rays
+  p.glow(9, 6, 6, P.holy, 0.3, 4);
+  // Base hammer vocabulary remains, enlarged into a ceremonial maul.
+  p.line(3, 14, 9, 8, P.woodD);
+  p.line(4, 14, 10, 8, P.gold);
+  p.rect(6, 4, 7, 5, P.gold);
+  p.rect(5, 5, 9, 3, P.goldD);
+  p.hline(6, 12, 4, P.goldL);
   p.px(7, 5, P.white);
-  p.star4(8, 2, 2, P.holyL, P.white);
-});
+  // Second layer: winged dawn crown and broken seal halo.
+  p.line(6, 5, 3, 2, P.holyL); p.line(6, 6, 2, 5, P.goldL);
+  p.line(12, 5, 14, 2, P.holyL); p.line(13, 7, 15, 5, P.goldL);
+  for (let a = -150; a <= 20; a += 28) {
+    const t = a * Math.PI / 180;
+    p.px(Math.round(9 + Math.cos(t) * 6), Math.round(7 + Math.sin(t) * 6), withAlpha(P.holyL, 0.75));
+  }
+}, { kira: true });
 // 迴時刃: a cyan crescent blade bent around a clock face
 defineIcon('weapon_w_h4_chronoblade', P.blueD, (p) => {
-  p.glow(8, 8, 5, P.neon, 0.35, 3);
-  p.ring(8, 8, 5, P.neon);
-  p.ring(8, 8, 4, withAlpha(P.neonL, 0.6));
-  p.line(8, 8, 8, 4, P.white);                   // clock hands
-  p.line(8, 8, 11, 9, P.neonL);
-  p.px(8, 8, P.white);
-  p.px(12, 4, P.neonL); p.px(3, 11, P.neonL);    // crescent glints
-  p.sparkle(12, 4, P.neonL, 1);
-});
+  p.glow(10, 5, 4, P.neon, 0.22, 3);
+  // Curved time-sabre with a physical grip and crescent cutting edge.
+  p.line(3, 13, 7, 9, P.steelD);
+  p.line(4, 13, 8, 9, P.goldD);
+  p.line(6, 8, 9, 11, P.neon);
+  p.line(7, 8, 11, 4, P.neonL);
+  p.line(11, 4, 13, 3, P.white);
+  p.line(10, 5, 13, 7, P.blueL);
+  // Return trajectory bends back toward the hilt.
+  p.px(13, 9, withAlpha(P.neonL, 0.75));
+  p.px(11, 11, withAlpha(P.neon, 0.65));
+  p.px(8, 13, withAlpha(P.blueL, 0.5));
+}, { kira: true });
 // 永劫迴環: twin interlocked time loops
 defineIcon('weapon_w_h4_chronoblade_evo', P.void, (p) => {
-  p.glow(8, 8, 6, P.astral, 0.4, 4);
-  p.ring(6, 8, 4, P.neon);
-  p.ring(10, 8, 4, P.astralL);
-  p.ring(8, 8, 6, withAlpha(P.neonL, 0.4));
-  p.px(6, 8, P.white); p.px(10, 8, P.white);
-  p.line(8, 8, 8, 5, P.white);                   // shared hand frozen at zero
-  p.star4(8, 3, 2, P.neonL, P.white);
-});
+  p.glow(8, 8, 6, P.astral, 0.28, 4);
+  // Twin opposing sabres retain the base crescent vocabulary.
+  p.line(3, 13, 10, 6, P.neon);
+  p.line(4, 13, 11, 6, P.neonL);
+  p.line(10, 6, 13, 3, P.white);
+  p.line(13, 13, 6, 6, P.astral);
+  p.line(12, 13, 5, 6, P.astralL);
+  p.line(6, 6, 3, 3, P.white);
+  // Second layer: hourglass loop and two return beads.
+  p.ring(8, 8, 5.5, withAlpha(P.neonL, 0.55));
+  p.line(5, 4, 11, 12, withAlpha(P.purpleL, 0.55));
+  p.ellipse(2, 8, 1.2, 1.2, P.neonL);
+  p.ellipse(14, 8, 1.2, 1.2, P.astralL);
+}, { kira: true });
 // 提線傀儡: a doll dangling from a control bar
 defineIcon('weapon_w_h4_marionette', '#4a2a3a', (p) => {
-  p.glow(8, 8, 4.5, P.sakura, 0.3, 3);
-  p.hline(4, 12, 2, P.wood);                     // control bar
-  p.px(8, 2, P.woodL);
-  p.vline(3, 5, 6, withAlpha(P.sakuraL, 0.8));   // threads
-  p.vline(3, 5, 10, withAlpha(P.sakuraL, 0.8));
-  p.ellipse(8, 7, 2, 2, P.bone);                 // head
-  p.px(7, 7, P.ink); p.px(9, 7, P.ink);
-  p.rect(6, 9, 5, 4, P.sakuraD);                 // dress
-  p.rect(6, 9, 5, 1, P.sakura);
-  p.px(5, 10, P.bone); p.px(11, 10, P.bone);     // arms
-  p.px(7, 6, P.white);
-});
+  p.glow(9, 8, 4, P.sakura, 0.2, 3);
+  // Diagonal control cross and taut strings define the summoned weapon.
+  p.line(3, 12, 10, 5, P.woodD);
+  p.line(4, 12, 11, 5, P.woodL);
+  p.line(7, 5, 11, 9, P.wood);
+  p.line(7, 8, 8, 11, withAlpha(P.sakuraL, 0.85));
+  p.line(10, 7, 11, 10, withAlpha(P.sakuraL, 0.85));
+  p.ellipse(10, 11, 1.8, 1.8, P.bone);
+  p.rect(8, 12, 5, 2, P.sakuraD);
+  p.px(9, 11, P.ink); p.px(11, 11, P.ink);
+  // A fired soul needle gives the puppet a clear attack vector.
+  p.line(11, 9, 14, 6, P.magentaL);
+  p.px(14, 6, P.white);
+}, { kira: true });
 // 千絲傀儡王: the crowned puppet king and his thousand threads
 defineIcon('weapon_w_h4_marionette_evo', '#3a1a3a', (p) => {
-  p.glow(8, 8, 5.5, P.magenta, 0.35, 4);
-  for (let i = 0; i < 5; i++) p.vline(1, 4, 3 + i * 2.5, withAlpha(P.magentaL, 0.6));   // thousand threads
-  p.ellipse(8, 8, 2.4, 2.4, P.bone);             // head
-  p.px(7, 8, P.magenta); p.px(9, 8, P.magenta);  // glowing eyes
-  p.rect(6, 3, 5, 2, P.gold);                    // crown
-  p.px(6, 2, P.goldL); p.px(8, 2, P.goldL); p.px(10, 2, P.goldL);
-  p.rect(5, 10, 7, 4, P.purpleD);                // royal robe
-  p.rect(5, 10, 7, 1, P.magenta);
-  p.star4(12, 5, 2, P.magentaL, P.white);
-});
+  p.glow(9, 8, 5.5, P.magenta, 0.28, 4);
+  // Enlarged diagonal royal controller preserves the base silhouette.
+  p.line(2, 13, 10, 5, P.woodD);
+  p.line(3, 13, 11, 5, P.gold);
+  p.line(7, 4, 12, 9, P.goldL);
+  for (let i = 0; i < 4; i++) p.line(6 + i * 2, 6 + i, 5 + i * 3, 13, withAlpha(P.magentaL, 0.65));
+  p.ellipse(9, 10, 2.3, 2.3, P.bone);
+  p.rect(6, 12, 7, 2, P.purpleD);
+  p.px(8, 10, P.magenta); p.px(10, 10, P.magenta);
+  // Second layer: crown horns and a split needle volley.
+  p.line(7, 8, 7, 6, P.goldL); p.line(9, 8, 9, 5, P.goldL); p.line(11, 8, 12, 6, P.goldL);
+  p.line(11, 9, 15, 5, P.white);
+  p.line(12, 11, 15, 9, P.magentaL);
+}, { kira: true });
 // 掘魂鐮: a soul-green reaper's scythe
 defineIcon('weapon_w_h4_gravescythe', '#1a3a2a', (p) => {
-  p.glow(10, 4, 4, P.aurora, 0.35, 3);
-  p.line(4, 13, 9, 4, P.wood);                   // snath
-  p.line(5, 13, 10, 4, P.woodD);
-  for (let x = 5; x <= 12; x++) { const y = 3 + Math.round(Math.pow((x - 5) / 7, 2) * 4); p.px(x, y, P.aurora); p.px(x, y + 1, P.auroraL); }   // curved blade
-  p.px(12, 7, P.white);                          // blade tip glint
-  p.px(9, 3, P.white);
-  p.sparkle(12, 7, P.auroraL, 1);
-});
+  p.glow(10, 4, 4, P.aurora, 0.22, 3);
+  p.line(3, 14, 9, 5, P.woodD);                  // long diagonal snath
+  p.line(4, 14, 10, 5, P.wood);
+  p.line(6, 11, 3, 10, P.steelD);                // rear grip
+  for (let x = 6; x <= 13; x++) {
+    const y = 3 + Math.round(Math.pow((x - 6) / 7, 2) * 4);
+    p.px(x, y, P.auroraL); p.px(x, y + 1, P.aurora);
+  }
+  p.px(13, 7, P.white);
+  // Broken reap arc follows the blade without merging into it.
+  p.line(3, 6, 4, 4, withAlpha(P.auroraL, 0.7));
+  p.line(5, 3, 7, 2, withAlpha(P.aurora, 0.55));
+}, { kira: true });
 // 萬魂收割: paired reaper blades crossed in an X, wreathed by a soul halo
 // R28 FIX-2: base+evo shared one blade silhouette, only recoloured (gate flagged
 // as recolor-only, see docs/reviews/art-improve-2026-08/gate/GATE_REPORT.md) —
@@ -525,52 +554,66 @@ defineIcon('weapon_w_h4_gravescythe_evo', '#241a3a', (p) => {
   p.px(2, 7, P.white); p.px(13, 7, P.white);
   p.px(12, 7, P.white);
   p.star4(8, 3, 2, P.purpleL, P.white);
-});
+}, { kira: true });
 // 星隕呼喚: a falling star streaking to a marked sigil
 defineIcon('weapon_w_h4_starfall', '#2a2a5a', (p) => {
-  p.glow(11, 4, 3.5, P.gold, 0.45, 3);
-  p.line(4, 12, 11, 4, withAlpha(P.goldL, 0.6)); // streak trail
-  p.line(5, 12, 11, 5, P.emberL);
-  p.ellipse(11, 4, 1.8, 1.8, P.goldL);           // the star
-  p.px(11, 4, P.white);
-  p.ring(5, 13, 2, withAlpha(P.gold, 0.8));      // target sigil
-  p.px(5, 13, P.gold);
-  p.star4(11, 4, 3, P.goldL, P.white);
-});
+  p.glow(10, 5, 4, P.gold, 0.24, 3);
+  // Star-tipped invocation staff, canted into the firing diagonal.
+  p.line(3, 14, 9, 8, P.woodD);
+  p.line(4, 14, 10, 8, P.goldD);
+  p.line(7, 9, 10, 12, P.gold);
+  p.ellipse(10, 6, 2.5, 2.5, P.gold);
+  p.line(10, 3, 10, 9, P.goldL);
+  p.line(7, 6, 13, 6, P.emberL);
+  p.px(10, 6, P.white);
+  // Falling projectile and dash trail are detached from the staff head.
+  p.line(13, 2, 12, 4, P.white);
+  p.px(14, 1, withAlpha(P.goldL, 0.65));
+}, { kira: true });
 // 隕星審判: a blazing meteor erupting on impact
 defineIcon('weapon_w_h4_starfall_evo', '#4a1a1a', (p) => {
-  p.glow(8, 9, 6, P.ember, 0.45, 4);
-  p.ellipse(8, 9, 3, 3, P.ember);                // meteor core
-  p.ellipse(8, 9, 2, 2, P.goldL);
-  p.px(8, 9, P.white);
-  for (let i = 0; i < 6; i++) { const a = i / 6 * TAU; p.line(8 + Math.cos(a) * 4, 9 + Math.sin(a) * 4, 8 + Math.cos(a) * 7, 9 + Math.sin(a) * 7, i % 2 ? P.emberL : P.laser); }   // impact rays
-  p.line(11, 2, 9, 6, P.goldL);                  // incoming streak
-  p.px(12, 2, P.white);
-  p.star4(4, 4, 2, P.emberL, P.white);
-});
+  p.glow(9, 7, 6, P.ember, 0.3, 4);
+  // The invocation staff remains, now ending in a split meteor cage.
+  p.line(2, 14, 8, 8, P.woodD);
+  p.line(3, 14, 9, 8, P.gold);
+  p.ellipse(9, 7, 3, 3, P.ember);
+  p.ellipse(9, 7, 1.6, 1.6, P.goldL);
+  p.px(9, 7, P.white);
+  // Second layer: horned cage, cracked twin core and broad impact wings.
+  p.line(7, 5, 5, 2, P.laser); p.line(11, 5, 14, 2, P.laser);
+  p.ellipse(6, 4, 1.3, 1.3, P.goldL); p.ellipse(13, 4, 1.3, 1.3, P.goldL);
+  p.line(6, 10, 3, 11, P.emberL); p.line(11, 10, 14, 12, P.emberL);
+  p.line(5, 12, 3, 14, withAlpha(P.laser, 0.7));
+}, { kira: true });
 // 劍刃圓舞: two slender swords crossed mid-waltz with a ribbon
 defineIcon('weapon_w_h4_bladewaltz', '#4a2438', (p) => {
-  p.glow(8, 8, 4.5, P.sakura, 0.35, 3);
-  p.line(4, 12, 11, 3, P.steelL);                // blade 1
-  p.line(12, 12, 5, 3, P.sakuraL);               // blade 2
-  p.px(11, 3, P.white); p.px(5, 3, P.white);
-  p.px(4, 12, P.gold); p.px(12, 12, P.gold);     // hilts
-  // waltz ribbon arc
-  p.px(3, 7, P.sakura); p.px(4, 6, P.sakuraL); p.px(12, 6, P.sakuraL); p.px(13, 7, P.sakura);
-  p.sparkle(8, 7, P.sakuraL, 1);
-});
+  p.glow(9, 6, 4, P.sakura, 0.22, 3);
+  // One elegant rapier gives the base form a clean, unmistakable silhouette.
+  p.line(3, 14, 10, 5, P.steel);
+  p.line(4, 14, 11, 5, P.steelL);
+  p.px(11, 4, P.white);
+  p.line(5, 11, 8, 14, P.gold);
+  p.ellipse(4, 13, 1.4, 1.4, P.sakuraD);
+  // Ribbon-like sweep arc trails outside the blade.
+  p.line(2, 8, 4, 6, withAlpha(P.sakuraL, 0.65));
+  p.line(5, 5, 8, 3, withAlpha(P.sakura, 0.55));
+  p.line(10, 2, 13, 3, withAlpha(P.sakuraL, 0.75));
+}, { kira: true });
 // 千刃輪舞: a full ring of blades in counter-rotation
 defineIcon('weapon_w_h4_bladewaltz_evo', '#3a1430', (p) => {
-  p.glow(8, 8, 6, P.magenta, 0.4, 4);
-  p.ring(8, 8, 6, withAlpha(P.sakura, 0.5));
-  for (let i = 0; i < 8; i++) {                  // ring of blades
-    const a = i / 8 * TAU;
-    p.line(8 + Math.cos(a) * 3.4, 8 + Math.sin(a) * 3.4, 8 + Math.cos(a) * 6, 8 + Math.sin(a) * 6, i % 2 ? P.steelL : P.sakuraL);
-    p.px(8 + Math.cos(a) * 6, 8 + Math.sin(a) * 6, P.white);
+  p.glow(8, 8, 6, P.magenta, 0.28, 4);
+  // Crossed lead rapiers preserve the base blade language.
+  p.line(3, 13, 11, 3, P.steelL);
+  p.line(13, 13, 5, 3, P.sakuraL);
+  p.px(11, 3, P.white); p.px(5, 3, P.white);
+  p.line(3, 11, 6, 14, P.gold); p.line(13, 11, 10, 14, P.gold);
+  // Second layer: four satellite blades and a counter-rotation halo.
+  p.ring(8, 8, 5.5, withAlpha(P.sakura, 0.5));
+  for (let i = 0; i < 4; i++) {
+    const a = i / 4 * TAU;
+    p.line(8 + Math.cos(a) * 4, 8 + Math.sin(a) * 4, 8 + Math.cos(a) * 6.5, 8 + Math.sin(a) * 6.5, P.magentaL);
   }
-  p.ellipse(8, 8, 1.6, 1.6, P.sakuraL);
-  p.px(8, 8, P.white);
-  p.star4(8, 8, 3, P.sakuraL, P.white);
-});
+  p.ellipse(8, 8, 1.3, 1.3, P.white);
+}, { kira: true });
 
 export const WEAPONS_R20_READY = true;

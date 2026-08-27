@@ -54,36 +54,77 @@ defineSprite('g_fx_halo', 12, 12, (p) => {
 
 // ---- weapon icons ----------------------------------------------------------
 defineIcon('weapon_g_laserbeam', P.redD, (p) => {
-  p.rect(2, 7, 11, 2, P.redL); p.rect(2, 7, 11, 1, P.white);
-  p.ellipse(12, 8, 2.2, 2.6, P.red); p.ellipse(12, 8, 1.2, 1.6, P.emberL);
-  p.px(3, 8, P.white);
-});
+  // R28 W3-B1 HAND-EDIT: shoulder laser cannon with diagonal cold-light discharge.
+  p.line(2, 13, 7, 8, P.steelD);
+  p.line(3, 13, 8, 8, P.steelL);
+  p.rect(5, 6, 6, 4, P.iron);
+  p.rect(7, 5, 5, 2, P.gray3);
+  p.ellipse(10, 7, 1.5, 1.5, P.blueL);
+  p.line(10, 6, 14, 2, P.neonL);
+  p.line(11, 7, 15, 3, P.white);
+  p.line(5, 10, 8, 13, P.gray2);
+  p.px(13, 6, withAlpha(P.neon, 0.55));
+}, { kira: true });
 defineIcon('weapon_g_crossbarrage', P.blueD, (p) => {
-  p.rect(7, 2, 2, 11, P.blueL); p.rect(2, 7, 11, 2, P.blueL);
-  p.px(8, 8, P.white);
-  for (const [dx, dy] of [[8, 2], [8, 12], [2, 8], [13, 8]]) p.ellipse(dx, dy, 1.2, 1.2, P.ice);
+  // R28 W3-B1 HAND-EDIT: diagonal crossbow stock, bow limbs and four-bolt burst.
+  p.line(2, 14, 9, 7, P.woodD);
+  p.line(3, 14, 10, 7, P.woodL);
+  p.line(6, 4, 13, 11, P.steelL);
+  p.line(7, 4, 13, 10, P.blueL);
+  p.line(7, 4, 10, 7, withAlpha(P.ice, 0.65));
+  p.line(13, 10, 10, 7, withAlpha(P.ice, 0.65));
+  p.px(10, 7, P.white);
+  p.line(11, 5, 14, 2, P.ice);
+  p.line(12, 8, 15, 5, P.blueL);
 });
 defineIcon('weapon_g_ricochet', '#5a4a1a', (p) => {
-  p.line(2, 12, 6, 5, P.emberL); p.line(6, 5, 10, 11, P.gold); p.line(10, 11, 13, 5, P.emberL);
-  p.ellipse(2, 12, 1.4, 1.4, P.white); p.ellipse(13, 5, 1.4, 1.4, P.white);
-});
+  // R28 W3-B1 HAND-EDIT: angled soul-pistol anchors the bouncing projectile path.
+  p.line(2, 13, 7, 8, P.woodD);
+  p.line(3, 13, 8, 8, P.goldD);
+  p.rect(6, 6, 6, 3, P.steelD);
+  p.hline(7, 11, 6, P.steelL);
+  p.line(6, 9, 8, 12, P.wood);
+  p.px(10, 7, P.white);
+  p.ellipse(13, 4, 1.4, 1.4, P.goldL);
+  p.line(12, 6, 14, 4, withAlpha(P.emberL, 0.7));
+  p.line(14, 4, 12, 2, withAlpha(P.gold, 0.55));
+  p.px(10, 2, withAlpha(P.emberL, 0.5));
+}, { kira: true });
 defineIcon('weapon_g_blackhole', P.purpleD, (p) => {
-  p.ellipse(8, 8, 5.5, 5.5, P.void); p.ring(8, 8, 5.5, P.purpleL); p.ring(8, 8, 4, P.purple);
-  p.ellipse(8, 8, 2.2, 2.2, P.ink); p.px(8, 8, P.manaL);
-  p.line(2, 3, 6, 6, P.purpleL); p.line(14, 13, 10, 10, P.purpleL);
-});
+  // R28 W3-B1 HAND-EDIT: void sceptre and muzzle vortex, not a floating symbol.
+  p.line(2, 14, 8, 8, P.woodD);
+  p.line(3, 14, 9, 8, P.purpleL);
+  p.line(6, 9, 9, 12, P.steelD);
+  p.ellipse(10, 6, 3.2, 3.2, P.void);
+  p.ring(10, 6, 3.5, P.purpleL);
+  p.ellipse(10, 6, 1.3, 1.3, P.ink);
+  p.px(9, 5, P.manaL);
+  p.line(12, 4, 15, 2, withAlpha(P.astralL, 0.7));
+  p.line(13, 7, 15, 9, withAlpha(P.purpleL, 0.55));
+}, { kira: true });
 defineIcon('weapon_g_halo', P.goldD, (p) => {
-  p.ring(8, 8, 5.5, P.goldL); p.ring(8, 8, 4, P.gold); p.ring(8, 8, 2.4, P.emberL);
-  p.ellipse(8, 3, 1.3, 1.3, P.white); p.ellipse(13, 10, 1.3, 1.3, P.goldL); p.ellipse(4, 11, 1.3, 1.3, P.emberL);
-});
+  // R28 W3-B1 HAND-EDIT: bladed holy chakram with grip and a throw trajectory.
+  p.ring(10, 5, 4, P.goldL);
+  p.ring(10, 5, 2.5, P.goldD);
+  p.line(7, 8, 3, 12, P.woodD);
+  p.line(8, 8, 4, 13, P.gold);
+  p.line(6, 10, 3, 9, P.steelL);
+  p.px(10, 1, P.white); p.px(14, 5, P.holyL);
+  // Broken return arc keeps the attack motion distinct.
+  p.px(14, 9, withAlpha(P.holyL, 0.75));
+  p.px(12, 12, withAlpha(P.goldL, 0.6));
+  p.px(9, 14, withAlpha(P.emberL, 0.45));
+}, { kira: true });
 defineIcon('weapon_g_dartfan', P.steelD, (p) => {
-  // three darts fanning up-right from the lower-left
-  for (let i = 0; i < 3; i++) {
-    const bx = 3, by = 13, ang = -1.5 + i * 0.45;
-    const tx = bx + Math.cos(ang) * 10, ty = by + Math.sin(ang) * 10;
-    p.line(bx, by, tx, ty, i === 1 ? P.steelL : P.steel);
-    p.px(Math.round(tx), Math.round(ty), P.shardL);
+  // R28 W3-B1 HAND-EDIT: three complete throwing knives fan along the diagonal.
+  const tips = [[8, 2], [11, 4], [14, 7]];
+  for (let i = 0; i < tips.length; i++) {
+    const [tx, ty] = tips[i], hx = 3 + i, hy = 13;
+    p.line(hx, hy, tx, ty, i === 1 ? P.steelL : P.steel);
+    p.px(tx, ty, P.white);
+    p.line(hx - 1, hy - 1, hx + 1, hy + 1, P.woodD);
   }
+  p.line(8, 13, 12, 11, withAlpha(P.gray3, 0.55));
 });
 
 // ============================================================================
@@ -357,4 +398,3 @@ Weapons.register({
   levelDesc: (l) => `飛鏢 ${3 + Math.floor(l * 0.7)}・穿透 ${1 + Math.floor(l / 3)}・傷害 ${(6 + l * 2.1) | 0}`,
   desc: '朝最近敵人扇形擲出旋轉飛鏢，貫穿成排目標。',
 });
-

@@ -343,61 +343,91 @@ defineSprite('g_fx_mine', 10, 8, (p) => {
 
 // scatter: stubby barrel spraying pellets in a fan
 defineIcon('weapon_g_scatter', P.woodD, (p) => {
-  p.rect(2, 7, 6, 3, P.iron);
-  p.rect(2, 7, 6, 1, P.gray3);
-  p.rect(7, 6, 2, 5, P.steel);
-  p.px(2, 8, P.emberL);
-  for (let i = 0; i < 4; i++) { const a = -0.5 + i * 0.33; p.px(10 + Math.cos(a) * 3, 8 + Math.sin(a) * 3, P.emberL); p.px(12 + Math.cos(a) * 3, 8 + Math.sin(a) * 3, P.ember); }
+  // R28 W3-B1 HAND-EDIT: diagonal shotgun body plus a detached pellet fan.
+  p.line(2, 13, 8, 7, P.woodD);
+  p.line(3, 13, 9, 7, P.wood);
+  p.rect(7, 5, 5, 3, P.iron);
+  p.line(10, 5, 13, 3, P.steelL);
+  p.line(11, 7, 14, 5, P.steel);
+  p.px(8, 6, P.white);
+  p.line(5, 10, 8, 13, P.gray2);
+  p.px(12, 9, P.emberL); p.px(14, 8, P.ember); p.px(14, 11, P.gold);
 });
 
 // boomer: curved crystal chakram with a glint
 defineIcon('weapon_g_boomer', P.shardD, (p) => {
-  p.ring(8, 8, 5, P.shard);
-  p.ring(8, 8, 4, P.shardL);
-  p.line(3, 8, 13, 8, P.shardL);
-  p.line(8, 3, 8, 13, P.shardL);
-  p.px(8, 8, P.white);
-  p.px(11, 5, P.white);
-});
+  // R28 W3-B1 HAND-EDIT: hooked crystal boomerang with return arc.
+  p.glow(10, 5, 3.5, P.shard, 0.18, 3);
+  p.line(3, 12, 9, 6, P.shard);
+  p.line(4, 13, 10, 7, P.shardL);
+  p.line(9, 6, 13, 4, P.white);
+  p.line(9, 6, 12, 9, P.steelL);
+  p.line(12, 9, 13, 7, P.shardL);
+  p.ellipse(4, 12, 1.3, 1.3, P.goldD);
+  p.px(13, 11, withAlpha(P.shardL, 0.7));
+  p.px(11, 13, withAlpha(P.shard, 0.55));
+  p.px(8, 14, withAlpha(P.blueL, 0.45));
+}, { kira: true });
 
 // mine: spiked sea-mine with a red eye
 defineIcon('weapon_g_mine', P.gray1, (p) => {
-  p.ellipse(8, 9, 4, 3.4, P.steelD);
-  p.ellipse(8, 9, 2.8, 2.4, P.iron);
-  p.hline(6, 10, 7, P.steelL);
-  for (let i = 0; i < 5; i++) { const a = Math.PI + i * (Math.PI / 4); p.line(8, 9, 8 + Math.cos(a) * 5, 9 + Math.sin(a) * 5, P.gray2); }
-  p.ellipse(8, 9, 1.2, 1.2, P.red);
-  p.px(8, 9, P.redL);
-});
+  // R28 W3-B1 HAND-EDIT: angled mine dispenser launches a readable spiked charge.
+  p.line(2, 13, 8, 7, P.iron);
+  p.line(3, 13, 9, 7, P.steelL);
+  p.rect(5, 8, 4, 4, P.steelD);
+  p.px(7, 9, P.redL);
+  p.line(8, 7, 10, 5, P.gray3);
+  p.ellipse(12, 4, 2.3, 2.3, P.iron);
+  for (let i = 0; i < 4; i++) {
+    const a = i * Math.PI / 2;
+    p.line(12 + Math.cos(a) * 2, 4 + Math.sin(a) * 2, 12 + Math.cos(a) * 3.5, 4 + Math.sin(a) * 3.5, P.gray2);
+  }
+  p.px(12, 4, P.redL);
+}, { kira: true });
 
 // spirit: a little ghost mote with trailing wisp
 defineIcon('weapon_g_spirit', P.purpleD, (p) => {
-  p.ellipse(8, 7, 3.2, 3.2, P.mana);
-  p.ellipse(8, 7, 2, 2, P.manaL);
-  p.px(7, 6, P.white);
-  // wavy tail
-  p.px(6, 11, P.manaL); p.px(8, 12, P.manaL); p.px(10, 11, P.manaL);
-  p.px(7, 12, P.purpleL); p.px(9, 12, P.purpleL);
-});
+  // R28 W3-B1 HAND-EDIT: summoner lantern-staff releasing one homing wisp.
+  p.line(2, 14, 8, 8, P.woodD);
+  p.line(3, 14, 9, 8, P.purpleL);
+  p.line(6, 9, 9, 12, P.goldD);
+  p.rect(7, 5, 4, 4, P.steelD);
+  p.ellipse(9, 7, 1.7, 1.7, P.manaL);
+  p.px(8, 6, P.white);
+  p.line(8, 5, 10, 3, P.gold);
+  // Detached wisp and dotted homing turn.
+  p.ellipse(13, 3, 1.4, 1.4, P.mana);
+  p.px(13, 2, P.white); p.px(14, 5, withAlpha(P.purpleL, 0.7));
+}, { kira: true });
 
 // venomfog: bubbling toxic cloud
 defineIcon('weapon_g_venomfog', P.poisonD, (p) => {
-  p.ellipse(7, 9, 3.4, 2.4, P.poisonD);
-  p.ellipse(10, 8, 2.4, 2, P.poison);
-  p.ellipse(6, 7, 2, 1.8, P.poison);
-  p.px(7, 7, P.toxic); p.px(10, 7, P.toxic); p.px(5, 9, P.toxic);
-  p.px(8, 5, P.toxic); p.px(11, 10, P.poison);
-});
+  // R28 W3-B1 HAND-EDIT: chained censer is the weapon; fumes trail after its swing.
+  p.line(2, 13, 7, 8, P.woodD);
+  p.line(3, 13, 8, 8, P.goldD);
+  p.px(8, 7, P.steelL); p.px(9, 6, P.steelL); p.px(10, 5, P.steelL);
+  p.ellipse(12, 4, 2.4, 2, P.iron);
+  p.hline(10, 14, 4, P.steelL);
+  p.px(12, 4, P.toxic);
+  // Broken swing arc and poison puffs remain separate from the censer body.
+  p.line(5, 4, 7, 2, withAlpha(P.greenL, 0.65));
+  p.ellipse(10, 10, 1.5, 1.3, P.poison);
+  p.ellipse(13, 12, 1.8, 1.4, P.toxic);
+}, { kira: true });
 
 // icespear: sharp ice crystal pointing up-right
 defineIcon('weapon_g_icespear', P.blueD, (p) => {
-  p.line(3, 13, 12, 4, P.ice);
-  p.line(4, 13, 13, 4, P.iceD);
+  // R28 W3-B1 HAND-EDIT: haft, collar and faceted spearhead separate cleanly.
+  p.line(2, 14, 8, 8, P.steelD);
+  p.line(3, 14, 9, 8, P.blueL);
+  p.line(7, 8, 10, 11, P.steelL);
+  p.line(8, 8, 13, 3, P.ice);
+  p.line(9, 9, 14, 4, P.iceD);
+  p.line(10, 6, 13, 7, P.white);
   p.px(13, 3, P.white);
-  p.px(12, 4, P.white);
-  p.line(10, 6, 11, 9, P.ice);
-  p.line(7, 8, 6, 6, P.ice);
-  p.px(3, 13, P.blueL);
+  // Two separated speed marks emphasize the thrown direction.
+  p.line(3, 9, 5, 7, withAlpha(P.ice, 0.55));
+  p.line(1, 11, 2, 10, withAlpha(P.blueL, 0.45));
 });
 
 // scatter_evo: golden triple-barrel storm cannon with a two-tier fanned muzzle blast
@@ -420,18 +450,24 @@ defineIcon('weapon_g_scatter_evo', '#5a4a1a', (p) => {
   for (let i = 0; i < 4; i++) { const a = -0.9 + i * 0.55; p.px(13 + Math.cos(a) * 4.5, 8 + Math.sin(a) * 4.5, withAlpha(P.goldL, 0.75)); }
   p.ring(12, 8, 4.5, withAlpha(P.gold, 0.35));                             // 擴散環
   p.px(2, 7, P.white);
-});
+}, { kira: true }); // R28 W3-B1 HAND-EDIT: tier-3 kira opt-in; glyph retained from FIX-2.
 
 // spirit_evo: a cluster of vengeful purple souls
 defineIcon('weapon_g_spirit_evo', P.void, (p) => {
-  p.ellipse(6, 7, 2.4, 2.4, P.purple);
-  p.ellipse(6, 7, 1.4, 1.4, P.purpleL);
-  p.ellipse(11, 6, 2, 2, P.purple);
-  p.ellipse(11, 6, 1.1, 1.1, P.purpleL);
-  p.ellipse(9, 11, 2, 2, P.mana);
-  p.ellipse(9, 11, 1.1, 1.1, P.manaL);
-  p.px(6, 6, P.white); p.px(11, 5, P.white); p.px(9, 10, P.white);
-});
+  // R28 W3-B1 HAND-EDIT: royal lantern-staff keeps the base diagonal weapon body.
+  p.line(2, 14, 8, 8, P.woodD);
+  p.line(3, 14, 9, 8, P.purpleL);
+  p.rect(6, 5, 5, 4, P.steelD);
+  p.ellipse(8, 7, 2, 2, P.manaL);
+  p.px(7, 6, P.white);
+  // Second layer: horned crown, containment halo and three split wisps.
+  p.line(6, 5, 5, 2, P.magentaL); p.line(10, 5, 12, 2, P.magentaL);
+  p.ring(8, 7, 4.5, withAlpha(P.purpleL, 0.45));
+  p.ellipse(13, 4, 1.3, 1.3, P.purpleL);
+  p.ellipse(13, 9, 1.3, 1.3, P.mana);
+  p.ellipse(10, 12, 1.3, 1.3, P.astralL);
+  p.px(13, 3, P.white);
+}, { kira: true });
 
 // ---- local math helpers (no external deps) --------------------------------
 function reachEase(k) {
@@ -444,4 +480,3 @@ function lerpAngle(a, b, t) {
   while (d < -Math.PI) d += Math.PI * 2;
   return a + d * Math.min(1, t);
 }
-

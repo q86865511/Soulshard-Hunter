@@ -100,67 +100,91 @@ defineSprite('wc_bolt_turret', 8, 8, (p) => {
 
 // boomerang: crescent blade arcing with a motion trail
 defineIcon('weapon_wc_boomerang', P.steelD, (p) => {
-  p.ring(8, 8, 5, P.steel);
-  p.ring(8, 8, 4, P.steelL);
-  p.ellipse(11, 8, 3.4, 3.4, P.steelD);
-  p.px(5, 5, P.white); p.px(4, 6, P.shardL);
-  // trailing dots
-  p.px(2, 12, P.gray3); p.px(4, 13, P.gray2);
-});
+  // R28 W3-B1 HAND-EDIT: crescent moon-blade with grip and returning dash trail.
+  p.glow(10, 5, 3.5, P.shardL, 0.18, 3);
+  p.line(3, 13, 9, 7, P.steelD);
+  p.line(4, 13, 10, 7, P.steelL);
+  p.line(9, 7, 13, 3, P.white);
+  p.line(9, 7, 13, 9, P.shardL);
+  p.line(13, 9, 14, 7, P.steel);
+  p.ellipse(4, 13, 1.3, 1.3, P.goldD);
+  p.px(14, 11, withAlpha(P.shardL, 0.7));
+  p.px(12, 13, withAlpha(P.gray3, 0.55));
+  p.px(9, 14, withAlpha(P.gray2, 0.45));
+}, { kira: true });
 
 // spread cone: barrel fanning three green shards
 defineIcon('weapon_wc_cone', P.greenD, (p) => {
-  p.rect(2, 7, 5, 3, P.wood);
-  p.rect(2, 7, 5, 1, P.woodL);
-  p.px(2, 8, P.greenL);
-  for (let i = 0; i < 3; i++) {
-    const a = -0.55 + i * 0.55;
-    const x = 9 + Math.cos(a) * 4, y = 8 + Math.sin(a) * 4;
-    p.line(7, 8, x, y, i === 1 ? P.greenL : P.green);
-    p.px(Math.round(x), Math.round(y), P.white);
-  }
+  // R28 W3-B1 HAND-EDIT: stock and bow limbs form a readable spread-crossbow.
+  p.line(2, 14, 9, 7, P.woodD);
+  p.line(3, 14, 10, 7, P.woodL);
+  p.line(6, 5, 13, 10, P.green);
+  p.line(6, 5, 10, 7, withAlpha(P.greenL, 0.7));
+  p.line(13, 10, 10, 7, withAlpha(P.greenL, 0.7));
+  p.px(10, 7, P.white);
+  p.line(11, 5, 14, 2, P.greenL);
+  p.line(12, 8, 15, 5, P.ice);
+  p.line(10, 10, 13, 12, P.green);
 });
 
 // beam: focused crystal emitter firing a lance of light
 defineIcon('weapon_wc_beam', P.blueD, (p) => {
-  p.rect(2, 7, 4, 3, P.steel);
-  p.ellipse(3, 8, 1.4, 1.6, P.blueL);
-  p.rect(6, 7, 8, 2, P.blueL);
-  p.rect(6, 7, 8, 1, P.white);
-  p.px(13, 8, P.white); p.px(14, 8, P.iceD);
-});
+  // R28 W3-B1 HAND-EDIT: crystal beam-rifle with stock, chamber and diagonal lance.
+  p.line(2, 14, 8, 8, P.steelD);
+  p.line(3, 14, 9, 8, P.steelL);
+  p.rect(5, 7, 5, 3, P.iron);
+  p.ellipse(8, 8, 1.5, 1.5, P.blueL);
+  p.line(9, 7, 14, 2, P.neonL);
+  p.line(10, 8, 15, 3, P.white);
+  p.line(5, 10, 8, 13, P.gray2);
+  p.px(13, 6, withAlpha(P.ice, 0.55));
+}, { kira: true });
 
 // ground spikes: row of erupting crystal teeth from a fissure
 defineIcon('weapon_wc_spikes', P.gray1, (p) => {
-  p.hline(1, 14, 13, P.steelD);
-  for (let i = 0; i < 4; i++) {
-    const bx = 2 + i * 4, h = 4 + (i % 2) * 3;
-    p.line(bx, 13, bx + 1, 13 - h, P.ice);
-    p.line(bx + 2, 13, bx + 1, 13 - h, P.iceD);
-    p.px(bx + 1, 13 - h, P.white);
-  }
-});
+  // R28 W3-B1 HAND-EDIT: earthbreaker pick drives a diagonal impact into the floor.
+  p.line(2, 3, 9, 10, P.woodD);
+  p.line(3, 3, 10, 10, P.wood);
+  p.line(2, 2, 6, 6, P.steelL);
+  p.line(4, 1, 7, 4, P.white);
+  p.px(10, 11, P.emberL);
+  p.line(8, 13, 15, 13, P.steelD);
+  // Eruption teeth lean away from the impact point.
+  p.line(10, 13, 12, 8, P.ice);
+  p.line(12, 13, 14, 9, P.iceD);
+  p.px(12, 8, P.white); p.px(14, 9, P.white);
+}, { kira: true });
 
 // ricochet: zig-zag bounce path with a glowing pearl
 defineIcon('weapon_wc_ricochet', '#5a4a1a', (p) => {
-  p.line(2, 4, 6, 11, P.emberL);
-  p.line(6, 11, 10, 4, P.gold);
-  p.line(10, 4, 13, 11, P.emberL);
-  p.ellipse(13, 11, 1.6, 1.6, P.gold);
-  p.px(13, 11, P.white);
-  p.px(2, 4, P.emberL);
-});
+  // R28 W3-B1 HAND-EDIT: compact meteor sling with a visible fork and grip.
+  p.line(2, 14, 7, 9, P.woodD);
+  p.line(3, 14, 8, 9, P.woodL);
+  p.line(7, 9, 7, 5, P.goldD);
+  p.line(8, 9, 11, 6, P.gold);
+  p.line(7, 5, 11, 6, withAlpha(P.emberL, 0.7));
+  p.ellipse(12, 4, 1.5, 1.5, P.goldL);
+  p.px(12, 4, P.white);
+  // Segmented bounce path turns sharply after launch.
+  p.line(13, 6, 14, 8, withAlpha(P.emberL, 0.75));
+  p.line(14, 8, 12, 11, withAlpha(P.gold, 0.6));
+  p.px(10, 13, withAlpha(P.emberL, 0.5));
+}, { kira: true });
 
 // turret: orbiting gem cannon ringed by an orbit dot
 defineIcon('weapon_wc_turret', P.purpleD, (p) => {
-  p.ring(8, 8, 6, withAlpha(P.purpleL, 0.6));
-  p.ellipse(8, 9, 3.4, 2.6, P.steelD);
-  p.ellipse(8, 9, 2.2, 1.6, P.iron);
-  p.rect(8, 6, 4, 2, P.gray2);
-  p.ellipse(8, 7, 1.8, 1.8, P.purple);
-  p.px(8, 7, P.purpleL);
-  p.px(14, 4, P.manaL);
-});
+  // R28 W3-B1 HAND-EDIT: deployed tripod cannon aims and fires up-right.
+  p.ellipse(7, 10, 3.4, 2.5, P.steelD);
+  p.ellipse(7, 9, 2, 1.6, P.iron);
+  p.line(6, 11, 3, 14, P.gray2); p.line(8, 11, 11, 14, P.gray2);
+  p.line(7, 8, 11, 4, P.steelL);
+  p.line(9, 7, 13, 3, P.gray3);
+  p.px(13, 3, P.white);
+  p.ellipse(7, 8, 1.4, 1.4, P.purpleL);
+  // Muzzle dash and ejected mote reinforce firing direction.
+  p.line(13, 2, 15, 1, P.manaL);
+  p.px(12, 8, withAlpha(P.purpleL, 0.65));
+}, { kira: true });
 
 // ============================================================================
 // 1) 回旋月刃 — boomerang crescent that flies out, curves back through foes.
@@ -456,4 +480,3 @@ Weapons.register({
   levelDesc: (l) => '砲塔 ' + (1 + Math.floor((l - 1) / 3)) + '・每發 ' + ((8 + l * 3.0) | 0) + '・自動追蹤',
   desc: '召喚環繞自身的守護砲塔，自動鎖定並射出追蹤砲彈。',
 });
-
