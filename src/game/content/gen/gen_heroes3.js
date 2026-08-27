@@ -35,6 +35,7 @@ function drawH3_spearmaiden(p, f, a) {
   const step = f === 1 ? 1 : f === 3 ? -1 : 0;
   const cloak = a.cloak ?? P.blue, cloakD = a.cloakD ?? P.blueD, cloakL = a.cloakL ?? P.blueL;
   const trim = a.trim ?? P.gold, eye = a.eye ?? P.iceD, skin = a.skin ?? P.skin;
+  p.softShadow(8, 17 + oy, 5, 1.4, 0.34);   // R28 W3-A3: ground-contact softShadow (had none)
 
   // boots
   p.rect(5, 16 + oy, 2, 2, darken(cloakD, 0.25));
@@ -70,6 +71,7 @@ function drawH3_spearmaiden(p, f, a) {
 
   // head + hair + circlet
   p.ellipse(8, 5 + oy, 3, 3, skin);           // face
+  p.px(7, 4 + oy, lighten(skin, 0.18));       // R28 W3-A3: 2nd face step (brow highlight)
   p.rect(5, 3 + oy, 6, 2, cloakD);            // hair top
   p.px(5, 5 + oy, cloakD); p.px(10, 5 + oy, cloakD);   // side hair
   p.vline(6 + oy, 9 + oy, 5, cloakD);         // long hair strand (left, behind)
@@ -85,6 +87,9 @@ function drawH3_spearmaiden(p, f, a) {
   p.px(13, 1 + oy, P.steelL);                  // blade tip
   p.px(12, 3 + oy, P.steelL);
   p.px(13, 5 + oy, trim);                      // collar under blade
+
+  p.shadeBottom(0.2, 12);   // R28 W3-A3: value-tier gap fix — had neither rimLight nor shadeBottom
+  p.rimLight(P.rim, 0.4);
 }
 
 // ===========================================================================
@@ -208,6 +213,7 @@ function drawH3_beastfang(p, f, a) {
   const cloak = a.cloak ?? P.leather, cloakD = a.cloakD ?? P.woodD, cloakL = a.cloakL ?? P.woodL;
   const trim = a.trim ?? P.bone, eye = a.eye ?? P.emberL, skin = a.skin ?? P.skin2;
   const fur = mix(cloak, P.bone, 0.25), furD = darken(cloakD, 0.1);
+  p.softShadow(8, 17 + oy, 5, 1.4, 0.34);   // R28 W3-A3: ground-contact softShadow (had none)
 
   // wide stance feet (wraps)
   p.rect(3, 16 + oy, 3, 2, furD);
@@ -246,9 +252,13 @@ function drawH3_beastfang(p, f, a) {
   p.px(5, 3 + oy, cloak);  p.px(11, 3 + oy, cloak);
   // shadowed face under hood
   p.rect(6, 5 + oy, 4, 2, P.ink2);
+  p.px(7, 5 + oy, lighten(P.ink2, 0.2));      // R28 W3-A3: 2nd face step (eye-socket rim highlight)
   p.px(6, 5 + oy, eye); p.px(9, 5 + oy, eye); // feral eyes
   // fangs
   p.px(7, 7 + oy, P.bone); p.px(8, 7 + oy, P.bone);
+
+  p.shadeBottom(0.2, 12);   // R28 W3-A3: value-tier gap fix — had neither rimLight nor shadeBottom
+  p.rimLight(P.rim, 0.4);
 }
 
 // ===========================================================================

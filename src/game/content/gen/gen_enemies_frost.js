@@ -277,6 +277,8 @@ defineAnim('g_crystalgolem', 18, 18, 2, (p, f) => {
   // 額頂晶體
   frostCrystals(p, 6, 3 + yb, P.shard, P.white);
   p.px(8, 6 + yb, P.white); p.px(11, 6 + yb, P.white);  // 雙眼
+  p.rimLight(P.rimCool, 0.4);   // R28 W3-A3: value-tier gap fix — drawBrute reuse had neither rimLight nor shadeBottom
+  p.shadeBottom(0.2, 12);
   p.outline(P.ink);
 }, { anchor: [9, 17], fps: 3 });
 
@@ -305,6 +307,8 @@ defineAnim('g_frostlord', 18, 18, 2, (p, f) => {
   p.ellipse(9, 10 + yb, 2, 2.4, P.blueD); p.ellipse(9, 10 + yb, 1, 1.4, P.blueL); p.px(9, 10 + yb, P.white);
   // 拳上凝霜
   p.ellipse(2, 12 + yb, 1.2, 1.2, P.ice); p.ellipse(15, 12 + yb, 1.2, 1.2, P.ice);
+  p.rimLight(P.rimCool, 0.4);   // R28 W3-A3: value-tier gap fix — drawBrute reuse had neither rimLight nor shadeBottom
+  p.shadeBottom(0.2, 12);
   p.outline(P.ink);
 }, { anchor: [9, 17], fps: 3 });
 

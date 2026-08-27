@@ -58,15 +58,17 @@ Enemies.register({
   desc: '渾身綁滿魂晶炸藥，點燃引信後不要命地撲上來自爆。',
 });
 defineAnim('s_bomber', 16, 14, 4, (p, f) => {
+  // R28 W3-A3: bomb body + legs enlarged to clear the >=55% fill floor (53.6%->);
+  // rimLight+shadeBottom added (had neither before).
   const fuse = [0, 1, 2, 1][f % 4];         // sparking fuse flicker
   const by = 9;
   // little stubby legs
-  p.rect(4, by + 3, 2, 2, P.ink2);
-  p.rect(10, by + 3, 2, 2, P.ink2);
+  p.rect(4, by + 3, 3, 2, P.ink2);
+  p.rect(9, by + 3, 3, 2, P.ink2);
   // round bomb body (dark iron sphere)
-  p.ellipse(8, by, 5, 4.6, P.ink2);
-  p.ellipse(8, by - 0.4, 4, 3.6, P.gray1);
-  p.ellipse(6.5, by - 1.6, 2, 1.4, P.gray3);     // metal highlight
+  p.ellipse(8, by, 5.6, 5, P.ink2);
+  p.ellipse(8, by - 0.4, 4.6, 4, P.gray1);
+  p.ellipse(6.5, by - 1.6, 2.2, 1.6, P.gray3);     // metal highlight
   // riveted red danger band
   p.hline(3, 13, by + 1, P.redD);
   p.px(4, by + 1, P.red); p.px(8, by + 1, P.red); p.px(12, by + 1, P.red);
@@ -78,6 +80,8 @@ defineAnim('s_bomber', 16, 14, 4, (p, f) => {
   p.line(8, by - 5, 9 + fuse - 1, by - 8 - fuse, P.wood);
   p.px(9 + fuse - 1, by - 8 - fuse, P.emberL);
   if (fuse >= 1) { p.px(10 + fuse - 1, by - 9 - fuse, P.white); p.px(8 + fuse - 1, by - 9 - fuse, P.ember); }
+  p.rimLight(P.rim, 0.4);
+  p.shadeBottom(0.2, 10);
   p.outline(P.ink);
 }, { anchor: [8, 13], fps: 9 });
 
@@ -97,28 +101,35 @@ Enemies.register({
   bloodColor: P.poison, tint: P.poisonD, knockbackResist: 0.15,
   desc: '附吸在獵物身上不放的魂蛭，緩慢爬近啃食你的魂力與財帛。',
 });
-defineAnim('s_sapper', 16, 12, 4, (p, f) => {
+defineAnim('s_sapper', 16, 14, 4, (p, f) => {
+  // R28 W3-A3: standard-tier 16x14 canvas (was 16x12); +1px y-shift to recentre;
+  // segments thickened to hold >=55% fill on the taller canvas; rimLight+shadeBottom
+  // added (had neither before).
+  p.ctx.save(); p.ctx.translate(0, 1);
   const undulate = [0, 1, 0, -1][f % 4];    // body ripple as it crawls
   const by = 7;
-  // segmented slug body
+  // segmented slug body (thickened)
   for (let i = 0; i < 5; i++) {
     const sx = 3 + i * 2.4;
     const sw = 3 - Math.abs(i - 2) * 0.4;
     const wob = Math.sin((i + f) * 0.9) * 0.8 + undulate * 0.4;
-    p.ellipse(sx, by + wob, sw, 2.6, P.poisonD);
-    p.ellipse(sx, by + wob - 0.4, sw - 0.8, 1.8, P.poison);
+    p.ellipse(sx, by + wob, sw, 3.4, P.poisonD);
+    p.ellipse(sx, by + wob - 0.4, sw - 0.8, 2.4, P.poison);
   }
   // sucker mouth (front)
-  p.ellipse(13, by + undulate * 0.5, 2, 2, P.purpleD);
-  p.ellipse(13, by + undulate * 0.5, 1, 1, P.blood);
+  p.ellipse(13, by + undulate * 0.5, 2.4, 2.6, P.purpleD);
+  p.ellipse(13, by + undulate * 0.5, 1.2, 1.4, P.blood);
   // pale clinging suckers underside
   p.px(5, by + 2, P.toxic); p.px(8, by + 2, P.toxic); p.px(11, by + 2, P.toxic);
   // glassy dorsal sheen
   p.px(6, by - 1, P.toxic); p.px(9, by - 1, P.toxic);
   // small dark eye-spots near the maw
   p.px(11, by - 1, P.ink); p.px(12, by - 2, P.ink);
+  p.ctx.restore();
+  p.rimLight(P.rim, 0.4);
+  p.shadeBottom(0.2, 11);
   p.outline(P.ink);
-}, { anchor: [8, 11], fps: 6 });
+}, { anchor: [8, 12], fps: 6 });
 
 // ===========================================================================
 // 3) 噬魂蚊 (s_gnat) — fast, erratic GNAT swarm flyer.
@@ -132,28 +143,37 @@ Enemies.register({
   bloodColor: P.greenD, tint: P.toxic, knockbackResist: 0,
   desc: '成雲成霧的噬魂蚊群，飛行刁鑽、難以瞄準，貼臉騷擾蠶食。',
 });
-defineAnim('s_gnat', 12, 10, 2, (p, f) => {
+defineAnim('s_gnat', 12, 12, 2, (p, f) => {
+  // R28 W3-A3: swarm-tier canvas 12x10->12x12; body substantially enlarged + wings
+  // doubled in width to clear the >=55% fill floor (41.7%, the lowest in this batch);
+  // rimLight+shadeBottom added (had neither before).
   const up = f % 2 === 0;
-  const cy = 5;
-  // tiny dark body
-  p.ellipse(6, cy, 1.8, 2.2, P.greenD);
-  p.ellipse(6, cy - 0.4, 1.1, 1.4, P.green);
+  const cy = 6;
+  // tiny dark body (enlarged)
+  p.ellipse(6, cy, 3.2, 4, P.greenD);
+  p.ellipse(6, cy - 0.5, 2.3, 2.9, P.green);
   // glowing toxic eye
-  p.px(6, cy - 1, P.toxic);
-  // needle proboscis
-  p.vline(cy + 2, cy + 3, 6, P.poisonD);
-  // blurred buzzing wings (flicker between up/down)
+  p.px(6, cy - 1.5, P.toxic); p.px(7, cy - 1.5, P.toxic);
+  // needle proboscis (thickened)
+  p.vline(cy + 3, cy + 4.8, 6, P.poisonD); p.vline(cy + 3, cy + 4.8, 7, P.poisonD);
+  // blurred buzzing wings (flicker between up/down, doubled width)
   if (up) {
-    p.line(5, cy - 1, 2, cy - 3, withAlpha(P.toxic, 0.85));
-    p.line(7, cy - 1, 10, cy - 3, withAlpha(P.toxic, 0.85));
-    p.px(2, cy - 3, P.greenL); p.px(10, cy - 3, P.greenL);
+    p.line(5, cy - 1, 1, cy - 4, withAlpha(P.toxic, 0.85));
+    p.line(6, cy - 1, 2, cy - 4, withAlpha(P.toxic, 0.85));
+    p.line(7, cy - 1, 11, cy - 4, withAlpha(P.toxic, 0.85));
+    p.line(6, cy - 1, 10, cy - 4, withAlpha(P.toxic, 0.85));
+    p.px(1, cy - 4, P.greenL); p.px(11, cy - 4, P.greenL);
   } else {
-    p.line(5, cy, 2, cy + 1, withAlpha(P.toxic, 0.85));
-    p.line(7, cy, 10, cy + 1, withAlpha(P.toxic, 0.85));
-    p.px(2, cy + 1, P.greenL); p.px(10, cy + 1, P.greenL);
+    p.line(5, cy, 1, cy + 1.5, withAlpha(P.toxic, 0.85));
+    p.line(6, cy, 2, cy + 1.5, withAlpha(P.toxic, 0.85));
+    p.line(7, cy, 11, cy + 1.5, withAlpha(P.toxic, 0.85));
+    p.line(6, cy, 10, cy + 1.5, withAlpha(P.toxic, 0.85));
+    p.px(1, cy + 1.5, P.greenL); p.px(11, cy + 1.5, P.greenL);
   }
+  p.rimLight(P.rim, 0.4);
+  p.shadeBottom(0.2, 9);
   p.outline(P.ink);
-}, { anchor: [6, 7], fps: 12 });
+}, { anchor: [6, 9], fps: 12 });
 
 // ===========================================================================
 // 4) 噴酸蛞蝓 (s_spitter) — SHOOTER with an arcing acid volley.
@@ -168,28 +188,34 @@ Enemies.register({
   attack: { range: 165, cooldown: 1.9, projSpeed: 78, projDamage: 11, projColor: P.poison, projSprite: 's_proj_acid', projRadius: 4, projLife: 3.2, burst: 3, spread: 0.30 },
   desc: '臃腫的腐酸蛞蝓，遠遠張口噴出三道弧線酸彈封鎖去路。',
 });
-defineAnim('s_spitter', 16, 13, 4, (p, f) => {
+defineAnim('s_spitter', 16, 14, 4, (p, f) => {
+  // R28 W3-A3: canvas 16x13->16x14 — the darker foot-shadow hline at row `by+4`
+  // (=13) was being clipped off the old 13-row canvas; rimLight+shadeBottom added
+  // (had neither before).
   const breathe = [0, 1, 1, 0][f % 4];      // body swells before a spit
   const by = 9;
   // broad slug foot
   p.hline(2, 13, by + 3, P.poisonD);
   p.hline(3, 12, by + 4, darken(P.poisonD, 0.25));
-  // bloated body
-  p.ellipse(8, by, 6, 3.4 + breathe * 0.4, P.poisonD);
-  p.ellipse(8, by - 0.4, 5, 2.6 + breathe * 0.4, P.poison);
-  p.ellipse(6.5, by - 1.6, 2.4, 1.2, P.toxic);    // wet sheen
+  // bloated body (thickened to clear the >=55% fill floor)
+  p.ellipse(8, by, 6.4, 4.2 + breathe * 0.4, P.poisonD);
+  p.ellipse(8, by - 0.4, 5.4, 3.4 + breathe * 0.4, P.poison);
+  p.ellipse(6.5, by - 1.6, 2.8, 1.6, P.toxic);    // wet sheen
   // acid sacs bulging on the back
-  p.ellipse(5, by - 1, 1.4, 1.4, P.toxic); p.px(5, by - 1, P.greenL);
-  p.ellipse(11, by - 1, 1.4, 1.4, P.toxic); p.px(11, by - 1, P.greenL);
-  // eye stalks
-  p.vline(by - 4, by - 1, 6, P.poisonD); p.vline(by - 4, by - 1, 10, P.poisonD);
+  p.ellipse(5, by - 1, 1.8, 1.8, P.toxic); p.px(5, by - 1, P.greenL);
+  p.ellipse(11, by - 1, 1.8, 1.8, P.toxic); p.px(11, by - 1, P.greenL);
+  // eye stalks (thickened)
+  p.vline(by - 4, by - 1, 6, P.poisonD); p.vline(by - 4, by - 1, 7, P.poisonD);
+  p.vline(by - 4, by - 1, 9, P.poisonD); p.vline(by - 4, by - 1, 10, P.poisonD);
   p.px(6, by - 5, P.greenL); p.px(10, by - 5, P.greenL);
   p.px(6, by - 5, P.white); p.px(10, by - 5, P.white);
   // drooling maw (opens when swelling)
   if (breathe >= 1) { p.ellipse(8, by + 1, 2, 1.4, P.blood); p.px(8, by + 2, P.toxic); }
   else { p.hline(7, 9, by + 1, P.blood); }
+  p.rimLight(P.rim, 0.4);
+  p.shadeBottom(0.2, 10);
   p.outline(P.ink);
-}, { anchor: [8, 12], fps: 6 });
+}, { anchor: [8, 13], fps: 6 });
 
 // ===========================================================================
 // 5) 詛咒巫眼 (s_hexer) — floating HEXER that kites and harasses with curse bolts.
@@ -205,26 +231,31 @@ Enemies.register({
   desc: '飄浮的獨眼咒物，遠遠睥睨並連珠射出詛咒彈，逼你不得停步。',
 });
 defineAnim('s_hexer', 16, 16, 3, (p, f) => {
+  // R28 W3-A3: orb + tendrils enlarged to clear the >=55% fill floor (47.3%->);
+  // rimLight+shadeBottom added (had neither before).
   const yb = [0, -1, 0][f % 3];             // gentle hover bob
   const cx = 8, cy = 8 + yb;
-  // writhing lower tendrils
+  // writhing lower tendrils (thickened)
   for (let i = 0; i < 4; i++) {
     const tx = 4 + i * 3;
     const sway = Math.sin((i + f) * 1.1) * 1.2;
-    p.line(tx, cy + 2, tx + sway, cy + 5 + (i % 2), P.purpleD);
-    p.px(tx + sway, cy + 5 + (i % 2), P.purple);
+    p.line(tx, cy + 2, tx + sway, cy + 6 + (i % 2), P.purpleD);
+    p.line(tx + 1, cy + 2, tx + 1 + sway, cy + 6 + (i % 2), P.purpleD);
+    p.px(tx + sway, cy + 6 + (i % 2), P.purple);
   }
-  // floating orb head
-  p.ellipse(cx, cy, 4.4, 4.4, P.purpleD);
-  p.ellipse(cx, cy, 3.4, 3.4, P.purple);
-  p.ellipse(cx - 1, cy - 1.4, 1.6, 1.2, P.purpleL);   // top sheen
+  // floating orb head (enlarged)
+  p.ellipse(cx, cy, 5.4, 5.4, P.purpleD);
+  p.ellipse(cx, cy, 4.4, 4.4, P.purple);
+  p.ellipse(cx - 1, cy - 1.6, 2, 1.6, P.purpleL);   // top sheen
   // big single sclera
-  p.ellipse(cx, cy, 2.6, 2.6, P.bone);
+  p.ellipse(cx, cy, 3.2, 3.2, P.bone);
   // iris + pupil (a baleful glare)
-  p.ellipse(cx, cy, 1.5, 1.5, P.purpleD);
+  p.ellipse(cx, cy, 1.9, 1.9, P.purpleD);
   p.px(cx, cy, P.ink);
   p.px(cx - 1, cy - 1, P.white);            // catch-light
   // crackling hex sparks orbiting the brow
   p.px(cx - 4 + yb, cy - 3, P.purpleL); p.px(cx + 4 - yb, cy - 3, P.manaL);
+  p.rimLight(P.rimCool, 0.4);
+  p.shadeBottom(0.2, 11);
   p.outline(P.ink);
 }, { anchor: [8, 13], fps: 5 });
