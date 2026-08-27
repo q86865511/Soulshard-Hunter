@@ -264,3 +264,30 @@ W2-D 的機制層原封不動:在 `biomes.js` 的 `WALL_VARIANTS` 補一組資�
   `sheet-w3c2.png`,含十格灰階並排 `gray-10up-identity.png`)。
 - **已知取捨**:牆磚 `base()` 的全寬 lit crown 在單一磚平鋪時每 16 列一條亮線,這是自 R26
   起 10 生態共有的既有設計(標示牆頂),非本輪引入,未動。
+
+## W3-A3 尺度/值階收官批——11 敵人尺度微調 + 17 角色值階補完(ART-01)
+
+方法沿用 W3-A1/A2:def/stats 全程不動,只調 `defineAnim` 畫布/anchor/填充率與
+`rimLight`/`shadeBottom`/`softShadow` 明暗三件套;跨 session 接續(前段因額度中斷,本批
+在既有半成品上完成)。
+
+- **敵人 11 隻**(g_crystalgolem/g_frostlord/s2_goldbug/s2_wraith/s2_bombard/s2_brigand/
+  s_bomber/s_sapper/s_gnat/s_spitter/s_hexer):`gen_enemies_frost.js`/`gen_special2.js`/
+  `gen_special_monsters.js`——canvas 歸位至對應級距(swarm 12×12~14×14 / 標準 16×14~16×16 /
+  大型 18×18)、填充率全補到 ≥55%(s_gnat 最低,41.7%→補body/翼後過線)、補 `rimLight`+
+  `shadeBottom`。
+- **角色 17 名**(16×18 畫布不動,只補值階/2 階臉部/地面接觸):`pyro`(pyromancer)、
+  `ranger`、`stormcaller`(shaman)、`g_vanguard`(berserker)、`h4_chronomancer`、
+  `h4_puppeteer`、`h4_gravekeeper`、`h3_spearmaiden`、`h3_beastfang` 為前段完成;本批接續
+  補齊 `g_arcanist`(mage)、`g_ranger`(scout)、`g_warden`(valkyrie)、`g_stormcaller`
+  (stormpriest)、`h2_duelist`(samurai)、`h2_warlock`(warlock)、`h2_trapper`(gunner)、
+  `h2_warder`(monk)——8 個共用 archetype body 皆只缺 `shadeBottom`(已有 `rimFinish`→
+  rimLight、`groundShadow`→softShadow、既有臉頰/額頭亮部滿足 2 階要求),`src/art/heroes.js`
+  各補一行 `p.shadeBottom(0.2, 12)`。經查 `HERO_MAP` 每個 archetype 僅對應唯一 charId,
+  無其他共用連動。
+- **驗證**:smoke 59/59;`node tools/_wf_evidence.mjs sheets --out
+  docs/reviews/art-improve-2026-08/w3a3-after` → characters 27、enemies 63,皆
+  `missing:[]`,contact sheet 目視 27 名角色與 63 隻敵人皆正常繪出、無 magenta 佔位。
+- **def/stats 零變動**:grep 確認本批修改的 6 個檔案中 `Enemies.register`/
+  `Characters.register`/`registerHeroBody` 呼叫本體與其欄位皆未被改動,僅
+  `defineAnim`/`drawXxx` 內部繪製與 `heroes.js` 各 body 函式尾端有新增行。

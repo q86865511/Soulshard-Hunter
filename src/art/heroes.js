@@ -113,6 +113,7 @@ registerHeroBody('mage', (p, f, a) => {
   // orb staff with a glowing gem
   p.vline(7 + oy, 15 + oy, 13, P.wood); p.glow(13, 6 + oy, 3, c.eye, 0.5, 4);
   p.ellipse(13, 6 + oy, 2, 2, c.eye); p.px(12, 5 + oy, P.glint); p.px(13, 6 + oy, P.white);
+  p.shadeBottom(0.2, 12);   // R28 W3-A3: value-tier gap fix — had rimLight but no shadeBottom
   rimFinish(p);
 });
 
@@ -134,6 +135,7 @@ registerHeroBody('pyromancer', (p, f, a) => {
   p.vline(8 + oy, 14 + oy, 13, P.woodD); p.glow(13, 6 + oy, 3, P.ember, 0.5, 4);
   p.ellipse(13, 7 + oy, 1.6, 2, P.ember); p.px(13, 6 + oy, P.emberL); p.px(13, 5 + oy, P.white);
   p.sparkle(14, 4 + oy, P.emberL, 1);
+  p.shadeBottom(0.2, 12);   // R28 W3-A3: value-tier gap fix — had rimLight but no shadeBottom
   rimFinish(p);
 });
 
@@ -155,6 +157,7 @@ registerHeroBody('warlock', (p, f, a) => {
   p.glow(13, 10 + oy, 3, c.eye, 0.45, 4);
   p.ellipse(13, 10 + oy, 1.6, 1.6, c.eye); p.px(13, 10 + oy, P.white);
   p.ring(13, 10 + oy, 2.6, withAlphaSafe(c.eye, 0.6)); p.aura(13, 10 + oy, 3, c.eye, f / 4, 2);
+  p.shadeBottom(0.2, 12);   // R28 W3-A3: value-tier gap fix — had rimLight but no shadeBottom
   rimFinish(p);
 });
 function withAlphaSafe(col, a = 0.55) { return withAlpha(col, a); }
@@ -246,6 +249,7 @@ registerHeroBody('ranger', (p, f, a) => {
   p.line(2, 3 + oy, 1, 8 + oy, c.trim); p.line(1, 8 + oy, 2, 13 + oy, c.trim);
   p.line(2, 3 + oy, 2, 13 + oy, withAlphaSafe(c.cL, 0.7));
   p.line(2, 3 + oy, 2, 13 + oy, withAlpha(c.eye, 0.3)); p.px(1, 8 + oy, P.glint);
+  p.shadeBottom(0.2, 12);   // R28 W3-A3: value-tier gap fix — had rimLight but no shadeBottom
   rimFinish(p);
 });
 
@@ -390,6 +394,7 @@ registerHeroBody('samurai', (p, f, a) => {
   p.line(11, 13 + oy, 15, 9 + oy, P.steelL); p.line(11, 13 + oy, 15, 9 + oy, withAlpha(P.sakuraL, 0.0));
   p.line(11, 12 + oy, 15, 8 + oy, withAlpha(c.eye, 0.4)); p.px(15, 8 + oy, P.glint);
   p.rect(10, 13 + oy, 2, 1, c.trim); p.star4(15, 8 + oy, 1, P.sakuraL, P.glint);
+  p.shadeBottom(0.2, 12);   // R28 W3-A3: value-tier gap fix — had rimLight but no shadeBottom
   rimFinish(p);
 });
 
@@ -411,6 +416,7 @@ registerHeroBody('berserker', (p, f, a) => {
   // big two-handed axe over the shoulder w/ a glinting edge
   p.vline(4 + oy, 15 + oy, 13, P.woodD); p.ellipse(13, 5 + oy, 3, 2.4, P.iron); p.rect(11, 4 + oy, 4, 3, P.steelL);
   p.px(11, 4 + oy, P.glint); p.line(15, 3 + oy, 15, 7 + oy, withAlpha(P.laser, 0.5)); // axe-edge energy
+  p.shadeBottom(0.2, 12);   // R28 W3-A3: value-tier gap fix — had rimLight but no shadeBottom
   rimFinish(p);
 });
 
@@ -431,6 +437,7 @@ registerHeroBody('gunner', (p, f, a) => {
   p.line(2, 13 + oy, 13, 8 + oy, P.iron); p.line(2, 13 + oy, 13, 9 + oy, P.steelL);
   p.glow(13, 8 + oy, 2.6, P.emberL, 0.5, 3); p.px(13, 8 + oy, P.white); p.rect(3, 12 + oy, 2, 2, P.woodD);
   p.sparkle(14, 7 + oy, P.emberL, 1);
+  p.shadeBottom(0.2, 12);   // R28 W3-A3: value-tier gap fix — had rimLight but no shadeBottom
   rimFinish(p);
 });
 
@@ -449,6 +456,7 @@ registerHeroBody('monk', (p, f, a) => {
   // chi aura + forehead mark
   p.aura(8, 8 + oy, 6, c.eye, f / 4, 2); p.ring(8, 8 + oy, 6, withAlphaSafe(c.eye, 0.5));
   p.px(8, 4 + oy, c.eye); p.px(8, 4 + oy, P.glint);
+  p.shadeBottom(0.2, 12);   // R28 W3-A3: value-tier gap fix — had rimLight but no shadeBottom
   rimFinish(p);
 });
 
@@ -469,6 +477,7 @@ registerHeroBody('shaman', (p, f, a) => {
   // totem staff with a charged tip
   p.vline(4 + oy, 15 + oy, 13, P.wood); p.glow(13, 4 + oy, 3, c.eye, 0.5, 4);
   p.ellipse(13, 4 + oy, 1.8, 1.8, c.eye); p.px(13, 4 + oy, P.white); p.sparkle(14, 2 + oy, lighten(c.eye, 0.3), 1);
+  p.shadeBottom(0.2, 12);   // R28 W3-A3: value-tier gap fix — had rimLight but no shadeBottom
   rimFinish(p);
 });
 
@@ -492,6 +501,7 @@ registerHeroBody('valkyrie', (p, f, a) => {
   // radiant spear
   p.vline(1 + oy, 15 + oy, 13, P.wood); p.line(13, 1 + oy, 13, 3 + oy, P.steelL);
   p.glow(13, 1 + oy, 2.4, P.hiSky, 0.5, 3); p.px(13, 0 + oy, P.white); p.star4(13, 0 + oy, 2, P.rimCool, P.glint);
+  p.shadeBottom(0.2, 12);   // R28 W3-A3: value-tier gap fix — had rimLight but no shadeBottom
   rimFinish(p);
 });
 
@@ -513,6 +523,7 @@ registerHeroBody('scout', (p, f, a) => {
   p.line(13, 4 + oy, 14, 8 + oy, c.cL); p.line(14, 8 + oy, 13, 12 + oy, c.cL);
   p.vline(4 + oy, 12 + oy, 12, withAlphaSafe(c.trim, 0.7)); p.vline(4 + oy, 12 + oy, 12, withAlpha(c.eye, 0.3));
   p.px(14, 8 + oy, P.glint);
+  p.shadeBottom(0.2, 12);   // R28 W3-A3: value-tier gap fix — had rimLight but no shadeBottom
   rimFinish(p);
 });
 
@@ -534,6 +545,7 @@ registerHeroBody('stormpriest', (p, f, a) => {
   p.vline(2 + oy, 15 + oy, 13, P.steel); p.glow(13, 2 + oy, 3, P.neon, 0.45, 4);
   p.line(13, 2 + oy, 12, 0 + oy, P.neonL); p.line(13, 2 + oy, 15, 1 + oy, P.neonL); p.line(13, 2 + oy, 14, 4 + oy, P.neon);
   p.px(13, 2 + oy, P.white); p.sparkle(14, 0 + oy, P.neonL, 1);
+  p.shadeBottom(0.2, 12);   // R28 W3-A3: value-tier gap fix — had rimLight but no shadeBottom
   rimFinish(p);
 });
 
