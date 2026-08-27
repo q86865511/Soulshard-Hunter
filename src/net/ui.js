@@ -26,56 +26,90 @@ const $ = (tag, props = {}, kids = []) => {
 
 const BIOME_LABELS = { '': '全部生態', crypt: '幽影地穴', cavern: '水晶洞窟', frost: '霜寒冰原', inferno: '熔岩深淵', void: '虛空裂界', verdant: '翠林森境', desert: '流沙荒漠', swamp: '腐沼濕地', abyss: '深淵海溝', celestial: '天界雲海' };
 
+// R28/W4-H (ART-08): "移除 emoji" — small monochrome inline-SVG glyphs (currentColor fill,
+// so button/heading text colour drives them) replace the colour-emoji chrome icons the audit
+// flagged as a generic-SaaS tell. Admin-only surfaces (openAdmin/openPlayerInspect) are out of
+// the audit's stated scope (2.3 「不在範圍：管理後台」) and are left as-is. `punch` = a soft
+// dark knockout mark drawn OVER an opaque currentColor shape — reads as a cut-out detail on
+// any accent colour without needing to know the real background behind it.
+const svgIcon = (paths, vb = '0 0 16 16') => `<svg class="icon" viewBox="${vb}" aria-hidden="true" focusable="false">${paths}</svg>`;
+const ICON = {
+  cloud: svgIcon('<path d="M4.6 12.4a3.3 3.3 0 0 1-.4-6.5A4.4 4.4 0 0 1 12.8 5a3.3 3.3 0 0 1-.6 7.4H4.6z"/>'),
+  people: svgIcon('<circle cx="5.2" cy="5" r="2.1"/><circle cx="11" cy="5.4" r="1.8"/><path d="M1.2 13.6c.2-2.6 2-4.3 4-4.3s3.8 1.7 4 4.3M9.6 13.6c.1-2.1 1.5-3.6 3-3.6s2.6 1.3 2.9 3.1" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>'),
+  trophy: svgIcon('<path d="M4.4 2h7.2v3.2a3.6 3.6 0 0 1-7.2 0V2z"/><path d="M4.4 3H2.2v1a2.8 2.8 0 0 0 2.4 2.8M11.6 3h2.2v1a2.8 2.8 0 0 1-2.4 2.8" fill="none" stroke="currentColor" stroke-width="1.2"/><rect x="6.8" y="8.6" width="2.4" height="2.6"/><rect x="4.3" y="12" width="7.4" height="1.7" rx=".5"/>'),
+  wrench: svgIcon('<path d="M12.9 2.1a3 3 0 0 0-3.9 4L2.3 12.8l1.6 1.6L10.6 8a3 3 0 0 0 3.9-3.9l-1.7 1.7-1.5-.5-.5-1.5 1.7-1.7z"/>'),
+  flag: svgIcon('<rect x="2.6" y="1" width="1.3" height="14"/><path d="M3.9 1.8h7.6l-1.7 2.7 1.7 2.7H3.9V1.8z"/>'),
+  paperclip: svgIcon('<path d="M5.2 7.8V4.3a1.7 1.7 0 1 1 3.4 0v6.2a3 3 0 1 1-6 0V5h1.2v5.5a1.8 1.8 0 0 0 3.6 0V4.3a.5.5 0 0 0-1 0v6.2H5.2z"/>'),
+  close: svgIcon('<path d="M3 3l10 10M13 3L3 13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>'),
+  gamepad: svgIcon('<rect x="1.2" y="5.2" width="13.6" height="6.6" rx="2.6"/><g fill="rgba(0,0,0,.5)"><rect x="4" y="7" width="1.3" height="3"/><rect x="3" y="8" width="3.3" height="1.3"/><circle cx="10.8" cy="7.6" r="1"/><circle cx="12.6" cy="9.4" r="1"/></g>'),
+  calendar: svgIcon('<rect x="2" y="2.6" width="12" height="11.4" rx="1.2" fill="none" stroke="currentColor" stroke-width="1.3"/><rect x="4" y="1" width="1.3" height="2.8"/><rect x="10.7" y="1" width="1.3" height="2.8"/><rect x="2" y="5.4" width="12" height="1.3"/><rect x="4.3" y="8.4" width="2.2" height="2.2"/>'),
+};
+
 let styled = false;
 function ensureStyles() {
   if (styled) return; styled = true;
   document.head.appendChild($('style', { html: `
-    #net-bar{position:fixed;right:12px;bottom:12px;z-index:50;display:flex;gap:6px;font:700 12px/1 system-ui,sans-serif}
-    #net-bar button{background:linear-gradient(180deg,rgba(30,36,66,.9),rgba(18,22,42,.92));color:#cdd3f0;border:1px solid #2a3a6a;border-radius:8px;padding:7px 11px;cursor:pointer;backdrop-filter:blur(4px);transition:.15s;box-shadow:0 2px 8px rgba(0,0,0,.3)}
-    #net-bar button:hover{border-color:#48e0d0;color:#fff;box-shadow:0 0 12px rgba(72,224,208,.5);transform:translateY(-1px)}
-    #net-bar .who{color:#ffd479;border-color:#5a4a2a}
+    #net-bar{position:fixed;right:12px;bottom:12px;z-index:50;display:flex;gap:6px;font:${'var(--chrome-weight-heading)'} 12px/1 system-ui,sans-serif}
+    #net-bar button{background:linear-gradient(180deg,rgba(30,36,66,.9),rgba(18,22,42,.92));color:var(--chrome-btn-ghost-fg);border:var(--chrome-border-w) solid var(--chrome-border);border-radius:var(--chrome-radius-sm);padding:7px 11px;cursor:pointer;transition:.15s;box-shadow:0 2px 8px rgba(0,0,0,.3)}
+    #net-bar button:hover{border-color:var(--chrome-accent);color:#fff;box-shadow:0 0 12px rgba(72,224,208,.5);transform:translateY(-1px)}
+    #net-bar button:focus-visible{outline:2px solid var(--chrome-focus-ring);outline-offset:2px}
+    #net-bar .who{color:var(--chrome-gold);border-color:#5a4a2a}
+    #net-bar .icon,.net-card .icon,.net-row .icon,.net-msg .icon{width:1em;height:1em;vertical-align:-0.15em;margin-right:5px;fill:currentColor;flex:none}
     @keyframes nt-in{from{opacity:0;transform:translateY(14px) scale(.98)}to{opacity:1;transform:none}}
-    .net-modal{position:fixed;inset:0;z-index:60;display:flex;align-items:center;justify-content:center;background:radial-gradient(circle at 50% 40%,rgba(20,26,54,.6),rgba(5,7,16,.82));backdrop-filter:blur(5px);font:14px/1.5 system-ui,sans-serif}
-    .net-card{position:relative;background:linear-gradient(165deg,#1a2042,#0e1126 70%);border:1px solid #34407a;border-radius:14px;padding:24px;width:min(92vw,430px);color:#dfe3f5;box-shadow:0 20px 70px rgba(0,0,0,.6),inset 0 0 26px rgba(72,224,208,.12);animation:nt-in .22s ease-out}
-    .net-card::before{content:'';position:absolute;left:18px;right:18px;top:0;height:2px;background:linear-gradient(90deg,transparent,#48e0d0,#ffd479,transparent);border-radius:2px;opacity:.85}
+    /* R28/W4-H (ART-08): chrome now pulls border thickness / corner radius / header band /
+       accent + font sizes from the shared :root tokens in index.html — the same numbers
+       src/net/social.js's .sl-* rules use, so the two independently-styled modal families
+       stop drifting apart. Blur is kept (DOM legibility) but toned down and paired with a
+       flatter, thicker (2px) border to read closer to the canvas panel language. */
+    .net-modal{position:fixed;inset:0;z-index:60;display:flex;align-items:center;justify-content:center;background:radial-gradient(circle at 50% 40%,rgba(20,26,54,.6),rgba(5,7,16,.82));backdrop-filter:blur(3px);font:${'var(--chrome-font-body)'}/1.5 system-ui,sans-serif}
+    .net-card{position:relative;background:linear-gradient(165deg,var(--chrome-bg-top),var(--chrome-bg-bot) 70%);border:var(--chrome-border-w) solid var(--chrome-border);border-radius:var(--chrome-radius);padding:24px;width:min(92vw,430px);color:var(--chrome-text);box-shadow:0 20px 70px rgba(0,0,0,.6),inset 0 0 26px rgba(72,224,208,.12);animation:nt-in .22s ease-out}
+    .net-card::before{content:'';position:absolute;left:18px;right:18px;top:0;height:2px;background:linear-gradient(90deg,transparent,var(--chrome-accent),var(--chrome-gold),transparent);border-radius:2px;opacity:.85}
     .net-card.wide{width:min(94vw,660px)}
-    .net-card h2{margin:0 0 16px;font-size:21px;font-weight:900;letter-spacing:2px;text-align:center;background:linear-gradient(90deg,#a8fff4,#ffd479);-webkit-background-clip:text;background-clip:text;color:transparent;text-shadow:0 0 18px rgba(72,224,208,.3)}
-    .net-tabs{display:flex;gap:8px;margin-bottom:14px}
-    .net-tabs button{flex:1;padding:9px;border-radius:9px;border:1px solid #2a3052;background:#141832;color:#9aa3c8;cursor:pointer;font-weight:700;transition:.15s}
+    .net-card h2{margin:0 0 16px;font-size:var(--chrome-font-title);font-weight:var(--chrome-weight-title);letter-spacing:2px;text-align:center;display:flex;align-items:center;justify-content:center;gap:8px;background:linear-gradient(90deg,var(--chrome-accent-light),var(--chrome-gold));-webkit-background-clip:text;background-clip:text;color:transparent;text-shadow:0 0 18px rgba(72,224,208,.3)}
+    .net-card h2 .icon{-webkit-text-fill-color:initial;color:var(--chrome-accent-light)}
+    .net-tabs{display:flex;gap:var(--chrome-gap-sm);margin-bottom:14px}
+    .net-tabs button{flex:1;padding:9px;border-radius:var(--chrome-radius-sm);border:1px solid var(--chrome-border-soft);background:#141832;color:var(--chrome-text-dim);cursor:pointer;font-weight:var(--chrome-weight-heading);font-size:var(--chrome-font-body);transition:.15s}
     .net-tabs button:hover{color:#cfe0ff;border-color:#3a4a8a}
-    .net-tabs button.on{background:linear-gradient(180deg,#2c3a8a,#1f2a66);color:#fff;border-color:#48e0d0;box-shadow:0 0 12px rgba(72,224,208,.35)}
-    .net-card label{display:block;margin:11px 0 4px;color:#8ea0d8;font-size:11px;letter-spacing:1px;text-transform:uppercase}
-    .net-card input,.net-card select{width:100%;box-sizing:border-box;padding:10px 11px;border-radius:9px;border:1px solid #2a3a6a;background:#0b0e20;color:#fff;font-size:14px;transition:.15s}
-    .net-card input:focus,.net-card select:focus{outline:none;border-color:#48e0d0;box-shadow:0 0 10px rgba(72,224,208,.35)}
-    .net-row{display:flex;gap:8px;margin-top:16px}
-    .net-row button{flex:1;padding:11px;border-radius:9px;border:0;cursor:pointer;font-weight:800;letter-spacing:1px;transition:.15s}
+    .net-tabs button:focus-visible{outline:2px solid var(--chrome-focus-ring);outline-offset:1px}
+    .net-tabs button.on{background:linear-gradient(180deg,#2c3a8a,#1f2a66);color:#fff;border-color:var(--chrome-accent);box-shadow:0 0 12px rgba(72,224,208,.35)}
+    .net-card label{display:block;margin:11px 0 4px;color:var(--chrome-text-dim);font-size:var(--chrome-font-caption);letter-spacing:1px;text-transform:uppercase;font-weight:var(--chrome-weight-body)}
+    .net-card input,.net-card select{width:100%;box-sizing:border-box;padding:10px 11px;border-radius:var(--chrome-radius-sm);border:var(--chrome-border-w) solid var(--chrome-border);background:var(--chrome-ink);color:#fff;font-size:var(--chrome-font-body);transition:.15s}
+    .net-card input:focus,.net-card select:focus,.net-card input:focus-visible,.net-card select:focus-visible{outline:none;border-color:var(--chrome-accent);box-shadow:0 0 0 3px rgba(72,224,208,.28)}
+    .net-card input:disabled,.net-card select:disabled{background:var(--chrome-disabled-bg);color:var(--chrome-disabled-fg);cursor:not-allowed}
+    .net-row{display:flex;gap:var(--chrome-gap-sm);margin-top:16px}
+    .net-row button{flex:1;padding:11px;border-radius:var(--chrome-radius-sm);border:0;cursor:pointer;font-weight:var(--chrome-weight-heading);font-size:var(--chrome-font-body);letter-spacing:1px;transition:.15s;display:inline-flex;align-items:center;justify-content:center;gap:6px}
     .net-row button:active{transform:translateY(1px)}
-    .net-primary{background:linear-gradient(180deg,#5cf0e0,#2bb5a6);color:#04221f;box-shadow:0 3px 0 #1c8478,0 0 14px rgba(72,224,208,.45)}
+    .net-row button:focus-visible{outline:2px solid var(--chrome-focus-ring);outline-offset:2px}
+    .net-primary{background:linear-gradient(180deg,var(--chrome-btn-primary-1),var(--chrome-btn-primary-2));color:var(--chrome-btn-primary-fg);box-shadow:0 3px 0 #1c8478,0 0 14px rgba(72,224,208,.45)}
     .net-primary:hover{filter:brightness(1.08)}
-    .net-primary:disabled{background:#2a4a48;color:#789;box-shadow:none;cursor:not-allowed}
-    .net-ghost{background:linear-gradient(180deg,#202852,#171d3c);color:#cdd3f0;border:1px solid #2e3a6e}
+    .net-primary:disabled{background:var(--chrome-disabled-bg);color:var(--chrome-disabled-fg);box-shadow:none;cursor:not-allowed;filter:none}
+    .net-ghost{background:linear-gradient(180deg,var(--chrome-btn-ghost-1),var(--chrome-btn-ghost-2));color:var(--chrome-btn-ghost-fg);border:1px solid #2e3a6e}
     .net-ghost:hover{border-color:#4a5aa0;color:#fff}
-    .net-warn{background:linear-gradient(180deg,#43243a,#321c2c);color:#ffb4a8;border:1px solid #5a3045;border-radius:7px;cursor:pointer}
+    .net-ghost:disabled{opacity:.5;cursor:not-allowed;filter:none}
+    .net-warn{background:linear-gradient(180deg,var(--chrome-btn-warn-1),var(--chrome-btn-warn-2));color:var(--chrome-btn-warn-fg);border:1px solid #5a3045;border-radius:var(--chrome-radius-sm);cursor:pointer}
     .net-warn:hover{filter:brightness(1.12)}
-    .net-msg{min-height:18px;margin-top:10px;font-size:12px;text-align:center;color:#ff8a7a}
-    .net-msg.ok{color:#9be36b}
-    .net-filters{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+    /* error state: same red token as .net-msg's default (unset .ok) — one danger colour everywhere */
+    .net-msg{min-height:18px;margin-top:10px;font-size:var(--chrome-font-caption);text-align:center;color:var(--chrome-danger);display:flex;align-items:center;justify-content:center;gap:5px}
+    .net-msg.ok{color:var(--chrome-ok)}
+    .net-filters{display:flex;gap:var(--chrome-gap-sm);margin-bottom:12px;flex-wrap:wrap}
     .net-filters select{width:auto;flex:1;min-width:120px}
-    .net-table{max-height:52vh;overflow:auto;border:1px solid #2a3056;border-radius:10px;box-shadow:inset 0 0 0 1px rgba(72,224,208,.08)}
-    .net-table table{width:100%;border-collapse:collapse;font-size:13px}
+    .net-table{max-height:52vh;overflow:auto;border:1px solid var(--chrome-border-soft);border-radius:var(--chrome-radius);box-shadow:inset 0 0 0 1px rgba(72,224,208,.08)}
+    .net-table table{width:100%;border-collapse:collapse;font-size:var(--chrome-font-body)}
     .net-table th,.net-table td{padding:8px 10px;text-align:left;border-bottom:1px solid #1c2140;white-space:nowrap}
-    .net-table th{position:sticky;top:0;background:linear-gradient(180deg,#222a52,#171b34);color:#a8fff4;font-size:11px;letter-spacing:1px;text-transform:uppercase}
+    .net-table th{position:sticky;top:0;background:linear-gradient(180deg,#222a52,#171b34);color:var(--chrome-accent-light);font-size:var(--chrome-font-caption);letter-spacing:1px;text-transform:uppercase}
     .net-table tr:nth-child(even) td{background:rgba(255,255,255,.025)}
     .net-table tbody tr:hover td{background:rgba(72,224,208,.07)}
-    .net-table .rank{color:#ffd479;font-weight:900;text-shadow:0 0 8px rgba(255,212,121,.4)}
-    .net-toast{position:fixed;left:50%;bottom:28px;transform:translateX(-50%) translateY(8px);z-index:70;background:linear-gradient(180deg,#1f2548,#141833);border:1px solid #3a4a8a;color:#fff;padding:11px 18px;border-radius:10px;font:700 13px system-ui;opacity:0;transition:.25s;box-shadow:0 8px 30px rgba(0,0,0,.5),0 0 16px rgba(72,224,208,.2)}
+    .net-table .rank{color:var(--chrome-gold);font-weight:900;text-shadow:0 0 8px rgba(255,212,121,.4)}
+    .net-toast{position:fixed;left:50%;bottom:28px;transform:translateX(-50%) translateY(8px);z-index:70;background:linear-gradient(180deg,#1f2548,#141833);border:1px solid #3a4a8a;color:#fff;padding:11px 18px;border-radius:var(--chrome-radius-sm);font:${'var(--chrome-weight-heading)'} 13px system-ui;opacity:0;transition:.25s;box-shadow:0 8px 30px rgba(0,0,0,.5),0 0 16px rgba(72,224,208,.2)}
     .net-toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
-    .net-stat-card{flex:1;min-width:118px;background:linear-gradient(165deg,#1a2042,#0e1126);border:1px solid #2a3056;border-radius:10px;padding:12px 14px}
-    .net-stat-card .k{font-size:11px;color:#8ea0d8;letter-spacing:1px;text-transform:uppercase}
+    .net-stat-card{flex:1;min-width:118px;background:linear-gradient(165deg,var(--chrome-bg-top),var(--chrome-bg-bot));border:1px solid var(--chrome-border-soft);border-radius:var(--chrome-radius);padding:12px 14px}
+    .net-stat-card .k{font-size:var(--chrome-font-caption);color:var(--chrome-text-dim);letter-spacing:1px;text-transform:uppercase}
     .net-stat-card .v{font-size:24px;font-weight:900;margin-top:4px}
     /* round16/7.5 — central broadcast ticker (replaces the static banner) */
     #broadcast-ticker{position:fixed;top:50%;left:0;transform:translateY(-50%);width:100%;font:800 20px/1.4 "KaiTi","標楷體",system-ui,sans-serif;color:#fffbe0;background:rgba(20,6,0,.8);padding:10px 0;white-space:nowrap;text-indent:100vw;pointer-events:none;z-index:9999;animation:tickerScroll 14s linear 1 forwards;text-shadow:0 0 10px rgba(255,180,80,.6)}
+    #broadcast-ticker::before{content:'▲';position:absolute;left:14px;top:50%;transform:translateY(-50%);color:var(--chrome-gold);font-size:14px}
     #broadcast-ticker.warn{background:rgba(64,10,0,.86);color:#ffd0b0}
+    #broadcast-ticker.warn::before{color:var(--chrome-danger)}
     #broadcast-ticker:hover{pointer-events:auto;cursor:pointer}
     @keyframes tickerScroll{from{text-indent:100vw}to{text-indent:-320%}}
   ` }));
@@ -111,7 +145,7 @@ export function showBroadcast(msg, kind) {
   let m = String(msg || '').trim(); if (!m) return;
   if (m.length > 80) m = m.slice(0, 80) + '…';
   const old = document.getElementById('broadcast-ticker'); if (old) old.remove();   // only one at a time; newest replaces
-  const el = $('div', { id: 'broadcast-ticker', text: `📢  ${m}　·　📢  ${m}　·　📢  ${m}` });
+  const el = $('div', { id: 'broadcast-ticker', text: `${m}　·　${m}　·　${m}` });   // R28/W4-H: dropped the 📢 bookends (ART-08 emoji removal) — the ticker's own ::before chevron now carries that cue, see CSS
   if (kind === 'warn') el.classList.add('warn');
   el.addEventListener('click', () => el.remove());
   el.addEventListener('animationend', () => el.remove());
@@ -119,7 +153,10 @@ export function showBroadcast(msg, kind) {
 }
 
 // round16/7.1 — player feedback form (opened from the in-town Esc menu). Works for guests too.
-const FB_CATS = [['bug', '🐛 問題回報 (Bug)'], ['ui', '🖼 介面 / 排版'], ['gameplay', '🎮 玩法 / 平衡'], ['content', '✨ 內容建議'], ['other', '💬 其他']];
+// R28/W4-H: these render inside native <option> elements, which cannot host inline SVG —
+// the emoji is dropped as plain text rather than swapped for an icon (ART-08 removal still
+// applies; a native <select> just has no icon slot to put a replacement in).
+const FB_CATS = [['bug', '問題回報 (Bug)'], ['ui', '介面 / 排版'], ['gameplay', '玩法 / 平衡'], ['content', '內容建議'], ['other', '其他']];
 // round16 #4 — read an image File and downscale it (max edge 1600px) to a data URL. PNG for
 // crisp UI screenshots; falls back to JPEG when the PNG would be too large for the server cap.
 function readImageScaled(file, maxDim = 1600, quality = 0.82) {
@@ -164,7 +201,7 @@ export function openFeedback() {
     preview.innerHTML = '';
     if (!attached) return;
     const img = $('img', { src: attached, style: 'max-width:100%;max-height:160px;border-radius:8px;border:1px solid #2a3a6a;display:block' });
-    const rm = $('button', { class: 'net-ghost', style: 'margin-top:5px;padding:3px 10px;font-size:12px', text: '✕ 移除圖片', onclick: () => { attached = null; renderPreview(); } });
+    const rm = $('button', { class: 'net-ghost', style: 'margin-top:5px;padding:3px 10px;font-size:12px', html: ICON.close + ' 移除圖片', onclick: () => { attached = null; renderPreview(); } });
     preview.append(img, rm);
   };
   const accept = async (file) => {
@@ -179,7 +216,7 @@ export function openFeedback() {
     for (const it of items) { if (it.type && it.type.indexOf('image') === 0) { const f = it.getAsFile(); if (f) { e.preventDefault(); accept(f); return; } } }
   };
   content.addEventListener('paste', pasteHandler);
-  const dropZone = $('div', { style: 'border:1px dashed #3a4a7a;border-radius:9px;padding:9px 11px;text-align:center;color:#8ea0d8;font-size:12px;cursor:pointer', text: '📎 點此選擇截圖，或拖放 / Ctrl+V 貼上' });
+  const dropZone = $('div', { style: 'border:1px dashed #3a4a7a;border-radius:9px;padding:9px 11px;text-align:center;color:#8ea0d8;font-size:12px;cursor:pointer', html: ICON.paperclip + ' 點此選擇截圖，或拖放 / Ctrl+V 貼上' });
   dropZone.addEventListener('click', () => fileInput.click());
   dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.style.borderColor = '#7fc8ff'; });
   dropZone.addEventListener('dragleave', () => { dropZone.style.borderColor = '#3a4a7a'; });
@@ -195,7 +232,7 @@ export function openFeedback() {
   };
   submit.addEventListener('click', doSubmit);
   const card = $('div', { class: 'net-card' }, [
-    $('h2', { text: '⚑ 回報問題' }),
+    $('h2', { html: ICON.flag + ' 回報問題' }),
     $('label', { text: '類別' }), cat,
     $('label', { text: '描述' }), content, counter,
     $('label', { text: '截圖（選填）' }), dropZone, fileInput, preview,
@@ -227,15 +264,15 @@ function renderBar() {
   bar.innerHTML = '';
   if (Net.isLoggedIn()) {
     const u = Net.currentUser() || {};
-    bar.appendChild($('button', { class: 'who', text: '☁ ' + (u.username || '已登入'), title: '雲端存檔已啟用', onclick: openAuth }));
-    bar.appendChild($('button', { text: '👥 好友 / 連線', onclick: () => openSocial() }));
-    if (Net.isAdmin()) bar.appendChild($('button', { text: '🛠 管理', title: '管理者主控台', onclick: openAdmin }));
+    bar.appendChild($('button', { class: 'who', html: ICON.cloud + (u.username || '已登入'), title: '雲端存檔已啟用', onclick: openAuth }));
+    bar.appendChild($('button', { html: ICON.people + '好友 / 連線', onclick: () => openSocial() }));
+    if (Net.isAdmin()) bar.appendChild($('button', { html: ICON.wrench + '管理', title: '管理者主控台', onclick: openAdmin }));
     bar.appendChild($('button', { text: '登出', onclick: () => { RT.close(); Net.logout(); renderBar(); toast('已登出（進度仍保留在本機）'); } }));
   } else {
-    bar.appendChild($('button', { text: '☁ 登入 / 註冊', onclick: openAuth }));
-    bar.appendChild($('button', { text: '👥 好友 / 連線', onclick: () => openSocial() }));
+    bar.appendChild($('button', { html: ICON.cloud + '登入 / 註冊', onclick: openAuth }));
+    bar.appendChild($('button', { html: ICON.people + '好友 / 連線', onclick: () => openSocial() }));
   }
-  bar.appendChild($('button', { text: '🏆 排行榜', onclick: openLeaderboard }));
+  bar.appendChild($('button', { html: ICON.trophy + '排行榜', onclick: openLeaderboard }));
 }
 
 export { toast as netToast };
@@ -252,15 +289,15 @@ export function openAccountPanel() {
   const info = $('div', {}, [
     line('帳號名稱', u.username || '—', '#ffd479'),
     line('雲端存檔', '自動同步中', '#9be36b'),
-    Net.isAdmin() ? line('權限', '管理員 🛠', '#a8fff4') : null,
+    Net.isAdmin() ? line('權限', '管理員', '#a8fff4') : null,
     line('好友代碼', u.username || '—'),
   ]);
   const card = $('div', { class: 'net-card' }, [
-    $('h2', { text: '☁ 雲端帳號' }),
+    $('h2', { html: ICON.cloud + ' 雲端帳號' }),
     info,
     $('div', { class: 'net-row' }, [
-      $('button', { class: 'net-ghost', text: '🏆 排行榜', onclick: () => { closeModal(); openLeaderboard(); } }),
-      Net.isAdmin() ? $('button', { class: 'net-ghost', text: '🛠 管理', onclick: () => { closeModal(); openAdmin(); } }) : null,
+      $('button', { class: 'net-ghost', html: ICON.trophy + ' 排行榜', onclick: () => { closeModal(); openLeaderboard(); } }),
+      Net.isAdmin() ? $('button', { class: 'net-ghost', html: ICON.wrench + ' 管理', onclick: () => { closeModal(); openAdmin(); } }) : null,
     ].filter(Boolean)),
     $('div', { class: 'net-row' }, [
       $('button', { class: 'net-warn', text: '登出', onclick: () => { RT.close(); Net.logout(); renderBar(); closeModal(); toast('已登出（進度仍保留在本機）'); } }),
@@ -364,7 +401,7 @@ export function openLeaderboard() {
     diff.style.display = m === 'daily' ? 'none' : '';
     period.style.display = m === 'daily' ? 'none' : '';
     keyLabel.style.display = m === 'daily' ? '' : 'none';
-    if (m === 'daily') keyLabel.textContent = '📅 ' + dailyKey() + ' 每日挑戰';
+    if (m === 'daily') keyLabel.innerHTML = ICON.calendar + dailyKey() + ' 每日挑戰';
   };
 
   const load = async () => {
@@ -384,7 +421,7 @@ export function openLeaderboard() {
       ]);
       const tb = $('tbody');
       rows.forEach((row, i) => {
-        const tags = (row.cleared ? '通關 ' : '') + (row.reaper ? '☠斬死神' : '');
+        const tags = (row.cleared ? '通關 ' : '') + (row.reaper ? '斬死神' : '');   // R28/W4-H: dense table cell — dropped the ☠ rather than add an icon here (ART-08)
         tb.appendChild($('tr', {}, [
           $('td', { class: 'rank', text: '#' + (i + 1) }),
           $('td', { text: row.username || '—' }),
@@ -415,11 +452,11 @@ export function openLeaderboard() {
       try { await Net.postGuestRun({ ...lastGuestRun, name: nm }); clearLastGuestRun(); toast('成績已上傳排行榜！'); if (guestSection) guestSection.remove(); load(); }
       catch (e) { up.disabled = false; msg.className = 'net-msg'; msg.textContent = e && e.message ? '上傳失敗：' + e.message : '上傳失敗（伺服器未啟動？）'; }
     });
-    guestSection = $('div', {}, [$('div', { style: 'font-size:12px;color:#9aa3c8;margin-top:6px' }, [document.createTextNode('🎮 訪客模式 — 輸入暱稱即可上傳本機最近一場成績')]), $('div', { class: 'net-row', style: 'margin-top:6px' }, [nameInp, up])]);
+    guestSection = $('div', {}, [$('div', { style: 'font-size:12px;color:#9aa3c8;margin-top:6px', html: ICON.gamepad + '訪客模式 — 輸入暱稱即可上傳本機最近一場成績' }), $('div', { class: 'net-row', style: 'margin-top:6px' }, [nameInp, up])]);
   }
 
   const card = $('div', { class: 'net-card wide' }, [
-    $('h2', { text: '🏆 共享排行榜' }),
+    $('h2', { html: ICON.trophy + ' 共享排行榜' }),
     $('div', { class: 'net-filters' }, [mode, biome, diff, period, keyLabel]),
     msg, body, guestSection,
     $('div', { class: 'net-row' }, [

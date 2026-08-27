@@ -11,6 +11,16 @@ import { P } from '../engine/palette.js';
 export const LIGHT_BY_SPRITE = {
   // ── universal ──
   torch:               { r: 42, color: P.ember,   a: 0.34, oy: 4,  flicker: 0.35, speed: 8 },
+  // ── R28/W4-G hub interiors: each room's "working" focal installation owns a ground
+  //    pool on the deco channel, plus the two foreground fixtures that carry real flame ──
+  rfoc_censer:         { r: 34, color: P.shard,   a: 0.30, oy: 14, flicker: 0.22, speed: 3.2 },
+  rfoc_stewpot:        { r: 36, color: P.ember,   a: 0.32, oy: 6,  flicker: 0.30, speed: 6 },
+  rfoc_forgefire:      { r: 46, color: P.emberL,  a: 0.35, oy: 12, flicker: 0.34, speed: 7 },
+  rfoc_loom:           { r: 28, color: P.shard,   a: 0.20, oy: 8,  flicker: 0.12, speed: 2.4 },
+  rfoc_restore:        { r: 26, color: P.ember,   a: 0.24, oy: 14, flicker: 0.30, speed: 6.5 },
+  rfoc_hearth:         { r: 38, color: P.ember,   a: 0.33, oy: 6,  flicker: 0.32, speed: 6.5 },
+  rfg_ch_chandelier:   { r: 44, color: P.ember,   a: 0.26, oy: -12, flicker: 0.28, speed: 6 },
+  rfg_gu_beam:         { r: 30, color: P.ember,   a: 0.24, oy: -14, flicker: 0.26, speed: 5.5 },
   // ── pre-existing single decor (biomes.js) ──
   dec_crystal:         { r: 30, color: P.shard,   a: 0.24, oy: 6,  flicker: 0.12, speed: 3 },
   dec_ice:             { r: 26, color: P.ice,     a: 0.18, oy: 5,  flicker: 0.10, speed: 2.4 },

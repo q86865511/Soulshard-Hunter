@@ -643,6 +643,11 @@ export class World {
     // (`ts.oobBand`) instead of reusing the deep-wall band — crypt fades into a fog-drowned
     // tomb field, celestial into the cloud sea it floats on, desert into dune haze. Biomes
     // (and the town) without `oobBand` keep the exact previous band + alpha curve.
+    // R28/W4-G (ART_SPEC 7): a map may instead supply `oobTiles` — an explicit
+    // near→far STACK whose sprites already carry the darkness steps and the ruin
+    // silhouettes, so the band never reads as one flat dimmed colour. Used by the
+    // hub interiors; every other map keeps the band/alpha path below untouched.
+    const oobStack = ts.oobTiles ? ts.oobTiles.map((n) => getSprite(n)) : null;
     if (rx0 < 0 || ry0 < 0 || rx1 >= this.tw || ry1 >= this.th) {
       const oobBand = horizon || (bands ? bands[Math.min(2, bands.length - 1)] : null);
       for (let ty = ry0; ty <= ry1; ty++) for (let tx = rx0; tx <= rx1; tx++) {
@@ -650,6 +655,16 @@ export class World {
         const hsh = hash5(tx, ty);
         let alpha = 0.30 + hsh * 0.025;
         let fr = wallSp.frames[0];
+        if (oobStack) {
+          const dpx = Math.max(0, -tx, tx - (this.tw - 1)), dpy = Math.max(0, -ty, ty - (this.th - 1));
+          const past = Math.max(dpx, dpy);
+          // step 0-1 = the two near variants (hash-picked so no shape lands on a grid),
+          // step 2+ = the deep variant, fading a little further out again.
+          const idx = past <= 1 ? (hsh & 1) : 2;
+          drawSprite(oobStack[Math.min(idx, oobStack.length - 1)].frames[0], tx * TS, ty * TS,
+            { ax: 0, ay: 0, alpha: past <= 1 ? 0.95 : Math.max(0.45, 0.85 - (past - 2) * 0.12) });
+          continue;
+        }
         if (oobBand) {
           fr = oobBand[hsh % oobBand.length].frames[0];
           // additional fade with distance past the nearest edge
@@ -739,6 +754,20 @@ export class World {
       x0: camera.x - halfW - 16, x1: camera.x + halfW + 16,
       y0: camera.y - halfH - 8, y1: camera.y + halfH + 40,
     };
+  }
+
+  // R28/W4-G (ART_SPEC 7) — the FOREGROUND pass. Ceiling-hung props (`rfg_*`: chandeliers,
+  // a fallen roof beam, the forge's smoke hood, drying lines, honour banners) paint AFTER
+  // every actor, so the avatar walks visibly UNDER them and the room gains a near plane.
+  // Callers that draw their own avatars after world.draw() — the hub scene — invoke this
+  // themselves once the hero is down. A map with no `rfg_` decor does nothing here.
+  drawForeground(cb = this._cullBounds()) {
+    for (const d of this.decor) {
+      if (!d.sprite.startsWith('rfg_')) continue;
+      if (d.x < cb.x0 - 40 || d.x > cb.x1 + 40 || d.y < cb.y0 - 48 || d.y > cb.y1 + 48) continue;
+      const sp = getSprite(d.sprite);
+      drawSprite(frameAt(sp, this.time, d.phase || 0), d.x, d.y, { ax: sp.ax, ay: sp.ay });
+    }
   }
 
   // R26/B1 — flat ground decals (render-only; empty unless a biome has a decal pool).
@@ -851,6 +880,10 @@ export class World {
     // box. The prefix (not a flag) is the test on purpose — it survives the co-op map
     // wire format, which carries decor sprite NAMES but drops every other field.
     for (const d of this.decor) {
+      // R28/W4-G: `rfg_` props are FOREGROUND occluders — they hang from the ceiling and
+      // must paint over the actors, so drawForeground() owns them (same prefix-not-flag
+      // test as `lmk_`, for the same co-op wire-format reason).
+      if (d.sprite.startsWith('rfg_')) continue;
       const m = d.sprite.startsWith('lmk_') ? 48 : 0;
       if (d.x < cb.x0 - m || d.x > cb.x1 + m || d.y < cb.y0 - m || d.y > cb.y1 + m) continue;
       const sp = getSprite(d.sprite);
@@ -1265,87 +1298,111 @@ export function makeCamp() {
   return { tw, th, tiles, floorVar, decor: D, rooms, tileset, triggers };
 }
 
-// R19/B2: the 6 building INTERIOR maps. Same return contract as makeCamp. Each is a NON-rectangular
-// stone/wood room carved from solid WALL, with a 2-tile south doorway = the EXIT back to town.
-// `rooms = { [id]: <station-anchor centre>, exit: <just inside the doorway> }` (both in PIXELS, same
-// fields as makeCamp's anchors). Station spot (top-centre) is kept decor-clear — hub.js drops the
-// building's interactive station there; SYMMETRIC reuse-sprite decor + torchpost pairs flank it.
+// R19/B2 → R28/W4-G: the 6 building INTERIOR maps. Same return contract as makeCamp.
+//
+// R28/W4-G (ART_SPEC 7) rebuild. The R19/R20 rooms were 17-25 tiles wide and 13-18 tall —
+// NARROWER and SHORTER than the 1280×720@zoom3 viewport (26.7×15 tiles) — and the hub camera
+// did not clamp to the map, so the bottom third of every interior screenshot was the dimmed
+// out-of-bounds band and the sides leaked too. Every room is now at least 31×19 (spec floor is
+// 29×17; the extra margin covers zoom 5 on a 2560-wide display), widths stay ODD so `cx` is the
+// true centre column, and hub/lifecycle.js clamps the camera the way run.js always has.
+//
+// Each room now owns, per ART_SPEC 7:
+//   · ONE animated "working" focal installation (rfoc_*, with a light-pool entry in lights.js)
+//   · THREE narrative objects nobody else has (rnar_*)
+//   · ONE ceiling-hung foreground occluder (rfg_*, drawn after the actors — see drawForeground)
+//   · ONE dedicated floor material (intf_*, floorVar slot 6) laid in ragged blobs, plus flat
+//     ground decals (intd_*) so bare floor never dominates
+// and the layouts are deliberately OFF-AXIS: mirror pairs are now a minority of the dressing
+// instead of the whole of it.
+//
+// `rooms = { [id]: <station-anchor centre>, exit: <just inside the doorway> }` (both in PIXELS,
+// same fields as makeCamp's anchors) — unchanged, as are `triggers[]`, the 3-wide walk-in
+// doorway, the reserved station/exit tiles and the decor `solid` collision semantics.
 export function makeInterior(id) {
-  // per-building footprint + non-rect carve mask (returns true where FLOOR)
-  // R20/B2 (player problem 1): widths are now ODD so `cx = tw>>1` is the TRUE centre column —
-  // the station, carpet runner, doorway and every mirrored decor pair centre perfectly
-  // (even widths made centred props sit half a tile off the axis).
   const SPEC = {
-    church:       { tw: 21, th: 18 },
-    guild:        { tw: 23, th: 16 },
-    blacksmith:   { tw: 19, th: 14 },
-    clothing:     { tw: 19, th: 14 },
-    achievements: { tw: 25, th: 14 },
-    personal:     { tw: 17, th: 13 },   // wide enough that the gold-sink decor offsets (dx -6..+6) fit inside
-  }[id] || { tw: 19, th: 14 };
+    church:       { tw: 33, th: 21 },   // cruciform: long nave + full transept + two side chapels
+    guild:        { tw: 35, th: 19 },   // hall over a south-west taproom and a south-east store
+    blacksmith:   { tw: 33, th: 19 },   // work floor + an east forge bay + a north stock nook
+    clothing:     { tw: 33, th: 19 },   // shop floor + north display bay + west fitting alcove
+    achievements: { tw: 37, th: 19 },   // long gallery, three uneven north niches, south alcove
+    personal:     { tw: 31, th: 19 },   // one room, partitioned into a study nook and a pantry
+  }[id] || { tw: 33, th: 19 };
   const { tw, th } = SPEC;
   const tiles = new Uint8Array(tw * th).fill(WALL);
   const floorVar = new Uint8Array(tw * th);
   const carve = (x, y) => { if (x >= 1 && y >= 1 && x < tw - 1 && y < th - 1) tiles[y * tw + x] = FLOOR; };
   const setVar = (x, y, v) => { if (x >= 0 && y >= 0 && x < tw && y < th && tiles[y * tw + x] === FLOOR) floorVar[y * tw + x] = v; };
   const fillRect = (x0, y0, x1, y1) => { for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) carve(x, y); };
-  const cx = tw >> 1;   // doorway / symmetry axis column
+  // put a WALL mass back INSIDE the carve — partitions/piers break the "one big box" read
+  const wallRect = (x0, y0, x1, y1) => { for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) if (x > 0 && y > 0 && x < tw - 1 && y < th - 1) tiles[y * tw + x] = WALL; };
+  const cx = tw >> 1;   // doorway / station axis column
+  const hash2 = (x, y) => (((x * 73856093) ^ (y * 19349663)) >>> 0);
 
   // --- carve the NON-rectangular shape per building ---
   if (id === 'church') {
-    // cross-shaped nave: a long central nave + transept arms
-    fillRect(cx - 3, 1, cx + 3, th - 2);            // nave (vertical)
-    fillRect(2, 6, tw - 3, 10);                      // transept (horizontal arms)
+    fillRect(cx - 4, 1, cx + 4, th - 2);          // the nave, running the full height
+    fillRect(10, 3, 22, 5);                        // sanctuary widening behind the altar
+    fillRect(2, 7, tw - 3, 12);                    // transept arms, wall to wall
+    fillRect(3, 13, 9, 18);                        // west chapel (bell + reliquary)
+    fillRect(9, 15, 12, 16);                       // …and its short connecting passage
+    fillRect(23, 13, 29, 17);                      // east scriptorium
+    fillRect(20, 14, 24, 15);                      // …its passage
+    wallRect(8, 8, 8, 9); wallRect(25, 10, 25, 11);     // crossing piers (asymmetric)
+    wallRect(5, 10, 5, 11); wallRect(12, 8, 12, 8); wallRect(20, 11, 20, 12); wallRect(28, 8, 28, 9);
+    wallRect(11, 17, 11, 18); wallRect(22, 17, 22, 18);   // chapel/scriptorium buttresses
   } else if (id === 'guild') {
-    // L-shaped hall
-    fillRect(1, 1, tw - 2, th - 6);                  // main hall (top, full width)
-    fillRect(1, th - 6, cx + 3, th - 2);             // leg jutting south-west
+    fillRect(1, 1, tw - 2, 11);                    // the great hall
+    fillRect(1, 11, 20, 17);                       // taproom, jutting south-west
+    fillRect(24, 12, tw - 2, 17);                  // store room, south-east
+    fillRect(20, 14, 24, 15);                      // passage between them
+    wallRect(9, 4, 10, 6);                         // the chimney block, off-axis
+    wallRect(28, 6, 29, 7);                        // a collapsed corner pier
+    wallRect(4, 8, 4, 9); wallRect(16, 3, 16, 4); wallRect(22, 8, 23, 9);
+    wallRect(3, 14, 4, 15); wallRect(15, 16, 16, 17); wallRect(29, 14, 30, 15);
   } else if (id === 'blacksmith') {
-    // main room + a forge alcove jutting off the right wall
-    fillRect(1, 2, tw - 4, th - 2);                  // main room
-    fillRect(tw - 5, 4, tw - 2, th - 5);             // forge alcove (east bay)
+    fillRect(1, 2, 24, th - 2);                    // main work floor
+    fillRect(24, 4, tw - 2, 13);                   // east forge bay
+    fillRect(4, 1, 10, 2);                         // north stock nook
+    wallRect(13, 6, 14, 8);                        // quench-corner pier
+    wallRect(6, 12, 6, 14);                        // a stub of collapsed wall
+    wallRect(3, 6, 3, 7); wallRect(9, 9, 10, 10); wallRect(19, 13, 20, 14);
+    wallRect(23, 16, 24, 17); wallRect(29, 5, 30, 5);
   } else if (id === 'clothing') {
-    // main room + a fitting bay jutting north
-    fillRect(2, 3, tw - 3, th - 2);                  // main room
-    fillRect(cx - 2, 1, cx + 2, 3);                  // display bay (north)
+    fillRect(2, 3, 30, th - 2);                    // shop floor
+    fillRect(cx - 4, 1, cx + 4, 3);                // north display bay
+    fillRect(1, 8, 5, 13);                         // west fitting alcove
+    wallRect(6, 9, 6, 12);                         // …its screen wall (gap at row 13)
+    wallRect(19, 5, 20, 6);                        // a pier by the loom
+    wallRect(9, 6, 9, 7); wallRect(13, 10, 14, 11); wallRect(22, 13, 23, 14);
+    wallRect(28, 8, 29, 8); wallRect(4, 16, 5, 17);
   } else if (id === 'achievements') {
-    // long gallery (full-height) + two symmetric side niches bumping out the north wall
-    fillRect(3, 2, tw - 4, th - 2);                  // central gallery (connects station row 2 -> exit)
-    fillRect(2, 4, tw - 3, th - 4);                  // widen the mid-section to the side walls
-    fillRect(4, 1, 7, 3); fillRect(tw - 8, 1, tw - 5, 3);   // two north niches (non-rect bumps)
-  } else { // personal — cosy small room, clipped corners
-    fillRect(1, 1, tw - 2, th - 2);
-    // clip the four corners so it isn't a plain box
-    tiles[1 * tw + 1] = WALL; tiles[1 * tw + (tw - 2)] = WALL;
-    tiles[(th - 2) * tw + 1] = WALL; tiles[(th - 2) * tw + (tw - 2)] = WALL;
+    fillRect(2, 3, tw - 3, 16);                    // the long gallery
+    fillRect(5, 1, 9, 3); fillRect(14, 1, 22, 2); fillRect(27, 1, 31, 3);   // three UNEVEN niches
+    fillRect(10, 16, 26, 17);                      // south alcove in front of the doors
+    wallRect(11, 6, 11, 8); wallRect(26, 10, 26, 12);   // two piers, different rows
+    wallRect(6, 10, 6, 11); wallRect(15, 13, 16, 14); wallRect(22, 5, 23, 6);
+    wallRect(31, 7, 32, 8); wallRect(8, 15, 9, 15); wallRect(29, 15, 30, 16);
+  } else { // personal
+    fillRect(2, 2, 28, th - 2);
+    fillRect(11, 1, 19, 2);                        // sleeping alcove bumping north
+    tiles[2 * tw + 2] = WALL; tiles[2 * tw + 28] = WALL;                 // clipped corners
+    tiles[(th - 2) * tw + 2] = WALL; tiles[(th - 2) * tw + 28] = WALL;
+    wallRect(23, 4, 23, 8);                        // study-nook partition (gap at row 9)
+    wallRect(5, 10, 5, 13);                        // pantry partition (gap at row 14)
+    wallRect(9, 8, 10, 8); wallRect(19, 11, 20, 12); wallRect(26, 13, 27, 14);
+    wallRect(3, 5, 3, 6); wallRect(12, 16, 13, 17);
   }
 
-  // --- south doorway = the EXIT, now a 3-tile gap PERFECTLY centred on cx (R20/B2) ---
-  const doorY = th - 1;             // bottom border row
+  // --- south doorway = the EXIT, a 3-tile gap centred on cx ---
+  const doorY = th - 1;
   for (const dx of [-1, 0, 1]) {
-    carve(cx + dx, th - 2);                      // floor just inside the gap
-    tiles[doorY * tw + (cx + dx)] = FLOOR;       // the doorway gap itself
+    carve(cx + dx, th - 2);
+    tiles[doorY * tw + (cx + dx)] = FLOOR;
     setVar(cx + dx, doorY, 0);
   }
 
-  // --- floor texturing: wood/stone base + a carpet runner up the centre (per building) ---
-  const usesWood = id === 'guild' || id === 'clothing' || id === 'personal';
-  for (let y = 0; y < th; y++) for (let x = 0; x < tw; x++) {
-    if (tiles[y * tw + x] !== FLOOR) continue;
-    const base = usesWood ? (rng.chance(0.18) ? 1 : 0) : (rng.chance(0.18) ? 3 : 2);   // 0/1 wood, 2/3 stone
-    floorVar[y * tw + x] = base;
-  }
-  // carpet runner (variants 4/5) up the TRUE central axis (R20/B2: single centred column;
-  // the church gets a grander 3-wide runner befitting the nave)
-  if (id === 'church' || id === 'clothing' || id === 'achievements' || id === 'personal') {
-    const span = id === 'church' ? [-1, 0, 1] : [0];
-    for (let y = 2; y <= th - 2; y++) for (const dx of span) setVar(cx + dx, y, rng.chance(0.3) ? 5 : 4);
-  }
-
-  // --- anchors ---
-  // R20/B2: stationRow 2 -> 3 — the new ruin_st_* centrepieces are 44-56px tall and need the
-  // extra headroom (they rise over the back wall like an altar). Both anchors sit on the TRUE
-  // centre (cx + 0.5)*TS now that widths are odd.
+  // --- anchors (station top-centre, exit just inside the doorway) ---
   const stationRow = 3;
   const rooms = {
     [id]: { col: 0, row: 0, cx: (cx + 0.5) * TS, cy: (stationRow + 0.5) * TS,
@@ -1353,80 +1410,263 @@ export function makeInterior(id) {
     exit: { col: 0, row: 0, cx: (cx + 0.5) * TS, cy: (th - 2 + 0.5) * TS,
       x0: (cx - 6) * TS, y0: (th - 8) * TS, x1: (cx + 6) * TS, y1: th * TS },
   };
-  // make sure station + exit tiles are FLOOR (carve mask might have clipped the very top-centre)
-  carve(cx, stationRow); carve(cx - 1, stationRow); carve(cx + 1, stationRow);
+  // The station triplet, the KEEPER ATRIUM around it, and a walkable spine from it down to
+  // the door are carved LAST, so no partition/pier added above can ever wall in the station,
+  // a keeper NPC (NPC_POS_INT reaches dx ±3 / dy +4) or the way out. This is the structural
+  // guarantee behind hub/lifecycle.js's NPC placement — W4-G's first pass put a blacksmith
+  // pier on the keeper's tile and stood him inside a wall.
+  for (let y = stationRow; y <= stationRow + 4; y++) for (let x = cx - 3; x <= cx + 3; x++) carve(x, y);
+  for (let y = stationRow; y <= th - 2; y++) { carve(cx - 1, y); carve(cx, y); carve(cx + 1, y); }
+
+  // --- floor texturing --------------------------------------------------------
+  // 0/1 wood · 2/3 stone · 4/5 carpet runner · 6 = THIS room's dedicated material.
+  const usesWood = id === 'guild' || id === 'clothing' || id === 'personal';
+  for (let y = 0; y < th; y++) for (let x = 0; x < tw; x++) {
+    if (tiles[y * tw + x] !== FLOOR) continue;
+    floorVar[y * tw + x] = usesWood ? (rng.chance(0.18) ? 1 : 0) : (rng.chance(0.18) ? 3 : 2);
+  }
+  // R28/W4-G: the dedicated material is laid in RAGGED blobs (never a rect, never a per-tile
+  // roll) around the places the room is actually used — the wax field, the drinking end, the
+  // fire's working floor, the cutting floor, the hall's centre, the bed-and-hearth corner.
+  const matBlob = (bx, by, r) => {
+    for (let y = by - r - 1; y <= by + r + 1; y++) for (let x = bx - r - 2; x <= bx + r + 2; x++) {
+      if (x < 0 || y < 0 || x >= tw || y >= th) continue;
+      const wob = ((hash2(x, y) % 128) / 128 - 0.5) * 1.9;           // ragged, uneven edge
+      if (Math.hypot(x - bx, (y - by) * 1.3) + wob > r) continue;
+      setVar(x, y, 6);
+    }
+  };
+  const MAT_BLOBS = {
+    church: [[cx, 6, 5], [cx - 6, 10, 4.5], [cx + 6, 10, 4], [6, 16, 3], [26, 15, 3], [cx, 16, 3.5]],
+    guild: [[8, 14, 5.5], [15, 13, 4.5], [29, 15, 4], [6, 5, 4.5], [24, 4, 5], [18, 9, 4.5], [12, 3, 3.5], [31, 9, 3.5]],
+    blacksmith: [[27, 8, 5.5], [21, 11, 4.5], [7, 4, 4], [10, 12, 4.5], [17, 6, 4], [5, 16, 3.5], [14, 16, 3.5], [30, 12, 3]],
+    clothing: [[11, 12, 4.5], [24, 8, 4.5], [3, 11, 2.5], [7, 5, 3.5], [27, 15, 3], [18, 16, 3]],
+    achievements: [[cx, 9, 6], [8, 13, 4], [30, 6, 4], [7, 5, 3.5], [28, 14, 3.5], [20, 4, 3]],
+    personal: [[8, 6, 4.5], [cx, 11, 4], [25, 7, 3.5], [9, 14, 3.5], [21, 15, 3], [18, 4, 3]],
+  }[id] || [];
+  for (const [bx, by, r] of MAT_BLOBS) matBlob(bx, by, r);
+  // carpet runner up the true central axis (church gets the grander 3-wide nave runner)
+  if (id === 'church' || id === 'clothing' || id === 'achievements' || id === 'personal') {
+    const span = id === 'church' ? [-1, 0, 1] : [0];
+    for (let y = 2; y <= th - 2; y++) for (const dx of span) setVar(cx + dx, y, rng.chance(0.3) ? 5 : 4);
+  }
 
   const D = [];
-  // reserved tiles hub.js needs clear: the station triplet + the 3-wide exit/doorway columns.
-  const reserved = new Set([
-    (stationRow) * tw + cx, (stationRow) * tw + (cx - 1), (stationRow) * tw + (cx + 1),
-    (th - 2) * tw + cx, (th - 2) * tw + (cx - 1), (th - 2) * tw + (cx + 1),
-    (th - 1) * tw + cx, (th - 1) * tw + (cx - 1), (th - 1) * tw + (cx + 1),
-  ]);
-  // B3 walk-out trigger: glowing circle on the inside-door tile (spawn point is one row above it)
+  const decals = [];
+  // reserved tiles: the station triplet, the doorway columns, and the ATRIUM the keeper NPCs
+  // stand in (NPC_POS_INT offsets reach dx ±3 / dy +4 from the station anchor) — nothing may
+  // be dropped there or a keeper ends up inside a prop.
+  const reserved = new Set();
+  const reserveRect = (x0, y0, x1, y1) => { for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) if (x >= 0 && y >= 0 && x < tw && y < th) reserved.add(y * tw + x); };
+  reserveRect(cx - 3, stationRow, cx + 3, stationRow + 4);   // station + keeper atrium (NPC_POS_INT reaches dx ±3 / dy +4)
+  reserveRect(cx - 1, th - 4, cx + 1, th - 1);               // the walk-out corridor
+  // B3 walk-out trigger: glowing circle on the inside-door tile (spawn point is one row above)
   const triggers = [{ tx: cx, ty: th - 2, target: 'town' }];
   D.push({ sprite: 'ruin_doorglow', x: cx * TS, y: (th - 2) * TS, phase: 1 });
-  // FLOOR-guarded tile-offset decor relative to a column/row pair (never on a reserved tile)
   const putXY = (sprite, tx, ty, ox = 0.5, oy = 0.85, phase = 0) => {
     if (tx >= 0 && ty >= 0 && tx < tw && ty < th && tiles[ty * tw + tx] === FLOOR && !reserved.has(ty * tw + tx)) D.push({ sprite, x: (tx + ox) * TS, y: (ty + oy) * TS, phase });
   };
-  // torchpost pairs flank the station (top) and the exit (bottom) — R20/B2: with the odd width
-  // both pairs are now TRUE mirror pairs about the centre column (was cx-3/cx+2 at the door)
-  putXY('ruin_torchpost', cx - 3, stationRow + 1, 0.5, 0.85, 0); putXY('ruin_torchpost', cx + 3, stationRow + 1, 0.5, 0.85, 1);
+  // ceiling-hung FOREGROUND props: no FLOOR test (they hang over whatever is below) and no
+  // collision — world.drawForeground() paints every `rfg_` sprite after the actors.
+  const putFg = (sprite, tx, ty) => D.push({ sprite, x: (tx + 0.5) * TS, y: ty * TS });
+  const putDecal = (sprite, tx, ty, ox = 0.5, oy = 0.5) => {
+    if (tx >= 0 && ty >= 0 && tx < tw && ty < th && tiles[ty * tw + tx] === FLOOR) decals.push({ sprite, x: (tx + ox) * TS, y: (ty + oy) * TS });
+  };
+  // scatter a decal kind through the room's used areas without ever landing on a fixed offset
+  const scatterDecals = (sprite, spots, n) => {
+    for (const [sx, sy, r] of spots) for (let i = 0; i < n; i++) {
+      const h = hash2(sx * 31 + i * 7, sy * 17 + i * 13);
+      const ax = sx + ((h % 200) / 100 - 1) * r, ay = sy + (((h >> 8) % 200) / 100 - 1) * r;
+      putDecal(sprite, Math.round(ax), Math.round(ay), 0.3 + ((h >> 16) % 5) * 0.1, 0.3 + ((h >> 20) % 5) * 0.1);
+    }
+  };
+
+  // R28/W4-G: two SHARED, world-positioned ground breaks laid over the whole room — ash
+  // drift and floor cracks. World coords (not tile art) so they never fall on a grid, and
+  // they are what actually keeps a big room from reading as a bare sheet.
+  const spread = (sprite, every, seed) => {
+    for (let y = 1; y < th - 1; y++) for (let x = 1; x < tw - 1; x++) {
+      if (tiles[y * tw + x] !== FLOOR) continue;
+      const h = hash2(x * 7 + seed, y * 13 + seed);
+      if (h % every) continue;
+      putDecal(sprite, x, y, 0.15 + ((h >> 9) % 7) * 0.11, 0.15 + ((h >> 15) % 7) * 0.11);
+    }
+  };
+  spread('intd_dust', 5, 11);
+  spread('intd_crack', 9, 29);
+
+  // torchposts: still a pair at the door (it reads as a threshold), but the upper pair is gone —
+  // each room's own lighting (focal installation, lanterns, chandelier) carries the top half now.
   putXY('ruin_torchpost', cx - 3, th - 3, 0.5, 0.85, 1); putXY('ruin_torchpost', cx + 3, th - 3, 0.5, 0.85, 0);
 
-  // --- per-building SYMMETRIC reuse-sprite dressing (anchored to columns, mirrored in x).
-  // R19 polish: the building's identity prop (goddess/board/furnace/mannequin/shelf/bed) is the
-  // INTERACTIVE station hub.js places at rooms[id] — never duplicated here as background decor.
-  // R20/B2: dressing swapped to the ruin-flavoured rint_* set (same sizes/anchors as the old
-  // clean town_* props, so positions carry 1:1) and every pair re-audited to mirror about cx.
-  const midRow = Math.floor(th / 2);
+  // --- per-building dressing: focal installation, three narrative objects, foreground
+  //     occluder, reused rint_* filler. Placements are deliberately OFF the mirror axis.
   if (id === 'church') {
-    putXY('rint_candles', cx - 2, stationRow + 1, 0.5, 0.85, 0); putXY('rint_candles', cx + 2, stationRow + 1, 0.5, 0.85, 1);
-    putXY('rint_stained', 3, 6); putXY('rint_stained', tw - 4, 6);
-    putXY('rint_stained', 3, 9); putXY('rint_stained', tw - 4, 9);
-    putXY('rint_arch', 2, midRow); putXY('rint_arch', tw - 3, midRow);
-    putXY('rint_pew', 4, 8); putXY('rint_pew', tw - 5, 8);                                  // transept benches
-    for (const ry of [11, 13]) { putXY('rint_pew', cx - 3, ry); putXY('rint_pew', cx + 3, ry); }   // nave rows flanking the runner
-    putXY('rint_candles', cx - 3, th - 4, 0.5, 0.85, 1); putXY('rint_candles', cx + 3, th - 4, 0.5, 0.85, 0);
+    putXY('rfoc_censer', cx + 4, 9, 0.5, 0.9);                                  // FOCAL: swinging thurible
+    putXY('rnar_ch_offering', cx - 4, 10, 0.5, 0.9);                            // narrative 1
+    putXY('rnar_ch_bell', 6, 17, 0.5, 0.9);                                     // narrative 2 (west chapel)
+    putXY('rnar_ch_scribe', 26, 16, 0.5, 0.9);                                  // narrative 3 (scriptorium)
+    putFg('rfg_ch_chandelier', cx, 5);                                          // FOREGROUND over the crossing
+    putFg('rfg_ch_chandelier', cx + 1, 13);
+    putXY('rint_arch', 11, 7); putXY('rint_arch', 21, 11); putXY('rint_arch', 4, 12);
+    putXY('rint_stained', 2, 8); putXY('rint_stained', 2, 11); putXY('rint_stained', 30, 9);
+    putXY('rint_stained', 30, 12); putXY('rint_stained', 13, 1);
+    for (const [ry, side] of [[13, -1], [15, 1], [16, -1], [18, 1], [19, -1]]) putXY('rint_pew', cx + side * 3, ry);
+    for (const [ry, side] of [[8, -1], [9, 1], [11, -1]]) putXY('rint_pew', cx + side * 6, ry);
+    putXY('rint_candles', cx - 4, 6, 0.5, 0.85, 0); putXY('rint_candles', cx + 2, 10, 0.5, 0.85, 1);
+    putXY('rint_candles', 5, 14, 0.5, 0.85, 1); putXY('rint_candles', 27, 14, 0.5, 0.85, 0);
+    putXY('rint_pillar', 9, 12); putXY('rint_pillar', 24, 8); putXY('rint_pillar', 28, 12);
+    putXY('rint_bookshelf', 28, 16); putXY('rint_crate', 8, 17);
+    putXY('rint_pillar', 6, 8); putXY('rint_pillar', 13, 17); putXY('rint_pillar', 19, 17); putXY('rint_pillar', 30, 15);
+    putXY('rint_candles', 9, 16, 0.5, 0.85, 1); putXY('rint_candles', 24, 16, 0.5, 0.85, 0);
+    putXY('rint_candles', 3, 8, 0.5, 0.85, 0); putXY('rint_candles', 29, 11, 0.5, 0.85, 1);
+    for (const [ry, side] of [[10, -1], [12, 1], [17, 1]]) putXY('rint_pew', cx + side * 3, ry);
+    putXY('rint_arch', 28, 7); putXY('rint_bench', 5, 17); putXY('rint_bench', 27, 13);
+    putXY('rint_crate', 24, 17); putXY('rint_barrel', 29, 16); putXY('rint_barrel', 4, 14);
+    putXY('rint_desk', 25, 14, 0.5, 0.9);
+    scatterDecals('intd_wax', [[cx, 6, 3], [cx - 4, 11, 3], [6, 15, 2], [26, 15, 2]], 3);
   } else if (id === 'guild') {
-    putXY('rint_desk', cx - 3, stationRow + 2, 0.5, 0.9); putXY('rint_desk', cx + 3, stationRow + 2, 0.5, 0.9);   // twin reception desks
-    putXY('rint_lantern', 3, 2, 0.5, 0.85, 0); putXY('rint_lantern', tw - 4, 2, 0.5, 0.85, 1);
-    putXY('rint_lantern', 3, midRow, 0.5, 0.85, 1); putXY('rint_lantern', tw - 4, midRow, 0.5, 0.85, 0);
-    putXY('rint_bench', cx - 5, 6); putXY('rint_bench', cx + 5, 6);                          // waiting benches
-    putXY('ruin_banner', 5, 1, 0.5, 0.9, 0); putXY('ruin_banner', tw - 6, 1, 0.5, 0.9, 1);   // tattered guild colours
-    putXY('rint_crate', 3, th - 3); putXY('rint_crate', 4, th - 4); putXY('rint_barrel', 3, th - 5);
-    putXY('rint_crate', tw - 3, 8); putXY('rint_barrel', tw - 3, 9);                          // stores by the east wall
+    putXY('rfoc_stewpot', 7, 15, 0.5, 0.9);                                     // FOCAL: the hall cauldron
+    putXY('rnar_gu_table', 13, 14, 0.5, 0.9);                                   // narrative 1
+    putXY('rnar_gu_maptable', 28, 5, 0.5, 0.9);                                 // narrative 2
+    putXY('rnar_gu_trophy', 31, 3, 0.5, 0.95);                                  // narrative 3
+    putFg('rfg_gu_beam', cx - 3, 7);                                            // FOREGROUND: fallen roof beam
+    putXY('rint_desk', cx - 5, 5, 0.5, 0.9); putXY('rint_desk', cx + 6, 6, 0.5, 0.9);
+    putXY('rint_bench', 4, 8); putXY('rint_bench', 5, 10); putXY('rint_bench', 17, 9);
+    putXY('rint_bench', 11, 17); putXY('rint_bench', 3, 13);
+    putXY('rint_lantern', 3, 2, 0.5, 0.85, 0); putXY('rint_lantern', 30, 2, 0.5, 0.85, 1);
+    putXY('rint_lantern', 21, 8, 0.5, 0.85, 1);
+    putXY('ruin_banner', 6, 1, 0.5, 0.9, 0); putXY('ruin_banner', 24, 1, 0.5, 0.9, 1);
+    putXY('ruin_banner', 31, 1, 0.5, 0.9, 0);
+    putXY('rint_crate', 26, 13); putXY('rint_crate', 27, 15); putXY('rint_barrel', 30, 13);
+    putXY('rint_barrel', 32, 16); putXY('rint_crate', 31, 17); putXY('rint_barrel', 2, 16);
+    putXY('rint_bookshelf', 33, 3); putXY('rint_trophyshelf', 2, 3, 0.5, 0.9);
+    putXY('rint_pillar', 12, 9); putXY('rint_pillar', 23, 4);
+    putXY('rint_bench', 8, 7); putXY('rint_barrel', 14, 10); putXY('rint_crate', 19, 12); putXY('rint_bench', 6, 16);
+    putXY('rint_crate', 2, 12); putXY('rint_crate', 4, 15); putXY('rint_crate', 18, 16); putXY('rint_crate', 25, 16);
+    putXY('rint_barrel', 3, 17); putXY('rint_barrel', 16, 12); putXY('rint_barrel', 31, 14);
+    putXY('rint_desk', 26, 9, 0.5, 0.9); putXY('rint_bookshelf', 2, 6);
+    putXY('rint_lantern', 12, 3, 0.5, 0.85, 1); putXY('rint_lantern', 27, 11, 0.5, 0.85, 0);
+    putXY('rint_pillar', 5, 3); putXY('rint_pillar', 19, 2); putXY('rint_pillar', 32, 9);
+    putXY('ruin_banner', 11, 1, 0.5, 0.9, 1);
+    putXY('rint_bench', 15, 9); putXY('rint_trophyshelf', 12, 12, 0.5, 0.9); putXY('rint_desk', 18, 11, 0.5, 0.9);
+    putXY('rint_pillar', 14, 8); putXY('rint_pillar', 21, 6); putXY('rint_crate', 12, 8);
+    putXY('rint_barrel', 20, 10); putXY('rint_crate', 22, 12); putXY('rint_bookshelf', 24, 8);
+    putXY('rint_barrel', 9, 12); putXY('rint_crate', 5, 12); putXY('rint_lantern', 17, 14, 0.5, 0.85, 0);
+    putXY('rint_weaponrack', 33, 8); putXY('rint_plant', 2, 2); putXY('rint_plant', 19, 16);
+    scatterDecals('intd_ale', [[10, 14, 3], [7, 16, 2], [16, 12, 3], [24, 5, 3]], 3);
   } else if (id === 'blacksmith') {
-    putXY('rint_weaponrack', tw - 3, 5); putXY('rint_grindstone', tw - 3, 8);                // forge-alcove kit
-    putXY('rint_weaponrack', 2, 5); putXY('rint_weaponrack', 2, 8);
-    putXY('rint_crate', 5, th - 3); putXY('rint_crate', tw - 6, th - 3);
-    putXY('rint_barrel', 2, th - 3); putXY('rint_barrel', 3, th - 4);
+    putXY('rfoc_forgefire', 28, 8, 0.5, 0.95);                                  // FOCAL: the fire is in
+    putXY('rnar_bs_anvil', 22, 11, 0.5, 0.9);                                   // narrative 1
+    putXY('rnar_bs_quench', 30, 12, 0.5, 0.9);                                  // narrative 2
+    putXY('rnar_bs_stock', 5, 5, 0.5, 0.9);                                     // narrative 3
+    putFg('rfg_bs_hood', 28, 3);                                                // FOREGROUND: smoke hood
+    putXY('rint_weaponrack', 2, 6); putXY('rint_weaponrack', 2, 10); putXY('rint_weaponrack', 2, 14);
+    putXY('rint_weaponrack', 10, 3); putXY('rint_weaponrack', 25, 5);
+    putXY('rint_grindstone', 19, 15); putXY('rint_grindstone', 26, 12);
+    putXY('rint_crate', 8, 16); putXY('rint_crate', 9, 14); putXY('rint_crate', 15, 16);
+    putXY('rint_barrel', 7, 17); putXY('rint_barrel', 12, 14); putXY('rint_barrel', 22, 16);
+    putXY('rint_lantern', 21, 4, 0.5, 0.85, 0); putXY('rint_lantern', 4, 9, 0.5, 0.85, 1);
+    putXY('rint_pillar', 12, 10); putXY('rint_pillar', 20, 6);
+    putXY('rint_bench', 6, 8); putXY('rint_desk', 15, 12, 0.5, 0.9);
+    putXY('rint_crate', 3, 4); putXY('rint_crate', 11, 6); putXY('rint_crate', 18, 3); putXY('rint_crate', 21, 14);
+    putXY('rint_crate', 30, 16); putXY('rint_barrel', 5, 10); putXY('rint_barrel', 16, 9);
+    putXY('rint_barrel', 24, 15); putXY('rint_barrel', 31, 10);
+    putXY('rint_weaponrack', 8, 12); putXY('rint_weaponrack', 15, 4);
+    putXY('rint_grindstone', 11, 16); putXY('rint_bench', 13, 12); putXY('rint_bench', 3, 16);
+    putXY('rint_pillar', 18, 9); putXY('rint_pillar', 8, 6); putXY('rint_bookshelf', 23, 2);
+    putXY('rint_lantern', 12, 17, 0.5, 0.85, 1); putXY('rint_lantern', 29, 4, 0.5, 0.85, 0);
+    putXY('rint_crate', 14, 13); putXY('rint_barrel', 10, 15); putXY('rint_bench', 20, 12);
+    putXY('rint_pillar', 5, 13); putXY('rint_weaponrack', 22, 4); putXY('rint_crate', 17, 17);
+    scatterDecals('intd_soot', [[27, 10, 3], [22, 12, 3], [18, 15, 2], [9, 5, 3]], 3);
   } else if (id === 'clothing') {
-    putXY('rint_mannequin', cx - 3, stationRow, 0.5, 0.9); putXY('rint_mannequin', cx + 3, stationRow, 0.5, 0.9);   // display trio with the big station
-    putXY('rint_rack', 4, 6); putXY('rint_rack', tw - 5, 6);
-    putXY('rint_rack', 4, 9); putXY('rint_rack', tw - 5, 9);
-    putXY('rint_mirror', 3, th - 4); putXY('rint_mirror', tw - 4, th - 4);
-    putXY('rint_lantern', 5, 4, 0.5, 0.85, 0); putXY('rint_lantern', tw - 6, 4, 0.5, 0.85, 1);
+    putXY('rfoc_loom', 25, 8, 0.5, 0.95);                                       // FOCAL: the loom is threaded
+    putXY('rnar_cl_bolts', 5, 6, 0.5, 0.9);                                     // narrative 1
+    putXY('rnar_cl_sewing', 11, 13, 0.5, 0.9);                                  // narrative 2
+    putXY('rnar_cl_dye', 29, 14, 0.5, 0.9);                                     // narrative 3
+    putFg('rfg_cl_line', cx - 2, 6);                                            // FOREGROUND: drying line
+    putFg('rfg_cl_line', cx + 5, 12);
+    putXY('rint_rack', 8, 8); putXY('rint_rack', 8, 11); putXY('rint_rack', 21, 12);
+    putXY('rint_rack', 15, 16); putXY('rint_rack', 27, 4);
+    putXY('rint_mannequin', cx - 5, 4, 0.5, 0.9); putXY('rint_mannequin', cx + 6, 3, 0.5, 0.9);
+    putXY('rint_mannequin', 19, 15, 0.5, 0.9);
+    putXY('rint_mirror', 2, 10); putXY('rint_mirror', 4, 13); putXY('rint_mirror', 24, 16);
+    putXY('rint_lantern', 3, 4, 0.5, 0.85, 0); putXY('rint_lantern', 30, 6, 0.5, 0.85, 1);
+    putXY('rint_crate', 30, 9); putXY('rint_barrel', 29, 11); putXY('rint_bookshelf', 2, 16);
+    putXY('rint_plant', 22, 4); putXY('rint_chest2', 7, 16);
+    putXY('rint_rack', 12, 5); putXY('rint_rack', 18, 9); putXY('rint_rack', 25, 12); putXY('rint_rack', 5, 15);
+    putXY('rint_mannequin', 9, 16, 0.5, 0.9); putXY('rint_mannequin', 28, 6, 0.5, 0.9);
+    putXY('rint_mirror', 12, 17); putXY('rint_mirror', 30, 12);
+    putXY('rint_crate', 2, 5); putXY('rint_crate', 16, 4); putXY('rint_crate', 26, 17);
+    putXY('rint_barrel', 3, 15); putXY('rint_barrel', 20, 17);
+    putXY('rint_bookshelf', 30, 3); putXY('rint_plant', 7, 13); putXY('rint_plant', 31, 16);
+    putXY('rint_lantern', 11, 9, 0.5, 0.85, 1); putXY('rint_lantern', 26, 10, 0.5, 0.85, 0);
+    putXY('rint_chest2', 22, 7);
+    scatterDecals('intd_thread', [[11, 12, 3], [24, 9, 3], [16, 14, 2], [6, 6, 2]], 3);
   } else if (id === 'achievements') {
-    putXY('rint_trophyshelf', 5, 2, 0.5, 0.9); putXY('rint_trophyshelf', tw - 6, 2, 0.5, 0.9);    // niche shelves
-    for (const rx of [5, 9, tw - 10, tw - 6]) { putXY('rint_pillar', rx, 4); putXY('rint_pillar', rx, 10); }   // colonnade (mirror pairs 5↔tw-6, 9↔tw-10)
-    putXY('rint_banner_gold', 3, 5); putXY('rint_banner_gold', tw - 4, 5);
-    putXY('rint_banner_gold', 3, 9); putXY('rint_banner_gold', tw - 4, 9);
-  } else { // personal — the bed IS the interactive station; dress a cosy room around it
-    putXY('rint_rug', cx, 6, 0.5, 0.6);
-    putXY('rint_bookshelf', 2, 3); putXY('rint_plant', tw - 3, 3);
-    putXY('rint_chest2', tw - 3, th - 3); putXY('rint_lamp2', 2, th - 4, 0.5, 0.85, 0);
-    putXY('rint_barrel', 2, th - 3); putXY('rint_plant', 2, 6);
+    putXY('rfoc_restore', 8, 13, 0.5, 0.9);                                     // FOCAL: the curator's bench
+    putXY('rnar_ac_plinth', 25, 7, 0.5, 0.95);                                  // narrative 1
+    putXY('rnar_ac_roll', 31, 11, 0.5, 0.95);                                   // narrative 2
+    putXY('rnar_ac_relic', 12, 8, 0.5, 0.9);                                    // narrative 3
+    putFg('rfg_ac_banner', cx - 7, 3);                                          // FOREGROUND: honour banners
+    putFg('rfg_ac_banner', cx + 5, 9);
+    putXY('rint_trophyshelf', 6, 3, 0.5, 0.9); putXY('rint_trophyshelf', 29, 3, 0.5, 0.9);
+    putXY('rint_trophyshelf', 20, 2, 0.5, 0.9); putXY('rint_trophyshelf', 34, 8, 0.5, 0.9);
+    for (const [px2, py2] of [[6, 7], [11, 12], [16, 6], [24, 12], [30, 7], [33, 13]]) putXY('rint_pillar', px2, py2);
+    putXY('rint_banner_gold', 3, 6); putXY('rint_banner_gold', 3, 12); putXY('rint_banner_gold', 34, 5);
+    putXY('rint_banner_gold', 22, 16);
+    putXY('rint_bookshelf', 4, 16); putXY('rint_crate', 9, 16); putXY('rint_pew', 28, 15);
+    putXY('rint_candles', 26, 4, 0.5, 0.85, 1); putXY('rint_candles', 10, 5, 0.5, 0.85, 0);
+    for (const [px3, py3] of [[9, 9], [14, 14], [20, 9], [28, 5], [35, 11]]) putXY('rint_pillar', px3, py3);
+    putXY('rint_trophyshelf', 14, 16, 0.5, 0.9); putXY('rint_trophyshelf', 3, 9, 0.5, 0.9);
+    putXY('rint_banner_gold', 10, 4); putXY('rint_banner_gold', 27, 13); putXY('rint_banner_gold', 17, 4);
+    putXY('rint_pew', 7, 15); putXY('rint_pew', 20, 14); putXY('rint_pew', 31, 15);
+    putXY('rint_candles', 14, 8, 0.5, 0.85, 1); putXY('rint_candles', 31, 4, 0.5, 0.85, 0);
+    putXY('rint_candles', 5, 15, 0.5, 0.85, 1);
+    putXY('rint_crate', 33, 16); putXY('rint_crate', 3, 4); putXY('rint_bookshelf', 24, 16);
+    putXY('rint_bench', 12, 4); putXY('rint_bench', 29, 9);
+    scatterDecals('intd_plaque', [[cx, 9, 4], [10, 12, 3], [28, 8, 3], [18, 5, 3]], 3);
+  } else { // personal
+    putXY('rfoc_hearth', 8, 6, 0.5, 0.95);                                      // FOCAL: your own fire, lit
+    putXY('rnar_pe_table', 11, 12, 0.5, 0.9);                                   // narrative 1
+    putXY('rnar_pe_wash', 26, 7, 0.5, 0.9);                                     // narrative 2
+    putXY('rnar_pe_kit', 21, 16, 0.5, 0.9);                                     // narrative 3
+    putFg('rfg_pe_laundry', cx + 4, 9);                                         // FOREGROUND: the washing line
+    putXY('rint_rug', cx, 9, 0.5, 0.6);
+    putXY('rint_bookshelf', 27, 5); putXY('rint_bookshelf', 3, 4);
+    putXY('rint_plant', 3, 8); putXY('rint_plant', 28, 16); putXY('rint_plant', 20, 3);
+    putXY('rint_chest2', 19, 4); putXY('rint_chest2', 4, 16);
+    putXY('rint_lamp2', 12, 16, 0.5, 0.85, 0); putXY('rint_lamp2', 24, 11, 0.5, 0.85, 1);
+    putXY('rint_barrel', 3, 12); putXY('rint_crate', 2, 14); putXY('rint_barrel', 4, 11);
+    putXY('rint_bench', 16, 14); putXY('rint_mirror', 27, 9);
+    putXY('rint_candles', 7, 15, 0.5, 0.85, 0);
+    putXY('rint_crate', 7, 16); putXY('rint_crate', 26, 17); putXY('rint_barrel', 2, 7); putXY('rint_barrel', 24, 16);
+    putXY('rint_plant', 14, 3); putXY('rint_plant', 9, 4); putXY('rint_bookshelf', 26, 2);
+    putXY('rint_chest2', 13, 15); putXY('rint_chest2', 28, 4);
+    putXY('rint_bench', 6, 12); putXY('rint_bench', 20, 8);
+    putXY('rint_lamp2', 17, 6, 0.5, 0.85, 1); putXY('rint_lamp2', 4, 15, 0.5, 0.85, 0);
+    putXY('rint_mirror', 10, 16); putXY('rint_rug', 21, 13, 0.5, 0.6);
+    putXY('rint_candles', 25, 12, 0.5, 0.85, 1); putXY('rint_candles', 3, 10, 0.5, 0.85, 0);
+    putXY('rint_desk', 26, 11, 0.5, 0.9);
+    scatterDecals('intd_crumbs', [[11, 13, 3], [cx, 10, 3], [22, 15, 3], [7, 7, 2]], 3);
     // NOTE: hub.injectRoomDecor() adds the gold-sink decor on top (anchored mid-room, FLOOR-guarded).
   }
 
   // R20/B2 (player problem 7): furniture you shouldn't walk through gets player-only collision
   // (same demote-on-disconnect safety as makeCamp: station↔exit must stay reachable).
+  // R28/W4-G: the focal installations and the narrative objects join the table; the ceiling-hung
+  // `rfg_*` occluders deliberately do NOT (you walk under them).
   const SOLID_INT = {
     rint_pew: 1, rint_desk: 2, rint_bench: 1, rint_rack: 2, rint_mirror: 1, rint_weaponrack: 1,
     rint_grindstone: 1, rint_trophyshelf: 2, rint_bookshelf: 1, rint_crate: 1, rint_barrel: 1,
     rint_mannequin: 1, rint_pillar: 1, rint_plant: 1, rint_chest2: 1,
+    rfoc_censer: 1, rfoc_stewpot: 2, rfoc_forgefire: 2, rfoc_loom: 2, rfoc_restore: 2, rfoc_hearth: 1,
+    rnar_ch_scribe: 2, rnar_ch_offering: 1, rnar_ch_bell: 2,
+    rnar_gu_table: 2, rnar_gu_maptable: 2, rnar_gu_trophy: 1,
+    rnar_bs_anvil: 1, rnar_bs_quench: 1, rnar_bs_stock: 2,
+    rnar_cl_bolts: 1, rnar_cl_sewing: 2, rnar_cl_dye: 1,
+    rnar_ac_plinth: 1, rnar_ac_roll: 1, rnar_ac_relic: 1,
+    rnar_pe_table: 2, rnar_pe_wash: 1, rnar_pe_kit: 1,
   };
   for (const d of D) {
     if (!SOLID_INT[d.sprite]) continue;
@@ -1434,7 +1674,7 @@ export function makeInterior(id) {
     if (reserved.has(ty * tw + tx)) continue;
     d.solid = SOLID_INT[d.sprite];
   }
-  for (let guard = 0; guard < 16; guard++) {
+  for (let guard = 0; guard < 24; guard++) {
     const blk = new Uint8Array(tw * th);
     for (const d of D) if (d.solid) {
       const tx = Math.floor(d.x / TS), ty = Math.floor(d.y / TS);
@@ -1453,11 +1693,20 @@ export function makeInterior(id) {
     best.solid = 0;
   }
 
+  // floor slot 6 = this room's DEDICATED material (ART_SPEC 7); slots 0-5 unchanged.
+  const MAT_TILE = {
+    church: 'intf_church', guild: 'intf_guild', blacksmith: 'intf_forge',
+    clothing: 'intf_cloth', achievements: 'intf_hall', personal: 'intf_home',
+  }[id] || 'intf_hall';
   const tileset = {
-    floor: ['int_wood', 'int_wood2', 'int_stone', 'int_stone2', 'int_carpet', 'int_carpet2'],
+    floor: ['int_wood', 'int_wood2', 'int_stone', 'int_stone2', 'int_carpet', 'int_carpet2', MAT_TILE],
     wall: 'int_wall', wallTop: 'int_wall_top',
     wallFace: 'int_wall_face', wallCap: 'int_wall_cap',   // R20/B2: 2.5D faces indoors too
     voidTile: 'ruin_void',
+    // R28/W4-G (ART_SPEC 7): the out-of-bounds band gets two darkness steps and ruin
+    // silhouettes instead of one flat dimmed wall tile. Only reachable at zoom levels where
+    // the viewport out-runs the room (the hub camera clamps otherwise).
+    oobTiles: ['int_oob_a', 'int_oob_b', 'int_oob_c'],
   };
-  return { tw, th, tiles, floorVar, decor: D, rooms, tileset, triggers };
+  return { tw, th, tiles, floorVar, decor: D, decals, rooms, tileset, triggers };
 }

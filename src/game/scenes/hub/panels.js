@@ -164,9 +164,10 @@ export const panelsMixin = {
     // R19: the personal room is its own interior area now — only inject the gold-sink decor there
     if (this.area !== 'personal' || !this.rooms.personal) return;
     // R19: the gold-sink offsets (dx -6..+6, dy -2..+4) were authored around the old room CENTRE —
-    // anchor them mid-room (row ~5.5 of the now-17×13 R20 interior; cx is the true centre column),
-    // not at the top-centre station anchor. Every placement below stays FLOOR-guarded.
-    const anchor = { cx: this.rooms.personal.cx, cy: 5.5 * TS };
+    // anchor them mid-room, not at the top-centre station anchor. R28/W4-G: the room grew to
+    // 31×19, so the anchor row is derived from the live map height instead of the old hard-coded
+    // 5.5 (which now sits up in the sleeping alcove). Every placement below stays FLOOR-guarded.
+    const anchor = { cx: this.rooms.personal.cx, cy: ((this.world.th || 13) / 2 - 1.5) * TS };
     for (const dd of placedDecor(META, anchor)) {
       const tx = Math.floor(dd.x / TS), ty = Math.floor(dd.y / TS);
       if (this.world.inBounds(tx, ty) && this.world.tileAt(tx, ty) === 0 /* FLOOR */) { dd._room = true; this.world.decor.push(dd); }

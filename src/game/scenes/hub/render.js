@@ -78,6 +78,10 @@ export const renderMixin = {
       const pp = petById(META.pet), psp2 = pp && getSprite(pp.sprite);
       if (psp2 && !psp2.missing) { drawShadow(this.petState.x, this.petState.y, 4); drawSprite(frameAt(psp2, this.petState.t), this.petState.x, this.petState.y + (this.petState.bob || 0), { ax: psp2.ax, ay: psp2.ay, flipX: h.facing < 0 }); }
     }
+    // R28/W4-G (ART_SPEC 7): the FOREGROUND pass runs here, not inside world.draw(), because
+    // the hub draws its own avatars after it — this is what puts the chandeliers / roof beam /
+    // smoke hood / drying lines in FRONT of the hero so the room has a near plane.
+    this.world.drawForeground();
     // labels
     for (const s of this.stations) {
       // R19: door-stations have no sprite — anchor their label above the door anchor itself

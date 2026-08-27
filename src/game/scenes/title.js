@@ -31,7 +31,10 @@ const SQUAD = [
   { sprite: 'char_h4_gravekeeper', rx: 0.272, ry: 0.702, s: 2.4, ph: 9 },
   // mid rank
   { sprite: 'char_h4_paladin', rx: 0.092, ry: 0.778, s: 3.2, ph: 1 },
-  { sprite: 'char_h4_starcaller', rx: 0.300, ry: 0.772, s: 3.0, ph: 4 },
+  // R28/W4-H: was rx 0.300/ry 0.772 — nearly coincident with bladedancer's rx 0.292,
+  // and her foot-line landed on bladedancer's shoulder (read as "standing on her head").
+  // Pulled back onto the ridge (higher/further) so the two ranks stay visually separate.
+  { sprite: 'char_h4_starcaller', rx: 0.320, ry: 0.740, s: 3.0, ph: 4 },
   { sprite: 'char_h3_dragoon', rx: 0.372, ry: 0.784, s: 3.1, ph: 3 },
   // front rank — the vanguard, closest to the camera
   { sprite: 'player', rx: 0.172, ry: 0.856, s: 4.3, ph: 0, lead: true },
@@ -371,7 +374,14 @@ export const titleScene = {
       const qx = W * q.rx, qy = H * q.ry + bob;
       ctx.fillStyle = 'rgba(0,0,0,0.45)';
       ctx.beginPath(); ctx.ellipse(qx, H * q.ry + 1 * S, sp.w * sc * 0.34, sp.w * sc * 0.11, 0, 0, Math.PI * 2); ctx.fill();
-      if (q.lead) {                                                   // the player's avatar leads the charge
+      // R28/W4-H: unified moonlight rim — a faint cool wash offset to the upper-left of
+      // every squad member (matches the moon's screen position and the ridge rim-stroke
+      // in the ground pass above), so the whole ridge reads as one consistently-lit scene
+      // instead of only the lead getting a glow.
+      const rim = ctx.createRadialGradient(qx - sp.w * sc * 0.30, qy - sp.h * sc * 0.85, 0, qx - sp.w * sc * 0.30, qy - sp.h * sc * 0.85, sp.h * sc * 0.6);
+      rim.addColorStop(0, withAlpha('#eaf6ff', 0.14)); rim.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = rim; ctx.fillRect(qx - sp.w * sc, qy - sp.h * sc * 1.5, sp.w * sc * 2, sp.h * sc * 1.6);
+      if (q.lead) {                                                   // the player's avatar ALSO gets the soul-glow accent
         const lg = ctx.createRadialGradient(qx, qy - sp.h * sc * 0.45, 0, qx, qy - sp.h * sc * 0.45, sp.h * sc * 0.9);
         lg.addColorStop(0, withAlpha(P.shard, 0.16)); lg.addColorStop(1, 'rgba(0,0,0,0)');
         ctx.fillStyle = lg; ctx.fillRect(qx - sp.h * sc, qy - sp.h * sc * 1.4, sp.h * sc * 2, sp.h * sc * 1.8);
@@ -484,9 +494,15 @@ export const titleScene = {
     ctx.restore();
     uiText('S O U L S H A R D   H U N T E R', cx, ry2 + (compact ? 11 : 15) * S, { size: (compact ? UI.FONT_CAPTION : 12.5) * S, align: 'center', color: withAlpha('#d8c08a', 0.9), weight: UI.WEIGHT_HEADING });
   },
+  // R28/W4-H: footer stack anchored from the BOTTOM safe-area line (95% — ART-12 flagged the
+  // old fixed H*0.97/H*0.93 fractions as encroaching the 5% safe margin at constrained-height
+  // viewports, e.g. the 2560×1374 QHD case). hintY is the lowest line; everything else stacks
+  // upward from it so the whole footer scales together instead of drifting per-viewport.
+  footerHintY() { return view.H * 0.95; },
   notesBtn() {   // R20.1: parked at the bottom, just above the 金庫/最高威脅 footer line
     const S = this.menuScale(); const w = 180 * S, h = 28 * S;
-    return { x: view.W / 2 - w / 2, y: view.H * 0.93 - 46 * S, w, h };
+    const goldY = this.footerHintY() - 20 * S, notesBottomY = goldY - 14 * S;
+    return { x: view.W / 2 - w / 2, y: notesBottomY - h, w, h };
   },
   // very small CJK-aware wrap that draws + returns line count
   wrapNote(str, x, y, maxw, size) {
@@ -635,8 +651,9 @@ export const titleScene = {
     uiRect(nb.x, nb.y, nb.w, nb.h, withAlpha(nhov ? '#33251a' : '#171225', 0.92), { radius: 7 * S, stroke: nhov ? P.goldL : withAlpha(P.goldL, 0.45), lw: nhov ? 2.5 : 1.5 });
     uiText('📜 更新日誌 · ' + GAME_VERSION, nb.x + nb.w / 2, nb.y + nb.h / 2 + 1 * S, { size: 12 * S, align: 'center', baseline: 'middle', color: nhov ? '#fff' : P.goldL, weight: UI.WEIGHT_HEADING });
     if (this.mobileHint) uiText('📱 目前建議使用實體鍵盤遊玩　·　完整觸控操作尚未支援', view.W / 2, nb.y - 10 * S, { size: 11 * S, align: 'center', color: withAlpha(P.goldL, 0.9) });   // R21.8 hint; R26/B3: anchored above the notes button (H*0.885 landed inside it and the two overlapped)
-    uiText('金庫 ' + Math.round(META.gold || 0) + '　·　最高威脅 ' + (META.stats.bestStage || 0) + ' 級　·　最高分 ' + (META.stats.bestScore || 0), view.W / 2, view.H * 0.93, { size: 12 * S, align: 'center', color: P.gray3 });   // R17/2.1:「金庫」already labels it — no broken 🪙 glyph
-    uiText('空白鍵 快速進入上次存檔　·　Esc 設定', view.W / 2, view.H * 0.97, { size: 11 * S, align: 'center', color: withAlpha(P.gray2, 0.8) });
+    const hintY = this.footerHintY(), goldY = hintY - 20 * S;   // R28/W4-H: bottom-anchored so both lines keep a ≥5% safe-area margin at every viewport (ART-12)
+    uiText('金庫 ' + Math.round(META.gold || 0) + '　·　最高威脅 ' + (META.stats.bestStage || 0) + ' 級　·　最高分 ' + (META.stats.bestScore || 0), view.W / 2, goldY, { size: 12 * S, align: 'center', color: P.gray3 });   // R17/2.1:「金庫」already labels it — no broken 🪙 glyph
+    uiText('空白鍵 快速進入上次存檔　·　Esc 設定', view.W / 2, hintY, { size: 11 * S, align: 'center', color: withAlpha(P.gray2, 0.8) });
   },
 
   drawSlots(S) {

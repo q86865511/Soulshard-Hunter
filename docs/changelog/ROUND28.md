@@ -291,3 +291,92 @@ W2-D 的機制層原封不動:在 `biomes.js` 的 `WALL_VARIANTS` 補一組資�
 - **def/stats 零變動**:grep 確認本批修改的 6 個檔案中 `Enemies.register`/
   `Characters.register`/`registerHeroBody` 呼叫本體與其欄位皆未被改動,僅
   `defineAnim`/`drawXxx` 內部繪製與 `heroes.js` 各 body 函式尾端有新增行。
+
+## W4-G 室內空間與敘事密度改造(ART-07)
+
+依 ART_SPEC 7 重做六個 hub 室內。審核證據(`docs/reviews/art-audit-2026-08-26/contact-sheets/
+hub-interiors.png`)的病徵是「對稱、空曠、鏡像擺設、下半畫面大片虛空」;架構師前置抽查定位
+根因為**房間比視野小**——SPEC 尺寸 21×18…17×13,而 1280×720@zoom3 可視 26.7×15 tile,
+六間全部窄於視野、四間矮於視野,且 hub 相機不 clamp 到地圖邊界,超出處落到 OOB 暗牆帶。
+
+### 1. 尺寸與相機(根因)
+
+- `world.js makeInterior` 的 SPEC 全面放大(仍保奇數寬,`cx` 是真正中央列):
+  church 21×18→**33×21**、guild 23×16→**35×19**、blacksmith 19×14→**33×19**、
+  clothing 19×14→**33×19**、achievements 25×14→**37×19**、personal 17×13→**31×19**。
+  規格下限是 29×17;多出來的邊界是為了涵蓋 2560 寬螢幕的 zoom 5(可視 32×18 tile)。
+- `hub/lifecycle.js` 新增 `aimCamera(snap)`,與 `run/render_hud.js` 的同名方法同一套算式
+  (clamp 到地圖;某軸小於視野時置中該軸),`loadArea` 以 snap 呼叫、`update` 每幀呼叫。
+  **這才是「下半虛空」的真正修法**:英雄出生在出口門上方一列,不 clamp 的話無論房間多大,
+  畫面下緣都會落在地圖外。
+- **契約全部保留**:`rooms{}`(`[id]`+`exit`)、`triggers[]` 走入門磚、`ruin_doorglow` 回程光圈、
+  9 個 room id 語義、decor `solid:1|2` player-only 碰撞與 demote-on-disconnect BFS 保底。
+- 站點三格、**keeper 中庭**(`cx±3` × `stationRow..+4`,涵蓋 `NPC_POS_INT` 的 dx±3/dy+4)
+  與往門口的中軸走道改成**最後才 carve**,任何隔間/柱體都不可能把站點或 keeper 圍死。
+  (第一版就踩到:鐵匠鋪的柱體正好蓋在 keeper 的格子上,NPC 站進牆裡。)
+- `hub/panels.js injectRoomDecor` 的個人房錨點由寫死的 5.5 列改為依 `world.th` 推導。
+
+### 2. OOB 暗牆帶(ART_SPEC 7 第 2 點)
+
+- `drawTiles` 新增 opt-in `tileset.oobTiles`(near→far 堆疊);室內用
+  `int_oob_a/b/c` = 兩階明暗＋廢墟剪影(斷牆殘段/傾倒拱肋/遠處殘柱),hash 選變體所以
+  形狀不會落在格線上。其餘地圖(10 生態＋城鎮)完全走原本的 band/alpha 路徑,零變更。
+- 相機 clamp 之後 1280×720 / 1920×1080 已完全看不到 OOB;此層是給視野大於房間的極端比例
+  用的防線(驗證圖 `w4g-after/oob-band-check.png`,1600×420)。
+
+### 3. 每房四件套(ART_SPEC 7 第 3 點)
+
+新檔 `src/art/town_ruin_interior2.js`(由 `town_ruin_interior.js` import,main.js 不動),
+共 41 個新 sprite:
+
+| 房間 | 焦點設施(動態＋deco 光池) | 3 個專屬敘事物件 | 前景遮擋 | 專屬地面材質 |
+|---|---|---|---|---|
+| 教堂 | `rfoc_censer` 搖擺香爐 | 供品台/裂鐘/抄寫桌 | `rfg_ch_chandelier` ×2 | `intf_church` 燭蠟石板 |
+| 公會 | `rfoc_stewpot` 燉鍋 | 酒桌/戰役地圖桌/獸首戰利品 | `rfg_gu_beam` 斷樑 | `intf_guild` 酒漬木板 |
+| 鐵匠 | `rfoc_forgefire` 爐火＋風箱 | 鐵砧半成品/淬火桶/料堆 | `rfg_bs_hood` 排煙罩 | `intf_forge` 煤灰石 |
+| 衣帽 | `rfoc_loom` 織布機 | 布匹堆/縫紉桌/染缸 | `rfg_cl_line` ×2 晾布繩 | `intf_cloth` 裁縫地板 |
+| 成就 | `rfoc_restore` 修復台 | 遺物展示柱/名錄石板/榮耀遺甲 | `rfg_ac_banner` ×2 | `intf_hall` 大理石 |
+| 小屋 | `rfoc_hearth` 灶火水壺 | 吃一半的餐桌/洗臉架/亂扔裝備 | `rfg_pe_laundry` 晾衣繩 | `intf_home` 磨白木地板 |
+
+- **前景層**:`world.drawForeground()` 依 `rfg_` 前綴(與 `lmk_` 同理由:前綴而非旗標,
+  才能撐過 co-op 線格式)在 actor 之後重畫;hub 的 avatar 是在 `world.draw()` 之後才畫的,
+  所以由 `hub/render.js` 在英雄畫完後呼叫,英雄真的會走到吊燈/斷樑/排煙罩底下。
+- **光池**:6 個焦點設施＋2 個帶明火的前景件在 `game/lights.js LIGHT_BY_SPRITE` 新增條目
+  (純新增 key,既有列未動)。
+- **地面 decal**:`makeInterior` 開始回傳 `decals`(`world.loadMap` 早就支援)。共用的
+  `intd_dust`/`intd_crack` 全房散佈＋每房專屬 `intd_wax|ale|soot|thread|plaque|crumbs`。
+
+### 4. R26 鐵律的一次現場複習
+
+第一版把蠟油池、酒漬環、黃銅飾帶、拼布地毯直接畫進 `intf_*` **地磚**裡,截圖一出來就是
+整片規律重複的網格——地磚沒有世界座標,任何固定偏移的圖形一鋪就成紋。修法是把
+**形狀全部搬到世界座標的 `intd_*` decal**,地磚只留基底明度/色相＋細顆粒(speckle)。
+`town_ruin_interior2.js` 第 1 節開頭已把這條寫成註解留給下一個人。
+
+### 5. 驗證
+
+- **smoke 59/59**(:5173 被同工作樹的並行 agent 佔用,以 port-shifted 副本跑
+  `tools/_wf_serve.mjs` @5199,跑完刪除副本;git status 確認 `test/` 乾淨)。
+- **功能回歸**(`scratchpad/doorloop.mjs`,由城鎮踩門磚進出六棟各一次):六棟
+  `entered==target`、`rooms` 契約完整、`stations=[panel,exit]`、keeper NPC 到齊、
+  面板可開、踩室內光圈 `backTo==town` 並回到該建築門廊;**站點與每個 NPC 都通過
+  「由出口 BFS(扣掉 solid decor)可達」檢查**;`__GAME_ERROR__` 為 null。
+- **截圖**:`docs/reviews/art-improve-2026-08/w4g-after/interior-<area>-1280x720.png`
+  六張(每張玩家都在房內)＋`interior-town-1280x720.png`(相機 clamp 對城鎮無回歸)
+  ＋`oob-band-check.png`。
+- **量測**(自製探針):裸地板佔比 church 30% / guild 37% / blacksmith 31% /
+  clothing 39% / achievements 40% / personal 38%,全部 ≤40%;鏡像擺設佔比
+  0–16%,全部遠低於 40%。
+
+## W4-H 標題拋光(ART-12)＋DOM chrome 統一(ART-08)
+
+- 標題:修 starcaller/bladedancer 重疊、九人統一左上 rim light、底部資訊列改安全區錨定
+  (`footerHintY()`,四解析度皆在 5% safe area);塔/Boss/月亮/直式選單構圖零改動。
+- DOM:index.html 新增 `:root` chrome token 表(56 行),net/ui.js 與 social.js 兩份近親 CSS
+  改吃同一份變數(邊框 2px、圓角 10/7px、字級 22/16/13/10.5);focus-visible/disabled/error
+  四態統一;emoji 全數換 monochrome inline-SVG(admin 依審核 2.3 節不在範圍)。
+- 驗證:smoke 59/59;主迴圈以瀏覽器實測登入與好友面板 computed style 一致
+  (border 2px/radius 10px/btn 7px/font 13px)、`hasEmoji=false`、SVG 圖示存在;
+  標題四解析度截圖 docs/reviews/art-improve-2026-08/w4h-after/。
+- 誠實記錄:子代理環境無法合成瀏覽器畫面,DOM 四 modal 像素截圖未產出,改以結構化驗證
+  ＋主迴圈實測替代;`.net-card h2` 既有漸層文字與 DOM「角切」是否要做斜切造型留待裁決。

@@ -2,7 +2,7 @@
 // Mixed into hubScene via Object.assign in hub.js; all state lives on `this`.
 import { Music, Sfx } from '../../../engine/audio.js';
 import { mouse, moveAxis, pressed } from '../../../engine/input.js';
-import { dist } from '../../../engine/math.js';
+import { clamp, dist } from '../../../engine/math.js';
 import { P } from '../../../engine/palette.js';
 import { camera, view, worldToScreen } from '../../../engine/renderer.js';
 import { isModalOpen } from '../../../net/ui.js';
@@ -58,7 +58,7 @@ export const lifecycleMixin = {
     }
     if (!this.hero) this.hero = { x: sp.x, y: sp.y, vx: 0, vy: 0, facing: 1, radius: 5, walkT: 0, moving: false };
     else { this.hero.x = sp.x; this.hero.y = sp.y; this.hero.vx = 0; this.hero.vy = 0; }
-    camera.x = camera.targetX = this.hero.x; camera.y = camera.targetY = this.hero.y - 6;
+    this.aimCamera(true);
     this.stations = this.buildStations(areaId, R);
     this.npcs = this.buildNpcs(areaId, R);
     this.near = null; this.nearKind = null;
@@ -66,6 +66,22 @@ export const lifecycleMixin = {
     if (this.petState) this.petState.x = null;   // pet re-spawns next to the hero in the new area
     this.injectRoomDecor();   // R18/B10: only acts in the personal interior now (FLOOR-guarded)
   },
+  // R28/W4-G (ART_SPEC 7) — CLAMP the hub camera to the map, exactly the way run.js's
+  // aimCamera always has. Following the hero unclamped is why the audit's interior shots
+  // were half out-of-bounds band: the hero spawns one row above the south doorway, so the
+  // bottom ~5 tile rows of the view sat past the map edge no matter how big the room was.
+  // When a map is genuinely smaller than the view on an axis, centre it on that axis.
+  aimCamera(snap) {
+    const h = this.hero, w = this.world;
+    if (!h || !w) return;
+    const halfW = view.W / 2 / camera.zoom, halfH = view.H / 2 / camera.zoom;
+    const pxW = w.pxW || 0, pxH = w.pxH || 0;
+    const tx = pxW > halfW * 2 ? clamp(h.x, halfW, pxW - halfW) : pxW / 2;
+    const ty = pxH > halfH * 2 ? clamp(h.y - 6, halfH, pxH - halfH) : pxH / 2;
+    camera.targetX = tx; camera.targetY = ty;
+    if (snap) { camera.x = tx; camera.y = ty; }
+  },
+
   // R19: stations for the active area. TOWN = grand portal (panel) + 6 door-stations at porches.
   // INTERIOR = the building's panel station (top-centre) + an exit door-station at rooms.exit.
   buildStations(areaId, R) {
@@ -134,7 +150,7 @@ export const lifecycleMixin = {
       const g = this.world.triggers.find((t) => t.tx === htx && t.ty === hty);
       if (g) { this.enterDoor({ target: g.target }); return; }
     }
-    camera.targetX = h.x; camera.targetY = h.y - 6;
+    this.aimCamera();
     if (META.pet) updatePetFollow(this.petState, h.x, h.y, h.facing, dt);   // R18/B10 pet trails the hero
     this.ambientFx(dt);   // R18/B2: drifting petals over the field + fireflies by the garden
     this.world.particles.update(dt);
