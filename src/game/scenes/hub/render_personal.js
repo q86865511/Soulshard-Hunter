@@ -13,6 +13,7 @@ import { guildProgress } from '../../content/guild.js';
 import { Characters, Weapons } from '../../content/registry.js';
 import { META } from '../../state.js';
 import { goldLabel } from '../../ui/gold.js';
+import { drawPortrait } from '../../ui/portraits.js';
 import { inside } from './shared.js';
 
 export const renderPersonalMixin = {
@@ -135,9 +136,15 @@ export const renderPersonalMixin = {
       const hover = inside(mx, my, card);
       uiRect(card.x, card.y, card.w, card.h, withAlpha(selected ? '#243a5a' : unlocked ? '#1b2138' : '#201622', 0.96), { radius: 7 * S, stroke: selected ? P.shardL : hover ? P.gray3 : P.ink2, lw: selected ? 3 : 2 });
       const lw2 = card.w * 0.36;
-      const sp = getSprite(selected ? (this.heroSprite || c.sprite) : c.sprite);
-      const sc = Math.min(2.1 * S, (card.h - 36 * S) / sp.h);
-      drawSpriteUI(sp.frames[0], card.x + lw2 / 2 - sp.w * sc / 2, card.y + 5 * S, sc, { alpha: unlocked ? 1 : 0.3 });
+      // R28/W2-E(b): portrait layer (ART-05) — cover-fit into the card's left column, same
+      // rounded corners as the card frame; falls back to the sprite art when the id has no
+      // portrait yet (batch 1 = 6 core heroes) or the image hasn't loaded.
+      const pDrawn = drawPortrait(c.id, card.x + 4 * S, card.y + 4 * S, lw2 - 8 * S, card.h - 24 * S, { radius: 6 * S, alpha: unlocked ? 1 : 0.3 });
+      if (!pDrawn) {
+        const sp = getSprite(selected ? (this.heroSprite || c.sprite) : c.sprite);
+        const sc = Math.min(2.1 * S, (card.h - 36 * S) / sp.h);
+        drawSpriteUI(sp.frames[0], card.x + lw2 / 2 - sp.w * sc / 2, card.y + 5 * S, sc, { alpha: unlocked ? 1 : 0.3 });
+      }
       uiText(c.name, card.x + lw2 / 2, card.y + card.h - 18 * S, { size: UI.FONT_CAPTION * S, align: 'center', color: unlocked ? '#fff' : P.gray3, weight: '800' });
       if (!unlocked) {
         const afford = c.unlock.type === 'gold' && META.gold >= c.unlock.cost;
