@@ -534,68 +534,83 @@ defineAnim('ruin_st_codex', 44, 48, 2, (p, f) => {
   p.outline(P.ink);
 }, { anchor: 'feet', fps: 2 });
 
-// ── 7. boss_pillar 16×28 anim 3f — IN-RUN destructible soul-cage pillar ─────
-// A boss summons rings of these to wall the player in. Jagged obsidian-violet
-// shard torn up out of the ground, soul-teal core veins pulsing bright → dim
-// → bright across the 3 frames, rune ring smouldering at its root. Menacing
-// and readable even at game zoom.
-defineAnim('boss_pillar', 16, 28, 3, (p, f) => {
+// ── 7. boss_pillar 16×20 anim 3f — IN-RUN destructible soul-cage pillar ─────
+// R28/ART-01 re-cut: the spec pins this at prop scale (16×20, was 16×28 — the old
+// slab towered over its radius-7 collider) with a GLOWING soulshard texture and
+// visible battle damage. The def (radius 7, no scale) is untouched.
+//
+// Damage staging: frameAt() is driven by the anim clock, not by hp, and the enemy
+// tuple carries no hpFrac channel — so per the round brief the pillar is drawn at
+// ONE static stage (stage 2: fractured but standing, chips already blown off both
+// flanks) and the 3 frames stay the soul-pulse cycle. If an hpFrac channel is ever
+// added, split the damage block below into 3 crack sets and index on it.
+defineAnim('boss_pillar', 16, 20, 3, (p, f) => {
   const bright = f !== 1;                              // frame pulse: lit / dim / lit
   const OBS  = mix(P.void, P.purpleD, 0.45);           // obsidian-violet body
-  const OBSL = mix(OBS, P.astral, 0.40);               // lit facet
-  const OBSD = darken(OBS, 0.30);                      // shaded facet
-  p.softShadow(8, 27, 6, 1.6, 0.35);
+  const OBSL = mix(OBS, P.astral, 0.42);               // lit facet (top-left)
+  const OBSH = mix(OBS, P.astral, 0.68);               // 4th step: facet highlight
+  const OBSD = darken(OBS, 0.34);                      // shaded facet
+  p.softShadow(8, 19, 6, 1.6, 0.38);
+
   // rune ring at the root (segmented ellipse, glows harder on bright frames)
   const ringC = withAlpha(P.shard, bright ? 0.65 : 0.35);
   for (let a = 0; a < Math.PI * 2; a += 0.45) {
-    p.px(Math.round(8 + Math.cos(a) * 5.5), Math.round(25.5 + Math.sin(a) * 1.8), ringC);
+    p.px(Math.round(8 + Math.cos(a) * 5.5), Math.round(17.6 + Math.sin(a) * 1.7), ringC);
   }
-  p.px(3, 25, bright ? P.shardL : P.shardD);           // rune nodes on the ring
-  p.px(13, 26, bright ? P.shardL : P.shardD);
-  p.px(8, 27, withAlpha(P.shard, bright ? 0.8 : 0.4));
-  p.glow(8, 25, 4, P.shard, bright ? 0.3 : 0.14, 2);
+  p.px(2, 17, bright ? P.shardL : P.shardD);           // rune nodes on the ring
+  p.px(13, 18, bright ? P.shardL : P.shardD);
+  p.glow(8, 17, 4, P.shard, bright ? 0.3 : 0.14, 2);
   // torn-earth rubble where it erupted
-  p.px(2, 24, STD); p.px(14, 24, ST); p.px(12, 26, STD); p.px(4, 26, darken(ST, 0.2));
-  // the shard: jagged tapering spike, hand-stepped silhouette
-  p.px(8, 2, OBSL);                                    // needle tip
-  p.vline(3, 4, 8, OBS);
-  p.hline(7, 9, 5, OBS);  p.hline(7, 9, 6, OBS);
-  p.hline(6, 9, 7, OBS);  p.hline(6, 10, 8, OBS);
-  p.hline(6, 10, 9, OBS); p.hline(5, 10, 10, OBS);     // jag step out
-  p.hline(6, 10, 11, OBS);                              // notch back in
-  p.hline(5, 11, 12, OBS); p.hline(5, 11, 13, OBS);
-  p.hline(4, 11, 14, OBS); p.hline(4, 12, 15, OBS);
-  p.hline(5, 12, 16, OBS);                              // left notch
-  p.hline(4, 12, 17, OBS); p.hline(4, 12, 18, OBS);
-  p.hline(4, 13, 19, OBS); p.hline(3, 13, 20, OBS);
-  p.hline(3, 13, 21, OBS); p.hline(4, 12, 22, OBS);     // waist before the root flare
-  p.hline(3, 13, 23, OBS); p.hline(3, 13, 24, OBS);
-  p.hline(4, 12, 25, darken(OBS, 0.15));                // root sinks into the ring
+  p.px(1, 16, STD); p.px(14, 16, ST); p.px(12, 18, STD); p.px(3, 18, darken(ST, 0.2));
+
+  // ── the shard: a chunky tapering spike, hand-stepped silhouette ──
+  p.hline(6, 9, 1, OBS);                                // blunt crown (chipped tip)
+  p.hline(5, 10, 2, OBS);  p.hline(5, 10, 3, OBS);
+  p.hline(4, 10, 4, OBS);  p.hline(4, 11, 5, OBS);
+  p.hline(4, 11, 6, OBS);  p.hline(3, 11, 7, OBS);      // jag step out
+  p.hline(4, 11, 8, OBS);                               // notch back in
+  p.hline(3, 12, 9, OBS);  p.hline(3, 12, 10, OBS);
+  p.hline(2, 12, 11, OBS); p.hline(2, 13, 12, OBS);
+  p.hline(3, 13, 13, OBS);                              // left notch
+  p.hline(2, 13, 14, OBS); p.hline(2, 13, 15, OBS);
+  p.hline(1, 14, 16, OBS);                              // root flare
+  p.hline(3, 12, 17, darken(OBS, 0.15));                // root sinks into the ring
   // side spikelet bursting off the left flank
-  p.px(2, 16, OBS); p.px(1, 14, OBS); p.px(2, 15, OBSL); p.px(1, 13, OBSL);
-  p.px(3, 17, OBSD);
-  // facet shading: lit left edge, shaded right edge, glassy face glint
-  p.vline(6, 13, 6, OBSL); p.vline(15, 21, 4, OBSL); p.px(5, 14, OBSL);
-  p.vline(8, 14, 10, OBSD); p.vline(16, 24, 12, OBSD); p.px(11, 13, OBSD);
-  p.px(7, 4, lighten(OBSL, 0.25)); p.px(5, 18, lighten(OBSL, 0.2)); // glassy glints
-  p.line(9, 10, 10, 16, darken(OBSD, 0.2));             // fracture seam
-  // soul-teal core veins: a jagged conduit down the heart, pulsing
+  p.px(1, 10, OBS); p.px(1, 11, OBSL); p.px(0, 12, OBS); p.px(2, 9, OBSL);
+
+  // facet shading: lit left edge, shaded right edge, glassy face glints
+  p.vline(3, 11, 4, OBSL); p.vline(12, 16, 2, OBSL); p.px(3, 12, OBSL);
+  p.vline(4, 12, 10, OBSD); p.vline(11, 17, 12, OBSD); p.px(11, 9, OBSD);
+  p.px(5, 3, OBSH); p.px(4, 13, OBSH); p.px(6, 6, OBSH);   // glassy highlights
+
+  // ── battle damage (stage 2): a running fracture + blown-out chips ──
+  p.line(9, 5, 6, 12, darken(OBSD, 0.35));              // main fracture seam
+  p.line(10, 8, 11, 13, darken(OBSD, 0.25));            // hairline branch
+  p.px(11, 6, P.ink); p.px(12, 7, P.ink);               // chip crater, right flank
+  p.px(11, 7, darken(OBSD, 0.4));
+  p.px(3, 14, P.ink); p.px(2, 15, darken(OBSD, 0.4));   // chip crater, left flank
+  p.px(13, 15, withAlpha(P.shardL, bright ? 0.8 : 0.4)); // core light leaking out
+  p.px(12, 6, withAlpha(P.shardL, bright ? 0.7 : 0.3));
+
+  // ── soul-teal core veins: a jagged conduit down the heart, pulsing ──
   const vein  = bright ? P.shardL : P.shardD;
   const veinB = bright ? P.shard : darken(P.shardD, 0.2);
-  p.px(8, 4, vein); p.px(8, 6, vein); p.px(7, 8, vein); p.px(8, 9, vein);
-  p.px(8, 11, vein); p.px(7, 13, vein); p.px(8, 15, vein); p.px(8, 17, vein);
-  p.px(7, 19, vein); p.px(8, 21, vein); p.px(8, 23, vein);
-  p.px(9, 7, veinB); p.px(6, 12, veinB); p.px(9, 14, veinB);       // branch capillaries
-  p.px(6, 18, veinB); p.px(10, 20, veinB); p.px(9, 22, veinB);
+  p.px(7, 2, vein);  p.px(7, 4, vein);  p.px(8, 5, vein);  p.px(7, 7, vein);
+  p.px(8, 8, vein);  p.px(7, 10, vein); p.px(8, 11, vein); p.px(8, 13, vein);
+  p.px(7, 15, vein); p.px(8, 16, vein);
+  p.px(9, 3, veinB); p.px(6, 9, veinB); p.px(9, 12, veinB);   // branch capillaries
+  p.px(6, 14, veinB); p.px(10, 15, veinB);
   if (bright) {
-    p.glow(8, 13, 3.5, P.shard, 0.4, 3);
-    p.px(8, 13 + (f === 2 ? 4 : 0), P.white);                       // white-hot node travels
-    p.star4(11, 6 + f, 1, P.white, P.shardL);                       // kira on the tip facet
-    p.px(12 - f, 9, withAlpha(P.shardL, 0.7));                      // escaping soul-mote
+    p.glow(8, 9, 3.5, P.shard, 0.4, 3);
+    p.px(8, 9 + (f === 2 ? 4 : 0), P.white);                  // white-hot node travels
+    p.star4(10, 4 + f, 1, P.white, P.shardL);                 // kira on the tip facet
+    p.px(11 - f, 6, withAlpha(P.shardL, 0.7));                // escaping soul-mote
   } else {
-    p.glow(8, 13, 3, P.shard, 0.16, 2);
-    p.px(8, 13, P.shardD);
+    p.glow(8, 9, 3, P.shard, 0.16, 2);
+    p.px(8, 9, P.shardD);
   }
-  p.rimLight(P.rimCool, 0.3);
+  p.shadeBottom(0.18, 14);
+  p.rimLight(P.rimCool, 0.34);
   p.outline(P.ink);
 }, { anchor: 'feet', fps: 5 });
+
