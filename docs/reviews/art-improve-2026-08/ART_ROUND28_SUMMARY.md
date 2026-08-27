@@ -33,6 +33,14 @@
 2. **主迴圈操作失誤**：還原 B2 時誤用目錄層級 `git checkout -- src/game/content/gen/`，連帶抹掉 A3 未提交的 11 敵人＋2 角色微調。已照原自檢紀錄重做補回。教訓：混合批次的工作樹只能用精確檔案路徑還原。
 3. **Codex stdin 卡死**：heredoc 與 `codex exec` 同條指令會耗盡 stdin 使其永久等待（任務不退出也不報錯，浪費約 4 小時）。已寫回 `~/.claude/docs/codex-notes.md`。
 
+## 二之二、設計檢查工具（impeccable）三則發現的處置
+
+| 發現 | 處置 | 理由 |
+|---|---|---|
+| `social.js` 區段標題 3px 左側強調條 | **修正** | 早於本輪，但 ART-08 範圍含「統一標題帶」；改為 Canvas `drawPanelFrame` 的 DOM 對應（全寬填色帶＋底線＋上圓角） |
+| `.net-card h2`／`.sl-card h2` 鏤空漸層標題 | **修正** | 早於本輪，但 Canvas 面板標題是純白實色（`hub/render.js` `color:'#fff'`），漸層使 DOM 讀起來像另一個產品——正好違反 ART-08 的驗收條件本身。改純白，保留魂晶輝光 |
+| `index.html` 載入進度條 `transition: width` | **判定誤報，保留原樣** | 寬度是進度條的語義屬性；該元素獨處 fixed 覆蓋層、頁面尚無其他內容，無 layout thrash 成本；背景為橫向漸層，改 `transform:scaleX` 會拉伸變形。未加抑制註解 |
+
 ## 三、驗證狀態
 
 - `npm run test:frontend`：**59/59**（每批次與最終皆跑）
