@@ -91,36 +91,28 @@ defineIcon('weapon_w_soulbolt', P.shardD, (p) => {
 });
 
 defineIcon('weapon_w_fan', '#5a3a1a', (p) => {
-  p.glow(9, 7, 4.5, P.ember, 0.22, 3);
-  // Folding war-fan: a shared lower-left pivot and three broad cutting ribs.
-  p.ellipse(3, 13, 1.5, 1.5, P.goldD);
-  p.px(3, 13, P.goldL);
-  p.line(3, 12, 7, 4, P.ember);
-  p.line(4, 13, 9, 4, P.emberL);
-  p.line(4, 13, 12, 6, P.holyL);
-  p.line(7, 4, 9, 4, P.white);
-  p.line(9, 4, 12, 6, P.emberL);
-  p.line(7, 5, 11, 7, darken(P.ember, 0.2));
-  // Broken sweep arc keeps the weapon silhouette separate from its attack motion.
-  p.line(6, 2, 10, 2, withAlpha(P.emberL, 0.75));
-  p.line(11, 3, 13, 4, withAlpha(P.ember, 0.55));
+  p.glow(8, 9, 5, P.ember, 0.32, 3);
+  for (let i = 0; i < 3; i++) {
+    const x = 4 + i * 3;
+    // each fan blade gets a hot inner edge + lit tip
+    p.line(x, 12, x + 1, 4 - i, darken(P.ember, 0.1));
+    p.line(x, 12, x + 1, 5 - i, P.emberL);
+    p.px(x + 1, 3 - i, P.holyL);
+    p.px(x + 1, 4 - i, P.emberL);
+  }
+  p.sparkle(11, 3, P.emberL, 1);
 });
 
 defineIcon('weapon_w_orbit', P.shardD, (p) => {
-  p.glow(9, 6, 4, P.shard, 0.22, 3);
-  // A tangible crescent guard-blade, canted along the weapon diagonal.
-  p.line(4, 12, 11, 4, P.shard);
-  p.line(5, 12, 12, 5, P.shardL);
-  p.line(11, 4, 13, 3, P.white);
-  p.line(4, 12, 3, 10, P.steelD);
-  p.px(4, 13, P.goldD);
-  // Open orbit path and separated motion beads communicate rotation.
-  for (let a = -145; a <= 25; a += 18) {
-    const t = a * Math.PI / 180;
-    p.px(Math.round(8 + Math.cos(t) * 5.5), Math.round(8 + Math.sin(t) * 5.5), withAlpha(P.shardL, 0.75));
-  }
-  p.ellipse(13, 10, 1.3, 1.3, P.white);
-  p.px(2, 7, P.shardL);
+  p.glow(8, 8, 5.5, P.shard, 0.3, 3);
+  // neon orbit ring (double for a glowing edge)
+  p.ring(8, 8, 5, P.shardL);
+  p.ring(8, 8, 5, withAlpha(P.shard, 0.5));
+  // orbiting motes, each a small glowing bead
+  p.glow(8, 3, 1.6, P.shardL, 0.6, 2); p.ellipse(8, 3, 1.4, 2, P.white);
+  p.glow(13, 9, 1.6, P.shard, 0.6, 2); p.ellipse(13, 9, 1.4, 2, P.shardL);
+  p.glow(4, 10, 1.6, P.shard, 0.6, 2); p.ellipse(4, 10, 1.4, 2, P.shardL);
+  p.sparkle(8, 8, P.shardL, 1);
 }, { kira: true });
 
 // BASE 灼蝕光環 — ONE broken sweep arc (open toward the lower-left) around a
@@ -139,65 +131,48 @@ defineIcon('weapon_w_aura', '#5a2a1a', (p) => {
 }, { kira: true });
 
 defineIcon('weapon_w_whip', P.shardD, (p) => {
-  p.glow(11, 4, 3, P.shardL, 0.24, 3);
-  // Leather-wrapped handle and guard anchor the flexible weapon silhouette.
-  p.line(2, 13, 5, 10, P.woodD);
-  p.line(3, 13, 6, 10, P.wood);
-  p.line(4, 9, 7, 12, P.goldD);
-  // Segmented lash rises diagonally, then hooks into a visible crack.
-  p.line(6, 10, 8, 7, P.shard);
-  p.line(8, 7, 10, 4, P.shardL);
-  p.line(10, 4, 13, 3, P.white);
-  p.px(7, 8, darken(P.shard, 0.22));
-  p.px(9, 5, P.shardL);
-  // Detached echo arc is the attack motion, not part of the whip body.
-  p.line(8, 11, 11, 8, withAlpha(P.shard, 0.45));
-  p.line(12, 7, 14, 5, withAlpha(P.shardL, 0.7));
+  p.glow(13, 3, 3, P.shardL, 0.4, 3);
+  // cracking energy whip: cooling base -> hot snapping tip
+  p.line(2, 12, 6, 9, darken(P.shard, 0.1));
+  p.line(2, 12, 6, 9, P.shardL);
+  p.line(6, 9, 9, 4, P.shardL);
+  p.line(9, 4, 13, 3, P.white);
+  // motion ghost of the snap
+  p.line(7, 10, 10, 5, withAlpha(P.shard, 0.5));
+  p.px(13, 2, P.white);
+  p.star4(13, 3, 2, P.shardL, P.white);
 }, { kira: true });
 
 defineIcon('weapon_w_nova', P.purpleD, (p) => {
-  p.glow(10, 5, 4, P.mana, 0.24, 3);
-  // Shock sceptre: weighted head, collar and diagonal grip remain readable.
-  p.line(3, 13, 9, 7, P.purple);
-  p.line(4, 13, 10, 7, P.purpleL);
-  p.line(7, 8, 10, 11, P.goldD);
-  p.ellipse(10, 5, 3, 3, P.mana);
-  p.ellipse(9, 4, 1.4, 1.4, P.astralL);
-  p.px(9, 4, P.white);
-  // Two broken wave fronts leave the head toward the upper-right.
-  p.line(12, 3, 14, 2, P.manaL);
-  p.px(13, 5, withAlpha(P.astralL, 0.8));
-  p.line(12, 7, 14, 8, withAlpha(P.manaL, 0.55));
+  p.glow(8, 8, 6, P.mana, 0.4, 4);
+  p.ring(8, 8, 5.5, P.manaL);
+  p.ring(8, 8, 5.5, withAlpha(P.astral, 0.5));
+  p.ring(8, 8, 3, P.mana);
+  sym.star(p, P.white);
+  p.glow(8, 8, 2, P.astralL, 0.6, 2);
+  p.star4(8, 8, 4, P.manaL, P.white);
 }, { kira: true });
 
 defineIcon('weapon_w_homing', P.purpleD, (p) => {
-  p.glow(10, 6, 3.5, P.mana, 0.22, 3);
-  // Compact guided-bolt launcher, stock at lower-left and barrel up-right.
-  p.line(3, 13, 8, 8, P.steelD);
-  p.line(4, 13, 9, 8, P.steelL);
-  p.rect(7, 6, 5, 3, P.purple);
-  p.line(8, 6, 12, 4, P.manaL);
+  p.glow(11, 5, 3.5, P.mana, 0.4, 3);
+  // glowing curved trail into a neon arrowhead
+  p.line(3, 12, 9, 5, withAlpha(P.purpleL, 0.6));
+  p.line(3, 12, 9, 5, P.purpleL);
+  p.line(9, 5, 12, 4, P.manaL);
+  p.line(12, 4, 10, 7, P.manaL);
+  p.line(12, 4, 13, 8, P.manaL);
   p.px(12, 4, P.white);
-  p.line(5, 10, 7, 13, P.woodD);
-  // Dotted course bends around the launcher toward a separate arrowhead.
-  p.px(10, 11, P.purpleL); p.px(12, 10, P.manaL); p.px(13, 8, P.manaL);
-  p.line(13, 6, 14, 4, P.white);
-  p.line(13, 6, 11, 5, P.manaL);
+  p.px(3, 12, P.white);
+  p.sparkle(11, 5, P.astralL, 1);
 }, { kira: true });
 
 defineIcon('weapon_w_lightning', '#5a4a1a', (p) => {
-  p.glow(10, 5, 4, P.holy, 0.24, 3);
-  // Forked conductor staff gives the spell a concrete weapon body.
-  p.line(3, 13, 9, 7, P.woodD);
-  p.line(4, 13, 10, 7, P.gold);
-  p.line(8, 8, 11, 11, P.goldD);
-  p.line(9, 7, 8, 3, P.emberL);
-  p.line(10, 6, 13, 3, P.holyL);
-  p.line(10, 6, 14, 7, P.emberL);
-  p.px(10, 6, P.white);
-  // A detached zig-zag discharge continues the staff's diagonal thrust.
-  p.line(12, 9, 10, 11, withAlpha(P.neon, 0.7));
-  p.line(10, 11, 13, 12, withAlpha(P.emberL, 0.65));
+  p.glow(8, 8, 5.5, P.holy, 0.3, 3);
+  // neon under-glow bolt, then the bright bolt on top
+  sym.bolt(p, withAlpha(P.neon, 0.5));
+  sym.bolt(p, P.emberL);
+  p.px(8, 8, P.white);
+  p.star4(9, 4, 2, P.holyL, P.white);
 }, { kira: true });
 
 // EVO of w_soulbolt — the base bolt PLUS a second layer of shape (a containment

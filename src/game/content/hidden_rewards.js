@@ -23,21 +23,11 @@ function roll(p, base) {
 
 // ---- icons ------------------------------------------------------------------
 defineIcon('weapon_hr_archive_codex', '#1c1430', (p) => {   // open forbidden tome + floating glyph
-  p.glow(10, 5, 4, P.manaL, 0.22, 3);
-  // Canted iron-spined grimoire: two page planes open along the attack diagonal.
-  p.line(2, 13, 8, 7, P.ink);
-  p.line(3, 13, 9, 7, P.purpleL);
-  p.line(8, 7, 13, 8, '#3a2a5a');
-  p.line(8, 7, 10, 12, P.purpleD);
-  p.line(3, 13, 10, 12, P.purpleD);
-  p.line(9, 8, 12, 9, withAlpha(P.purpleL, 0.75));
-  p.line(5, 12, 8, 10, withAlpha(P.purpleL, 0.65));
-  // Detached glyph bolts erupt up-right from the open pages.
-  p.line(10, 6, 12, 4, P.magenta);
-  p.line(12, 4, 14, 3, P.manaL);
-  p.px(14, 3, P.white);
-  p.px(12, 7, withAlpha(P.manaL, 0.6));
-}, { kira: true });
+  p.rect(3, 9, 10, 5, P.purpleD); p.rect(3, 9, 5, 5, '#3a2a5a'); p.vline(9, 13, 8, P.ink);
+  p.hline(4, 7, 10, P.purpleL); p.hline(9, 12, 10, P.purpleL); p.hline(4, 7, 12, withAlpha(P.purpleL, 0.6)); p.hline(9, 12, 12, withAlpha(P.purpleL, 0.6));
+  p.glow(8, 5, 4, P.manaL, 0.3, 3); p.star4(8, 5, 2, P.manaL, P.white); p.px(5, 4, P.magenta); p.px(11, 4, P.magenta);
+  p.rimLight(P.rim, 0.4);
+});
 defineIcon('ability_hr_relic_heart', '#3a2a10', (p) => {    // radiant reliquary heart
   p.ellipse(6, 7, 2.4, 2.4, '#ffe9a0'); p.ellipse(10, 7, 2.4, 2.4, '#ffe9a0');
   p.rect(4, 7, 9, 3, '#ffe9a0'); p.px(8, 12, '#ffe9a0'); p.hline(6, 10, 11, '#ffe9a0');
