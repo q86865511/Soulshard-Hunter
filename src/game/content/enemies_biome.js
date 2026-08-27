@@ -9,22 +9,31 @@ import { defineAnim } from '../../engine/sprites.js';
 // ART
 // ===========================================================================
 // vr_thornling — 荊棘妖精: a darting spiky verdant pixie
-defineAnim('vr_thornling', 13, 13, 4, (p, f) => {
+defineAnim('vr_thornling', 16, 14, 4, (p, f) => {
+  // R28 W3-A1: standard-tier 16x14 canvas (was 13x13); +1.5/+0.5px shift to
+  // recentre the unchanged silhouette. Value-tier gap (no rimLight/shadeBottom) fixed.
+  p.ctx.save(); p.ctx.translate(1.5, 0.5);
   const oy = (f % 2) ? -1 : 0; const fl = (f === 1 || f === 3) ? 1 : 0;
-  // gossamer wings
-  p.ellipse(3, 6 + oy - fl, 2.4, 1.6, P.leafL); p.ellipse(10, 6 + oy - fl, 2.4, 1.6, P.leafL);
+  // gossamer wings (R28 W3-A1: widened alongside the body to hold >=55% fill
+  // on the larger standard-tier canvas)
+  p.ellipse(3, 6 + oy - fl, 4, 3.2, P.leafL); p.ellipse(10, 6 + oy - fl, 4, 3.2, P.leafL);
   // thorny round body
-  p.ellipse(6.5, 7 + oy, 3.4, 3.4, P.leafD); p.ellipse(6.5, 7 + oy, 2.4, 2.4, P.leaf);
+  p.ellipse(6.5, 7 + oy, 6.2, 5, P.leafD); p.ellipse(6.5, 7 + oy, 5.2, 4, P.leaf);
   // spikes
-  p.line(6.5, 3.5 + oy, 6.5, 1 + oy, P.leafD); p.line(3.5, 6 + oy, 1, 5 + oy, P.leafD); p.line(9.5, 6 + oy, 12, 5 + oy, P.leafD);
-  p.line(5, 10 + oy, 4, 12 + oy, P.leafD); p.line(8, 10 + oy, 9, 12 + oy, P.leafD);
+  p.line(6.5, 3 + oy, 6.5, 0.5 + oy, P.leafD); p.line(3, 6 + oy, 0.5, 5 + oy, P.leafD); p.line(10, 6 + oy, 12.5, 5 + oy, P.leafD);
+  p.line(5, 10.5 + oy, 4, 12.5 + oy, P.leafD); p.line(8, 10.5 + oy, 9, 12.5 + oy, P.leafD);
   // glowing eye
   p.px(6, 6 + oy, P.toxic); p.px(7, 6 + oy, P.toxic); p.px(6, 6 + oy, P.white);
+  p.ctx.restore();
+  p.rimLight(P.rimCool, 0.4);
+  p.shadeBottom(0.2, 9);
   p.outline(P.ink);
-}, { anchor: [6.5, 11], fps: 8 });
+}, { anchor: [8, 11.5], fps: 8 });
 
 // ds_duneburrower — 沙行掘者: a clawed sand-mole that rushes
-defineAnim('ds_duneburrower', 16, 12, 4, (p, f) => {
+defineAnim('ds_duneburrower', 16, 14, 4, (p, f) => {
+  // R28 W3-A1: standard-tier 16x14 canvas (was 16x12); +1px y-shift to recentre.
+  p.ctx.save(); p.ctx.translate(0, 1);
   const dig = (f === 1 || f === 3) ? 1 : 0;
   p.ellipse(8, 10, 7, 1.5, P.sandD);                       // sand spray
   // segmented body half-buried
@@ -35,40 +44,59 @@ defineAnim('ds_duneburrower', 16, 12, 4, (p, f) => {
   p.line(2, 9 - dig, 0, 11 - dig, P.bone); p.line(3, 9 - dig, 1, 11 - dig, P.bone);  // claws
   // beady eyes
   p.px(5, 7 - dig, P.redL); p.px(7, 7 - dig, P.redL);
+  p.ctx.restore();
+  p.rimLight(P.rim, 0.4);
+  p.shadeBottom(0.2, 10);
   p.outline(P.ink);
-}, { anchor: [8, 11], fps: 7 });
+}, { anchor: [8, 12], fps: 7 });
 
 // sw_mireleech — 沼澤巨蛭: a segmented toxic leech
-defineAnim('sw_mireleech', 16, 10, 4, (p, f) => {
+defineAnim('sw_mireleech', 16, 14, 4, (p, f) => {
+  // R28 W3-A1: standard-tier 16x14 canvas (was 16x10); +2px y-shift to recentre.
+  p.ctx.save(); p.ctx.translate(0, 2);
+  // R28 W3-A1: segments/head thickened (rx+ry) to hold >=55% fill and reach the
+  // standard-tier 12-14px visible-height band on the taller canvas.
   const w = (f % 2) ? 1 : 0;                               // undulation
   for (let i = 0; i < 5; i++) {
-    const sx = 3 + i * 2.6; const sy = 6 + ((i % 2) ? w : -w) * 0.8;
-    p.ellipse(sx, sy, 1.8, 2.2, (i % 2) ? P.bogL : P.slimeBog);
+    const sx = 3 + i * 2.6; const sy = 7 + ((i % 2) ? w : -w) * 1.2;
+    p.ellipse(sx, sy, 2.1, 4.4, (i % 2) ? P.bogL : P.slimeBog);
   }
-  p.ellipse(13, 6 - w, 2.4, 2.6, P.murk);                  // bloated head
-  p.ring(13, 6 - w, 1.4, P.toxic);                         // sucker mouth
+  p.ellipse(13, 7 - w, 2.8, 4.8, P.murk);                    // bloated head
+  p.ring(13, 7 - w, 1.6, P.toxic);                         // sucker mouth
   p.px(12, 5 - w, P.toxic); p.px(14, 5 - w, P.toxic);      // eye spots
-  p.px(4, 4 + w, P.toxic);                                  // toxic sheen
+  p.px(4, 5 + w, P.toxic);                                  // toxic sheen
+  p.ctx.restore();
+  p.rimLight(P.rim, 0.4);
+  p.shadeBottom(0.2, 10);
   p.outline(P.ink);
-}, { anchor: [8, 9], fps: 6 });
+}, { anchor: [8, 11], fps: 6 });
 
 // ab_voltjelly — 深淵電水母: a glowing abyssal jellyfish
-defineAnim('ab_voltjelly', 13, 16, 4, (p, f) => {
+defineAnim('ab_voltjelly', 16, 16, 4, (p, f) => {
+  // R28 W3-A1: standard-tier 16x16 canvas (was 13x16); +1.5px x-shift to recentre.
+  p.ctx.save(); p.ctx.translate(1.5, 0);
+  // R28 W3-A1: dome widened + tendrils thickened to vlines (was thin diagonal
+  // lines) to hold >=55% fill on the wider standard-tier canvas.
   const oy = (f === 2) ? 1 : 0; const spark = (f % 2);
   // bell dome
-  p.ellipse(6.5, 6 + oy, 5, 4.5, P.oceanD); p.ellipse(6.5, 6 + oy, 4, 3.4, P.ocean);
-  p.ellipse(6.5, 5 + oy, 2.6, 2, P.oceanL); p.hline(3, 10, 9 + oy, P.oceanD);
+  p.ellipse(6.5, 6 + oy, 7, 5, P.oceanD); p.ellipse(6.5, 6 + oy, 6, 4, P.ocean);
+  p.ellipse(6.5, 5 + oy, 3.2, 2.4, P.oceanL); p.hline(2, 11, 9 + oy, P.oceanD);
   // inner glow core
-  p.ellipse(6.5, 6 + oy, 1.6, 1.6, P.skyL); p.px(6, 5 + oy, P.white);
+  p.ellipse(6.5, 6 + oy, 2, 2, P.skyL); p.px(6, 5 + oy, P.white);
   // trailing tendrils
-  for (let i = 0; i < 4; i++) { const tx = 3 + i * 2.2; const sway = ((i + f) % 2) ? 1 : -1; p.line(tx, 9 + oy, tx + sway, 15, P.oceanL); p.px(tx + sway, 15, P.skyL); }
+  for (let i = 0; i < 4; i++) { const tx = 2 + i * 2.6; const sway = ((i + f) % 2) ? 1 : -1; p.vline(9 + oy, 13 + oy, tx, P.oceanL); p.vline(9 + oy, 12 + oy, tx + 1, P.ocean); p.px(tx + sway, 13 + oy, P.skyL); }
   // electric arc
   if (spark) { p.px(6, 2 + oy, P.white); p.line(5, 3 + oy, 8, 3 + oy, P.skyL); }
+  p.ctx.restore();
+  p.rimLight(P.rimCool, 0.4);
+  p.shadeBottom(0.2, 11);
   p.outline(P.ink);
-}, { anchor: [6.5, 13], fps: 6 });
+}, { anchor: [8, 13], fps: 6 });
 
 // ce_cherubim — 雲端守靈: a haloed celestial sentinel that fires light
-defineAnim('ce_cherubim', 14, 14, 4, (p, f) => {
+defineAnim('ce_cherubim', 16, 14, 4, (p, f) => {
+  // R28 W3-A1: standard-tier 16x14 canvas (was 14x14); +1px x-shift to recentre.
+  p.ctx.save(); p.ctx.translate(1, 0);
   const oy = (f === 2) ? -1 : 0; const fl = (f === 1 || f === 3) ? 1 : 0; const sh = (f % 2);
   // feathered wings
   p.ellipse(3, 8 + oy - fl, 2.6, 3, P.white); p.ellipse(11, 8 + oy - fl, 2.6, 3, P.white);
@@ -79,8 +107,11 @@ defineAnim('ce_cherubim', 14, 14, 4, (p, f) => {
   p.px(6, 7 + oy, P.astralL); p.px(8, 7 + oy, P.astralL);
   // floating halo
   p.ring(7, 3 + oy, 2.4, sh ? P.white : P.holyL); p.px(7, 1 + oy, P.gold);
+  p.ctx.restore();
+  p.rimLight(P.rim, 0.4);
+  p.shadeBottom(0.2, 9);
   p.outline(P.ink);
-}, { anchor: [7, 12], fps: 6 });
+}, { anchor: [8, 12], fps: 6 });
 
 // ===========================================================================
 // DEFS
