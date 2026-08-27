@@ -81,7 +81,7 @@ export const menusMixin = {
     uiRect(0, 0, view.W, view.H, withAlpha('#0b0d1a', 0.72));
     const items = this.escMenuLayout();
     const S = items.eS || uiScale();   // R17 UI-sweep: fonts follow the fitted scale
-    uiText('選 單', view.W / 2, items[0].r.y - 30 * S, { size: 26 * S, align: 'center', color: '#fff', weight: '900' });
+    uiText('選 單', view.W / 2, items[0].r.y - 30 * S, { size: UI.FONT_TITLE * S, align: 'center', color: '#fff', weight: '900' });
     for (const it of items) {
       const hov = inside(mx, my, it.r);
       // 1.5: stronger button↔background contrast + a brighter outline (was 0.4 → faint)
@@ -120,12 +120,12 @@ export const menusMixin = {
     const mx = mouse.x * view.dpr, my = mouse.y * view.dpr;
     uiRect(0, 0, view.W, view.H, withAlpha('#0b0d1a', 0.62));
     uiRect(c.x, c.y, c.w, c.h, withAlpha('#1b2138', 0.99), { radius: 12 * S, stroke: P.goldL, lw: 2 });
-    uiText('確 認', c.x + c.w / 2, c.y + 30 * S, { size: 18 * S, align: 'center', color: '#fff', weight: '900' });
-    uiText(cf.text, c.x + c.w / 2, c.y + 64 * S, { size: 14 * S, align: 'center', color: '#fff', weight: '700' });
-    if (cf.detail) uiText(cf.detail, c.x + c.w / 2, c.y + 90 * S, { size: 13 * S, align: 'center', color: P.goldL, weight: '800' });
-    goldLabel(c.x + c.w / 2, c.y + 112 * S, META.gold || 0, { size: 11 * S, align: 'center', color: P.gray3, weight: '700', prefix: '持有 ' });   // R17/2.1: real coin sprite
-    const hy = inside(mx, my, c.yes); uiRect(c.yes.x, c.yes.y, c.yes.w, c.yes.h, withAlpha(hy ? '#2a6a3a' : '#1f5030', 0.98), { radius: 7 * S, stroke: P.greenL, lw: 2 }); uiText('確 定', c.yes.x + c.yes.w / 2, c.yes.y + c.yes.h / 2 + 1 * S, { size: 14 * S, align: 'center', baseline: 'middle', color: '#fff', weight: '800' });
-    const hn = inside(mx, my, c.no); uiRect(c.no.x, c.no.y, c.no.w, c.no.h, withAlpha(hn ? '#3a2030' : '#2a2030', 0.98), { radius: 7 * S, stroke: P.redD, lw: 2 }); uiText('取 消', c.no.x + c.no.w / 2, c.no.y + c.no.h / 2 + 1 * S, { size: 14 * S, align: 'center', baseline: 'middle', color: P.redL, weight: '800' });
+    uiText('確 認', c.x + c.w / 2, c.y + 30 * S, { size: UI.FONT_TITLE * S, align: 'center', color: '#fff', weight: '900' });
+    uiText(cf.text, c.x + c.w / 2, c.y + 64 * S, { size: UI.FONT_HEADING * S, align: 'center', color: '#fff', weight: '800' });
+    if (cf.detail) uiText(cf.detail, c.x + c.w / 2, c.y + 90 * S, { size: UI.FONT_BODY * S, align: 'center', color: P.goldL, weight: '800' });
+    goldLabel(c.x + c.w / 2, c.y + 112 * S, META.gold || 0, { size: UI.FONT_BODY * S, align: 'center', color: P.gray3, weight: '600', prefix: '持有 ' });   // R17/2.1: real coin sprite
+    const hy = inside(mx, my, c.yes); uiRect(c.yes.x, c.yes.y, c.yes.w, c.yes.h, withAlpha(hy ? '#2a6a3a' : '#1f5030', 0.98), { radius: 7 * S, stroke: P.greenL, lw: 2 }); uiText('確 定', c.yes.x + c.yes.w / 2, c.yes.y + c.yes.h / 2 + 1 * S, { size: UI.FONT_HEADING * S, align: 'center', baseline: 'middle', color: '#fff', weight: '800' });
+    const hn = inside(mx, my, c.no); uiRect(c.no.x, c.no.y, c.no.w, c.no.h, withAlpha(hn ? '#3a2030' : '#2a2030', 0.98), { radius: 7 * S, stroke: P.redD, lw: 2 }); uiText('取 消', c.no.x + c.no.w / 2, c.no.y + c.no.h / 2 + 1 * S, { size: UI.FONT_HEADING * S, align: 'center', baseline: 'middle', color: P.redL, weight: '800' });
   },
   // which upgrade category the current panel/tab can reset (each separate)
   resetTarget() {
@@ -207,7 +207,7 @@ export const menusMixin = {
     uiRect(x + 12 * S, y + 12 * S, 64 * S, 64 * S, withAlpha('#1b2138', 0.96), { radius: 8 * S, stroke: P.ink2, lw: 2 });
     const sp = getSprite(d.sprite); const sc = (58 * S) / sp.h;
     drawSpriteUI(sp.frames[Math.floor(this.t * 3) % sp.frames.length], x + 12 * S + (64 * S - sp.w * sc) / 2, y + 14 * S, sc);
-    uiText(d.npc.name + ' · ' + d.npc.title, x + 88 * S, y + 26 * S, { size: 15 * S, color: d.npc.color || P.shardL, weight: '900' });
+    uiText(d.npc.name + ' · ' + d.npc.title, x + 88 * S, y + 26 * S, { size: UI.FONT_HEADING * S, color: d.npc.color || P.shardL, weight: '900' });
     // 2.1: 主角頭像（右側鏡像）+ 英雄名
     const cid = META.selectedCharacter || 'hunter';
     const heroSp = getSprite(this.heroSprite || skinnedSprite(META, cid) || 'player');
@@ -215,7 +215,7 @@ export const menusMixin = {
     uiRect(hpx, y + 12 * S, 64 * S, 64 * S, withAlpha('#1b2138', 0.96), { radius: 8 * S, stroke: P.ink2, lw: 2 });
     const hsc = (58 * S) / heroSp.h;
     drawSpriteUI(heroSp.frames[Math.floor(this.t * 3) % heroSp.frames.length], hpx + (64 * S - heroSp.w * hsc) / 2, y + 14 * S, hsc);
-    uiText((Characters.get(cid) || {}).name || cid, hpx + 32 * S, y + 88 * S, { size: 10 * S, align: 'center', color: '#e8e0c0', weight: '800' });
+    uiText((Characters.get(cid) || {}).name || cid, hpx + 32 * S, y + 88 * S, { size: UI.FONT_CAPTION * S, align: 'center', color: '#e8e0c0', weight: '800' });
     // text (wrap) — reserve the right portrait column so lines never run under it
     const tx = x + 88 * S, maxw = w - 104 * S - 84 * S; let yy = y + 48 * S, cur = '', size = 13.5 * S;
     const isAsk = line.ask;
@@ -224,12 +224,12 @@ export const menusMixin = {
     // footer
     const last = d.page >= d.lines.length - 1;
     const hint = last ? (d.npc.station ? '▸ 進入「' + this.panelTitle(d.npc.station) + '」 (E)　·　Esc 離開' : '▸ 結束 (E)') : '▸ 繼續 (E / 空白 / 點擊)　·　Esc 離開';
-    uiText(hint, x + w - 16 * S, y + h - 12 * S, { size: 11 * S, align: 'right', color: withAlpha('#fff', 0.6 + 0.3 * Math.sin(this.t * 5)), weight: '700' });
-    uiText(`${d.page + 1}/${d.lines.length}`, x + w / 2, y + h - 12 * S, { size: 10 * S, align: 'center', color: P.gray3 });
+    uiText(hint, x + w - 16 * S, y + h - 12 * S, { size: UI.FONT_BODY * S, align: 'right', color: withAlpha('#fff', 0.6 + 0.3 * Math.sin(this.t * 5)), weight: '600' });
+    uiText(`${d.page + 1}/${d.lines.length}`, x + w / 2, y + h - 12 * S, { size: UI.FONT_CAPTION * S, align: 'center', color: P.gray3 });
     if (d.page > 0) {   // 2.2: 上一頁 button (only when not on the first page)
       const pr = this.dialoguePrevRect(), hov = inside(mouse.x * view.dpr, mouse.y * view.dpr, pr);
       uiRect(pr.x, pr.y, pr.w, pr.h, withAlpha(hov ? '#27306a' : '#161b34', 0.9), { radius: 6 * S, stroke: withAlpha(P.shardL, hov ? 0.9 : 0.5), lw: 1.5 });
-      uiText('◀ 上一頁', pr.x + pr.w / 2, pr.y + pr.h / 2 + 1 * S, { size: 10 * S, align: 'center', baseline: 'middle', color: '#cfe0ff', weight: '700' });
+      uiText('◀ 上一頁', pr.x + pr.w / 2, pr.y + pr.h / 2 + 1 * S, { size: UI.FONT_CAPTION * S, align: 'center', baseline: 'middle', color: '#cfe0ff', weight: '600' });
     }
   },
 };

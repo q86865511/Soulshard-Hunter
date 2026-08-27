@@ -165,8 +165,10 @@ W({
       const { dmg, crit } = roll(p, 10 + l * 4);
       best.hurt(dmg, 0, 0, world, crit);
       if (c === 0) applyStatus(best, 'stun', world, { dur: 0.5 });   // first link stuns (D6)
-      world.addBeam(from.x, from.y, best.x, best.y, P.emberL);
-      world.particles.spawn({ x: best.x, y: best.y, life: 0.2, size: 3, color: P.emberL, glow: true });
+      // R28/W1-B (ART_SPEC 3): player weapons are barred from the 紅橙/琥珀 warning families —
+      // ember read as an event telegraph. Lightning goes cold blue-white, arc spark with it.
+      world.addBeam(from.x, from.y, best.x, best.y, P.ice);
+      world.particles.spawn({ x: best.x, y: best.y, life: 0.2, size: 3, color: P.ice, glow: true });
       from = { x: best.x, y: best.y };
     }
     Sfx.play('crit');

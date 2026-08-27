@@ -1,7 +1,7 @@
 // Guest co-op scene (Phase 2). The guest does NOT simulate: it renders the host's
 // authoritative world snapshots (interpolated) and pilots its own avatar with local
 // prediction + reconciliation. Camera follows the guest's own avatar (each-follows-own).
-import { World, TS } from '../world.js';
+import { World, TS, BEAM_STYLE, beamFamily } from '../world.js';
 import { Player } from '../player.js';
 import { Enemy } from '../enemy.js';
 import { Enemies } from '../content/registry.js';
@@ -281,26 +281,40 @@ export const coopScene = {
     if (this.disconnected && !this.hostGone && !this.migrated) this.drawDisconnected();
   },
 
+  // R28/W1-B2: aligned to world.js draw()'s 8-layer order (ART_SPEC 2.1) + the beam family
+  // styling from ART_SPEC 3, so host and guest render the same fight legibly. Reuses the
+  // host's own World instance methods (`this.world` is a real World, not a copy) instead of
+  // re-deriving the ring/cue math — see world.js `drawBossRings`/`drawBeamCues`/`BEAM_STYLE`.
   drawField() {
+    const cb = this.world._cullBounds();
     this.world.drawTiles();
     this.world.drawHazards();
     for (const d of this.world.decor) { const sp = getSprite(d.sprite); drawSprite(frameAt(sp, this.world.time, d.phase || 0), d.x, d.y, { ax: sp.ax, ay: sp.ay }); }
-    // depth-sorted actors (pickups + enemies + players)
+    // layer 2 (ground pool) — boss contact ring under snapshot-puppet bosses, same method
+    // as the host, fed the guest's own enemy map instead of world.enemies.
+    this.world.drawBossRings(cb, this.guest.enemies.values());
+    // layer 3 — pickups leave the actor y-sort, drawn under every actor.
+    for (const q of this.guest.pickups.values()) this.drawPickup(q);
+    // layer 4 — depth-sorted actors (enemies + players). Enemy.draw() already carries the
+    // R28/W1-B boss rim outline (shared code, not host-only), so guest bosses get it for free.
     const draws = [];
-    for (const q of this.guest.pickups.values()) draws.push({ y: q.y, fn: () => this.drawPickup(q) });
     for (const e of this.guest.enemies.values()) draws.push({ y: e.y, fn: () => e.draw(this.world) });
     for (const pl of this.players) if (pl && !pl.dead && pl.x != null) draws.push({ y: pl.y, fn: () => pl.draw(this.world) });
     draws.sort((a, b) => a.y - b.y);
     for (const d of draws) { try { d.fn(); } catch (e) { /* */ } }
-    // projectiles above actors
+    // layer 5 — projectiles, then beams (boss/event telegraphs use the SAME ownership-colour
+    // family table + cue drawer as the host: base line at family weight, white-hot core on
+    // top, then the shared dash+arrowhead cue).
     for (const p of this.guest.projectiles) {
       glowWorld(p.x, p.y, 3 * 2.2 * p.scale, p.color, 0.5);
       const sp = getSprite(p.sprite); drawSprite(sp.frames[0], p.x, p.y, { ax: sp.ax, ay: sp.ay, rot: p.rot + Math.PI / 2, scale: p.scale });
     }
     for (const b of this.guest.beams) {
       const a = Math.max(0, b.life / b.max);
-      lineWorld(b.x0, b.y0, b.x1, b.y1, withAlpha('#ffffff', a), 3);
-      lineWorld(b.x0, b.y0, b.x1, b.y1, withAlpha(b.color, a * 0.8), 1.5);
+      const st = BEAM_STYLE[beamFamily(b.color)];
+      lineWorld(b.x0, b.y0, b.x1, b.y1, withAlpha(b.color, a), st.lw);
+      lineWorld(b.x0, b.y0, b.x1, b.y1, withAlpha('#ffffff', a * 0.85), st.core);
+      this.world.drawBeamCues(b, a, st);
     }
     this.particles.draw();
   },

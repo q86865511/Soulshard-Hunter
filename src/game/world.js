@@ -29,6 +29,33 @@ const HAZ = {
 
 // R26/B1 — local-player cold-white ground pool (identity, distinct from warm/enemy tones).
 const PLAYER_RING_COLOR = '#cfeaff';
+
+// R28/W1-B — beam OWNERSHIP colour families (ART_SPEC 3). The co-op `bm` snapshot channel
+// carries a beam's colour string and nothing else, so ownership is signed BY COLOUR: callers
+// pass a family hex, the render side looks the family up to pick line weight + cue size.
+// Zero protocol change (no new tuple field). Anything outside the two warning families —
+// every player weapon — falls through to 'player' and keeps the 3 px cold-colour treatment.
+const BEAM_FAM = new Map();
+for (const c of (BALANCE.ARTV && BALANCE.ARTV.BEAM_FAM_BOSS) || []) BEAM_FAM.set(c.toLowerCase(), 'boss');
+for (const c of (BALANCE.ARTV && BALANCE.ARTV.BEAM_FAM_EVENT) || []) BEAM_FAM.set(c.toLowerCase(), 'event');
+export function beamFamily(color) {
+  return (typeof color === 'string' && BEAM_FAM.get(color.toLowerCase())) || 'player';
+}
+// family -> { lw: base line width, core: white-hot core width, ah/aw: arrowhead size }
+// Exported (R28/W1-B2) so the co-op guest scene's own beam draw can share this ONE style
+// table rather than keeping a second copy — see scenes/coop.js drawField().
+export const BEAM_STYLE = {
+  boss:   { lw: 5, core: 2,   ah: 10, aw: 6 },
+  event:  { lw: 4, core: 1.6, ah: 8.5, aw: 5.2 },
+  player: { lw: 3, core: 1.5, ah: 7,  aw: 4.5 },
+};
+
+// R28/W1-B — boss ground ring (ART_SPEC 2.3): a dark red-orange contact ring that never
+// leaves the boss's feet, so the fight's centre of gravity survives a 200-enemy swarm.
+// Lives in the LAYER-2 ground-pool pass (ART_SPEC 2.1) rather than in Enemy.draw, so it
+// can never be occluded by an enemy that happens to sort earlier — and so it stays visible
+// with particles switched off (it is not a particle).
+const BOSS_RING_COLOR = '#c8341c';
 // R26/B1 — south-edge wall-foot ambient occlusion: a 16×6 top-dark→transparent strip
 // baked ONCE, blitted on the FLOOR tile below a wall so the wall/floor seam grounds
 // (run + town share this path). Alpha driven by BALANCE so it stays tunable.
@@ -650,7 +677,9 @@ export class World {
   // P1-2: beam telegraph shape/motion cues — animated flow-dashes + a start dot / end
   // arrowhead. Pure canvas line/polygon work (no particle allocation) so it stays cheap
   // even with a dozen-plus simultaneous beams.
-  drawBeamCues(b, a) {
+  // R28/W1-B: `st` = the ownership family's style row (see BEAM_STYLE) — the arrowhead grows
+  // with the family so weight is a second, colour-independent ownership cue.
+  drawBeamCues(b, a, st = BEAM_STYLE.player) {
     const p0 = worldToScreen(b.x0, b.y0), p1 = worldToScreen(b.x1, b.y1);
     const dx = p1.x - p0.x, dy = p1.y - p0.y, len = Math.hypot(dx, dy);
     if (len < 2) return;
@@ -668,7 +697,7 @@ export class World {
     ctx.fillStyle = withAlpha(b.color, a);
     ctx.beginPath(); ctx.arc(p0.x, p0.y, 3, 0, TAU); ctx.fill();
     // end marker: arrowhead pointing along the beam (shape info independent of colour)
-    const ah = 7, aw = 4.5;
+    const ah = st.ah, aw = st.aw;
     const bx = p1.x - ux * ah, by = p1.y - uy * ah;
     ctx.beginPath();
     ctx.moveTo(p1.x, p1.y);
@@ -717,6 +746,33 @@ export class World {
     }
     const p = this.player, fx = BALANCE.SCENE_FX;
     if (p && !p.dead && fx) glowWorldCached(p.x, p.y - 4, fx.PLAYER_RING_R, PLAYER_RING_COLOR, fx.PLAYER_RING_A);
+    this.drawBossRings(cb);        // R28/W1-B boss contact rings share the ground-pool layer
+  }
+
+  // R28/W1-B — persistent ground ring under every `boss:true` enemy (ART_SPEC 2.3).
+  // Radius ≈ radius×scale×1.4; alpha pulses around BALANCE.ARTV.BOSS_RING_A. Render-only:
+  // reads e.radius/e.scale, writes nothing. A soft cached pool grounds it, a stroked ellipse
+  // gives the SHAPE cue (colour-blind redundancy — the ring reads without its hue).
+  // `list` defaults to this.enemies (the host's own array) but accepts any enemy iterable —
+  // R28/W1-B2 lets the co-op guest scene pass its `guest.enemies.values()` snapshot puppets
+  // through the SAME method instead of re-deriving the ring math.
+  drawBossRings(cb, list = this.enemies) {
+    const A = (BALANCE.ARTV && BALANCE.ARTV.BOSS_RING_A) || 0.18;
+    for (const e of list) {
+      if (!e.boss || e.dead || e.spawnT > 0) continue;
+      if (e.x < cb.x0 || e.x > cb.x1 || e.y < cb.y0 || e.y > cb.y1) continue;
+      const r = e.radius * (e.scale || 1) * 1.4;
+      const pulse = A + A * 0.55 * Math.sin(this.time * 3.2 + (e.t || 0));
+      glowWorldCached(e.x, e.y, r, BOSS_RING_COLOR, pulse * 0.8);
+      const s = worldToScreen(e.x, e.y), z = camera.zoom, ctx = ctxRaw();
+      ctx.save();
+      ctx.strokeStyle = withAlpha(BOSS_RING_COLOR, Math.min(1, pulse + 0.22));
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.ellipse(s.x, s.y, r * z, r * 0.5 * z, 0, 0, TAU);
+      ctx.stroke();
+      ctx.restore();
+    }
   }
 
   // R26/B1 — "surrounded" beacon: when ≥N enemies crowd the LOCAL player, redraw
@@ -747,24 +803,35 @@ export class World {
       const sp = getSprite(d.sprite);
       drawSprite(frameAt(sp, this.time, d.phase || 0), d.x, d.y, { ax: sp.ax, ay: sp.ay });
     }
-    this.drawSceneLights(cb);      // R26/B1 light pools + local-player ground ring
-    // depth-sorted actors
+    this.drawSceneLights(cb);      // R26/B1 light pools + local-player ground ring + R28 boss rings
+    // R28/W1-B (ART_SPEC 2.1 layer 3) — pickups leave the actor y-sort and go UNDER every
+    // actor. In a dense swarm a loot shard that sorted after an enemy used to punch a hole
+    // through it; loot is never the thing you must read first, so it yields to bodies.
+    for (const pk of this.pickups) pk.draw(this);
+    // layer 4 — depth-sorted actors (enemies + all avatars)
     const drawables = [];
-    for (const pk of this.pickups) drawables.push(pk);
     for (const e of this.enemies) drawables.push(e);
     for (const p of this._playerSet()) if (p && !p.dead) drawables.push(p);   // co-op: all living avatars depth-sorted
     drawables.sort((a, b) => a.y - b.y);
     for (const d of drawables) d.draw(this);
-    // projectiles above actors
+    // layer 5 — projectiles, then the continuous weapon VFX (beams/auras/turrets). R28/W1-B
+    // moved the weapon draw pass out of Player.draw's tail: hung off the player it inherited
+    // the player's y and got painted over by any enemy standing further down the screen.
     for (const p of this.projectiles) p.draw();
+    for (const p of this._playerSet()) if (p && !p.dead && p.drawWeapons) p.drawWeapons(this);
     // beams (lightning / lasers) — boss-move/trap telegraphs. P1-2: colour alone doesn't
     // read for every player, so every beam also carries SHAPE (start dot + end arrowhead,
     // pointing at the actual danger) and MOTION (dashes flowing start->end).
+    // R28/W1-B (ART_SPEC 3): the base line now carries the OWNERSHIP colour at the family's
+    // weight and the white-hot core sits on top (was the reverse — a white 3 px line under a
+    // 1.5 px tint, which washed every family into the same near-white streak). Boss telegraphs
+    // are the heaviest, event/field next, player weapons keep 3 px.
     for (const b of this.beams) {
       const a = Math.max(0, b.life / b.max);
-      lineWorld(b.x0, b.y0, b.x1, b.y1, withAlpha('#ffffff', a), 3);
-      lineWorld(b.x0, b.y0, b.x1, b.y1, withAlpha(b.color, a * 0.8), 1.5);
-      this.drawBeamCues(b, a);
+      const st = BEAM_STYLE[beamFamily(b.color)];
+      lineWorld(b.x0, b.y0, b.x1, b.y1, withAlpha(b.color, a), st.lw);
+      lineWorld(b.x0, b.y0, b.x1, b.y1, withAlpha('#ffffff', a * 0.85), st.core);
+      this.drawBeamCues(b, a, st);
     }
     // particles
     this.particles.draw();

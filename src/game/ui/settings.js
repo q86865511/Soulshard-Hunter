@@ -1,6 +1,6 @@
 // Reusable settings overlay: volumes / screen-shake / mute, a key-binding page, an
 // optional "return to hub" action (in-run), and reset-save. Pages: 'main' | 'keys'.
-import { uiRect, uiText, uiScale, view, uiBar } from '../../engine/renderer.js';
+import { UI, uiRect, uiText, uiScale, view, uiBar } from '../../engine/renderer.js';
 import { mouse, pressed, REBINDABLE, currentKeyFor, keyLabel, captureNextKey, applyKeybinds } from '../../engine/input.js';
 import { META, saveMeta, applySettings, resetMeta, currentSlotKey } from '../state.js';
 import { P, withAlpha } from '../../engine/palette.js';
@@ -120,19 +120,19 @@ export const settingsUI = {
     uiRect(0, 0, view.W, view.H, withAlpha('#0b0d1a', 0.72));
     uiRect(L.x, L.y, L.w, L.h, withAlpha('#161a30', 0.99), { radius: 12 * S, stroke: P.ink2, lw: 2 });
     uiRect(L.x, L.y, L.w, 48 * S, withAlpha('#1f2542', 0.98), { radius: 12 * S });
-    uiText('設 定', L.x + L.w / 2, L.y + 31 * S, { size: 20 * S, align: 'center', color: '#fff', weight: '900' });
+    uiText('設 定', L.x + L.w / 2, L.y + 31 * S, { size: UI.FONT_TITLE * S, align: 'center', color: '#fff', weight: UI.WEIGHT_TITLE });
 
     for (const r of L.rows) {
       if (r.type === 'header') {   // section divider label spanning the panel width
-        uiText(r.label, r.x + 22 * S, r.y + 8 * S, { size: 12 * S, align: 'left', baseline: 'middle', color: P.shardL, weight: '900' });
+        uiText(r.label, r.x + 22 * S, r.y + 8 * S, { size: UI.FONT_HEADING * S, align: 'left', baseline: 'middle', color: P.shardL, weight: UI.WEIGHT_HEADING });
         uiRect(r.x + 84 * S, r.y + 7 * S, r.w - 106 * S, Math.max(1, S), withAlpha(P.ink2, 0.85));
         continue;
       }
       if (r.type === 'desc') {   // P1-3: small explanatory line under a toggle
-        uiText(r.label, r.x + 22 * S, r.y + 4 * S, { size: 9 * S, align: 'left', baseline: 'middle', color: P.gray3 });
+        uiText(r.label, r.x + 22 * S, r.y + 4 * S, { size: UI.FONT_CAPTION * S, align: 'left', baseline: 'middle', color: P.gray3 });
         continue;
       }
-      uiText(r.label, r.x - 16 * S, r.y + r.h / 2 + 1 * S, { size: 13 * S, align: 'right', baseline: 'middle', color: P.gray4, weight: '700' });
+      uiText(r.label, r.x - 16 * S, r.y + r.h / 2 + 1 * S, { size: UI.FONT_BODY * S, align: 'right', baseline: 'middle', color: P.gray4, weight: UI.WEIGHT_BODY });
       if (r.type === 'slider') {
         const store = r.store === 'assist' ? META.assist : META.settings;
         const min = r.min ?? 0, max = r.max ?? 1;
@@ -140,33 +140,33 @@ export const settingsUI = {
         const v = (raw - min) / (max - min);   // 0..1 fill fraction
         uiBar(r.x, r.y, r.w, r.h, v, { fg: r.store === 'assist' ? P.goldL : P.shardL, bg: '#16183a', border: P.ink, radius: 3 });
         uiRect(r.x + r.w * v - 4 * S, r.y - 4 * S, 8 * S, r.h + 8 * S, '#fff', { radius: 3 * S });
-        uiText(Math.round(raw * 100) + '%', r.x + r.w + 14 * S, r.y + r.h / 2 + 1 * S, { size: 12 * S, baseline: 'middle', color: P.gray3 });
+        uiText(Math.round(raw * 100) + '%', r.x + r.w + 14 * S, r.y + r.h / 2 + 1 * S, { size: UI.FONT_BODY * S, baseline: 'middle', color: P.gray3 });
       } else if (r.type === 'uiscale') {
         const sc = META.settings.uiScale ?? 1, t = Math.max(0, Math.min(1, (sc - 0.6) / 0.9));
         uiBar(r.x, r.y, r.w, r.h, t, { fg: P.goldL, bg: '#16183a', border: P.ink, radius: 3 });
         uiRect(r.x + r.w * t - 4 * S, r.y - 4 * S, 8 * S, r.h + 8 * S, '#fff', { radius: 3 * S });
-        uiText(Math.round(sc * 100) + '%', r.x + r.w + 14 * S, r.y + r.h / 2 + 1 * S, { size: 12 * S, baseline: 'middle', color: P.gray3 });
+        uiText(Math.round(sc * 100) + '%', r.x + r.w + 14 * S, r.y + r.h / 2 + 1 * S, { size: UI.FONT_BODY * S, baseline: 'middle', color: P.gray3 });
       } else {
         const on = !!META.settings[r.key]; const hov = inside(mx, my, r);
         uiRect(r.x, r.y, r.w, r.h, on ? P.greenD : '#2a2030', { radius: r.h / 2, stroke: hov ? P.gray3 : P.ink2, lw: 2 });
         uiRect(on ? r.x + r.w - r.h + 2 * S : r.x + 2 * S, r.y + 2 * S, r.h - 4 * S, r.h - 4 * S, on ? P.greenL : P.gray2, { radius: (r.h - 4 * S) / 2 });
-        uiText(on ? '開' : '關', r.x + r.w + 16 * S, r.y + r.h / 2 + 1 * S, { size: 12 * S, baseline: 'middle', color: on ? P.greenL : P.gray3, weight: '700' });
+        uiText(on ? '開' : '關', r.x + r.w + 16 * S, r.y + r.h / 2 + 1 * S, { size: UI.FONT_BODY * S, baseline: 'middle', color: on ? P.greenL : P.gray3, weight: UI.WEIGHT_BODY });
       }
     }
 
     if (L.note) uiText('低於 100% 時該局不計入排行榜・下一局生效・多人連線不適用',
-      L.note.x + L.note.w / 2, L.note.y, { size: 9 * S, align: 'center', baseline: 'middle', color: P.gray3 });
+      L.note.x + L.note.w / 2, L.note.y, { size: UI.FONT_CAPTION * S, align: 'center', baseline: 'middle', color: P.gray3 });
 
     this.btn(L.keys, '⌨ 按鍵設定', mx, my, P.shardL);
     if (L.home) this.btn(L.home, this.returnHub ? '🏠 返回大廳' : '🏠 返回主畫面', mx, my, P.goldL);
 
     const hovR = inside(mx, my, L.reset);
     uiRect(L.reset.x, L.reset.y, L.reset.w, L.reset.h, withAlpha(this.confirmReset ? '#5a1a1a' : '#2a1820', 0.96), { radius: 6 * S, stroke: this.confirmReset ? P.red : P.redD, lw: 2 });
-    uiText(this.confirmReset ? '確定要重置此存檔？' : '重置存檔', L.reset.x + L.reset.w / 2, L.reset.y + L.reset.h / 2 + 1 * S, { size: 13 * S, align: 'center', baseline: 'middle', color: this.confirmReset ? P.redL : P.gray3, weight: '800' });
+    uiText(this.confirmReset ? '確定要重置此存檔？' : '重置存檔', L.reset.x + L.reset.w / 2, L.reset.y + L.reset.h / 2 + 1 * S, { size: UI.FONT_BODY * S, align: 'center', baseline: 'middle', color: this.confirmReset ? P.redL : P.gray3, weight: UI.WEIGHT_BODY });
 
     const hovC = inside(mx, my, L.close);
     uiRect(L.close.x, L.close.y, L.close.w, L.close.h, withAlpha(hovC ? '#2a6a3a' : '#1f5030', 0.98), { radius: 8 * S, stroke: P.greenL, lw: 2 });
-    uiText('關閉', L.close.x + L.close.w / 2, L.close.y + L.close.h / 2 + 1 * S, { size: 15 * S, align: 'center', baseline: 'middle', color: '#fff', weight: '800' });
+    uiText('關閉', L.close.x + L.close.w / 2, L.close.y + L.close.h / 2 + 1 * S, { size: UI.FONT_BODY * S, align: 'center', baseline: 'middle', color: '#fff', weight: UI.WEIGHT_BODY });
   },
   drawKeys() {
     const L = this.keysLayout(); const S = L.S;
@@ -174,24 +174,24 @@ export const settingsUI = {
     uiRect(0, 0, view.W, view.H, withAlpha('#0b0d1a', 0.72));
     uiRect(L.x, L.y, L.w, L.h, withAlpha('#161a30', 0.99), { radius: 12 * S, stroke: P.ink2, lw: 2 });
     uiRect(L.x, L.y, L.w, 48 * S, withAlpha('#1f2542', 0.98), { radius: 12 * S });
-    uiText('按鍵設定', L.x + L.w / 2, L.y + 31 * S, { size: 20 * S, align: 'center', color: '#fff', weight: '900' });
-    uiText('移動固定為 WASD / 方向鍵', L.x + L.w / 2, L.y + 56 * S, { size: 10 * S, align: 'center', color: P.gray3 });
+    uiText('按鍵設定', L.x + L.w / 2, L.y + 31 * S, { size: UI.FONT_TITLE * S, align: 'center', color: '#fff', weight: UI.WEIGHT_TITLE });
+    uiText('移動固定為 WASD / 方向鍵', L.x + L.w / 2, L.y + 56 * S, { size: UI.FONT_CAPTION * S, align: 'center', color: P.gray3 });
     for (const r of L.rows) {
-      uiText(r.label, r.x - 16 * S, r.y + r.h / 2 + 1 * S, { size: 13 * S, align: 'right', baseline: 'middle', color: P.gray4, weight: '700' });
+      uiText(r.label, r.x - 16 * S, r.y + r.h / 2 + 1 * S, { size: UI.FONT_BODY * S, align: 'right', baseline: 'middle', color: P.gray4, weight: UI.WEIGHT_BODY });
       const cap = this.capturing === r.action; const hov = inside(mx, my, r);
       uiRect(r.x, r.y, r.w, r.h, withAlpha(cap ? '#3a2a1a' : (hov ? '#27306a' : '#16183a'), 0.97), { radius: 6 * S, stroke: cap ? P.goldL : (hov ? P.shardL : P.ink2), lw: cap ? 3 : 2 });
-      uiText(cap ? '按任意鍵…' : keyLabel(currentKeyFor(r.action)), r.x + r.w / 2, r.y + r.h / 2 + 1 * S, { size: 12 * S, align: 'center', baseline: 'middle', color: cap ? P.goldL : '#fff', weight: '800' });
+      uiText(cap ? '按任意鍵…' : keyLabel(currentKeyFor(r.action)), r.x + r.w / 2, r.y + r.h / 2 + 1 * S, { size: UI.FONT_BODY * S, align: 'center', baseline: 'middle', color: cap ? P.goldL : '#fff', weight: UI.WEIGHT_BODY });
     }
     const hovK = inside(mx, my, L.resetKeys);
     uiRect(L.resetKeys.x, L.resetKeys.y, L.resetKeys.w, L.resetKeys.h, withAlpha('#2a1820', 0.96), { radius: 6 * S, stroke: hovK ? P.redL : P.redD, lw: 2 });
-    uiText('恢復預設按鍵', L.resetKeys.x + L.resetKeys.w / 2, L.resetKeys.y + L.resetKeys.h / 2 + 1 * S, { size: 12 * S, align: 'center', baseline: 'middle', color: P.gray3, weight: '700' });
+    uiText('恢復預設按鍵', L.resetKeys.x + L.resetKeys.w / 2, L.resetKeys.y + L.resetKeys.h / 2 + 1 * S, { size: UI.FONT_BODY * S, align: 'center', baseline: 'middle', color: P.gray3, weight: UI.WEIGHT_BODY });
     const hovB = inside(mx, my, L.back);
     uiRect(L.back.x, L.back.y, L.back.w, L.back.h, withAlpha(hovB ? '#27305a' : '#1f2542', 0.98), { radius: 8 * S, stroke: P.shardL, lw: 2 });
-    uiText('返回', L.back.x + L.back.w / 2, L.back.y + L.back.h / 2 + 1 * S, { size: 15 * S, align: 'center', baseline: 'middle', color: '#fff', weight: '800' });
+    uiText('返回', L.back.x + L.back.w / 2, L.back.y + L.back.h / 2 + 1 * S, { size: UI.FONT_BODY * S, align: 'center', baseline: 'middle', color: '#fff', weight: UI.WEIGHT_BODY });
   },
   btn(r, label, mx, my, col) {
     const S = uiScale(); const hov = inside(mx, my, r);
     uiRect(r.x, r.y, r.w, r.h, withAlpha(hov ? '#27306a' : '#1b2138', 0.97), { radius: 7 * S, stroke: hov ? (col || P.shardL) : P.ink2, lw: hov ? 3 : 2 });
-    uiText(label, r.x + r.w / 2, r.y + r.h / 2 + 1 * S, { size: 13 * S, align: 'center', baseline: 'middle', color: '#fff', weight: '800' });
+    uiText(label, r.x + r.w / 2, r.y + r.h / 2 + 1 * S, { size: UI.FONT_BODY * S, align: 'center', baseline: 'middle', color: '#fff', weight: UI.WEIGHT_BODY });
   },
 };

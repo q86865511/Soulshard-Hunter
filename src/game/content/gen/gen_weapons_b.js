@@ -108,7 +108,9 @@ Weapons.register({
         const a = targets[b] ? Math.atan2(targets[b].y - p.y, targets[b].x - p.x) : baseA + (b - (beams - 1) / 2) * 0.34;
         const ex = p.x + Math.cos(a) * range, ey = p.y + Math.sin(a) * range;
         inst.st.shots.push({ x0: p.x, y0: p.y, x1: ex, y1: ey, a });
-        w.addBeam(p.x, p.y, ex, ey, P.redL);
+        // HAND-EDIT — R28 W1-B beam 色族, re-integration 前需重套 (ART_SPEC 3: player weapons
+        // may not use the 紅橙 boss family; 裂光雷射砲 recoloured red -> cold cyan, beam + draw()).
+        w.addBeam(p.x, p.y, ex, ey, P.shardL);
         // hitscan: damage enemies near the segment
         const w2 = (5 + l * 0.4);                          // beam half-width
         for (const e of _gwbAlive(w)) {
@@ -128,9 +130,10 @@ Weapons.register({
     }
   },
   draw(w, p, inst) {
+    // HAND-EDIT — R28 W1-B beam 色族, re-integration 前需重套 (glow follows the beam to cold).
     for (const s of (inst.st.shots || [])) {
-      glowWorld(s.x1, s.y1, 7, P.redL, 0.5);
-      glowWorld((s.x0 + s.x1) / 2, (s.y0 + s.y1) / 2, 6, P.red, 0.25);
+      glowWorld(s.x1, s.y1, 7, P.shardL, 0.5);
+      glowWorld((s.x0 + s.x1) / 2, (s.y0 + s.y1) / 2, 6, P.iceD, 0.25);
     }
   },
   levelDesc: (l) => `光束 ${1 + Math.floor((l - 1) / 3)}・每跳 ${(8 + l * 2.2) | 0}・射程 ${230 + l * 14}`,

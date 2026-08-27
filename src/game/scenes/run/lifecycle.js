@@ -4,7 +4,8 @@ import { BIOMES } from '../../../art/biomes.js';
 import { Music, Sfx } from '../../../engine/audio.js';
 import { TAU, clamp, dist, rng } from '../../../engine/math.js';
 import { P } from '../../../engine/palette.js';
-import { addShake, camera } from '../../../engine/renderer.js';
+import { addShake, camera, setGlowCfg } from '../../../engine/renderer.js';
+import { setParticleArtCaps } from '../../../engine/particles.js';
 import { Net } from '../../../net/api.js';
 import { Tele } from '../../../net/telemetry.js';
 import { BALANCE } from '../../balance.js';
@@ -25,6 +26,13 @@ import { FINAL_BOSS, REAPER_ID } from './shared.js';
 
 export const lifecycleMixin = {
   enter(payload) {
+    // R28/W1-B (ART_SPEC 2.2) — arm the brightness budget from BALANCE, the single source of
+    // truth for these numbers. Both knobs are module-global by design: they gate the same
+    // DECORATIVE channel everywhere (particle glow), so leaving them armed after the run also
+    // keeps the town honest. Warning glows never pass `deco` and are untouched either way.
+    const artv = BALANCE.ARTV || {};
+    setGlowCfg({ decoCap: artv.GLOW_DECO_ALPHA, budget: 48 });
+    setParticleArtCaps({ alpha: artv.DECO_PARTICLE_ALPHA, sat: 0.7 });
     this.run = payload.run || newRun();
     this.run.time = 0;
     this.run.stage = 1; this.run.floor = 1;

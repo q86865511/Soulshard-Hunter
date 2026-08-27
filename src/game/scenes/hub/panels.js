@@ -4,7 +4,7 @@ import { Sfx } from '../../../engine/audio.js';
 import { mouse, pressed } from '../../../engine/input.js';
 import { clamp } from '../../../engine/math.js';   // wheel/scrollbar 用（原先 updatePanel/handleScrollbar 未匯入，屬既有漏洞）
 import { P, withAlpha } from '../../../engine/palette.js';
-import { UI, ctxRaw, drawSpriteUI, goldStr, uiBar, uiRect, uiScale, uiText, view } from '../../../engine/renderer.js';
+import { UI, ctxRaw, drawSpriteUI, goldStr, uiBar, uiButton, uiRect, uiScale, uiText, view } from '../../../engine/renderer.js';
 import { getSprite } from '../../../engine/sprites.js';
 import { BALANCE } from '../../balance.js';
 import { BANK_INTEREST, BANK_MIN, bankBorrow, bankLimit, bankState } from '../../content/bank.js';
@@ -24,7 +24,7 @@ export const panelsMixin = {
     ctx.save(); ctx.beginPath(); ctx.arc(bx, by, r, 0, Math.PI * 2);
     ctx.fillStyle = '#f5c518'; ctx.fill();
     ctx.lineWidth = 1.5 * S; ctx.strokeStyle = '#7a5c00'; ctx.stroke(); ctx.restore();
-    uiText('!', bx, by + 0.5 * S, { size: 10 * S, align: 'center', baseline: 'middle', color: '#fff', weight: '900', shadow: false });
+    uiText('!', bx, by + 0.5 * S, { size: UI.FONT_CAPTION * S, align: 'center', baseline: 'middle', color: '#fff', weight: '900', shadow: false });
   },
 
   // ---- panel dispatch ------------------------------------------------------
@@ -113,43 +113,44 @@ export const panelsMixin = {
     const coin = (x, y, sc) => { const sp = getSprite('coin'); drawSpriteUI(sp.frames[0], x, y - sp.h * sc, sc); };
     // info strip
     uiRect(f.x + 24 * S, t0 + 6 * S, f.w - 48 * S, 30 * S, withAlpha('#10142c', 0.7), { radius: 7 * S, stroke: withAlpha(P.goldL, 0.4), lw: 1 });
-    uiText('利率 × ' + BANK_INTEREST + '（+' + Math.round((BANK_INTEREST - 1) * 100) + '% 利息）　·　同時僅能有一筆借款　·　額度隨公會等級提升', f.x + 38 * S, t0 + 25 * S, { size: 11.5 * S, color: P.gray3, weight: '600' });
+    uiText('利率 × ' + BANK_INTEREST + '（+' + Math.round((BANK_INTEREST - 1) * 100) + '% 利息）　·　同時僅能有一筆借款　·　額度隨公會等級提升', f.x + 38 * S, t0 + 25 * S, { size: UI.FONT_BODY * S, color: P.gray3, weight: '600' });
     if (b.debt > 0) {
       uiRect(f.x + 24 * S, t0 + 52 * S, f.w - 48 * S, 96 * S, withAlpha('#241016', 0.85), { radius: 9 * S, stroke: withAlpha(P.redL, 0.55), lw: 1.5 });
-      uiText('💳 目前欠款', f.x + 40 * S, t0 + 78 * S, { size: 14 * S, color: P.redL, weight: '800' });
+      uiText('💳 目前欠款', f.x + 40 * S, t0 + 78 * S, { size: UI.FONT_HEADING * S, color: P.redL, weight: '800' });
       coin(f.x + 44 * S, t0 + 116 * S, 2.4 * S);
-      uiText(String(b.debt) + '　應還', f.x + 70 * S, t0 + 110 * S, { size: 20 * S, color: '#fff', weight: '900' });
-      uiText('（借出本金 ' + goldStr(b.borrowed) + '）　下一局結算自動償還，不足順延。', f.x + 40 * S, t0 + 132 * S, { size: 11 * S, color: P.gray3 });
+      uiText(String(b.debt) + '　應還', f.x + 70 * S, t0 + 110 * S, { size: UI.FONT_TITLE * S, color: '#fff', weight: '900' });
+      uiText('（借出本金 ' + goldStr(b.borrowed) + '）　下一局結算自動償還，不足順延。', f.x + 40 * S, t0 + 132 * S, { size: UI.FONT_BODY * S, color: P.gray3 });
       const r = { x: f.x + 24 * S, y: t0 + 162 * S, w: 300 * S, h: 44 * S };
       uiRect(r.x, r.y, r.w, r.h, withAlpha('#2a2030', 0.96), { radius: 9 * S, stroke: P.gray1, lw: 2 });
-      uiText('已有借款（剩餘 ' + goldStr(b.debt) + ' 待還）', r.x + r.w / 2, r.y + r.h / 2 + 1 * S, { size: 13 * S, align: 'center', baseline: 'middle', color: P.gray3, weight: '800' });
+      uiText('已有借款（剩餘 ' + goldStr(b.debt) + ' 待還）', r.x + r.w / 2, r.y + r.h / 2 + 1 * S, { size: UI.FONT_BODY * S, align: 'center', baseline: 'middle', color: P.gray3, weight: '800' });
     } else {
       if (this.bankAmount == null) this.bankAmount = limit;
       this.bankAmount = Math.max(BANK_MIN, Math.min(this.bankAmount, limit));
       const amt = this.bankAmount, repay = Math.round(amt * BANK_INTEREST), u = this.bankUi(f);
       // credit-limit line
-      uiText('可借額度', f.x + 30 * S, t0 + 64 * S, { size: 13 * S, color: P.shardL, weight: '800' });
-      coin(f.x + 92 * S, t0 + 70 * S, 1.9 * S); uiText(String(limit), f.x + 112 * S, t0 + 66 * S, { size: 16 * S, color: P.goldL, weight: '900' });
-      uiText('自訂借款金額', f.x + 30 * S, t0 + 102 * S, { size: 12 * S, color: P.gray3, weight: '700' });
+      uiText('可借額度', f.x + 30 * S, t0 + 64 * S, { size: UI.FONT_BODY * S, color: P.shardL, weight: '800' });
+      coin(f.x + 92 * S, t0 + 70 * S, 1.9 * S); uiText(String(limit), f.x + 112 * S, t0 + 66 * S, { size: UI.FONT_HEADING * S, color: P.goldL, weight: '900' });
+      uiText('自訂借款金額', f.x + 30 * S, t0 + 102 * S, { size: UI.FONT_BODY * S, color: P.gray3, weight: '600' });
       // − / amount box / +
-      const btn = (rr, t, on) => { const h = inside(mx, my, rr); uiRect(rr.x, rr.y, rr.w, rr.h, withAlpha(h && on ? '#27306a' : '#1b2138', 0.96), { radius: 8 * S, stroke: on ? P.shardL : P.ink2, lw: 2 }); uiText(t, rr.x + rr.w / 2, rr.y + rr.h / 2 + 1 * S, { size: 20 * S, align: 'center', baseline: 'middle', color: on ? '#fff' : P.gray2, weight: '900' }); };
+      // R28/W1: use the shared uiButton() primitive instead of a hand-rolled rect+text pair.
+      const btn = (rr, t, on) => uiButton(rr.x, rr.y, rr.w, rr.h, t, { S, hover: inside(mx, my, rr), disabled: !on, size: UI.FONT_TITLE * S });
       btn(u.minus, '−', amt > BANK_MIN);
       uiRect(u.box.x, u.box.y, u.box.w, u.box.h, withAlpha('#10142c', 0.95), { radius: 8 * S, stroke: P.goldL, lw: 2 });
       coin(u.box.x + 26 * S, u.box.y + u.box.h / 2 + 9 * S, 2.2 * S);
-      uiText(String(amt), u.box.x + u.box.w / 2 + 12 * S, u.box.y + u.box.h / 2 + 1 * S, { size: 22 * S, align: 'center', baseline: 'middle', color: P.goldL, weight: '900' });
+      uiText(String(amt), u.box.x + u.box.w / 2 + 12 * S, u.box.y + u.box.h / 2 + 1 * S, { size: UI.FONT_TITLE * S, align: 'center', baseline: 'middle', color: P.goldL, weight: '900' });
       btn(u.plus, '＋', amt < limit);
-      const fh = inside(mx, my, u.full); uiRect(u.full.x, u.full.y, u.full.w, u.full.h, withAlpha(fh ? '#27306a' : '#1b2138', 0.96), { radius: 7 * S, stroke: P.shardL, lw: 1.5 }); uiText('全額', u.full.x + u.full.w / 2, u.full.y + u.full.h / 2 + 1 * S, { size: 12 * S, align: 'center', baseline: 'middle', color: '#cfe0ff', weight: '800' });
+      const fh = inside(mx, my, u.full); uiRect(u.full.x, u.full.y, u.full.w, u.full.h, withAlpha(fh ? '#27306a' : '#1b2138', 0.96), { radius: 7 * S, stroke: P.shardL, lw: 1.5 }); uiText('全額', u.full.x + u.full.w / 2, u.full.y + u.full.h / 2 + 1 * S, { size: UI.FONT_BODY * S, align: 'center', baseline: 'middle', color: '#cfe0ff', weight: '800' });
       // amount bar (click to set)
       uiBar(u.bar.x, u.bar.y, u.bar.w, u.bar.h, (amt - BANK_MIN) / Math.max(1, limit - BANK_MIN), { fg: P.goldL, bg: '#16183a', border: P.ink });
       // repay breakdown (its own row, well below the bar — was overlapping it)
-      uiText('到期應還', f.x + 30 * S, u.repayY, { size: 12 * S, color: P.gray3, weight: '700' });
-      uiText(goldStr(repay) + '　＝ 本金 ' + goldStr(amt) + ' ＋ 利息 ' + goldStr(repay - amt), f.x + 96 * S, u.repayY, { size: 12 * S, color: P.emberL, weight: '800' });
+      uiText('到期應還', f.x + 30 * S, u.repayY, { size: UI.FONT_BODY * S, color: P.gray3, weight: '600' });
+      uiText(goldStr(repay) + '　＝ 本金 ' + goldStr(amt) + ' ＋ 利息 ' + goldStr(repay - amt), f.x + 96 * S, u.repayY, { size: UI.FONT_BODY * S, color: P.emberL, weight: '800' });
       // borrow button
       const hov = inside(mx, my, u.borrow);
       uiRect(u.borrow.x, u.borrow.y, u.borrow.w, u.borrow.h, withAlpha(hov ? '#2a6a3a' : '#1f5030', 0.96), { radius: 9 * S, stroke: P.greenL, lw: 2 });
-      goldLabel(u.borrow.x + u.borrow.w / 2, u.borrow.y + u.borrow.h / 2 + 1 * S, amt, { size: 15 * S, align: 'center', baseline: 'middle', color: '#fff', weight: '900', prefix: '借款 ' });   // R17/2.1
+      goldLabel(u.borrow.x + u.borrow.w / 2, u.borrow.y + u.borrow.h / 2 + 1 * S, amt, { size: UI.FONT_HEADING * S, align: 'center', baseline: 'middle', color: '#fff', weight: '900', prefix: '借款 ' });   // R17/2.1
     }
-    uiText('− / ＋ 或點擊金條調整金額　·　Esc 關閉', f.x + f.w / 2, f.y + f.h - 14 * S, { size: 11 * S, align: 'center', color: P.gray3 });
+    uiText('− / ＋ 或點擊金條調整金額　·　Esc 關閉', f.x + f.w / 2, f.y + f.h - 14 * S, { size: UI.FONT_BODY * S, align: 'center', color: P.gray3 });
   },
   personalTabRects(f) {
     const S = f.S, w = 92 * S, h = 24 * S, gap = 7 * S, names = ['生涯戰績', '羈絆圖鑑', '裝飾·寵物'], tw = w * names.length + gap * (names.length - 1);
@@ -214,18 +215,18 @@ export const panelsMixin = {
       const owned = decorOwned(META, c.d.id), locked = decorLocked(META, c.d), hov = inside(mx, my, c);
       uiRect(c.x, c.y, c.w, c.h, withAlpha(owned ? '#16221a' : locked ? '#1a1622' : (hov ? '#243a5a' : '#1b2138'), 0.95), { radius: 6 * S, stroke: owned ? P.greenD : locked ? P.purpleD : (hov ? P.shardL : P.ink2), lw: 1 });
       const sp = getSprite(c.d.sprite); if (sp && !sp.missing) { const sc = Math.min(2 * S, (c.h - 8 * S) / sp.h); drawSpriteUI(sp.frames[0], c.x + 6 * S, c.y + c.h - sp.h * sc - 3 * S, sc, { alpha: owned ? 1 : 0.85 }); }
-      uiText(c.d.name, c.x + 44 * S, c.y + 15 * S, { size: 12 * S, color: owned ? P.greenL : '#fff', weight: '800' });
-      if (owned) uiText('✓ 已佈置', c.x + 44 * S, c.y + 30 * S, { size: 10 * S, color: P.greenL, weight: '700' });
-      else if (locked) uiText('🔒 需開發者彩蛋', c.x + 44 * S, c.y + 30 * S, { size: 10 * S, color: P.purpleL, weight: '700' });
-      else goldLabel(c.x + 44 * S, c.y + 30 * S, c.d.price, { size: 11 * S, align: 'left', color: META.gold >= c.d.price ? P.goldL : P.gray3, weight: '800' });
+      uiText(c.d.name, c.x + 44 * S, c.y + 15 * S, { size: UI.FONT_BODY * S, color: owned ? P.greenL : '#fff', weight: '800' });
+      if (owned) uiText('✓ 已佈置', c.x + 44 * S, c.y + 30 * S, { size: UI.FONT_CAPTION * S, color: P.greenL, weight: '600' });
+      else if (locked) uiText('🔒 需開發者彩蛋', c.x + 44 * S, c.y + 30 * S, { size: UI.FONT_CAPTION * S, color: P.purpleL, weight: '600' });
+      else goldLabel(c.x + 44 * S, c.y + 30 * S, c.d.price, { size: UI.FONT_BODY * S, align: 'left', color: META.gold >= c.d.price ? P.goldL : P.gray3, weight: '800' });
     }
-    uiText('🐾 出戰寵物（純裝飾，點擊出戰／收起）', f.x + 24 * S, L.petTop - 12 * S, { size: 12 * S, color: P.shardL, weight: '800' });
+    uiText('🐾 出戰寵物（純裝飾，點擊出戰／收起）', f.x + 24 * S, L.petTop - 12 * S, { size: UI.FONT_BODY * S, color: P.shardL, weight: '800' });
     for (const pt of L.pets) {
       const unlocked = petUnlocked(META, pt.p), on = META.pet === pt.p.id, hov = inside(mx, my, pt);
       uiRect(pt.x, pt.y, pt.w, pt.h, withAlpha(on ? '#243a5a' : (hov ? '#1f2542' : '#1b2138'), 0.95), { radius: 6 * S, stroke: on ? P.shardL : unlocked ? P.gray3 : P.ink2, lw: on ? 2 : 1 });
       const sp = getSprite(pt.p.sprite); if (sp && !sp.missing) { const sc = Math.min(1.8 * S, (pt.h - 6 * S) / sp.h); drawSpriteUI(sp.frames[0], pt.x + 5 * S, pt.y + pt.h - sp.h * sc - 3 * S, sc, { alpha: unlocked ? 1 : 0.3 }); }
-      uiText(pt.p.name, pt.x + pt.w / 2 + 6 * S, pt.y + 14 * S, { size: 11 * S, align: 'center', color: unlocked ? '#fff' : P.gray3, weight: '800' });
-      uiText(unlocked ? (on ? '● 出戰中' : '可出戰') : ('🔒 ' + pt.p.hint), pt.x + pt.w / 2 + 6 * S, pt.y + 29 * S, { size: 8.5 * S, align: 'center', color: on ? P.shardL : P.gray3, weight: '700' });
+      uiText(pt.p.name, pt.x + pt.w / 2 + 6 * S, pt.y + 14 * S, { size: UI.FONT_BODY * S, align: 'center', color: unlocked ? '#fff' : P.gray3, weight: '800' });
+      uiText(unlocked ? (on ? '● 出戰中' : '可出戰') : ('🔒 ' + pt.p.hint), pt.x + pt.w / 2 + 6 * S, pt.y + 29 * S, { size: UI.FONT_CAPTION * S, align: 'center', color: on ? P.shardL : P.gray3, weight: '600' });
     }
     ctx.restore();
     this.drawScrollbar(f);

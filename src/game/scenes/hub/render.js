@@ -49,7 +49,7 @@ export const renderMixin = {
         glowWorld(gx, gy, 11, P.shardL, 0.16 + 0.10 * Math.sin(this.t * 3 + g.tx));
         if (h0 && dist(h0.x, h0.y, gx, gy) < TS * 1.6 && (this.doorCd || 0) <= 0) {
           const ss0 = worldToScreen(gx, gy - 16);
-          uiText(g.target === 'town' ? '踏入光圈 離開' : '踏入光圈 進入', ss0.x, ss0.y, { size: 11 * S, align: 'center', color: withAlpha(P.shardL, 0.85), weight: '800' });
+          uiText(g.target === 'town' ? '踏入光圈 離開' : '踏入光圈 進入', ss0.x, ss0.y, { size: UI.FONT_BODY * S, align: 'center', color: withAlpha(P.shardL, 0.85), weight: '800' });
         }
       }
     }
@@ -83,22 +83,22 @@ export const renderMixin = {
       // R19: door-stations have no sprite — anchor their label above the door anchor itself
       const labelH = s.kind === 'door' ? 22 : (getSprite(s.sprite).h + 6);
       const ss = worldToScreen(s.x, s.y - labelH);
-      uiText(s.label, ss.x, ss.y, { size: 12 * S, align: 'center', color: s.color, weight: '800' });
+      uiText(s.label, ss.x, ss.y, { size: UI.FONT_BODY * S, align: 'center', color: s.color, weight: '800' });
       if (this.near === s) {
         const sp2 = worldToScreen(s.x, s.y + 8);
         // R19: doors prompt 進入 (town→building) / 離開 (building→town); panel stations prompt 進入
         const prompt = s.kind === 'door' ? (s.target === 'town' ? '【E】離開' : '【E】進入') : '【E】互動';
-        uiText(prompt, sp2.x, sp2.y, { size: 12 * S, align: 'center', color: withAlpha('#fff', 0.6 + Math.sin(this.t * 6) * 0.3), weight: '800' });
+        uiText(prompt, sp2.x, sp2.y, { size: UI.FONT_BODY * S, align: 'center', color: withAlpha('#fff', 0.6 + Math.sin(this.t * 6) * 0.3), weight: '800' });
       }
     }
     for (const n of this.npcs) {
       const sp = getSprite(n.def.sprite); const ss = worldToScreen(n.x, n.y - sp.h - 4);
       const isNew = !(META.npc && META.npc.met && META.npc.met[n.def.id]);
-      uiText(n.def.name, ss.x, ss.y, { size: 11 * S, align: 'center', color: n.def.color, weight: '800' });
+      uiText(n.def.name, ss.x, ss.y, { size: UI.FONT_BODY * S, align: 'center', color: n.def.color, weight: '800' });
       const aff = npcAffLevel(META, n.def.id);   // R18/B11: persistent affinity badge under the name (QA B12 wired the helper)
-      if (aff > 0) uiText('❤ Lv' + aff, ss.x, ss.y + 12 * S, { size: 9 * S, align: 'center', color: P.redL, weight: '800' });
+      if (aff > 0) uiText('❤ Lv' + aff, ss.x, ss.y + 12 * S, { size: UI.FONT_CAPTION * S, align: 'center', color: P.redL, weight: '800' });
       if (isNew) this.drawNewBadge(ss.x, ss.y - 24 * S, S);   // 2.3: 「新」徽章 — 黃圈白驚嘆號於名字正上方（上移避免壓到名字）
-      if (this.near === n) { const sp2 = worldToScreen(n.x, n.y + 8); uiText('【E】交談', sp2.x, sp2.y, { size: 11 * S, align: 'center', color: withAlpha('#fff', 0.6 + Math.sin(this.t * 6) * 0.3), weight: '800' }); }
+      if (this.near === n) { const sp2 = worldToScreen(n.x, n.y + 8); uiText('【E】交談', sp2.x, sp2.y, { size: UI.FONT_BODY * S, align: 'center', color: withAlpha('#fff', 0.6 + Math.sin(this.t * 6) * 0.3), weight: '800' }); }
     }
     this.world.particles.drawText();
     // R26/B2: cool low-sat vignette (BALANCE.HUB_VIGNETTE) — same framing the black vignette
@@ -113,15 +113,15 @@ export const renderMixin = {
       } }
 
     // top bar — R19: title reflects the active area (town vs. the building you're inside)
-    uiText(AREA_TITLE[this.area] || AREA_TITLE.town, view.W / 2, 28 * S, { size: 20 * S, align: 'center', color: '#fff', weight: '900' });
+    uiText(AREA_TITLE[this.area] || AREA_TITLE.town, view.W / 2, 28 * S, { size: UI.FONT_TITLE * S, align: 'center', color: '#fff', weight: '900' });
     const csp = getSprite('coin');
     drawSpriteUI(csp.frames[0], view.W - 110 * S, 12 * S, 2.2 * S);
-    uiText(String(META.gold), view.W - 84 * S, 30 * S, { size: 18 * S, color: P.goldL, weight: '800' });
+    uiText(String(META.gold), view.W - 84 * S, 30 * S, { size: UI.FONT_TITLE * S, color: P.goldL, weight: '800' });
     const footer = this.area === 'town'
       ? '1 教堂　2 鐵匠　3 成就　4 公會　空白 出擊　踏入門前光圈進出建築　Esc 設定'
       : '靠近站點或 NPC 按【E】互動　·　踏入門口光圈離開　·　1 教堂 2 鐵匠 3 成就 4 公會 空白 出擊　Esc 設定';
-    uiText(footer, view.W / 2, view.H - 16 * S, { size: 12 * S, align: 'center', color: P.gray3 });
-    if (this.flashT > 0) uiText(this.flash, view.W / 2, view.H * 0.78, { size: 18 * S, align: 'center', color: withAlpha(P.goldL, Math.min(1, this.flashT)), weight: '800' });
+    uiText(footer, view.W / 2, view.H - 16 * S, { size: UI.FONT_BODY * S, align: 'center', color: P.gray3 });
+    if (this.flashT > 0) uiText(this.flash, view.W / 2, view.H * 0.78, { size: UI.FONT_TITLE * S, align: 'center', color: withAlpha(P.goldL, Math.min(1, this.flashT)), weight: '800' });
     if (!this.panel && !this.dialogue) this.drawQuestTracker();
 
     if (this.panel === 'talents') this.drawTalents();
@@ -162,11 +162,11 @@ export const renderMixin = {
   },
   drawHubCheats() {
     const S = uiScale(); const mx = mouse.x * view.dpr, my = mouse.y * view.dpr;
-    uiText('☠ 開發者模式', view.W - 94 * S, 88 * S, { size: 12 * S, align: 'center', color: P.goldL, weight: '900' });
+    uiText('☠ 開發者模式', view.W - 94 * S, 88 * S, { size: UI.FONT_BODY * S, align: 'center', color: P.goldL, weight: '900' });
     for (const b of this.hubCheatButtons()) {
       const hov = inside(mx, my, b);
       uiRect(b.x, b.y, b.w, b.h, withAlpha(hov ? '#3a2a1a' : '#1b1530', 0.95), { radius: 6 * S, stroke: withAlpha(P.goldL, hov ? 0.9 : 0.5), lw: hov ? 2 : 1 });
-      uiText(b.label, b.x + b.w / 2, b.y + b.h / 2 + 4 * S, { size: 11 * S, align: 'center', color: '#ffe9a0', weight: '700' });
+      uiText(b.label, b.x + b.w / 2, b.y + b.h / 2 + 4 * S, { size: UI.FONT_BODY * S, align: 'center', color: '#ffe9a0', weight: '600' });
     }
   },
 
@@ -175,10 +175,10 @@ export const renderMixin = {
     const gp = guildProgress(META);
     const x = 12 * S, y = 12 * S, w = 210 * S, h = 64 * S;
     uiRect(x, y, w, h, withAlpha('#0b0d1a', 0.66), { radius: 6 * S, stroke: withAlpha(P.goldL, 0.6), lw: 1.5 });
-    uiText('追蹤 · ' + q.title, x + 8 * S, y + 15 * S, { size: 11 * S, color: P.goldL, weight: '800' });
-    if (q.sub) uiText(q.sub, x + 8 * S, y + 28 * S, { size: 9 * S, color: P.gray3 });
+    uiText('追蹤 · ' + q.title, x + 8 * S, y + 15 * S, { size: UI.FONT_BODY * S, color: P.goldL, weight: '800' });
+    if (q.sub) uiText(q.sub, x + 8 * S, y + 28 * S, { size: UI.FONT_CAPTION * S, color: P.gray3 });
     uiBar(x + 8 * S, y + 33 * S, w - 16 * S, 4 * S, q.frac || 0, { fg: q.done ? P.greenL : P.shardL, bg: '#16183a', border: P.ink });
-    uiText('公會 · ' + gp.name, x + 8 * S, y + 50 * S, { size: 9.5 * S, color: P.shardL, weight: '700' });
+    uiText('公會 · ' + gp.name, x + 8 * S, y + 50 * S, { size: UI.FONT_CAPTION * S, color: P.shardL, weight: '600' });
     uiBar(x + 8 * S, y + 55 * S, w - 16 * S, 3 * S, gp.frac || 0, { fg: P.gold, bg: '#16183a', border: P.ink });
     // P1 內容圖鑑：底部 append 第一條推薦目標（輕量輔助；無目標時不畫）
     const g0 = goalsFor(META)[0];
@@ -194,12 +194,12 @@ export const renderMixin = {
     if (sub) uiText(sub, f.x + 22 * S + textWidth(title, UI.FONT_TITLE * S, '900') + 12 * S, f.y + 33 * S, { size: UI.FONT_CAPTION * S, color: P.gray3, weight: '600' });
     const csp = getSprite('coin');
     drawSpriteUI(csp.frames[0], f.x + f.w - 150 * S, f.y + 14 * S, 2 * S);
-    uiText(String(META.gold), f.x + f.w - 128 * S, f.y + 32 * S, { size: 17 * S, color: P.goldL, weight: '800' });
+    uiText(String(META.gold), f.x + f.w - 128 * S, f.y + 32 * S, { size: UI.FONT_HEADING * S, color: P.goldL, weight: '800' });
     uiRect(f.close.x, f.close.y, f.close.w, f.close.h, withAlpha('#3a2030', 0.9), { radius: 6 * S, stroke: P.redD, lw: 2 });
-    uiText('✕', f.close.x + f.close.w / 2, f.close.y + f.close.h / 2 + 1 * S, { size: 16 * S, align: 'center', baseline: 'middle', color: P.redL, weight: '900' });
+    uiText('✕', f.close.x + f.close.w / 2, f.close.y + f.close.h / 2 + 1 * S, { size: UI.FONT_HEADING * S, align: 'center', baseline: 'middle', color: P.redL, weight: '900' });
     // task 8: per-category reset button (top-right, left of the coin)
     const rt = this.resetTarget();
-    if (rt) { const rb = this.resetBtnRect(f); const mx = mouse.x * view.dpr, my = mouse.y * view.dpr; const hov = inside(mx, my, rb); uiRect(rb.x, rb.y, rb.w, rb.h, withAlpha(hov ? '#3a2a18' : '#241a10', 0.96), { radius: 6 * S, stroke: P.emberL, lw: 1.5 }); uiText('↺ ' + rt.label, rb.x + rb.w / 2, rb.y + rb.h / 2 + 1 * S, { size: 11 * S, align: 'center', baseline: 'middle', color: P.emberL, weight: '800' }); }
+    if (rt) { const rb = this.resetBtnRect(f); const mx = mouse.x * view.dpr, my = mouse.y * view.dpr; const hov = inside(mx, my, rb); uiRect(rb.x, rb.y, rb.w, rb.h, withAlpha(hov ? '#3a2a18' : '#241a10', 0.96), { radius: 6 * S, stroke: P.emberL, lw: 1.5 }); uiText('↺ ' + rt.label, rb.x + rb.w / 2, rb.y + rb.h / 2 + 1 * S, { size: UI.FONT_BODY * S, align: 'center', baseline: 'middle', color: P.emberL, weight: '800' }); }
     return f;
   },
 
@@ -207,7 +207,7 @@ export const renderMixin = {
     const f = this.drawPanelFrame('教 堂 · 天 賦', '向女神像祈求，以金幣永久強化');
     const S = f.S;
     const cols = TALENT_BRANCHES.length; const colW = f.w / cols;
-    TALENT_BRANCHES.forEach((br, ci) => { uiText(br.name, f.x + ci * colW + colW / 2, f.y + 72 * S, { size: 15 * S, align: 'center', color: br.color, weight: '800' }); });
+    TALENT_BRANCHES.forEach((br, ci) => { uiText(br.name, f.x + ci * colW + colW / 2, f.y + 72 * S, { size: UI.FONT_HEADING * S, align: 'center', color: br.color, weight: '800' }); });
     const mx = mouse.x * view.dpr, my = mouse.y * view.dpr;
     const { nodes } = this.talentNodes();
     let bottom = f.y + 92 * S;
@@ -222,16 +222,16 @@ export const renderMixin = {
       const BRANCH_ICON = { offense: 'talent_t_damage', defense: 'talent_t_hp', utility: 'talent_t_speed', fortune: 'talent_t_gold' };
       const isp = getSprite(iconOr(def.icon, BRANCH_ICON[def.branch] || 'talent_t_damage'));
       drawSpriteUI(isp.frames[0], n.x + 6 * S, n.y + 6 * S, (26 * S) / isp.w);
-      uiText(def.name, n.x + 38 * S, n.y + 17 * S, { size: 12.5 * S, color: '#fff', weight: '800' });
+      uiText(def.name, n.x + 38 * S, n.y + 17 * S, { size: UI.FONT_BODY * S, color: '#fff', weight: '800' });
       this.clip1(def.desc, n.x + 38 * S, n.y + 31 * S, n.w - 44 * S, 10 * S, P.gray4);
       for (let i = 0; i < def.maxLevel; i++) uiRect(n.x + 40 * S + i * 9 * S, n.y + 42 * S, 7 * S, 5 * S, i < cur ? n.color : '#333a55', { radius: 1 });
       const col = st === 'max' ? P.greenL : (st === 'locked' || st === 'gated') ? P.gray3 : st === 'poor' ? P.redL : P.goldL;
-      if (st === 'max' || st === 'locked' || st === 'gated') uiText(st === 'max' ? '已滿級' : st === 'gated' ? '🔒 進度解鎖' : '需先解鎖前置', n.x + n.w - 8 * S, n.y + n.h - 9 * S, { size: 11 * S, align: 'right', color: col, weight: '800' });
-      else goldLabel(n.x + n.w - 8 * S, n.y + n.h - 9 * S, this.hubCost(def.cost(cur), 'talentPurchases'), { size: 11 * S, align: 'right', color: col, weight: '800' });   // R17/2.1
+      if (st === 'max' || st === 'locked' || st === 'gated') uiText(st === 'max' ? '已滿級' : st === 'gated' ? '🔒 進度解鎖' : '需先解鎖前置', n.x + n.w - 8 * S, n.y + n.h - 9 * S, { size: UI.FONT_BODY * S, align: 'right', color: col, weight: '800' });
+      else goldLabel(n.x + n.w - 8 * S, n.y + n.h - 9 * S, this.hubCost(def.cost(cur), 'talentPurchases'), { size: UI.FONT_BODY * S, align: 'right', color: col, weight: '800' });   // R17/2.1
     }
     ctx.restore();
     this.drawScrollbar(f);
-    uiText('點擊節點升級　·　' + this.hubPriceHint('talentPurchases') + '　·　Esc 關閉', f.x + f.w / 2, f.y + f.h - 14 * S, { size: 11 * S, align: 'center', color: P.gray3 });
+    uiText('點擊節點升級　·　' + this.hubPriceHint('talentPurchases') + '　·　Esc 關閉', f.x + f.w / 2, f.y + f.h - 14 * S, { size: UI.FONT_BODY * S, align: 'center', color: P.gray3 });
   },
 
   // R17/9.1: shared locked-panel body for progression-gated systems
@@ -241,9 +241,9 @@ export const renderMixin = {
     // R17 UI-sweep polish: center within the BODY (below any tab row) — anchoring at 0.42·f.h
     // left a ~180px dead band under the smith tabs while the lock sat too low.
     const cy = (this.bodyTop(f) + f.y + f.h - 24 * S) / 2;
-    uiText('🔒', f.x + f.w / 2, cy - 22 * S, { size: 40 * S, align: 'center', color: P.gray2, weight: '900' });
-    uiText(hint, f.x + f.w / 2, cy + 16 * S, { size: 14 * S, align: 'center', color: '#cfe0ff', weight: '800' });
-    uiText(gateProgress(META), f.x + f.w / 2, cy + 38 * S, { size: 11 * S, align: 'center', color: P.gray3 });
-    uiText('Esc 關閉', f.x + f.w / 2, f.y + f.h - 14 * S, { size: 11 * S, align: 'center', color: P.gray3 });
+    uiText('🔒', f.x + f.w / 2, cy - 22 * S, { size: 40 * S, align: 'center', color: P.gray2, weight: '900' });   /* pictogram, exempt from type ramp */
+    uiText(hint, f.x + f.w / 2, cy + 16 * S, { size: UI.FONT_HEADING * S, align: 'center', color: '#cfe0ff', weight: '800' });
+    uiText(gateProgress(META), f.x + f.w / 2, cy + 38 * S, { size: UI.FONT_BODY * S, align: 'center', color: P.gray3 });
+    uiText('Esc 關閉', f.x + f.w / 2, f.y + f.h - 14 * S, { size: UI.FONT_BODY * S, align: 'center', color: P.gray3 });
   },
 };

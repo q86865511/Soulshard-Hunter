@@ -5,7 +5,7 @@
 import { Sfx } from '../../../engine/audio.js';
 import { mouse } from '../../../engine/input.js';
 import { P, withAlpha } from '../../../engine/palette.js';
-import { ctxRaw, drawSpriteUI, textWidth, uiBar, uiRect, uiText, view } from '../../../engine/renderer.js';
+import { UI, ctxRaw, drawSpriteUI, textWidth, uiBar, uiRect, uiText, view } from '../../../engine/renderer.js';
 import { frameAt, getSprite } from '../../../engine/sprites.js';
 import { allRecipes, codexCounts, isSeen, unlockHintFor } from '../../content/codex.js';
 import { goalsFor } from '../../content/goals.js';
@@ -26,7 +26,7 @@ export const renderCodexMixin = {
     const S = f.S, c = codexCounts();
     const labels = ['目標', '武器 ' + c.w[0] + '/' + c.w[1], '被動 ' + c.a[0] + '/' + c.a[1], 'Boss ' + c.boss[0] + '/' + c.boss[1], '配方 ' + c.rec[0] + '/' + c.rec[1]];
     const y = f.y + 60 * S, h = 24 * S, gap = 6 * S; let x = f.x + 24 * S;
-    return labels.map((label, i) => { const w = Math.max(58 * S, textWidth(label, 11 * S, '800') + 18 * S); const r = { label, i, x, y, w, h }; x += w + gap; return r; });
+    return labels.map((label, i) => { const w = Math.max(58 * S, textWidth(label, UI.FONT_BODY * S, '800') + 18 * S); const r = { label, i, x, y, w, h }; x += w + gap; return r; });
   },
 
   // ---- grid data (武器/被動/Boss) ------------------------------------------
@@ -72,13 +72,13 @@ export const renderCodexMixin = {
     for (const tb of this.codexTabRects(f)) {
       const on = (this.codexTab || 0) === tb.i, hov = inside(mx, my, tb);
       uiRect(tb.x, tb.y, tb.w, tb.h, withAlpha(on ? '#243a5a' : (hov ? '#1f2740' : '#1b2138'), 0.96), { radius: 6 * S, stroke: on ? P.shardL : P.ink2, lw: on ? 2 : 1 });
-      uiText(tb.label, tb.x + tb.w / 2, tb.y + tb.h / 2 + 1 * S, { size: 11 * S, align: 'center', baseline: 'middle', color: on ? '#fff' : P.gray3, weight: '800' });
+      uiText(tb.label, tb.x + tb.w / 2, tb.y + tb.h / 2 + 1 * S, { size: UI.FONT_BODY * S, align: 'center', baseline: 'middle', color: on ? '#fff' : P.gray3, weight: '800' });
     }
     const tab = this.codexTab || 0;
     if (tab === 0) this.drawCodexGoals(f);
     else if (tab === 4) this.drawCodexRecipes(f);
     else this.drawCodexGrid(f, tab);
-    uiText('點擊圖示查看詳情　·　滾輪捲動　·　Esc 關閉', f.x + f.w / 2, f.y + f.h - 14 * S, { size: 11 * S, align: 'center', color: P.gray3 });
+    uiText('點擊圖示查看詳情　·　滾輪捲動　·　Esc 關閉', f.x + f.w / 2, f.y + f.h - 14 * S, { size: UI.FONT_BODY * S, align: 'center', color: P.gray3 });
   },
 
   // ---- 目標分頁（預設）------------------------------------------------------
@@ -86,12 +86,12 @@ export const renderCodexMixin = {
     const S = f.S; const goals = goalsFor(META);
     this.panelMaxScroll = 0;   // ≤3 卡片，無需捲動
     const top = f.y + 98 * S, padX = 24 * S, cardH = 60 * S, gap = 12 * S;
-    if (!goals.length) { uiText('目前沒有推薦目標，自由探索吧', f.x + f.w / 2, top + 46 * S, { size: 13 * S, align: 'center', color: P.gray3, weight: '700' }); return; }
+    if (!goals.length) { uiText('目前沒有推薦目標，自由探索吧', f.x + f.w / 2, top + 46 * S, { size: UI.FONT_BODY * S, align: 'center', color: P.gray3, weight: '600' }); return; }
     goals.forEach((g, i) => {
       const x = f.x + padX, y = top + i * (cardH + gap), w = f.w - padX * 2;
       uiRect(x, y, w, cardH, withAlpha('#1b2138', 0.95), { radius: 8 * S, stroke: withAlpha(P.shardL, 0.5), lw: 1.5 });
-      uiText(g.icon || '•', x + 22 * S, y + cardH / 2 + 1 * S, { size: 26 * S, align: 'center', baseline: 'middle', shadow: false });
-      uiText(g.title, x + 48 * S, y + 24 * S, { size: 14.5 * S, color: '#fff', weight: '800' });
+      uiText(g.icon || '•', x + 22 * S, y + cardH / 2 + 1 * S, { size: 26 * S, align: 'center', baseline: 'middle', shadow: false });   /* pictogram, exempt from type ramp */
+      uiText(g.title, x + 48 * S, y + 24 * S, { size: UI.FONT_HEADING * S, color: '#fff', weight: '800' });
       this.clip1(g.desc || '', x + 48 * S, y + 41 * S, w - 66 * S, 11 * S, P.gray3);
       uiBar(x + 48 * S, y + cardH - 12 * S, w - 72 * S, 5 * S, g.frac || 0, { fg: P.shardL, bg: '#16183a', border: P.ink });
     });
@@ -119,7 +119,7 @@ export const renderCodexMixin = {
         if (seen) drawSpriteUI(frameAt(sp, this.t), dx, dy, sc);
         else drawSpriteUI(sp.frames[0], dx, dy, sc, { tint: SILHOUETTE, alpha: 0.9 });
       } else if (!seen) {
-        uiText('?', c.x + c.w / 2, c.y + c.h / 2 + 4 * S, { size: 18 * S, align: 'center', baseline: 'middle', color: '#2a3040', weight: '900' });
+        uiText('?', c.x + c.w / 2, c.y + c.h / 2 + 4 * S, { size: UI.FONT_TITLE * S, align: 'center', baseline: 'middle', color: '#2a3040', weight: '900' });
       }
     }
     ctx.restore();
@@ -141,21 +141,21 @@ export const renderCodexMixin = {
       const dx = bx + 10 * S + (isz - sp.w * sc) / 2, dy = by + 10 * S + (isz - sp.h * sc) / 2;
       if (seen) drawSpriteUI(frameAt(sp, this.t), dx, dy, sc);
       else drawSpriteUI(sp.frames[0], dx, dy, sc, { tint: SILHOUETTE, alpha: 0.9 });
-    } else if (!seen) uiText('?', bx + 10 * S + isz / 2, by + 10 * S + isz / 2 + 5 * S, { size: 22 * S, align: 'center', baseline: 'middle', color: '#2a3040', weight: '900' });
+    } else if (!seen) uiText('?', bx + 10 * S + isz / 2, by + 10 * S + isz / 2 + 5 * S, { size: UI.FONT_TITLE * S, align: 'center', baseline: 'middle', color: '#2a3040', weight: '900' });
     const tx = bx + isz + 22 * S, tw = bw - isz - 34 * S;
     if (seen) {
       const rar = sel.kind === 'boss' ? null : RARITY[rarityOf(def, sel.kind === 'w' ? 'weapon' : 'ability')];
       const name = def.name || sel.id;
-      uiText(name, tx, by + 26 * S, { size: 15 * S, color: rar ? rar.accent : P.redL, weight: '900' });
+      uiText(name, tx, by + 26 * S, { size: UI.FONT_HEADING * S, color: rar ? rar.accent : P.redL, weight: '900' });
       if (rar) {   // 稀有度色框
-        const nw = textWidth(name, 15 * S, '900'), tagW = textWidth(rar.tag, 10 * S, '800') + 14 * S;
+        const nw = textWidth(name, UI.FONT_HEADING * S, '900'), tagW = textWidth(rar.tag, UI.FONT_CAPTION * S, '800') + 14 * S;
         uiRect(tx + nw + 10 * S, by + 14 * S, tagW, 16 * S, withAlpha(rar.bg, 0.9), { radius: 4 * S, stroke: rar.accent, lw: 1 });
-        uiText(rar.tag, tx + nw + 10 * S + tagW / 2, by + 22.5 * S, { size: 10 * S, align: 'center', baseline: 'middle', color: rar.accent, weight: '800' });
+        uiText(rar.tag, tx + nw + 10 * S + tagW / 2, by + 22.5 * S, { size: UI.FONT_CAPTION * S, align: 'center', baseline: 'middle', color: rar.accent, weight: '800' });
       }
-      this.codexDesc(def.desc || '', tx, by + 45 * S, tw, 12 * S);
+      this.codexDesc(def.desc || '', tx, by + 45 * S, tw, UI.FONT_BODY * S);
     } else {
-      uiText('？？？', tx, by + 26 * S, { size: 15 * S, color: P.gray2, weight: '900' });
-      uiText(unlockHintFor(sel.kind, sel.id), tx, by + 47 * S, { size: 12 * S, color: P.shardL, weight: '700' });
+      uiText('？？？', tx, by + 26 * S, { size: UI.FONT_HEADING * S, color: P.gray2, weight: '900' });
+      uiText(unlockHintFor(sel.kind, sel.id), tx, by + 47 * S, { size: UI.FONT_BODY * S, color: P.shardL, weight: '600' });
     }
   },
 
@@ -182,15 +182,15 @@ export const renderCodexMixin = {
       const base = Weapons.get(rc.baseId), evo = Weapons.get(rc.evoId), req = rc.reqId ? Abilities.get(rc.reqId) : null;
       // 左側：基底武器
       drawMini('weapon_' + rc.baseId, x + 10 * S, cy, baseKnown);
-      uiText(baseKnown ? ((base && base.name) || '？') : '？？？', x + 50 * S, y + 20 * S, { size: 12.5 * S, color: baseKnown ? '#fff' : P.gray2, weight: '800' });
+      uiText(baseKnown ? ((base && base.name) || '？') : '？？？', x + 50 * S, y + 20 * S, { size: UI.FONT_BODY * S, color: baseKnown ? '#fff' : P.gray2, weight: '800' });
       // 需求被動：進化結果與需求在未發現時永不顯示
-      if (known && req) uiText('＋ ' + req.name, x + 50 * S, y + 36 * S, { size: 10.5 * S, color: P.manaL, weight: '700' });
-      else if (!known) uiText('＋ ？？？', x + 50 * S, y + 36 * S, { size: 10.5 * S, color: P.gray3, weight: '700' });
+      if (known && req) uiText('＋ ' + req.name, x + 50 * S, y + 36 * S, { size: UI.FONT_CAPTION * S, color: P.manaL, weight: '600' });
+      else if (!known) uiText('＋ ？？？', x + 50 * S, y + 36 * S, { size: UI.FONT_CAPTION * S, color: P.gray3, weight: '600' });
       // 箭頭
-      uiText('→', x + w * 0.5, cy + 5 * S, { size: 18 * S, align: 'center', baseline: 'middle', color: known ? P.goldL : P.gray2, weight: '900' });
+      uiText('→', x + w * 0.5, cy + 5 * S, { size: UI.FONT_TITLE * S, align: 'center', baseline: 'middle', color: known ? P.goldL : P.gray2, weight: '900' });
       // 右側：進化結果
-      if (known) { drawMini('weapon_' + rc.evoId, x + w - 190 * S, cy, true); uiText((evo && evo.name) || '？', x + w - 150 * S, cy + 5 * S, { size: 13 * S, baseline: 'middle', color: P.goldL, weight: '900' }); }
-      else uiText('？？？', x + w - 150 * S, cy + 5 * S, { size: 13 * S, baseline: 'middle', color: P.gray2, weight: '900' });
+      if (known) { drawMini('weapon_' + rc.evoId, x + w - 190 * S, cy, true); uiText((evo && evo.name) || '？', x + w - 150 * S, cy + 5 * S, { size: UI.FONT_BODY * S, baseline: 'middle', color: P.goldL, weight: '900' }); }
+      else uiText('？？？', x + w - 150 * S, cy + 5 * S, { size: UI.FONT_BODY * S, baseline: 'middle', color: P.gray2, weight: '900' });
     });
     ctx.restore();
     this.drawScrollbar(f);

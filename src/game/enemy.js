@@ -1,5 +1,5 @@
 // Enemy actor with a few reusable AI behaviours driven by its definition.
-import { drawSprite, drawShadow, glowWorld, addShake } from '../engine/renderer.js';
+import { drawSprite, drawShadow, drawSpriteTint, glowWorld, addShake, camera } from '../engine/renderer.js';
 import { getSprite, frameAt } from '../engine/sprites.js';
 import { dist, dist2, angleBetween, normalize, clamp, TAU } from '../engine/math.js';
 import { P } from '../engine/palette.js';
@@ -11,6 +11,11 @@ import { applyStatus, tickStatus } from './status.js';
 import { ENEMY_STATUS } from './content/status_tags.js';
 import { bossMoveTick } from './content/boss_moves.js';   // R20/B6: named boss attack patterns
 import { META } from './state.js';   // P1-2: 傷害數字開關
+
+// R28/W1-B (ART_SPEC 2.3) — boss rim light. Warm hex borrowed from the BOSS beam family so
+// "this body" and "this telegraph" read as the same author at a glance.
+const BOSS_RIM_COLOR = (BALANCE.ARTV && BALANCE.ARTV.BEAM_FAM_BOSS && BALANCE.ARTV.BEAM_FAM_BOSS[1]) || '#ff8a50';
+const BOSS_RIM_OFFSETS = [[-1, 0], [1, 0], [0, -1], [0, 1]];
 
 export class Enemy {
   constructor(def, x, y, world, opts = {}) {
@@ -63,7 +68,7 @@ export class Enemy {
     this.mv = null; this.mvLift = 0; this.mvCd = Math.max(this.mvCd ?? 0, 1.5);   // R20/B6: a phase shift interrupts the active move (incl. mid-air) + gives breathing room
     this.iframe = 0.7; this.enrage += 0.45; this.flash = 0.3;
     addShake(9);
-    world.particles.ring(this.x, this.y, this.tint || P.redL, 28, 170);
+    world.particles.ring(this.x, this.y, this.tint || P.redL, 28, 170, { warn: true });   // R28/W1-B: a phase shift is a warning, not decoration — exempt from the deco caps
     world.spawnExplosion(this.x, this.y, this.radius * this.scale * 1.4, this.tint || P.emberL, 0);
     world.particles.text(this.x, this.y - this.radius * this.scale - 8, '階段 ' + (this.phase + 1), { color: P.redL, size: 18, life: 1.3 });
     this.radialBurst(world, 12 + this.phase * 6, (this.attack?.projSpeed ?? 110));
@@ -276,6 +281,16 @@ export class Enemy {
     if (sk) glowWorld(this.x, this.y - this.radius * sc * 0.3, this.radius * 1.5 * sc, sk, 0.3);
     const hopY = (this.hop > 0 ? -Math.sin(Math.min(1, this.hop / 0.6) * Math.PI) * 7 : 0) - (this.mvLift || 0);   // R20/B6: mvLift = leap_slam airborne pixel lift (shadow stays grounded)
     const opts = { ax: sp.ax, ay: sp.ay, flipX: this.facing > 0, scale: sc };
+    // R28/W1-B (ART_SPEC 2.3) — bosses wear a 1 px warm rim: the same frame blitted as a
+    // solid silhouette at four 1-screen-px offsets BEHIND the body. Goes through the shared
+    // tintedFrame WeakMap (one bake per frame canvas, not per game frame), and the offsets
+    // are screen-space so the rim stays 1 px at any zoom. Elites/normals are untouched —
+    // elites keep their glow, normals keep the clean three-step contrast.
+    if (this.boss && this.flash <= 0) {
+      const frame = frameAt(sp, this.t), o = 1 / camera.zoom;
+      const rimOpts = { ax: sp.ax, ay: sp.ay, flipX: this.facing > 0, scale: sc };
+      for (const [dx, dy] of BOSS_RIM_OFFSETS) drawSpriteTint(frame, this.x + dx * o, this.y + hopY + dy * o, BOSS_RIM_COLOR, 0.9, rimOpts);
+    }
     if (this.flash > 0) { opts.tint = '#ffffff'; opts.tintAmt = 0.9; }
     else if (this.tint) { opts.tint = this.tint; opts.tintAmt = 0.22; }
     if (this.charging) { opts.tint = '#ffffff'; opts.tintAmt = 0.4 + Math.sin(this.t * 40) * 0.3; }

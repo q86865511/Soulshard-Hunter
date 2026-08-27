@@ -1,5 +1,5 @@
 // In-run heads-up display (screen space).
-import { uiText, uiBar, uiRect, uiScale, view, drawSpriteUI, textWidth, PIXEL_FONT, ctxRaw } from '../engine/renderer.js';
+import { uiText, uiBar, uiRect, uiScale, view, drawSpriteUI, textWidth, PIXEL_FONT, ctxRaw, UI } from '../engine/renderer.js';
 import { getSprite, iconOr } from '../engine/sprites.js';
 import { P, withAlpha } from '../engine/palette.js';
 import { Abilities } from './content/registry.js';
@@ -19,8 +19,8 @@ export function drawAchievementToasts(S = uiScale()) {
     const a = age < 0.3 ? age / 0.3 : (rem < 0.5 ? Math.max(0, rem / 0.5) : 1);
     const y = 70 * S + i * (h + 8 * S);
     uiRect(x, y, w, h, withAlpha('#2a1f00', 0.92 * a), { radius: 6 * S, stroke: withAlpha(P.goldL, 0.9 * a), lw: 2 });
-    uiText('🏆 成就解鎖', x + 10 * S, y + 13 * S, { size: 9 * S, color: withAlpha(P.goldL, a), weight: '800' });
-    uiText(t.name, x + 10 * S, y + 27 * S, { size: 11 * S, color: withAlpha('#ffffff', a), weight: '700' });
+    uiText('🏆 成就解鎖', x + 10 * S, y + 13 * S, { size: UI.FONT_HEADING * S, color: withAlpha(P.goldL, a), weight: UI.WEIGHT_HEADING });
+    uiText(t.name, x + 10 * S, y + 27 * S, { size: UI.FONT_BODY * S, color: withAlpha('#ffffff', a), weight: UI.WEIGHT_BODY });
   });
 }
 
@@ -34,8 +34,8 @@ function iconCounter(sprite, value, rightX, y, S, color) {
   const sp = getSprite(sprite);
   const sc = 1.6 * S;
   const txt = String(value);
-  const tw = textWidth(txt, 12 * S, '800', PIXEL_FONT);
-  uiText(txt, rightX, y - 3 * S, { size: 12 * S, align: 'right', color, weight: '800', baseline: 'alphabetic', font: PIXEL_FONT });   // 1.8 pixel digits
+  const tw = textWidth(txt, UI.FONT_HEADING * S, UI.WEIGHT_HEADING, PIXEL_FONT);
+  uiText(txt, rightX, y - 3 * S, { size: UI.FONT_HEADING * S, align: 'right', color, weight: UI.WEIGHT_HEADING, baseline: 'alphabetic', font: PIXEL_FONT });   // 1.8 pixel digits
   drawSpriteUI(sp.frames[0], rightX - tw - 4 * S - sp.w * sc, y - sp.h * sc + 2 * S, sc);
 }
 
@@ -89,12 +89,12 @@ export function drawHud(run, player) {
   const segs = Math.min(14, Math.floor((player.maxHp || 100) / 50));
   for (let i = 1; i <= segs; i++) { const sx = bx + vbarW * (i * 50 / player.maxHp); if (sx < bx + vbarW - 2 * S) uiRect(sx, r1y + 3 * S, Math.max(1, S), hpBarH - 6 * S, withAlpha('#000', 0.32)); }
   uiText(`${Math.ceil(player.hp)} / ${player.maxHp}`, bx + vbarW / 2, r1y + hpBarH / 2 + 1 * S,
-    { size: 9 * S, align: 'center', baseline: 'middle', weight: '800', color: '#fff', shadowColor: withAlpha('#000', 0.75), font: PIXEL_FONT });   // 1.8
+    { size: UI.FONT_HEADING * S, align: 'center', baseline: 'middle', weight: UI.WEIGHT_HEADING, color: '#fff', shadowColor: withAlpha('#000', 0.75), font: PIXEL_FONT });   // 1.8
 
   // 經驗 (XP) + 等級（整合進經驗條右端）
   vIcon('xp', r2y + subH / 2);
   uiBar(bx, r2y, vbarW, subH, clamp01(run.xp / run.xpNext), { fg: P.manaL, bg: '#16183a', border: P.ink, glow: true });
-  uiText('Lv ' + run.level, bx + vbarW - 5 * S, r2y + subH / 2 + 0.5 * S, { size: 7 * S, align: 'right', baseline: 'middle', color: '#fff', weight: '900', shadowColor: withAlpha('#000', 0.8), font: PIXEL_FONT });   // 1.8
+  uiText('Lv ' + run.level, bx + vbarW - 5 * S, r2y + subH / 2 + 0.5 * S, { size: UI.FONT_BODY * S, align: 'right', baseline: 'middle', color: '#fff', weight: UI.WEIGHT_BODY, shadowColor: withAlpha('#000', 0.8), font: PIXEL_FONT });   // 1.8
 
   // 衝刺 (dash) — bare cyan chevron glyph (matches the heart/xp bare icons above), no text label
   const dashReady = (player.dashCd ?? 0) <= 0;
@@ -112,7 +112,7 @@ export function drawHud(run, player) {
       if (!player.status[k]) continue;
       const [lab, col] = SC[k];
       uiRect(sx, sy, 18 * S, 14 * S, withAlpha(col, 0.22), { radius: 4 * S, stroke: col, lw: 1 });
-      uiText(lab, sx + 9 * S, sy + 8 * S, { size: 10 * S, align: 'center', baseline: 'middle', color: col, weight: '800' });
+      uiText(lab, sx + 9 * S, sy + 8 * S, { size: UI.FONT_CAPTION * S, align: 'center', baseline: 'middle', color: col, weight: UI.WEIGHT_BODY });
       sx += 21 * S;
     }
   }
@@ -134,8 +134,8 @@ export function drawHud(run, player) {
       uiRect(bx, ay, wsz, wsz, withAlpha('#10121f', 0.74), { radius: 4 * S, stroke: inst.def.evolved || ready ? P.goldL : P.ink2, lw: 2 });
       const sp = getSprite(iconOr(inst.def.icon, 'weapon_w_soulbolt'));
       drawSpriteUI(sp.frames[0], bx + 3 * S, ay + 3 * S, (wsz - 6 * S) / sp.w);
-      if (ready) { const pz = Math.sin((player.t || 0) * 6) * 0.5 + 0.5; uiRect(bx, ay, wsz, wsz, withAlpha(P.goldL, 0.1 + 0.16 * pz), { radius: 4 * S }); uiText('↑', bx + wsz / 2, ay + 9 * S, { size: 12 * S, align: 'center', baseline: 'middle', color: P.goldL, weight: '900', shadow: false }); }
-      uiText(inst.def.evolved ? '★' : 'L' + inst.level, bx + wsz - 3 * S, ay + wsz - 3 * S, { size: 10 * S, align: 'right', color: inst.def.evolved ? P.goldL : P.shardL, weight: '800' });
+      if (ready) { const pz = Math.sin((player.t || 0) * 6) * 0.5 + 0.5; uiRect(bx, ay, wsz, wsz, withAlpha(P.goldL, 0.1 + 0.16 * pz), { radius: 4 * S }); uiText('↑', bx + wsz / 2, ay + 9 * S, { size: UI.FONT_BODY * S, align: 'center', baseline: 'middle', color: P.goldL, weight: UI.WEIGHT_BODY, shadow: false }); }
+      uiText(inst.def.evolved ? '★' : 'L' + inst.level, bx + wsz - 3 * S, ay + wsz - 3 * S, { size: UI.FONT_CAPTION * S, align: 'right', color: inst.def.evolved ? P.goldL : P.shardL, weight: UI.WEIGHT_BODY });
       hudIcons.push({ x: bx, y: ay, w: wsz, h: wsz, kind: 'weapon', def: inst.def, level: inst.level });
     });
   }
@@ -147,7 +147,7 @@ export function drawHud(run, player) {
       const sp = getSprite(iconOr('ability_' + id, 'ability_power'));
       drawSpriteUI(sp.frames[0], bx, ay, psz / sp.w);
       const stk = run.abilityLevels?.[id] || 1;
-      if (stk > 1) uiText(String(stk), bx + psz - 1 * S, ay + psz, { size: 9 * S, align: 'right', color: P.goldL, weight: '800' });
+      if (stk > 1) uiText(String(stk), bx + psz - 1 * S, ay + psz, { size: UI.FONT_CAPTION * S, align: 'right', color: P.goldL, weight: UI.WEIGHT_BODY });
       hudIcons.push({ x: bx, y: ay, w: psz, h: psz, kind: 'ability', id, def: Abilities.get(id), level: stk });
     });
   }

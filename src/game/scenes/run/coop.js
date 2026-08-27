@@ -3,7 +3,7 @@
 import { Sfx } from '../../../engine/audio.js';
 import { mouse, pressed } from '../../../engine/input.js';
 import { P, withAlpha } from '../../../engine/palette.js';
-import { drawSpriteUI, uiClipRound, uiRect, uiScale, uiText, view } from '../../../engine/renderer.js';
+import { drawSpriteUI, UI, uiButton, uiClipRound, uiRect, uiScale, uiText, view } from '../../../engine/renderer.js';
 import { getSprite, iconOr } from '../../../engine/sprites.js';
 import { allRecipes, isSeen } from '../../content/codex.js';
 import { applyChoice, choiceStyle, getRunChoices } from '../../progression.js';
@@ -69,7 +69,7 @@ export const coopMixin = {
   drawCoopPick() {
     const S = uiScale(); const cp = this.coopPick; const rects = this.coopPickRects(cp.options.length);
     const mx = mouse.x * view.dpr, my = mouse.y * view.dpr;
-    uiText('★ 選擇強化（點擊或按 1 / 2 / 3）', view.W / 2, rects[0].y - 12 * S, { size: 13 * S, align: 'center', color: P.manaL, weight: '800', shadowColor: withAlpha('#000', 0.8) });
+    uiText('★ 選擇強化（點擊或按 1 / 2 / 3）', view.W / 2, rects[0].y - 12 * S, { size: UI.FONT_HEADING * S, align: 'center', color: P.manaL, weight: UI.WEIGHT_HEADING, shadowColor: withAlpha('#000', 0.8) });
     rects.forEach((r, i) => {
       const c = cp.options[i]; const st = choiceStyle(c); const hover = cp.hover === i; const oy = hover ? -6 * S : 0;
       uiRect(r.x, r.y + oy, r.w, r.h, withAlpha(st.bg, 0.96), { radius: 8 * S, stroke: hover ? st.accent : withAlpha(st.accent, 0.5), lw: hover ? 3 : 2 });
@@ -77,10 +77,10 @@ export const coopMixin = {
       const sp = getSprite(iconOr(st.icon, c.kind === 'ability' ? 'ability_power' : 'weapon_w_soulbolt')); const isc = (r.w * 0.36) / sp.w;
       drawSpriteUI(sp.frames[0], r.x + r.w / 2 - sp.w * isc / 2, r.y + oy + 12 * S, isc);
       const midY = r.y + oy + 14 * S + sp.h * isc;
-      uiText(st.sub, r.x + r.w / 2, midY + 8 * S, { size: 10 * S, align: 'center', color: st.accent, weight: '800' });
-      uiText(c.def.name, r.x + r.w / 2, midY + 24 * S, { size: 13 * S, align: 'center', color: '#fff', weight: '800' });
-      uiText(String(i + 1), r.x + 9 * S, r.y + oy + 18 * S, { size: 13 * S, color: withAlpha('#fff', 0.45), weight: '900' });
-      if (hasKnownEvo(c, this.player)) uiText('◆', r.x + r.w - 10 * S, r.y + oy + 18 * S, { size: 13 * S, align: 'right', color: P.astralL, weight: '900' });
+      uiText(st.sub, r.x + r.w / 2, midY + 8 * S, { size: UI.FONT_CAPTION * S, align: 'center', color: st.accent, weight: UI.WEIGHT_BODY });
+      uiText(c.def.name, r.x + r.w / 2, midY + 24 * S, { size: UI.FONT_BODY * S, align: 'center', color: '#fff', weight: UI.WEIGHT_BODY });
+      uiText(String(i + 1), r.x + 9 * S, r.y + oy + 18 * S, { size: UI.FONT_BODY * S, color: withAlpha('#fff', 0.45), weight: UI.WEIGHT_BODY });
+      if (hasKnownEvo(c, this.player)) uiText('◆', r.x + r.w - 10 * S, r.y + oy + 18 * S, { size: UI.FONT_BODY * S, align: 'right', color: P.astralL, weight: UI.WEIGHT_BODY });
     });
   },
   // Non-blocking online leave menu (the world keeps simulating underneath). Returns
@@ -101,9 +101,9 @@ export const coopMixin = {
   drawCoopMenu() {
     const S = uiScale(); const L = this.coopMenuLayout(); const mx = mouse.x * view.dpr, my = mouse.y * view.dpr;
     uiRect(0, 0, view.W, view.H, withAlpha('#0b0d1a', 0.45));
-    uiText('連線合作中', view.W / 2, L.resume.y - 40 * S, { size: 26 * S, align: 'center', color: '#fff', weight: '900' });
-    uiText('（世界持續進行，無法暫停）', view.W / 2, L.resume.y - 16 * S, { size: 12 * S, align: 'center', color: P.gray3 });
-    const btn = (r, label, col) => { const hov = inside(mx, my, r); uiRect(r.x, r.y, r.w, r.h, withAlpha(hov ? '#243a5a' : '#1b2138', 0.97), { radius: 8 * S, stroke: hov ? (col || P.shardL) : P.ink2, lw: hov ? 3 : 2 }); uiText(label, r.x + r.w / 2, r.y + r.h / 2 + 1 * S, { size: 16 * S, align: 'center', baseline: 'middle', color: '#fff', weight: '800' }); };
+    uiText('連線合作中', view.W / 2, L.resume.y - 40 * S, { size: UI.FONT_TITLE * S, align: 'center', color: '#fff', weight: UI.WEIGHT_TITLE });
+    uiText('（世界持續進行，無法暫停）', view.W / 2, L.resume.y - 16 * S, { size: UI.FONT_BODY * S, align: 'center', color: P.gray3 });
+    const btn = (r, label, col) => { const hov = inside(mx, my, r); uiButton(r.x, r.y, r.w, r.h, label, { S, hover: hov, fill: '#1b2138', fillHover: '#243a5a', stroke: hov ? (col || P.shardL) : P.ink2, lw: hov ? 3 : 2, size: UI.FONT_BODY * S, weight: UI.WEIGHT_BODY }); };
     btn(L.resume, '繼 續');
     btn(L.leave, '離開房間', P.redL);
   },

@@ -210,6 +210,19 @@ export const BALANCE = {
   // Cool, low-saturation vignette over the hub — unifies the 末日遺鎮 mood and frames
   // the scattered districts. Tint is a desaturated cold navy; strength kept faint.
   HUB_VIGNETTE: { strength: 0.4, rgb: '20,28,52' },
+
+  // ---- R28/W0 art tokens (ART_SPEC 2.2/2.3/3) -----------------------------
+  // Definitions ONLY — no consumer yet, so this batch changes no pixel. BEAM_FAM_* are the
+  // ownership colour families for the co-op `bm` telegraph channel (boss = 紅橙, event = 琥珀;
+  // player weapons keep cold colours and must never borrow these). The alphas are the caps
+  // ART_SPEC 2.2 puts on the decorative channel, plus the boss ground-ring strength.
+  ARTV: {
+    BEAM_FAM_BOSS: ['#ff5a3c', '#ff8a50'],
+    BEAM_FAM_EVENT: ['#ffc23c', '#ffd75a'],
+    BOSS_RING_A: 0.18,
+    DECO_PARTICLE_ALPHA: 0.5,
+    GLOW_DECO_ALPHA: 0.35,
+  },
 };
 
 // Effective weapon level cap: evolved weapons are terminal (level 1), everything
