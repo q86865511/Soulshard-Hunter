@@ -23,194 +23,142 @@ function cornerKira(p, col = P.glint) {
 }
 
 // ===== Talents 天賦圖示 (defineIcon) =====
+// R28 B-rework — ART_SPEC 第 5 節鐵律。原本這 8 張用的是刀／星／心／盾／雪佛龍／
+// 馬蹄磁鐵／金幣／四葉草，其中 5 個跟 content_icons.js 的 talent_t_* 系列（盾紋章／
+// 星／盾／速度線／馬蹄磁鐵／金幣）在「天賦」這個類別內撞形。改成同一批能力、但各自
+// 是別的實體：磨石上的刃／裂開的菱形暴擊符／鋼肋鐵骨／城垛壁壘／飛翼靴／吸引漩渦／
+// 插進土堆的鏟／一對骰子。天賦框本身有上尖飾，glyph 一律落在 y>=3 的框內。
 
-// offense row0: 利刃 - 增加傷害
+// offense row0: 利刃 — 一把插在磨石上的短刃（刃＋梯形磨石），不是單純一把劍
 defineIcon("talent_g_keenedge", P.red, (p)=>{
-  // 紅色刀刃 + 鋒利高光 — crimson laser-honed blade with motion sheen.
   talentGlow(p, P.laser, 6, 0.30);
-  // slash motion streak behind the blade
-  p.line(3, 12, 12, 3, withAlpha(P.redL, 0.5));
-  p.line(2, 12, 11, 3, withAlpha(P.laser, 0.35));
-  sym.sword(p);
-  // recolour the steel blade into a glowing crimson edge
-  p.replace(P.steel, P.redL);
-  p.replace(P.steelL, P.white);
-  // forge-bright edge gradient down the blade spine
-  p.px(4, 9, P.white);
-  p.px(5, 8, lighten(P.redL, 0.4));
-  p.px(6, 7, P.redL);
-  // 鋒利光點 — specular flash at the tip
-  p.px(11, 3, P.white);
-  p.px(12, 4, lighten(P.redL, 0.4));
-  p.sparkle(8, 2, P.rim, 1);
-  cornerKira(p, P.laser);
+  for (let y = 3; y <= 9; y++) {                       // 刃身（下寬上尖）
+    const w = (y - 2) * 0.42;
+    p.hline(8 - w, 7 + w, y, P.steelD);
+    p.hline(8 - w, 6 + w, y, y < 6 ? P.white : P.steelL);
+  }
+  p.px(8, 3, P.white); p.px(7, 5, P.glint);
+  p.rect(6, 9, 4, 1, P.goldD); p.px(6, 9, P.goldL);    // 護手
+  for (let y = 10; y <= 14; y++) {                     // 梯形磨石
+    const w = 2.6 + (y - 10) * 0.9;
+    p.hline(8 - w, 7 + w, y, mix(P.gray3, darken(P.gray1, 0.3), (y - 10) / 4));
+  }
+  p.hline(5, 10, 10, P.gray4); p.px(4, 12, P.gray4);
+  p.px(5, 8, P.laser); p.px(11, 7, P.redL);            // 磨出的火星
   p.rimLight(P.rim, 0.5);
 });
 
-// offense row1: 暴擊精通 - 增加暴擊率與暴擊傷害
+// offense row1: 暴擊精通 — 一枚沿裂縫錯開的菱形暴擊符（上下兩半平移），非星芒
 defineIcon("talent_g_critmaster", P.emberL, (p)=>{
-  // 爆裂星芒 + 中心強光 — bursting golden crit star with a molten core.
-  talentGlow(p, P.gold, 7, 0.40);
-  sym.star(p, P.gold);
-  // brighten star arms with an ember sheen
-  p.vline(3, 12, 8, P.emberL);
-  p.hline(3, 12, 8, P.emberL);
-  // 中心強光 — radiant white-hot core
-  p.glow(8, 8, 3, P.holyL, 0.6, 3);
-  p.circle(8, 8, 2, P.white);
-  p.px(8, 8, lighten(P.gold, 0.3));
-  // 四角火花 — corner crit sparks
-  p.sparkle(3, 3, P.ember, 1);
-  p.sparkle(12, 3, P.ember, 1);
-  p.sparkle(3, 12, P.ember, 1);
-  p.sparkle(12, 12, P.ember, 1);
-  p.star4(13, 4, 2, withAlpha(P.holyL, 0.8), P.white);
+  talentGlow(p, P.gold, 7, 0.38);
+  const half = (ox, y0, y1, dir) => {
+    for (let y = y0; y <= y1; y++) {
+      const w = 5 - Math.abs(8.5 - y) * 0.85;
+      p.hline(8 + ox - w, 7 + ox + w, y, dir < 0 ? P.gold : darken(P.gold, 0.35));
+      p.px(Math.round(8 + ox - w), y, dir < 0 ? P.holyL : P.goldL);
+    }
+  };
+  half(-1, 3, 8, -1);                                   // 上半（左移）
+  half(1, 9, 14, 1);                                    // 下半（右移）
+  p.line(2, 8, 13, 9, P.white);                         // 裂縫
+  p.px(6, 5, P.white); p.px(10, 12, darken(P.goldD, 0.3));
+  p.px(4, 4, P.ember); p.px(12, 13, P.ember);
   p.rimLight(P.rim, 0.45);
 });
 
-// defense row0: 鐵骨 - 增加最大生命
+// defense row0: 鐵骨 — 一副鋼肋（脊柱＋左右各三根肋骨），不是心臟
 defineIcon("talent_g_ironheart", P.blood, (p)=>{
-  // 心臟 + 鐵甲分隔線 — armoured vital heart with a steel-plated seam.
-  talentGlow(p, P.red, 6, 0.34);
-  sym.heart(p, P.red);
-  // soft inner life-glow
-  p.glow(7, 7, 2, withAlpha(P.redL, 0.9), 0.45, 3);
-  // 鐵色裂紋/甲片線 — riveted steel reinforcement
-  p.vline(6, 11, 8, P.steelL);
-  p.px(8, 8, P.white);
-  p.px(8, 10, P.steel);
-  // glossy top-left highlight + a heartbeat glint
-  p.px(6, 7, P.white);
-  p.px(8, 6, P.redL);
-  p.px(7, 6, lighten(P.redL, 0.4));
-  cornerKira(p, P.redL);
+  talentGlow(p, P.red, 6, 0.3);
+  p.vline(3, 14, 7, P.steelD); p.vline(3, 14, 8, P.steelL);   // 脊柱
+  p.px(7, 3, P.white);
+  for (let i = 0; i < 3; i++) {                               // 三對肋骨（愈下愈窄）
+    const y = 5 + i * 3, w = 5 - i * 0.9;
+    p.line(7, y, 7 - w, y + 1.6, P.gray4); p.line(7, y + 1, 7 - w, y + 2.6, P.steelD);
+    p.line(8, y, 8 + w, y + 1.6, P.steel); p.line(8, y + 1, 8 + w, y + 2.6, darken(P.iron, 0.3));
+    p.px(Math.round(7 - w), Math.round(y + 1.6), P.steelL);
+  }
+  p.px(7, 9, P.redL); p.px(8, 9, P.red);                      // 骨中一點生命紅光
   p.rimLight(P.rim, 0.5);
 });
 
-// defense row1: 守護壁壘 - 增加防禦與閃避
+// defense row1: 守護壁壘 — 一段有雉堞的城垛石牆（凹凸天際線＋磚縫），不是盾牌
 defineIcon("talent_g_bulwark", P.steel, (p)=>{
-  // 盾牌外形 — polished aegis shield with an aurora crest glow.
-  talentGlow(p, P.rimCool, 6, 0.26);
-  // shield body via a vertical steel gradient
-  p.gradV(5, 3, 7, 6, P.steelL, P.steel);
-  // 盾尖 — tapered point
-  p.line(5, 9, 8, 13, P.steel);
-  p.line(12, 9, 8, 13, P.steel);
-  p.rect(6, 9, 5, 3, P.steel);
-  p.px(8, 13, P.steelD);
-  // 盾面高光與十字飾 — bevel shadows + glowing emblem
-  p.vline(4, 11, 8, P.iron);
-  p.hline(6, 10, 5, P.iron);
-  // glowing aurora crest cross
-  p.vline(5, 11, 8, P.aurora);
-  p.hline(6, 10, 7, P.aurora);
-  p.px(8, 7, P.auroraL);
-  // top-left specular
-  p.px(6, 4, P.white);
-  p.px(7, 4, P.steelL);
-  p.px(5, 4, P.glint);
-  cornerKira(p, P.rimCool);
-  p.outline(P.steelD);
+  talentGlow(p, P.rimCool, 6, 0.24);
+  for (let i = 0; i < 4; i++) {                               // 雉堞
+    const x = 1 + i * 4; p.rect(x, 3, 3, 3, P.gray3); p.hline(x, x + 2, 3, P.gray4);
+  }
+  p.rect(1, 6, 14, 8, P.gray2); p.hline(1, 14, 6, P.gray4);   // 牆體
+  p.hline(1, 14, 13, darken(P.gray1, 0.35));
+  for (let r = 0; r < 3; r++) {                               // 錯縫磚
+    const y = 8 + r * 2;
+    p.hline(1, 14, y, darken(P.gray1, 0.25));
+    for (let x = (r % 2 ? 2 : 4); x < 15; x += 4) p.vline(y - 1, y - 1, x, darken(P.gray1, 0.25));
+  }
+  p.vline(6, 13, 1, P.gray4); p.vline(6, 13, 14, darken(P.gray1, 0.3));
+  p.px(2, 4, P.white); p.px(5, 9, P.aurora); p.px(9, 11, P.auroraL);   // 守護符光
   p.rimLight(P.rim, 0.5);
 });
 
-// utility row0: 疾風步 - 增加移動速度
+// utility row0: 疾風步 — 一隻長著翅膀的靴子，不是速度線／雪佛龍
 defineIcon("talent_g_swiftfoot", P.blueL, (p)=>{
-  // 向右的速度雪佛龍 + 風尾 — neon speed chevrons with wind streaks.
-  talentGlow(p, P.neon, 6, 0.30);
-  // 風線尾跡 — layered wind trail (back -> bright)
-  p.hline(2, 6, 5, withAlpha(P.neonD, 0.7));
-  p.hline(2, 9, 4, withAlpha(P.neonL, 0.9));
-  p.hline(2, 5, 11, withAlpha(P.neonD, 0.7));
-  p.hline(2, 8, 10, withAlpha(P.neon, 0.8));
-  // forward chevrons
-  sym.chevrons(p, P.iceD);
-  p.replace(P.iceD, P.neon);
-  // bright leading edge of the chevrons
-  p.line(8, 4, 12, 8, P.neonL);
-  p.line(11, 4, 15, 8, P.neonL);
-  // tip flash
-  p.px(13, 8, P.white);
-  p.sparkle(12, 8, P.glint, 1);
-  cornerKira(p, P.neonL);
+  talentGlow(p, P.neon, 6, 0.28);
+  p.rect(6, 5, 5, 6, P.leather); p.rect(6, 5, 5, 1, P.woodL);          // 靴筒
+  p.rect(3, 11, 8, 3, darken(P.leather, 0.2)); p.hline(3, 10, 11, P.woodL); // 靴面／靴頭
+  p.hline(2, 11, 14, darken(P.woodD, 0.5)); p.px(3, 12, P.bone);       // 鞋底＋鞋帶扣
+  p.hline(6, 10, 8, withAlpha(P.bone, 0.5));
+  for (let i = 0; i < 3; i++) {                                        // 靴側飛翼
+    p.line(6, 7 + i, 1 + i, 5 + i * 2, i === 1 ? P.white : P.neonL);
+  }
+  p.px(1, 5, P.white); p.px(12, 13, withAlpha(P.neonL, 0.7));
   p.rimLight(P.rimCool, 0.5);
 });
 
-// utility row1: 磁吸引力 - 增加拾取範圍與閃避
+// utility row1: 磁吸引力 — 一道向心的吸引漩渦（螺旋）＋被吸進去的碎屑，不是馬蹄磁鐵
 defineIcon("talent_g_magnetism", P.purpleL, (p)=>{
-  // 磁鐵 U 形 (馬蹄磁鐵) — horseshoe magnet with crackling attraction arcs.
-  talentGlow(p, P.magenta, 6, 0.28);
-  // body via vertical gradient for a metallic sheen
-  p.gradV(4, 3, 3, 8, P.purpleL, P.purple);
-  p.gradV(9, 3, 3, 8, P.purpleL, P.purple);
-  p.rect(4, 10, 8, 3, P.purple);
-  // 磁極（紅/藍端）— charged poles
-  p.rect(4, 3, 3, 2, P.red);
-  p.rect(9, 3, 3, 2, P.blue);
-  p.px(5, 3, P.redL);
-  p.px(10, 3, P.blueL);
-  // 高光 — left-rim sheen
-  p.vline(3, 9, 4, P.purpleL);
-  p.vline(9, 12, 4, P.purpleL);
-  // 吸引波 — sparking attraction field above the poles
-  p.px(5, 1, P.white);
-  p.px(10, 1, P.white);
-  p.line(5, 2, 7, 0, withAlpha(P.magentaL, 0.8));
-  p.line(10, 2, 8, 0, withAlpha(P.neonL, 0.8));
-  p.sparkle(8, 1, P.glint, 1);
-  cornerKira(p, P.magentaL);
-  p.outline(P.purpleD);
+  talentGlow(p, P.magenta, 6, 0.3);
+  for (let i = 0; i < 34; i++) {                                       // 螺旋
+    const t = i / 33, a = t * Math.PI * 3.4, r = 6.2 * (1 - t * 0.88);
+    p.px(8 + Math.cos(a) * r, 8.5 + Math.sin(a) * r * 0.92,
+         t < 0.35 ? P.purpleD : (t < 0.72 ? P.magentaL : P.white));
+  }
+  p.ellipse(8, 8.5, 1.2, 1.2, P.white); p.px(8, 8, P.holyL);           // 漩渦核心
+  p.px(1, 4, P.magentaL); p.px(14, 12, P.magentaL);                    // 被吸進來的碎屑
+  p.px(3, 13, withAlpha(P.neonL, 0.8)); p.px(13, 4, withAlpha(P.neonL, 0.8));
   p.rimLight(P.rim, 0.5);
 });
 
-// fortune row0: 拾荒者 - 增加金幣掉落
+// fortune row0: 拾荒者 — 一把插進土堆的鏟子，土裡露出一角金幣，不是一堆金幣
 defineIcon("talent_g_scavenger", P.goldD, (p)=>{
-  // 金幣 + 額外閃光 — heaped glittering gold coins.
-  talentGlow(p, P.gold, 6, 0.36);
-  // 旁邊小金幣 (drawn first, behind the main coin)
-  p.circle(12, 12, 2, P.goldD);
-  p.circle(12, 12, 1.4, P.gold);
-  p.px(12, 11, P.goldL);
-  p.circle(4, 12, 1.6, P.goldD);
-  p.circle(4, 12, 1, P.gold);
-  // main coin
-  sym.coin(p);
-  // glossy rim highlight + currency glint
-  p.px(6, 6, P.goldL);
-  p.px(7, 5, P.white);
-  p.px(4, 4, P.white);
-  p.sparkle(11, 5, P.holyL, 1);
-  cornerKira(p, P.gold);
+  talentGlow(p, P.gold, 6, 0.3);
+  for (let y = 10; y <= 14; y++) {                                     // 土堆
+    const w = 2.6 + (y - 10) * 1.7;
+    p.hline(8 - w, 7 + w, y, mix(P.wood, darken(P.woodD, 0.4), (y - 10) / 4));
+  }
+  p.hline(4, 11, 10, P.woodL);
+  p.line(9, 9, 11, 3, P.woodD); p.line(10, 9, 12, 3, P.wood);          // 鏟柄（斜插）
+  p.rect(10, 2, 3, 2, P.gray4); p.px(10, 2, P.steelL);                 // 柄頭
+  for (let y = 8; y <= 12; y++) {                                      // 鏟面（插進土裡）
+    const w = 2.2 - (y - 8) * 0.42;
+    p.hline(7 - w, 8 - w, y, P.steelD); p.hline(7 - w, 7 - w, y, P.steelL);
+  }
+  p.ellipse(4, 12, 1.6, 1.2, P.goldD); p.ellipse(4, 11.7, 1.1, 0.8, P.goldL); // 露出的金幣
+  p.px(3, 11, P.white); p.px(12, 12, P.gold);
   p.rimLight(P.rim, 0.5);
 });
 
-// fortune row1: 賭徒之心 - 增加幸運與經驗
+// fortune row1: 賭徒之心 — 一對骰子（一大一小，各有點數），不是四葉草
 defineIcon("talent_g_gambler", P.purpleD, (p)=>{
-  // 四葉幸運草 (用圓堆疊) + 經驗綠 — glowing lucky clover with kira fortune.
-  talentGlow(p, P.green, 6, 0.34);
-  // 葉片 — four leaves with a lit top-left rim
-  p.circle(6, 6, 2, P.greenD);
-  p.circle(10, 6, 2, P.greenD);
-  p.circle(6, 10, 2, P.greenD);
-  p.circle(10, 10, 2, P.greenD);
-  p.circle(6, 6, 1.6, P.green);
-  p.circle(10, 6, 1.6, P.green);
-  p.circle(6, 10, 1.6, P.green);
-  p.circle(10, 10, 1.6, P.green);
-  p.rect(7, 7, 2, 2, P.greenL);
-  // 莖 — stem
-  p.vline(11, 13, 8, P.greenD);
-  // 高光葉片 — leaf highlights
-  p.px(5, 5, P.greenL);
-  p.px(9, 5, P.greenL);
-  p.px(5, 9, P.toxic);
-  // glowing fortune core
-  p.glow(8, 8, 2, withAlpha(P.toxic, 0.9), 0.4, 3);
-  // 幸運星點 — lucky golden sparkles
-  p.star4(2, 2, 2, withAlpha(P.gold, 0.9), P.holyL);
-  p.sparkle(13, 3, P.gold, 1);
-  p.sparkle(3, 13, P.holyL, 1);
-  p.outline(P.greenD);
+  talentGlow(p, P.holyL, 6, 0.3);
+  p.rect(1, 8, 6, 6, darken(P.bone, 0.35));                            // 後方小骰
+  p.rect(1, 8, 6, 1, P.white); p.rect(2, 9, 4, 4, P.bone);
+  p.px(3, 10, P.ink); p.px(5, 12, P.ink);                              // 兩點
+  p.rect(6, 3, 9, 9, darken(P.bone, 0.2));                             // 前方大骰
+  p.rect(6, 3, 9, 1, P.white); p.rect(7, 4, 7, 7, P.bone);
+  p.hline(6, 14, 11, darken(P.bone, 0.5)); p.vline(4, 11, 14, darken(P.bone, 0.45));
+  p.px(8, 5, P.red); p.px(12, 5, P.ink);                               // 五點
+  p.px(10, 7, P.red); p.px(8, 9, P.ink); p.px(12, 9, P.ink);
+  p.px(7, 4, P.white);
+  p.px(2, 6, P.holyL); p.px(13, 13, P.gold);                           // 手氣星光
   p.rimLight(P.rim, 0.5);
 });
 

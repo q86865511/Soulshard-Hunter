@@ -53,37 +53,121 @@ defineSprite('g_fx_halo', 12, 12, (p) => {
 }, { anchor: [6, 6] });
 
 // ---- weapon icons ----------------------------------------------------------
-defineIcon('weapon_g_laserbeam', P.redD, (p) => {
-  p.rect(2, 7, 11, 2, P.redL); p.rect(2, 7, 11, 1, P.white);
-  p.ellipse(12, 8, 2.2, 2.6, P.red); p.ellipse(12, 8, 1.2, 1.6, P.emberL);
-  p.px(3, 8, P.white);
-});
-defineIcon('weapon_g_crossbarrage', P.blueD, (p) => {
-  p.rect(7, 2, 2, 11, P.blueL); p.rect(2, 7, 11, 2, P.blueL);
-  p.px(8, 8, P.white);
-  for (const [dx, dy] of [[8, 2], [8, 12], [2, 8], [13, 8]]) p.ellipse(dx, dy, 1.2, 1.2, P.ice);
-});
-defineIcon('weapon_g_ricochet', '#5a4a1a', (p) => {
-  p.line(2, 12, 6, 5, P.emberL); p.line(6, 5, 10, 11, P.gold); p.line(10, 11, 13, 5, P.emberL);
-  p.ellipse(2, 12, 1.4, 1.4, P.white); p.ellipse(13, 5, 1.4, 1.4, P.white);
-});
-defineIcon('weapon_g_blackhole', P.purpleD, (p) => {
-  p.ellipse(8, 8, 5.5, 5.5, P.void); p.ring(8, 8, 5.5, P.purpleL); p.ring(8, 8, 4, P.purple);
-  p.ellipse(8, 8, 2.2, 2.2, P.ink); p.px(8, 8, P.manaL);
-  p.line(2, 3, 6, 6, P.purpleL); p.line(14, 13, 10, 10, P.purpleL);
-});
-defineIcon('weapon_g_halo', P.goldD, (p) => {
-  p.ring(8, 8, 5.5, P.goldL); p.ring(8, 8, 4, P.gold); p.ring(8, 8, 2.4, P.emberL);
-  p.ellipse(8, 3, 1.3, 1.3, P.white); p.ellipse(13, 10, 1.3, 1.3, P.goldL); p.ellipse(4, 11, 1.3, 1.3, P.emberL);
-});
-defineIcon('weapon_g_dartfan', P.steelD, (p) => {
-  // three darts fanning up-right from the lower-left
-  for (let i = 0; i < 3; i++) {
-    const bx = 3, by = 13, ang = -1.5 + i * 0.45;
-    const tx = bx + Math.cos(ang) * 10, ty = by + Math.sin(ang) * 10;
-    p.line(bx, by, tx, ty, i === 1 ? P.steelL : P.steel);
-    p.px(Math.round(tx), Math.round(ty), P.shardL);
+// R28 W3-B-rework — ART_SPEC 第 5 節鐵律：glyph 畫「那一把武器本身」，同類別內
+// 任兩張輪廓不得雷同。以下每張都是可命名的實物：肩扛雷射砲／四管十字砲座／彈弓／
+// 吸積盤黑洞／帶翼光輪／三支飛鏢。
+
+// 裂光雷射砲 — 肩扛式雷射發射器：方形機匣＋三片散熱鰭＋下方握把＋聚焦透鏡口。
+// 與 wc_beam（三腳座上的懸浮稜晶）不同：這裡是有握把與散熱鰭的「槍」。
+defineIcon('weapon_g_laserbeam', P.redD, (p) => {   // R28 B-rework
+  p.glow(12, 8, 4, P.laser, 0.26, 3);
+  for (let i = 0; i < 3; i++) { p.rect(4 + i * 2, 4, 1, 3, P.gray2); p.px(4 + i * 2, 4, P.gray4); }   // 散熱鰭
+  p.rect(3, 6, 8, 5, P.iron);                                      // 機匣
+  p.hline(3, 10, 6, P.gray3); p.hline(3, 10, 10, darken(P.gray1, 0.3));
+  p.rect(4, 7, 3, 2, darken(P.redD, 0.3)); p.px(5, 8, P.laser);    // 能量窗
+  p.rect(5, 11, 2, 3, P.gray1); p.px(5, 11, P.gray3);              // 握把
+  p.rect(11, 7, 2, 3, P.gray2);                                    // 鏡筒
+  p.ellipse(13, 8, 1.6, 2.2, P.redD); p.ellipse(13, 8, 0.9, 1.4, P.laser);   // 透鏡
+  p.px(13, 8, P.white);
+  p.hline(14, 15, 8, P.laser); p.hline(14, 15, 7, withAlpha(P.emberL, 0.7)); // 射出的光束
+}, { kira: true });
+
+// 十字彈幕 — 一座四管十字砲台：中央圓形轉盤＋上下左右四根短砲管，管口各噴一顆彈。
+defineIcon('weapon_g_crossbarrage', P.blueD, (p) => {   // R28 B-rework
+  for (const [dx, dy] of [[0, -1], [0, 1], [-1, 0], [1, 0]]) {     // 四根短砲管
+    for (let s = -1; s <= 1; s++) {
+      const ox = dy ? s : 0, oy = dx ? s : 0;
+      p.line(8 + dx * 2 + ox, 8 + dy * 2 + oy, 8 + dx * 5 + ox, 8 + dy * 5 + oy, s < 0 ? P.gray3 : P.iron);
+    }
+    p.px(8 + dx * 6, 8 + dy * 6, P.ice);                           // 管口彈丸
+    p.px(8 + dx * 5, 8 + dy * 5, P.gray4);
   }
+  p.ellipse(8, 8, 3.4, 3.4, darken(P.blueD, 0.3));                 // 圓形轉盤
+  p.ellipse(8, 8, 2.6, 2.6, P.blue);
+  p.ellipse(7.3, 7.3, 1.4, 1.4, P.blueL); p.px(7, 7, P.white);
+  p.ring(8, 8, 3.4, P.gray2);
+  p.px(3, 8, P.iceD); p.px(13, 8, P.iceD); p.px(8, 3, P.iceD); p.px(8, 13, P.iceD);
+});
+
+// 跳彈魂珠 — 一把彈弓：Y 形木叉＋拉滿的橡皮筋＋皮兜中的魂珠。
+// （wc_ricochet 畫的是彈道與撞擊爆星，這裡畫的是發射器本體，兩者不共用輪廓。）
+defineIcon('weapon_g_ricochet', '#5a4a1a', (p) => {   // R28 B-rework
+  p.glow(8, 7, 4, P.gold, 0.2, 3);
+  p.line(8, 10, 4, 3, P.woodL); p.line(9, 10, 5, 3, P.wood); p.line(7, 10, 3, 3, P.woodD);     // 左叉
+  p.line(8, 10, 12, 3, P.woodL); p.line(7, 10, 11, 3, P.wood); p.line(9, 10, 13, 3, P.woodD);  // 右叉
+  p.px(4, 3, P.bone); p.px(12, 3, P.bone);
+  p.rect(7, 10, 3, 4, P.wood); p.vline(10, 13, 7, P.woodL);        // 握柄（纏繩）
+  p.hline(7, 9, 11, P.ink2); p.hline(7, 9, 13, P.ink2);
+  p.line(4, 3, 8, 6, P.gray4); p.line(12, 3, 8, 6, P.gray4);       // 拉滿的橡皮筋
+  p.line(4, 4, 8, 7, P.gray2); p.line(12, 4, 8, 7, P.gray2);
+  p.rect(6, 5, 4, 4, P.leather); p.rect(7, 6, 2, 2, darken(P.leather, 0.5));   // 皮兜
+  p.px(6, 5, P.woodL);
+  p.ellipse(8, 7, 1.7, 1.7, P.goldD);                              // 魂珠
+  p.ellipse(8, 7, 1, 1, P.gold); p.px(7, 6, P.white);
+}, { kira: true });
+
+// 虛空黑洞 — 一個帶傾斜吸積盤的黑洞：純黑核球＋斜視角的橢圓吸積環＋
+// 兩道被潮汐拉長的碎屑流。傾斜的扁橢圓讓它與 g_halo 的正圓光輪不會撞形。
+defineIcon('weapon_g_blackhole', P.purpleD, (p) => {   // R28 B-rework
+  p.glow(8, 8, 6.5, P.purple, 0.3, 4);
+  const rot = -0.42;
+  for (let a = 0; a < Math.PI * 2; a += 0.06) {                    // 吸積盤（傾斜橢圓環，雙層）
+    for (let k = 0; k < 2; k++) {
+      const ex = Math.cos(a) * (6.6 - k * 1.5), ey = Math.sin(a) * (2.5 - k * 0.5);
+      const x = 8 + ex * Math.cos(rot) - ey * Math.sin(rot);
+      const y = 8 + ex * Math.sin(rot) + ey * Math.cos(rot);
+      p.px(Math.round(x), Math.round(y), k ? withAlpha(P.magenta, 0.8) : P.purpleL);
+    }
+  }
+  for (let i = 0; i < 8; i++) {                                    // 拉長的碎屑流
+    p.px(Math.round(2 + i * 0.5), Math.round(13 - i * 0.7), withAlpha(P.purpleL, 0.5));
+    p.px(Math.round(14 - i * 0.5), Math.round(3 + i * 0.7), withAlpha(P.magentaL, 0.5));
+  }
+  p.ellipse(8, 8, 3, 3, P.shadow); p.ellipse(8, 8, 2.4, 2.4, P.ink);   // 事件視界
+  p.ring(8, 8, 3, withAlpha(P.magentaL, 0.9));
+  p.px(6, 6, P.white);
+}, { kira: true });
+
+// 神聖光輪 — 一圈天使光輪：斜視角的扁橢圓金環，環下展開左右兩片羽翼。
+// 羽翼把輪廓撐成「環＋翼」，與任何純同心圓都分得開。
+defineIcon('weapon_g_halo', P.goldD, (p) => {   // R28 B-rework
+  p.glow(8, 4, 5, P.holy, 0.24, 3);
+  for (const s of [-1, 1]) {                                       // 雙翼：由內而外漸短的實心羽塊（不是幾條橫桿）
+    for (let k = 0; k <= 4; k++) {
+      const x = 8 + s * (2 + k), bot = 13 - k * 1.5;
+      if (bot < 8) continue;
+      p.vline(8, bot, x, k < 2 ? P.gold : P.bronze);
+      p.px(x, 8, P.goldL); p.px(x, Math.round(bot), darken(P.bronze, 0.55));
+    }
+    p.line(8 + s * 2, 10, 8 + s * 5, 9, darken(P.goldD, 0.6));     // 羽片分隔暗線
+    p.line(8 + s * 2, 12, 8 + s * 4, 11, darken(P.goldD, 0.6));
+  }
+  p.ellipse(8, 3, 4.4, 2, '#241a06');                              // 先挖暗盤，光輪才是「環」不是「餅」
+  for (let a = 0; a < Math.PI * 2; a += 0.05) {                    // 斜視角光輪（雙描邊）
+    p.px(Math.round(8 + Math.cos(a) * 5.2), Math.round(3 + Math.sin(a) * 2.6), Math.sin(a) < 0 ? P.holyL : P.goldD);
+    p.px(Math.round(8 + Math.cos(a) * 4.3), Math.round(3 + Math.sin(a) * 1.9), Math.sin(a) < 0 ? P.gold : darken(P.goldD, 0.45));
+  }
+  p.px(5, 1, P.white);
+}, { kira: true });
+
+// 飛鏢扇 — 三支各自獨立的飛鏢：菱形鏢頭＋細鏢桿＋兩瓣尾羽，扇形排開。
+// 鏢與鏢之間留空隙（不像 w_fan 的實心扇面），所以兩張扇形不會混。
+defineIcon('weapon_g_dartfan', P.steelD, (p) => {   // R28 B-rework
+  for (let i = 0; i < 3; i++) {
+    const ang = -1.35 + i * 0.42, bx = 4, by = 12;
+    const cx = Math.cos(ang), sy = Math.sin(ang);
+    const hx = bx + cx * 8.6, hy = by + sy * 8.6;                  // 鏢頭中心
+    p.line(bx, by, bx + cx * 7, by + sy * 7, i === 1 ? P.gray4 : P.gray3);   // 鏢桿
+    for (let d = -2; d <= 2; d++) {                                // 菱形鏢頭
+      const w = 2 - Math.abs(d);
+      const px0 = hx + cx * d, py0 = hy + sy * d;
+      for (let s = -w; s <= w; s += 0.6) p.px(Math.round(px0 - sy * s * 0.6), Math.round(py0 + cx * s * 0.6), d < 0 ? P.steelL : P.steel);
+    }
+    p.px(Math.round(hx + cx * 2), Math.round(hy + sy * 2), P.white);
+    p.px(Math.round(bx - sy * 1.4), Math.round(by + cx * 1.4), P.redD);      // 尾羽兩瓣
+    p.px(Math.round(bx + sy * 1.4), Math.round(by - cx * 1.4), P.red);
+  }
+  p.px(4, 12, P.iron);
 });
 
 // ============================================================================

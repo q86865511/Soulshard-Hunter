@@ -162,92 +162,131 @@ Items.register({
 // ICONS (16x16 panel + symbol + outline, via defineIcon)
 // ===========================================================================
 
-// small reusable anvil silhouette
-function itAnvilShape(p, body, bodyL, bodyD) {
-  // top face
-  p.rect(3, 5, 10, 2, body);
-  p.rect(3, 5, 10, 1, bodyL);
-  // horn (left beak) + step
-  p.rect(2, 6, 2, 1, body);
-  p.rect(12, 6, 1, 2, bodyD);
-  // waist
-  p.rect(6, 7, 4, 2, bodyD);
-  // base
-  p.rect(4, 9, 8, 2, body);
-  p.rect(4, 10, 8, 1, bodyD);
+// R28 B-rework — ART_SPEC 第 5 節鐵律：四個鐵砧原本共用同一個 itAnvilShape、
+// 只換顏色＋頭上小記號＝典型的「同輪廓不同色」。鐵砧仍是這四件的本體（def 上就寫
+// 【鐵砧】），但改為由「輪廓層」分家：壓下的鐵鎚／樹樁台座＋鑄錠／傾斜帶殘影／
+// 反向砧角＋鑿子與火花柱。三個戰術道具也各自畫成具體實體。
+// kira 依 def tier：t1 的 decoy_flare / chain_heal 不給。
+
+// 鐵砧本體：尖砧角 → 厚砧面 → 內縮的腰 → 外張的底座（三階明暗）。
+// o.flip 讓砧角換到右邊、o.ox/oy 位移，四個變體才能從輪廓層就分得開。
+function itAnvilShape(p, body, bodyL, bodyD, o) {
+  const opt = o || {};
+  const flip = opt.flip ? -1 : 1, ox = opt.ox || 0, oy = opt.oy || 0;
+  const X = (x) => ox + (flip > 0 ? x : 15 - x);
+  const H = (a, b, y, c) => p.hline(Math.min(X(a), X(b)), Math.max(X(a), X(b)), y + oy, c);
+  H(0, 4, 5, body); H(0, 4, 4, bodyL);                                 // 砧角（往外收成尖）
+  p.px(X(0), 6 + oy, bodyD); p.px(X(1), 6 + oy, bodyD);
+  H(3, 13, 3, bodyL); H(3, 13, 4, body); H(3, 13, 5, body);            // 砧面（厚）
+  H(3, 13, 6, bodyD); p.px(X(13), 4 + oy, bodyD);
+  p.rect(6 + ox, 7 + oy, 4, 3, body);                                  // 腰（內縮）
+  p.vline(7 + oy, 9 + oy, 6 + ox, bodyL); p.vline(7 + oy, 9 + oy, 9 + ox, bodyD);
+  for (let i = 0; i < 3; i++) {                                        // 外張的底座
+    const w = 3 + i * 0.9;
+    p.hline(8 + ox - w, 7 + ox + w, 10 + i + oy, i === 0 ? body : (i === 1 ? bodyD : darken(bodyD, 0.3)));
+  }
+  p.px(X(3), 3 + oy, lighten(bodyL, 0.35));                            // 頂面高光
 }
 
 // --- tactical icons ---
 
-// decoy flare — a launched spark trailing sparks (warm)
+// decoy flare — 誘餌煙花：一支帶錐形彈頭與尾翼的沖天火箭，尾焰往左下噴
 defineIcon('item_it_decoy_flare', P.woodD, (p) => {
-  p.line(3, 13, 9, 5, P.woodL);
-  p.ellipse(10, 4, 2.4, 2.4, P.ember);
-  p.ellipse(10, 4, 1.4, 1.4, P.emberL);
-  p.px(10, 4, P.white);
-  // scattered sparks
-  p.px(12, 2, P.emberL); p.px(7, 3, P.emberL); p.px(13, 6, P.ember); p.px(5, 8, P.ember);
+  p.glow(6, 11, 4, P.ember, 0.4, 4);
+  p.line(3, 14, 6, 11, P.emberL); p.line(4, 14, 7, 11, P.ember);       // 尾焰
+  p.px(2, 14, P.holyL);
+  for (let i = 0; i <= 5; i++) {                                       // 錐形彈頭（指右上）
+    const x = 9 + i * 0.7, y = 6 - i * 0.9, w = 2.0 - i * 0.34;
+    p.hline(x - w, x + w, y, i < 2 ? P.gray1 : P.red);
+    p.px(Math.round(x - w), Math.round(y), P.steelL);
+  }
+  p.px(12, 1, P.white);
+  p.rect(6, 7, 4, 4, P.gray1); p.line(6, 7, 10, 11, darken(P.gray1, 0.3)); // 箭身
+  p.hline(6, 9, 7, P.gray4);
+  p.line(5, 9, 4, 7, P.woodD); p.line(8, 12, 10, 13, P.woodD);         // 尾翼
+  p.px(4, 7, P.woodL); p.px(10, 13, P.woodL);
 });
 
-// timeslow — an icy frozen burst
+// timeslow — 凝滯力場：六角形力場罩，罩中一根「停住」的時針與凍結的殘影
 defineIcon('item_it_timeslow_burst', P.blueD, (p) => {
-  p.ring(8, 8, 5, P.iceD);
-  p.ring(8, 8, 3, P.ice);
-  // crossing time-shards
-  p.line(8, 3, 8, 13, P.ice);
-  p.line(4, 6, 12, 10, P.iceD);
-  p.line(12, 6, 4, 10, P.iceD);
-  p.px(8, 8, P.white);
-  p.px(8, 3, P.white); p.px(8, 13, P.iceD);
-});
+  p.glow(8, 8, 6, P.ice, 0.3, 4);
+  for (let k = 0; k < 6; k++) {                                        // 六角罩
+    const a = k * Math.PI / 3, b = (k + 1) * Math.PI / 3;
+    p.line(8 + Math.cos(a) * 6.4, 8 + Math.sin(a) * 6.4,
+           8 + Math.cos(b) * 6.4, 8 + Math.sin(b) * 6.4, k < 3 ? P.ice : P.iceD);
+    p.line(8 + Math.cos(a) * 5.2, 8 + Math.sin(a) * 5.2,
+           8 + Math.cos(b) * 5.2, 8 + Math.sin(b) * 5.2, withAlpha(P.hiSky, 0.5));
+    p.px(8 + Math.cos(a) * 6.4, 8 + Math.sin(a) * 6.4, P.white);       // 角點
+  }
+  p.line(8, 8, 8, 4, withAlpha(P.hiSky, 0.35)); p.line(8, 8, 11, 6, withAlpha(P.hiSky, 0.35)); // 凍結殘影
+  p.line(8, 8, 8, 5, P.white); p.line(8, 8, 10, 10, P.iceD);           // 停住的時針
+  p.ellipse(8, 8, 1.2, 1.2, P.blueD); p.px(8, 8, P.white);
+}, { kira: true });
 
-// chain-heal — heart + restorative cross
+// chain-heal — 鏈結療癒：兩個互扣的鎖鏈環，扣點上托著一顆心
 defineIcon('item_it_chain_heal', P.blood, (p) => {
-  sym.heart(p, P.red, -1, 0);
-  p.rect(10, 9, 2, 4, P.redL);
-  p.rect(9, 10, 4, 2, P.redL);
-  p.px(10, 9, P.white);
+  p.ring(5, 10, 3.2, darken(P.gray2, 0.2)); p.ring(5, 10, 2.4, P.gray4);   // 左鏈環
+  p.ring(11, 10, 3.2, darken(P.gray2, 0.35)); p.ring(11, 10, 2.4, P.gray3); // 右鏈環
+  p.px(3, 8, P.steelL); p.px(9, 8, P.steelL);
+  p.glow(8, 5, 4, P.red, 0.42, 3);
+  p.ellipse(6.6, 4.6, 2, 2, P.red); p.ellipse(9.4, 4.6, 2, 2, P.red);      // 心
+  for (let y = 5; y <= 8; y++) { const w = 3.4 - (y - 5) * 1.0; p.hline(8 - w, 7 + w, y, P.red); }
+  p.ellipse(6.4, 4.2, 1.1, 1.1, P.redL); p.px(6, 4, P.white);
+  p.px(9, 6, P.redD); p.px(8, 8, P.redD);
 });
 
-// shock nova — concentric shockwave rings
+// shock nova — 同心衝擊環（baseline 已是可辨的實體，R28 B-rework 只補明度階與 kira）
 defineIcon('item_it_shock_nova', P.shardD, (p) => {
-  p.ring(8, 8, 5.5, P.shard);
-  p.ring(8, 8, 3.5, P.shardL);
-  p.ring(8, 8, 1.6, P.white);
-  p.px(8, 8, P.white);
-});
+  p.glow(8, 8, 6, P.shard, 0.34, 4);
+  p.ring(8, 8, 6.2, darken(P.shard, 0.35));
+  p.ring(8, 8, 5.4, P.shard);
+  p.ring(8, 8, 3.6, P.shardL);
+  p.ring(8, 8, 1.8, P.white);
+  p.ellipse(8, 8, 1, 1, P.white); p.px(6, 6, P.glint);
+}, { kira: true });
 
-// --- anvil icons (shared shape, recoloured + stat sigil) ---
+// --- anvil icons：同一件鐵砧，但每個變體用「輪廓層」分家 ---
 
-// might — bronze anvil with a red power spark
+// might 力量鐵砧 — 一柄鐵鎚正砸在砧面上（鎚頭破出上緣輪廓）
 defineIcon('item_it_anvil_might', P.gray1, (p) => {
-  itAnvilShape(p, P.bronze, P.goldL, P.woodD);
-  p.line(8, 0, 7, 4, P.redL);
-  p.line(8, 0, 9, 4, P.redL);
-  p.px(8, 1, P.white);
-});
+  itAnvilShape(p, P.bronze, P.goldL, P.woodD, { oy: 3 });
+  p.rect(3, 0, 7, 3, P.iron); p.hline(3, 9, 0, P.steelL);               // 鎚頭（壓在砧面上）
+  p.hline(3, 9, 2, darken(P.iron, 0.45)); p.px(3, 0, P.glint);
+  p.line(9, 1, 14, 4, P.woodD); p.line(9, 2, 14, 5, P.wood);            // 鎚柄（斜出右上）
+  p.px(5, 5, P.emberL); p.px(10, 5, P.ember); p.px(2, 6, P.redL);       // 撞擊火星
+}, { kira: true });
 
-// vigor — steel anvil topped with a heart
+// vigor 活力鐵砧 — 砧下多一截寬木樁台座，砧面上放著一枚發亮鑄錠
 defineIcon('item_it_anvil_vigor', P.gray1, (p) => {
-  itAnvilShape(p, P.steel, P.steelL, P.steelD);
-  p.ellipse(6, 2, 1.2, 1.2, P.red); p.ellipse(9, 2, 1.2, 1.2, P.red);
-  p.rect(6, 2, 4, 1, P.red); p.px(7, 3, P.red); p.px(8, 3, P.red);
-  p.px(5, 1, P.redL);
-});
+  itAnvilShape(p, P.steel, P.steelL, P.steelD, { oy: -2 });
+  for (let y = 10; y <= 14; y++) {                                      // 木樁台座（梯形，比砧座更寬）
+    const w = 4.6 + (y - 10) * 0.6;
+    p.hline(8 - w, 7 + w, y, mix(P.woodL, darken(P.woodD, 0.4), (y - 10) / 4));
+  }
+  p.hline(3, 12, 10, lighten(P.woodL, 0.35)); p.vline(11, 14, 3, P.woodD); p.vline(11, 14, 12, darken(P.woodD, 0.5));
+  p.glow(8, 1, 3, P.red, 0.5, 3);
+  p.rect(5, 0, 6, 3, P.redD); p.rect(5, 0, 6, 1, P.redL); p.px(5, 0, P.white); // 熾熱鑄錠
+  p.px(9, 2, P.ember);
+}, { kira: true });
 
-// swift — iron anvil with a speed chevron
+// swift 疾速鐵砧 — 整座砧向右傾斜，後方拖兩道遞淡的殘影
 defineIcon('item_it_anvil_swift', P.gray1, (p) => {
-  itAnvilShape(p, P.iron, P.gray3, P.gray1);
-  p.line(5, 1, 8, 3, P.iceD);
-  p.line(8, 3, 5, 5, P.iceD);
-  p.line(8, 1, 11, 3, P.ice);
-  p.line(11, 3, 8, 5, P.ice);
-});
+  itAnvilShape(p, withAlpha(P.neon, 0.3), withAlpha(P.neonL, 0.3), withAlpha(P.neon, 0.22), { ox: -5, oy: 2 }); // 殘影二
+  itAnvilShape(p, withAlpha(P.neon, 0.55), withAlpha(P.neonL, 0.5), withAlpha(P.neon, 0.4), { ox: -3, oy: 1 }); // 殘影一
+  itAnvilShape(p, P.iron, P.gray4, P.gray1, { ox: 1, oy: 0 });         // 本體（偏右）
+  for (let i = 0; i < 3; i++) p.hline(0, 2 + i, 4 + i * 4, withAlpha(P.neonL, 0.8 - i * 0.18)); // 疾風尾線
+  p.px(14, 4, P.hiSky);
+}, { kira: true });
 
-// focus — dark anvil with a gold crit star
+// focus 專注鐵砧 — 砧角反向（朝右），砧面立著一把鑿子，正上方竄起一柱金火花
 defineIcon('item_it_anvil_focus', P.gray1, (p) => {
-  itAnvilShape(p, P.steelD, P.gray3, P.shadow);
-  p.vline(0, 4, 8, P.goldL); p.hline(6, 10, 2, P.goldL);
-  p.px(7, 1, P.gold); p.px(9, 1, P.gold);
-  p.px(8, 2, P.white);
-});
+  itAnvilShape(p, P.steelD, P.gray3, P.shadow, { flip: true, oy: 3 }); // 砧角朝右
+  p.line(4, 6, 4, 2, P.gray4); p.line(5, 6, 5, 2, P.steelL);           // 立在砧面上的鑿子
+  p.px(4, 6, P.white); p.rect(4, 1, 2, 1, P.woodD); p.px(4, 1, P.woodL);
+  p.glow(5, 2, 4, P.gold, 0.55, 3);
+  for (let i = 0; i < 6; i++) {                                        // 金火花柱（往上竄）
+    const x = 4 + ((i * 5) % 4) - 1, y = 5 - i;
+    p.px(x, y, i % 2 ? P.goldL : P.gold);
+  }
+  p.px(4, 0, P.white); p.px(11, 2, P.goldL);
+}, { kira: true });

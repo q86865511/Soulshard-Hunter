@@ -77,11 +77,13 @@ defineIcon('equip_g_sniper', P.steelD, (p) => {
   p.px(11, 5, P.neonL);
   // wooden cheek-rest
   p.gradV(4, 11, 3, 2, P.woodL, P.woodD);
+  // R28 B-rework: 兩腳架 — 讓「斜桿＋圓」不會跟 equip_x_h3_dragoon（斜錐槍＋護手盤）撞形
+  p.line(9, 7, 8, 12, P.gray1); p.line(9, 7, 12, 11, P.gray1);
+  p.px(8, 12, P.steelL); p.px(12, 11, P.steelL);
   // bright muzzle tip + kira
   muzzle(p, 13, 3, P.neonL, P.white);
-  p.star4(13, 3, 2, P.glint, P.neonL);
   p.rimLight(P.rimCool, 0.5, -1, -1);
-});
+}, { kira: true });
 
 // scattergun: wide twin barrels, neon spray cone
 defineIcon('equip_g_scattergun', P.woodD, (p) => {
@@ -102,7 +104,7 @@ defineIcon('equip_g_scattergun', P.woodD, (p) => {
   for (let i = 0; i < 4; i++) p.px(13 + (i % 2), 4 + i * 2, P.emberL);
   p.sparkle(15, 5, P.holyL, 1);
   p.rimLight(P.rim, 0.5, -1, -1);
-});
+}, { kira: true });
 
 // boomerang: curved L crystal blade, glowing edge + spinning kira
 defineIcon('equip_g_boomerang', P.shardD, (p) => {
@@ -123,10 +125,9 @@ defineIcon('equip_g_boomerang', P.shardD, (p) => {
   p.px(6, 9, P.glint);
   // energy runes along the bend
   rune(p, 9, 12, P.neonL);
-  p.star4(3, 4, 2, P.glint, P.shardL);   // motion kira at tip
   p.sparkle(13, 13, P.white, 1);
   p.rimLight(P.rimCool, 0.55, -1, -1);
-});
+}, { kira: true });
 
 // laser: emitter prism + glowing beam streak across the icon
 defineIcon('equip_g_laser', P.purpleD, (p) => {
@@ -146,9 +147,8 @@ defineIcon('equip_g_laser', P.purpleD, (p) => {
   p.line(9, 13, 14, 8, withAlpha(P.laser, 0.6));
   p.glow(14, 7, 2.0, P.laser, 0.6, 4);
   p.px(14, 7, P.white);
-  p.star4(14, 7, 2, P.glint, P.laser);   // impact kira
   p.rimLight(P.rim, 0.5, -1, -1);
-});
+}, { kira: true });
 
 // venom: gourd sprayer dripping glowing toxin
 defineIcon('equip_g_venom', P.poisonD, (p) => {
@@ -170,7 +170,7 @@ defineIcon('equip_g_venom', P.poisonD, (p) => {
   p.px(11, 14, P.toxic);
   p.sparkle(11, 6, P.poison, 1);
   p.rimLight(P.rim, 0.45, -1, -1);
-});
+}, { kira: true });
 
 // frost: crystalline shard launcher with icy aura
 defineIcon('equip_g_frost', P.blueD, (p) => {
@@ -189,7 +189,6 @@ defineIcon('equip_g_frost', P.blueD, (p) => {
   // frost sparkle accents
   p.px(2, 8, P.blueL);
   p.px(10, 6, P.white);
-  p.star4(10, 5, 2, P.glint, P.ice);
   p.sparkle(13, 10, P.iceD, 1);
   rune(p, 4, 8, P.neon);
   p.rimLight(P.rimCool, 0.55, -1, -1);
@@ -214,7 +213,6 @@ defineIcon('equip_g_flame', P.blood, (p) => {
   p.px(11, 4, P.emberL);
   p.px(2, 10, P.emberL);
   p.sparkle(13, 5, P.holyL, 1);          // ember spark
-  p.star4(11, 8, 2, P.glint, P.emberL);
   p.rimLight(P.rim, 0.45, -1, -1);
 });
 

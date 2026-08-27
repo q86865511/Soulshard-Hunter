@@ -341,63 +341,114 @@ defineSprite('g_fx_mine', 10, 8, (p) => {
 // Weapon icons (16x16 panel + symbol + outline, via defineIcon)
 // ===========================================================================
 
-// scatter: stubby barrel spraying pellets in a fan
-defineIcon('weapon_g_scatter', P.woodD, (p) => {
-  p.rect(2, 7, 6, 3, P.iron);
-  p.rect(2, 7, 6, 1, P.gray3);
-  p.rect(7, 6, 2, 5, P.steel);
-  p.px(2, 8, P.emberL);
-  for (let i = 0; i < 4; i++) { const a = -0.5 + i * 0.33; p.px(10 + Math.cos(a) * 3, 8 + Math.sin(a) * 3, P.emberL); p.px(12 + Math.cos(a) * 3, 8 + Math.sin(a) * 3, P.ember); }
+// R28 W3-B-rework — ART_SPEC 第 5 節鐵律：glyph 畫「那一把武器本身」，同類別內
+// 任兩張輪廓不得雷同（上一批全做成「斜桿＋色頭」被整批退回）。以下每張都是一件
+// 可命名的實物：喇叭口霰彈槍／V 形回力鏢／觸發水雷／小幽靈／毒氣噴罐／冰晶長矛。
+
+// 散魂霰彈 — 一把喇叭口霰彈槍：木托＋機匣擊錘＋外擴喇叭槍口，口前一束碎彈丸。
+defineIcon('weapon_g_scatter', P.woodD, (p) => {   // R28 B-rework
+  p.rect(1, 9, 5, 4, P.wood);                                      // 木質槍托（亮木色才跳得出深棕框）
+  p.hline(1, 5, 9, P.woodL); p.hline(1, 5, 12, darken(P.woodD, 0.4));
+  p.px(1, 12, P.woodD);
+  p.rect(5, 6, 4, 5, P.iron);                                      // 機匣
+  p.hline(5, 8, 6, P.gray4); p.hline(5, 8, 10, darken(P.gray1, 0.35));
+  p.rect(6, 7, 2, 2, darken(P.woodD, 0.55)); p.px(6, 7, P.emberL); // 拋殼口
+  p.line(6, 6, 7, 4, P.gray2); p.px(7, 3, P.gray4);                // 擊錘
+  p.rect(6, 11, 2, 3, P.gray1); p.px(6, 11, P.gray3);              // 握把／扳機
+  p.rect(9, 7, 2, 3, P.steelD);                                    // 槍管
+  for (let x = 11; x <= 13; x++) {                                 // 外擴喇叭口
+    const h = 1.6 + (x - 11) * 1.1;
+    p.vline(8 - h, 8 + h, x, P.steel);
+    p.px(x, Math.round(8 - h), P.steelL); p.px(x, Math.round(8 + h), P.gray1);
+  }
+  p.vline(5, 11, 13, P.steelL);                                    // 口緣
+  for (let i = 0; i < 4; i++) { const a = -0.7 + i * 0.47; p.px(Math.round(14 + Math.cos(a) * 1.4), Math.round(8 + Math.sin(a) * 3.4), P.emberL); }
 });
 
-// boomer: curved crystal chakram with a glint
-defineIcon('weapon_g_boomer', P.shardD, (p) => {
-  p.ring(8, 8, 5, P.shard);
-  p.ring(8, 8, 4, P.shardL);
-  p.line(3, 8, 13, 8, P.shardL);
-  p.line(8, 3, 8, 13, P.shardL);
-  p.px(8, 8, P.white);
-  p.px(11, 5, P.white);
-});
+// 回力晶刃 — 一支 V 形回力鏢：兩支直臂在銳角肘部相接，晶面分明。
+// （wc_boomerang 是平滑的 C 形新月，這裡刻意是折角的 ∧ ——兩者輪廓不共用。）
+defineIcon('weapon_g_boomer', P.shardD, (p) => {   // R28 B-rework
+  const arm = (x0, y0, x1, y1, c, lt) => {
+    for (let s = -1; s <= 1; s++) { p.line(x0 + s, y0 + s * 0.4, x1 + s, y1 + s * 0.4, s < 0 ? lt : c); }
+  };
+  arm(8, 4, 3, 11, P.shardD, P.shardL);                            // 左臂
+  arm(8, 4, 13, 11, darken(P.shardD, 0.25), P.shard);              // 右臂
+  p.line(8, 3, 4, 9, P.shardL); p.line(8, 3, 12, 9, P.shard);      // 上刃緣
+  p.ellipse(8, 5, 1.6, 1.6, P.shardD); p.px(8, 4, P.white);        // 肘部晶核
+  p.px(3, 11, P.shardL); p.px(13, 11, P.shardL);                   // 臂端
+  p.px(5, 7, P.white);
+}, { kira: true });
 
-// mine: spiked sea-mine with a red eye
-defineIcon('weapon_g_mine', P.gray1, (p) => {
-  p.ellipse(8, 9, 4, 3.4, P.steelD);
-  p.ellipse(8, 9, 2.8, 2.4, P.iron);
-  p.hline(6, 10, 7, P.steelL);
-  for (let i = 0; i < 5; i++) { const a = Math.PI + i * (Math.PI / 4); p.line(8, 9, 8 + Math.cos(a) * 5, 9 + Math.sin(a) * 5, P.gray2); }
-  p.ellipse(8, 9, 1.2, 1.2, P.red);
-  p.px(8, 9, P.redL);
-});
+// 魂能地雷 — 一顆觸發式水雷：球殼＋六根觸角刺＋紅色感應眼＋下方底座卡榫。
+defineIcon('weapon_g_mine', P.gray1, (p) => {   // R28 B-rework
+  p.glow(9, 9, 4, P.red, 0.2, 3);
+  for (let i = 0; i < 6; i++) {                                    // 觸角刺（錐形，根部兩像素寬）
+    const a = (-158 + i * 44) * Math.PI / 180, c = Math.cos(a), s = Math.sin(a);
+    for (let k = 0; k <= 4; k++) {
+      const r = 3.2 + k * 0.85;
+      p.px(Math.round(8 + c * r), Math.round(9 + s * r), k > 2 ? P.gray4 : P.gray3);
+      if (k < 2) p.px(Math.round(8 + c * r - s), Math.round(9 + s * r + c), P.gray2);
+    }
+  }
+  p.ellipse(8, 9, 4.3, 3.9, P.ink2);                               // 球殼
+  p.ellipse(8, 9, 3.7, 3.3, P.gray2);
+  p.ellipse(7.2, 8.2, 2.4, 2, P.gray3); p.hline(6, 9, 6, P.gray4); // 受光面
+  p.px(6, 7, P.steelL);
+  p.hline(4, 11, 12, P.gray1); p.hline(5, 10, 13, darken(P.gray1, 0.45));  // 底座卡榫
+  p.ellipse(9.4, 9.4, 1.7, 1.7, P.redD);                           // 感應眼
+  p.ellipse(9.4, 9.4, 1, 1, P.red); p.px(9, 9, P.redL);
+}, { kira: true });
 
-// spirit: a little ghost mote with trailing wisp
-defineIcon('weapon_g_spirit', P.purpleD, (p) => {
-  p.ellipse(8, 7, 3.2, 3.2, P.mana);
-  p.ellipse(8, 7, 2, 2, P.manaL);
-  p.px(7, 6, P.white);
-  // wavy tail
-  p.px(6, 11, P.manaL); p.px(8, 12, P.manaL); p.px(10, 11, P.manaL);
-  p.px(7, 12, P.purpleL); p.px(9, 12, P.purpleL);
-});
+// 召喚靈體 — 一隻小幽靈：圓頭＋兩顆點眼＋兩支短臂＋波浪狀下擺（無角、圓潤）。
+// 進化版 g_spirit_evo 才長角、拖長尾、繞著魂核——base/evo 靠這個形差分開。
+defineIcon('weapon_g_spirit', P.purpleD, (p) => {   // R28 B-rework
+  p.glow(8, 8, 5, P.mana, 0.24, 3);
+  for (let y = 4; y <= 11; y++) {                                  // 頭身一體的圓潤主體
+    const w = y < 7 ? 1.6 + (y - 4) * 1.1 : 4.4;
+    p.hline(8 - w, 7 + w, y, P.mana);
+    p.hline(8 - w, 8 - w + 1, y, P.manaL);
+  }
+  p.hline(4, 6, 12, P.mana); p.hline(9, 11, 12, P.mana);           // 波浪下擺
+  p.px(5, 13, P.manaL); p.px(10, 13, P.manaL);
+  p.px(4, 8, P.manaL); p.px(11, 8, P.manaL);                       // 短臂
+  p.ellipse(6.5, 7.5, 1, 1.2, P.void); p.ellipse(9.5, 7.5, 1, 1.2, P.void);   // 點眼
+  p.px(6, 6, P.white);
+}, { kira: true });
 
-// venomfog: bubbling toxic cloud
-defineIcon('weapon_g_venomfog', P.poisonD, (p) => {
-  p.ellipse(7, 9, 3.4, 2.4, P.poisonD);
-  p.ellipse(10, 8, 2.4, 2, P.poison);
-  p.ellipse(6, 7, 2, 1.8, P.poison);
-  p.px(7, 7, P.toxic); p.px(10, 7, P.toxic); p.px(5, 9, P.toxic);
-  p.px(8, 5, P.toxic); p.px(11, 10, P.poison);
-});
+// 劇毒霧域 — 一只毒氣噴罐：圓肚陶罐＋封蠟瓶頸＋側噴嘴，三團毒霧自噴嘴湧出。
+// （霧氣本身是次要提示；主體是那只罐子——所以它不是又一團色雲。）
+defineIcon('weapon_g_venomfog', P.poisonD, (p) => {   // R28 B-rework
+  p.glow(10, 4, 4, P.toxic, 0.22, 3);
+  p.ellipse(6, 4, 2, 1.7, withAlpha(P.toxic, 0.8));                // 湧出的毒霧
+  p.ellipse(10, 3, 2.4, 1.8, withAlpha(P.poison, 0.85));
+  p.ellipse(13, 5, 1.5, 1.3, withAlpha(P.toxic, 0.6));
+  p.ellipse(6, 10, 4.2, 3.8, darken(P.clay, 0.5));                 // 圓肚陶罐（陶土色，與綠霧分色）
+  p.ellipse(6, 10, 3.5, 3.1, P.clay);
+  p.ellipse(4.9, 8.9, 2, 1.6, P.sandL); p.px(4, 8, P.white);
+  p.hline(3, 9, 13, darken(P.clay, 0.6));
+  p.rect(5, 5, 3, 2, darken(P.clay, 0.3)); p.hline(4, 8, 4, P.woodD);   // 封蠟瓶頸
+  p.rect(9, 6, 4, 2, P.iron); p.hline(9, 12, 6, P.gray4);          // 側噴嘴
+  p.px(13, 7, P.toxic);
+  p.ellipse(6, 10, 1.4, 1.4, P.poison); p.px(6, 10, P.toxic);      // 罐身毒液窗
+}, { kira: true });
 
-// icespear: sharp ice crystal pointing up-right
-defineIcon('weapon_g_icespear', P.blueD, (p) => {
-  p.line(3, 13, 12, 4, P.ice);
-  p.line(4, 13, 13, 4, P.iceD);
-  p.px(13, 3, P.white);
-  p.px(12, 4, P.white);
-  p.line(10, 6, 11, 9, P.ice);
-  p.line(7, 8, 6, 6, P.ice);
-  p.px(3, 13, P.blueL);
+// 寒冰錐 — 一支冰晶長矛：寬葉形多面矛頭＋繩束環＋長柄＋柄尾錐。
+// 頭是「有寬度的多面葉片」而不是一顆色點，柄上有束繩——與飛鏢/箭矢區隔。
+defineIcon('weapon_g_icespear', P.blueD, (p) => {   // R28 B-rework
+  p.line(2, 13, 8, 7, P.gray2); p.line(3, 13, 9, 7, P.gray1);      // 長柄
+  p.line(2, 12, 8, 6, P.gray3);
+  p.px(2, 13, P.iron); p.px(3, 14, P.iron);                        // 柄尾錐
+  p.line(5, 11, 7, 9, P.woodL); p.line(6, 12, 8, 10, P.woodD);     // 束繩環
+  for (let k = 0; k <= 7; k++) {                                   // 寬葉形矛頭
+    const f = k / 7, r = 2 + f * 5;
+    const t = -45 * Math.PI / 180;
+    const cx = 7 + Math.cos(t) * r, cy = 8 + Math.sin(t) * r;
+    const hw = Math.sin(f * Math.PI) * 2.3 + 0.3;
+    for (let s = -hw; s <= hw; s += 0.5) p.px(Math.round(cx - 0.707 * s), Math.round(cy - 0.707 * s), s < 0 ? P.ice : P.iceD);
+  }
+  p.line(9, 6, 12, 3, P.hiSky);                                    // 中脊
+  p.px(12, 3, P.white); p.px(11, 4, P.white);
+  p.px(9, 4, P.iceD); p.px(11, 7, P.iceD);                         // 側面切角
 });
 
 // scatter_evo: golden triple-barrel storm cannon with a two-tier fanned muzzle blast
@@ -420,18 +471,31 @@ defineIcon('weapon_g_scatter_evo', '#5a4a1a', (p) => {
   for (let i = 0; i < 4; i++) { const a = -0.9 + i * 0.55; p.px(13 + Math.cos(a) * 4.5, 8 + Math.sin(a) * 4.5, withAlpha(P.goldL, 0.75)); }
   p.ring(12, 8, 4.5, withAlpha(P.gold, 0.35));                             // 擴散環
   p.px(2, 7, P.white);
-});
+}, { kira: true });   // R28 B-rework: draw body 保持 FIX-2 原樣，僅依 tier 3 補上 kira
 
-// spirit_evo: a cluster of vengeful purple souls
-defineIcon('weapon_g_spirit_evo', P.void, (p) => {
-  p.ellipse(6, 7, 2.4, 2.4, P.purple);
-  p.ellipse(6, 7, 1.4, 1.4, P.purpleL);
-  p.ellipse(11, 6, 2, 2, P.purple);
-  p.ellipse(11, 6, 1.1, 1.1, P.purpleL);
-  p.ellipse(9, 11, 2, 2, P.mana);
-  p.ellipse(9, 11, 1.1, 1.1, P.manaL);
-  p.px(6, 6, P.white); p.px(11, 5, P.white); p.px(9, 10, P.white);
-});
+// 怨魂群（g_spirit 的進化） — 第二層形狀：base 是「單體、圓潤、無角、有短臂」的
+// 小幽靈；evo 改成三隻「有雙角＋拖長尖尾」的怨魂，繞著中央一顆魂核作螺旋。
+// 角與尖尾是新增的輪廓層，不是換色（ART_SPEC 第 5 節：進化必須加第二層形狀）。
+defineIcon('weapon_g_spirit_evo', P.void, (p) => {   // R28 B-rework
+  p.glow(8, 8, 6, P.purple, 0.26, 4);
+  const wraith = (cx, cy, tx, ty, c, cl) => {
+    p.line(cx, cy, tx, ty, withAlpha(c, 0.7));                     // 拖長的尖尾
+    p.px(Math.round(tx), Math.round(ty), withAlpha(cl, 0.6));
+    p.ellipse(cx, cy, 2.1, 2.3, c);                                // 頭
+    p.ellipse(cx - 0.5, cy - 0.5, 1.2, 1.2, cl);
+    p.px(Math.round(cx - 1), Math.round(cy + 1), P.void);          // 空洞的眼
+    p.px(Math.round(cx + 1), Math.round(cy + 1), P.void);
+    p.px(Math.round(cx - 2), Math.round(cy - 2), cl);              // 雙角
+    p.px(Math.round(cx - 3), Math.round(cy - 3), c);
+    p.px(Math.round(cx + 2), Math.round(cy - 2), cl);
+    p.px(Math.round(cx + 3), Math.round(cy - 3), c);
+  };
+  wraith(4.5, 7, 2, 12, P.purple, P.purpleL);
+  wraith(11.5, 6, 14, 10, P.purple, P.magentaL);
+  wraith(8.5, 12, 5, 14, P.mana, P.manaL);
+  p.ellipse(8, 8, 1.8, 1.8, P.magentaD);                           // 中央魂核
+  p.ellipse(8, 8, 1.1, 1.1, P.magenta); p.px(8, 8, P.white);
+}, { kira: true });
 
 // ---- local math helpers (no external deps) --------------------------------
 function reachEase(k) {
