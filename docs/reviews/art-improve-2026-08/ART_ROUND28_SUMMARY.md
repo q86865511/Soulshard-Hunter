@@ -49,7 +49,7 @@
 - `__GAME_ERROR__` 空、無 uncaught page error
 - 協定 `src/game/net/protocol.js`：**diff 為空**（Codex 第二審以 SHA 獨立驗證）
 - gameplay 數值：enemy/weapon def 的 hp/speed/damage/radius/scale/tier 等逐檔 grep 證明零變動
-- Git：25+ commit，**未 push、未 merge、未部署**
+- Git：31 commit，經 PR [#83](https://github.com/q86865511/Soulshard-Hunter/pull/83) 合併進 `main`；CI 兩項全過（frontend 58s／server 6m38s），合併觸發 Oracle 自動部署
 
 ## 四、未能驗證項（不宣稱通過）
 
