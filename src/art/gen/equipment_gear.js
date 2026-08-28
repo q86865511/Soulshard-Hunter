@@ -16,6 +16,11 @@ import { drawSlime, drawBat, drawWisp, drawBrute, drawHunter } from '../core.js'
 // ==== equipment_gear icons (armor x4 + trinket x4) ====
 
 // ── shared shine helpers (self-contained: Painter + sym + P + helpers) ──────
+// NOTE (R28 B-rework): _metalBody / _gearShield / _gearRing / _gem / _rarity are now
+// unreferenced — the eight icons below stopped sharing generic bodies (that sharing WAS
+// the ART-06 同輪廓不同色 defect) and kira moved to defineIcon's tier-driven { kira }.
+// They are kept because this file is workflow-generated scaffolding that integrate.mjs
+// rewrites wholesale; deleting them here would only be undone on the next re-integration.
 
 // Brushed-metal body: vertical core->shadow gradient, soft top sheen band,
 // and a couple of vertical "brush" streaks. Returns nothing; draws in-place.
@@ -70,168 +75,155 @@ function _gearRing(p, metal, gem) {
 }
 
 // ---- armor -----------------------------------------------------------------
-// 重甲：厚重鋼板甲 — polished steel plate with a glinting trim
+// R28 B-rework (ART_SPEC 第 5 節鐵律)：這四件原本都是「同一個收腰身軀＋換色」。
+// 現在各自是可命名的實體 — 板甲胸鎧（寬肩＋分節裙甲）／鎖鏈衫（有袖的 T 形）／
+// 龍鱗甲（左肩龍首、下擺尾鰭的不對稱剪影）／道袍（肩軛＋大 A 字下擺，無兜帽）。
+// kira 不給一般 gear（R28 收緊：只給進化/epic/隱藏獎勵，ART_SPEC 第 5 節）。
+
+// 重甲：板甲胸鎧 — 喉甲＋外突肩甲＋收腰＋三條分節裙甲
 defineIcon('equip_g_heavy_plate', P.steelD, (p) => {
-  for (let y = 3; y <= 13; y++) {
-    const t = (y - 3) / 10;
-    const w = 5 * (1 - t * 0.22);
-    // vertical tonal ramp: bright top -> deep steel bottom
-    const col = mix(lighten(P.steel, 0.3), P.steelD, t * 1.05);
-    p.hline(8 - w, 7 + w, y, col);
+  p.softShadow(8, 14, 5, 1.2, 0.35);
+  p.rect(6, 1, 4, 2, P.gray4); p.hline(6, 9, 1, P.steelL);            // 喉甲
+  p.gradV(1, 3, 4, 3, P.steelL, P.iron);                              // 左肩甲（外突）
+  p.gradV(11, 3, 4, 3, P.steel, darken(P.iron, 0.25));                // 右肩甲（背光）
+  p.px(1, 3, P.glint); p.px(14, 5, darken(P.iron, 0.4));
+  for (let y = 3; y <= 9; y++) {                                      // 胸甲：肩寬 → 收腰
+    const w = 4.4 - (y - 3) * 0.35;
+    p.hline(8 - w, 7 + w, y, mix(lighten(P.steel, 0.3), P.steelD, (y - 3) / 6));
   }
-  // pauldron / collar block with sheen
-  p.gradV(6, 3, 4, 3, P.steelL, P.iron);
-  // central ridge + rivet line
-  p.vline(4, 13, 8, lighten(P.steel, 0.18));
-  p.hline(3, 12, 7, darken(P.steelD, 0.25));
-  // rivets
-  p.px(5, 6, P.steelL); p.px(11, 6, darken(P.steelD, 0.2));
-  p.px(5, 10, P.iron);  p.px(11, 10, P.iron);
-  // specular glints (top-left light)
-  p.px(5, 4, P.rim); p.px(6, 5, P.glint);
-  p.px(10, 9, P.steelL);
+  p.vline(3, 9, 8, lighten(P.steel, 0.3));                            // 中脊
+  p.vline(3, 9, 4, P.steelL); p.vline(3, 9, 11, darken(P.steelD, 0.3));
+  for (let i = 0; i < 3; i++) {                                       // 分節裙甲
+    const y = 10 + i, w = 3.2 + i * 0.7;
+    p.hline(8 - w, 7 + w, y, i % 2 ? P.iron : P.steel);
+    p.px(Math.round(8 - w), y, P.steelL);
+  }
+  p.hline(4, 11, 13, darken(P.steelD, 0.45));
+  p.px(5, 4, P.rim); p.px(6, 5, P.glint); p.px(5, 8, P.steelL); p.px(11, 8, P.gray1);
   p.rimLight(P.rimCool, 0.5);
-  p.softShadow(8, 14, 5, 1.2, 0.35);
-  p.sparkle(12, 4, withAlpha(P.steelL, 0.9), 1);
 });
 
-// 刺甲：帶尖刺的鐵甲 — dark iron mail bristling with razor spikes
+// 刺甲：鎖鏈衫 — 帶「兩隻橫伸的袖子」的 T 形，肩上一排尖刺，環織紋理
 defineIcon('equip_g_spiked_mail', P.gray1, (p) => {
-  for (let y = 5; y <= 13; y++) {
-    const t = (y - 5) / 8;
-    const w = 4.6 * (1 - t * 0.28);
-    p.hline(8 - w, 7 + w, y, mix(lighten(P.iron, 0.2), darken(P.iron, 0.3), t));
+  p.softShadow(8, 14, 5, 1.2, 0.35);
+  for (let i = 0; i < 4; i++) {                                       // 肩刺
+    const x = 4 + i * 3;
+    p.line(x, 5, x, 1 + (i % 2), P.steel); p.px(x, 1 + (i % 2), P.steelL);
+    p.px(x - 1, 4, darken(P.iron, 0.3));
   }
-  // chainmail texture (seeded specks, deterministic)
-  p.speckle(4, 7, 8, 6, darken(P.iron, 0.35), 9, 71);
-  p.speckle(4, 7, 8, 6, lighten(P.iron, 0.25), 7, 113);
-  // gleaming steel spikes with bright tips
-  sym.spikes(p, P.steel);
-  for (let i = 0; i < 3; i++) { const x = 4 + i * 4; p.px(x + 2, 4, P.steelL); }
-  p.px(6, 4, P.glint); p.px(10, 4, P.rim);
-  // collar studs
-  p.px(8, 8, P.gray4);
-  p.px(5, 9, P.gray3);
-  p.px(11, 9, P.gray3);
+  p.rect(1, 5, 14, 3, P.iron);                                        // 兩隻袖子（橫伸）
+  p.hline(1, 14, 5, lighten(P.iron, 0.3)); p.hline(1, 14, 7, darken(P.iron, 0.4));
+  p.px(1, 5, P.steelL); p.px(14, 7, P.gray1);
+  p.rect(5, 5, 6, 9, P.iron);                                         // 衣身（直筒）
+  p.hline(5, 10, 5, lighten(P.iron, 0.35)); p.hline(5, 10, 13, darken(P.iron, 0.5));
+  p.vline(5, 13, 5, lighten(P.iron, 0.2)); p.vline(5, 13, 10, darken(P.iron, 0.35));
+  p.speckle(2, 6, 12, 7, darken(P.iron, 0.4), 14, 71);                // 環織紋理
+  p.speckle(5, 6, 6, 7, lighten(P.iron, 0.3), 8, 113);
+  p.rect(6, 8, 4, 1, P.gray4);                                        // 腰繩
+  p.px(6, 6, P.glint);
   p.rimLight(P.rimCool, 0.45);
-  p.softShadow(8, 14, 5, 1.2, 0.35);
 });
 
-// 龍鱗甲：層疊鱗片 — iridescent dragon scales with a toxic shimmer
+// 龍鱗甲：不對稱剪影 — 左肩一顆龍首肩甲（角＋眼），下擺收成尾鰭
 defineIcon('equip_g_dragon_scale', P.greenD, (p) => {
-  for (let y = 4; y <= 13; y++) {
-    const t = (y - 4) / 9;
-    const w = 4.6 * (1 - t * 0.3);
-    p.hline(8 - w, 7 + w, y, mix(lighten(P.green, 0.18), P.greenD, t));
-  }
-  // overlapping scale rows, each lit from top-left
-  for (let r = 0; r < 3; r++) {
-    const yy = 6 + r * 3;
-    for (const sx of [6, 10]) {
-      p.ellipse(sx, yy, 1.5, 1.3, darken(P.greenD, 0.1));
-      p.ellipse(sx, yy - 0.2, 1.2, 1.0, P.greenL);
-      p.px(sx - 1, yy - 1, lighten(P.toxic, 0.2));
-    }
-    p.ellipse(8, yy + 1.5, 1.5, 1.3, darken(P.greenD, 0.1));
-    p.ellipse(8, yy + 1.3, 1.2, 1.0, lighten(P.green, 0.2));
-    p.px(7, yy + 0.5, P.toxic);
-  }
-  // iridescent toxic sheen highlights
-  p.px(6, 5, P.toxic);
-  p.px(10, 8, lighten(P.toxic, 0.3));
-  p.rimLight(P.aurora, 0.5);
   p.softShadow(8, 14, 5, 1.2, 0.35);
-  _rarity(p, P.aurora, 12, 4);
+  for (let y = 4; y <= 11; y++) {                                     // 甲身（偏右，讓龍首吃掉左肩）
+    const w = 3.6 - (y - 4) * 0.16;
+    p.hline(9 - w, 9 + w, y, mix(P.greenD, darken(P.greenD, 0.55), (y - 4) / 7)); // 壓暗，讓鱗片跳出來
+  }
+  for (let r = 0; r < 3; r++) {                                       // 層疊鱗片（亮階）
+    const yy = 5 + r * 2.4;
+    for (const sx of [8, 11]) {
+      p.ellipse(sx, yy, 1.5, 1.2, darken(P.greenD, 0.6));
+      p.ellipse(sx, yy - 0.3, 1.1, 0.85, P.leafL);
+      p.px(sx - 1, yy - 1, lighten(P.toxic, 0.3));
+    }
+    p.px(7, yy, P.toxic);
+  }
+  p.line(8, 12, 5, 14, darken(P.greenD, 0.4)); p.line(9, 12, 12, 14, darken(P.greenD, 0.4)); // 尾鰭下擺
+  p.line(8, 12, 8, 14, P.leafL); p.px(6, 14, P.toxic); p.px(11, 14, P.toxic);
+  p.ellipse(4, 5, 3.2, 2.8, darken(P.bog || P.greenD, 0.6));          // 龍首肩甲（最暗）
+  p.ellipse(4, 4.6, 2.4, 2.0, darken(P.greenD, 0.2));
+  p.ellipse(3.4, 4, 1.4, 1.1, P.leaf);                                // 吻部受光
+  p.line(3, 3, 1, 0, P.bone); p.line(6, 3, 7, 0, lighten(P.bone, 0.2)); // 雙角
+  p.px(4, 5, P.emberL); p.px(3, 5, P.ember);                          // 眼
+  p.px(2, 7, P.white); p.px(4, 7, P.bone); p.px(6, 6, P.bone);        // 獠牙
+  p.px(2, 3, lighten(P.toxic, 0.3));
+  p.rimLight(P.aurora, 0.5);
 });
 
-// 符文道袍：飄逸法袍配發光符文 — flowing arcane robe lit by glowing runes
+// 符文道袍：肩軛橫桿＋垂直符文列＋大 A 字下擺（無兜帽，與斗篷/兜帽類分家）
 defineIcon('equip_g_runic_vestment', P.purpleD, (p) => {
-  for (let y = 4; y <= 13; y++) {
-    const t = (y - 4) / 9;
-    const w = 2 + t * 3.6;
-    // soft cloth gradient with a faint highlight on the near fold
-    const col = mix(lighten(P.purple, 0.12), P.purpleD, t);
-    p.hline(8 - w, 7 + w, y, col);
-  }
-  // hood / collar with sheen
-  p.gradV(6, 4, 4, 2, P.purpleL, P.purple);
-  // near-fold light edge + far-fold shadow
-  p.vline(6, 13, 6, lighten(P.purple, 0.22));
-  p.vline(6, 13, 10, darken(P.purpleD, 0.18));
-  // glowing arcane runes down the front
-  p.glow(8, 9, 2.4, P.mana, 0.4, 3);
-  p.px(8, 8, P.manaL);
-  p.px(6, 10, P.manaL);
-  p.px(10, 11, P.manaL);
-  p.px(8, 12, lighten(P.manaL, 0.35));
-  p.sparkle(8, 9, P.white, 1);
-  p.rimLight(P.astralL, 0.5);
   p.softShadow(8, 14, 5, 1.2, 0.32);
-  _rarity(p, P.astralL, 12, 4);
+  p.rect(4, 2, 8, 2, P.purpleL); p.hline(4, 11, 2, lighten(P.purpleL, 0.3)); // 肩軛橫桿
+  p.px(4, 2, P.glint); p.px(11, 3, P.purpleD);
+  for (let y = 4; y <= 14; y++) {                                     // A 字袍身：越往下越寬
+    const t = (y - 4) / 10, w = 2.4 + t * 4.4;
+    p.hline(8 - w, 7 + w, y, mix(lighten(P.purple, 0.16), P.purpleD, t));
+    p.px(Math.round(8 - w), y, lighten(P.purple, 0.3));               // 近側受光褶
+    p.px(Math.round(7 + w), y, darken(P.purpleD, 0.3));
+  }
+  p.rect(5, 8, 6, 1, P.goldD); p.px(5, 8, P.goldL);                   // 腰帶
+  p.glow(8, 7, 3, P.mana, 0.35, 3);
+  for (const y of [5, 6, 10, 12]) p.px(8, y, y < 8 ? P.manaL : lighten(P.manaL, 0.3)); // 符文列
+  p.px(6, 11, P.manaL); p.px(10, 13, P.manaL);
+  p.rimLight(P.astralL, 0.5);
 });
 
 // ---- trinkets --------------------------------------------------------------
-// 貪婪之戒：金戒指鑲金幣 — gleaming gold ring set with a coin-gem
+// 貪婪之戒：改成「俯視平躺的寬扁金環」，環心堆著金幣 —— 與直立戒指的正圓輪廓分家
 defineIcon('equip_g_greed_ring', '#5a4a1a', (p) => {
-  _gearRing(p, P.gold, P.goldL);
-  // coin-gem face on top of the band's gem slot
-  _gem(p, 8, 5, 1.5, 1.5, P.gold, P.goldL);
-  p.ellipse(8, 5, 0.9, 0.9, P.goldL);
-  p.px(7, 4, P.white);
-  p.px(8, 5, P.holyL);
+  p.softShadow(8, 13, 6, 1.1, 0.3);
+  p.glow(8, 9, 6, P.gold, 0.3, 4);
+  p.ellipse(8, 9, 6.4, 3.8, darken(P.goldD, 0.45));                   // 環身外緣（暗）
+  p.ellipse(8, 9, 5.6, 3.1, P.goldD);
+  p.ellipse(8, 8.3, 5.2, 2.4, P.gold);                                // 上緣受光帶
+  p.hline(3, 12, 6, P.goldL);
+  p.ellipse(8, 9.4, 3.6, 1.7, P.ink2);                                // 環心：看穿到底的暗孔
+  p.ellipse(8, 9.6, 3.0, 1.2, darken(P.woodD, 0.5));
+  p.px(2, 9, P.goldL); p.px(13, 11, darken(P.goldD, 0.5));
+  p.ellipse(6, 10, 1.8, 1.2, darken(P.goldD, 0.2)); p.ellipse(6, 9.6, 1.4, 0.9, P.goldL); // 環心金幣
+  p.ellipse(9.6, 10.4, 1.5, 1.0, P.goldD); p.ellipse(9.6, 10, 1.1, 0.7, P.gold);
+  p.px(5, 9, P.white); p.px(6, 6, P.glint); p.px(9, 10, P.holyL);
   p.rimLight(P.holy, 0.5);
-  p.softShadow(8, 13, 4, 1, 0.3);
-  _rarity(p, P.holyL, 12, 3);
 });
 
-// 暴擊項鍊：尖晶石垂墜 — fanged ruby pendant on a golden chain
+// 暴擊項鍊：V 形鏈條吊著一枚「獠牙形」紅寶石（下端收成尖），非圓墜
 defineIcon('equip_g_crit_pendant', P.blood, (p) => {
-  // golden chain with link sheen
-  p.line(4, 3, 8, 8, P.goldD);
-  p.line(12, 3, 8, 8, P.goldD);
-  p.line(4, 3, 8, 8, withAlpha(P.goldL, 0.5));
-  p.line(12, 3, 8, 8, withAlpha(P.goldL, 0.5));
-  p.px(4, 3, P.goldL);
-  p.px(12, 3, P.goldL);
-  p.px(8, 8, P.gold);
-  // glowing ruby drop
-  p.glow(8, 10, 4, P.red, 0.45, 4);
-  p.ellipse(8, 10, 2.4, 3.4, P.redD);
-  p.ellipse(8, 10, 1.6, 2.6, P.red);
-  p.ellipse(7.4, 9, 0.9, 1.2, P.redL);
-  p.px(7, 8, P.white);
-  // gold cross setting accent
-  sym.cross(p, P.goldL);
-  p.px(8, 10, lighten(P.redL, 0.2));
+  p.softShadow(8, 14, 3, 1, 0.32);
+  p.line(2, 2, 8, 6, P.goldD); p.line(2, 3, 8, 7, withAlpha(P.goldL, 0.6)); // 左鏈
+  p.line(13, 2, 8, 6, P.goldD); p.line(13, 3, 8, 7, withAlpha(P.gold, 0.5)); // 右鏈
+  p.px(2, 2, P.goldL); p.px(13, 2, P.goldL);
+  p.rect(7, 6, 3, 2, P.gold); p.hline(7, 9, 6, P.goldL);              // 金鑲座
+  p.glow(8, 11, 4, P.red, 0.4, 4);
+  for (let y = 8; y <= 14; y++) {                                     // 獠牙形寶石
+    const w = 2.4 * (1 - (y - 8) / 6.4);
+    p.hline(8 - w, 7 + w, y, P.redD);
+    p.hline(8 - w, 7 + w - 1, y, P.red);
+    p.px(Math.round(8 - w), y, P.redL);
+  }
+  p.px(7, 9, P.white); p.px(8, 10, lighten(P.redL, 0.25)); p.px(8, 14, P.laser);
   p.rimLight(P.rim, 0.45);
-  p.softShadow(8, 14, 4, 1, 0.32);
-  _rarity(p, P.laser, 12, 4);
 });
 
-// 幻影披風：半透感的飄動斗篷 — ghostly cloak rippling with cold light
+// 幻影披風：斜掃向右下的「飄起斗篷」——左上一根領扣橫桿，下襬撕裂成尖角、半透
 defineIcon('equip_g_phantom_cloak', P.blueD, (p) => {
-  // clasp / collar
-  p.gradH(5, 3, 6, 2, P.blueL, P.blue);
-  // flowing translucent body with wobbling hem
-  for (let y = 5; y <= 13; y++) {
-    const t = (y - 5) / 8;
-    const w = 3 + t * 3.2;
-    const wobble = (y % 2 === 0) ? 0.6 : -0.4;
-    const col = mix(tint(P.blue, P.ice, 0.15), P.blueD, t);
-    p.hline(8 - w + wobble, 7 + w + wobble, y, col);
+  p.glow(9, 9, 6, P.ice, 0.26, 4);
+  p.rect(2, 2, 6, 2, P.blueL); p.hline(2, 7, 2, lighten(P.blueL, 0.35)); // 領扣橫桿
+  p.ellipse(5, 3, 1.2, 1.2, P.hiSky); p.px(4, 2, P.white);            // 領扣寶石
+  for (let y = 4; y <= 12; y++) {                                     // 布面：往右下斜掃
+    const t = (y - 4) / 8, x0 = 2 + t * 3.6, x1 = 8 + t * 6.2;
+    p.hline(x0, x1, y, mix(tint(P.blue, P.ice, 0.18), P.blueD, t));
+    p.px(Math.round(x0), y, P.blueL);                                 // 近側受光褶
+    p.px(Math.round(x0) + 2, y, withAlpha(P.ice, 0.5));
+    p.px(Math.round(x1), y, darken(P.blueD, 0.3));
   }
-  // spectral inner glow + cold sheen fold
-  p.glow(8, 9, 3, P.ice, 0.3, 3);
-  p.vline(5, 12, 5, P.blueL);
-  p.vline(6, 11, 6, withAlpha(P.ice, 0.6));
-  p.px(11, 7, P.blueL);
-  p.px(6, 11, P.ice);
-  p.px(9, 9, withAlpha(P.iceD, 0.7));
-  // faint phantom shimmer specks
-  p.speckle(5, 6, 6, 7, withAlpha(P.ice, 0.5), 5, 41);
+  for (let i = 0; i < 4; i++) {                                       // 撕裂的下襬尖角
+    const x = 6 + i * 2.4, h = 13 + (i % 2);
+    p.vline(12, h, x, withAlpha(P.blue, 0.75)); p.px(x, h, withAlpha(P.ice, 0.6));
+  }
+  p.speckle(4, 6, 8, 6, withAlpha(P.ice, 0.45), 6, 41);               // 幻影閃粒
   p.rimLight(P.rimCool, 0.55);
-  p.softShadow(8, 14, 5, 1.1, 0.28);
-  _rarity(p, P.neonL, 12, 4);
 });
 
 // 狂戰護腕：尖刺鉚釘皮腕帶 — studded leather bracer with iron spikes
@@ -258,5 +250,4 @@ defineIcon('equip_g_berserker_band', '#5a2a1a', (p) => {
   p.glow(8, 8, 2, P.red, 0.18, 2);
   p.rimLight(P.rim, 0.4);
   p.softShadow(8, 12, 5, 1, 0.32);
-  _rarity(p, P.emberL, 12, 13);
-});
+});   // R28 B-rework: baseline 已是可辨的皮腕帶（已合格），只把 kira 收歸 defineIcon

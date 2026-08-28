@@ -3,7 +3,7 @@ import { defineSprite, defineAnim, Painter } from '../../engine/sprites.js';
 import { P, lighten, darken, mix, withAlpha } from '../../engine/palette.js';
 import { defineIcon, panel, sym } from '../icons.js';
 import { drawSlime, drawBat, drawWisp, drawBrute, drawHunter, registerHeroBody, drawHeroBody } from '../core.js';
-import { registerDecals } from '../biome_decals.js';
+import { registerDecals, registerLandmarks, registerAmbient } from '../biome_decals.js';
 import { DECOR_SETS, DECOR_CLUSTERS } from '../biome_decor.js';
 
 // ============================ CELESTIAL 天界星壇 — ground decals + standing decor ============================
@@ -151,6 +151,103 @@ defineSprite('bdx_celestial_archfragment', 20, 18, (p) => {  // broken stone arc
   p.outline(P.ink);
 }, { anchor: 'feet' });
 
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// R28 W2-D HAND-EDIT — (d) LANDMARKS + signature environment motion (ART_SPEC §6).
+// Same finish rule as the other W2-D landmark packs: opaque cloud/marble base as part
+// of the silhouette, soft shadow laid down AFTER outline() so a 50 px shadow ellipse
+// never picks up an ink ring.
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+
+defineSprite('lmk_cel_stair', 60, 80, (p) => {              // 斷裂天梯 — a stairway that climbs into nothing
+  const face = P.cloud, top = P.white, side = mix(P.cloud, P.sky, 0.32);
+  // cloud bank the flight rises out of
+  p.ellipse(16, 72, 15, 5, withAlpha(P.cloud, 0.9));
+  p.ellipse(30, 75, 18, 4.5, withAlpha(P.cloud, 0.75));
+  p.ellipse(10, 70, 8, 3.4, withAlpha(P.white, 0.7));
+  // the flight: 8 anchored steps, then a 1-step gap, then 2 that float free
+  for (let i = 0; i < 11; i++) {
+    if (i === 8) continue;                                   // the missing step
+    const drift = i > 8 ? 3 : 0;                             // the detached top pair has slipped up-right
+    const x = 5 + i * 4 + drift, y = 70 - i * 6 - drift;
+    p.rect(x, y, 15, 3, top);
+    p.rect(x, y + 3, 15, 3, face);
+    p.rect(x + 12, y + 1, 3, 5, side);
+    p.px(x, y, P.white);
+    if (i < 8) p.rect(x + 1, y + 6, 13, 2, mix(face, P.sky, 0.45));   // riser shadow into the cloud
+  }
+  // gilded rail along the outer edge (posts at uneven intervals)
+  for (const [i, h] of [[0, 9], [3, 8], [6, 7]]) {
+    const x = 5 + i * 4 + 14, y = 70 - i * 6;
+    p.vline(y - h, y, x, P.gold); p.px(x, y - h, P.goldL);
+  }
+  p.line(19, 61, 31, 45, withAlpha(P.gold, 0.8));
+  p.line(31, 45, 43, 29, withAlpha(P.goldL, 0.7));
+  // where the stair ends: raw broken marble + light pouring off the edge
+  p.line(47, 12, 52, 16, darken(face, 0.12)); p.px(52, 16, P.white);
+  p.glow(50, 12, 6, P.holy, 0.28, 4);
+  p.star4(50, 10, 3, P.holyL, P.white);
+  // fragments still hanging in the air above the break
+  p.rect(41, 4, 4, 3, face); p.px(41, 4, top);
+  p.rect(53, 22, 3, 2, face); p.px(53, 22, top);
+  p.rect(35, 14, 3, 2, side);
+  p.speckle(6, 20, 48, 50, withAlpha(P.star, 0.5), 7, 311);
+  p.rimLight(P.rim, 0.42);
+  p.outline(P.ink);
+  p.ellipse(22, 76, 22, 3, withAlpha(P.shadow, 0.26));
+}, { anchor: [22, 78] });
+
+defineAnim('lmk_cel_halo', 60, 52, 2, (p, f) => {           // 浮空聖環殘骸 — a shattered halo half-sunk in cloud
+  const cx = 30, cy = 25, rx = 25, ry = 17;
+  const arc = (r0, a0, a1, col) => {
+    for (let a = a0; a <= a1; a += 0.016) p.px(Math.round(cx + Math.cos(a) * (rx + r0)), Math.round(cy + Math.sin(a) * (ry + r0 * 0.68)), col);
+  };
+  // ring band: outer white, body cloud, inner gilt — broken open at the upper right
+  const G0 = 0.55, G1 = 1.45;                                // (radians) the missing segment
+  for (const [a0, a1] of [[G1 - Math.PI * 2, -Math.PI * 0.5], [-Math.PI * 0.5, G0]]) {
+    arc(2, a0, a1, P.white);
+    arc(1, a0, a1, P.cloud);
+    arc(0, a0, a1, P.cloud);
+    arc(-1, a0, a1, mix(P.cloud, P.sky, 0.3));
+    arc(-2, a0, a1, withAlpha(P.gold, 0.85));
+  }
+  // fractured ends of the break
+  p.px(Math.round(cx + Math.cos(G0) * rx), Math.round(cy + Math.sin(G0) * ry), P.white);
+  p.px(Math.round(cx + Math.cos(G1) * rx), Math.round(cy + Math.sin(G1) * ry), P.white);
+  p.line(48, 13, 52, 9, darken(P.cloud, 0.1)); p.px(52, 9, P.white);
+  // rune notches cut into the band at irregular angles
+  for (const a of [3.0, 3.6, 4.35, 5.1, 5.75, 2.35]) {
+    p.px(Math.round(cx + Math.cos(a) * rx), Math.round(cy + Math.sin(a) * ry), withAlpha(P.goldL, 0.9));
+  }
+  p.glow(cx, cy, 9, P.holy, f ? 0.24 : 0.16, 4);
+  p.star4(cx, cy - 2, 2, P.holyL, P.white);
+  // half-buried: cloud bank rolls over the bottom of the ring
+  p.ellipse(24, 44, 20, 5.5, withAlpha(P.cloud, 0.92));
+  p.ellipse(42, 46, 15, 4.5, withAlpha(P.cloud, 0.85));
+  p.ellipse(16, 42, 9, 3.4, withAlpha(P.white, 0.75));
+  p.ellipse(46, 44, 7, 2.6, withAlpha(P.white, 0.6));
+  p.rimLight(P.rim, 0.4);
+  p.outline(P.ink);
+  p.ellipse(30, 48, 24, 3, withAlpha(P.shadow, 0.24));
+  if (f) p.sparkle(46, 16, withAlpha(P.holyL, 0.7), 1); else p.sparkle(12, 22, withAlpha(P.star, 0.6), 1);
+}, { anchor: [30, 50], fps: 1.2 });
+
+defineAnim('bdxa_cel_motes', 12, 20, 4, (p, f) => {         // signature motion — light motes rising off a drifting shard
+  const lift = [0, -1, -2, -1][f];
+  const y = 13 + lift;
+  p.ellipse(6, 18, 4, 1.4, withAlpha(P.cloud, 0.7));         // the cloud puff it hovers over
+  p.rimLight(P.rim, 0.3);
+  p.outline(P.ink);
+  // shard + motes ride on top of the outline so their glow stays clean
+  p.line(6, y - 3, 3, y, withAlpha(P.cloud, 0.95)); p.line(3, y, 6, y + 3, withAlpha(P.cloud, 0.95));
+  p.line(6, y + 3, 9, y, withAlpha(P.white, 0.95)); p.line(9, y, 6, y - 3, withAlpha(P.white, 0.95));
+  p.px(6, y, P.goldL);
+  p.glow(6, y, 3.4, P.holy, 0.3, 3);
+  for (let i = 0; i < 3; i++) {
+    const my = y - 4 - ((f + i * 3) % 10);
+    if (my > 0) p.px(4 + ((i * 3 + f) % 5), my, withAlpha(i & 1 ? P.holyL : P.star, 0.7));
+  }
+}, { anchor: [6, 19], fps: 4 });
+
 // ---------------------------------------------------------------------------------------------
 // (c) registry — ground decals + standing-decor pool/cluster registration
 // ---------------------------------------------------------------------------------------------
@@ -170,4 +267,9 @@ registerDecals('celestial', [
 (DECOR_CLUSTERS['celestial'] = DECOR_CLUSTERS['celestial'] || []).push(
   'bdx_celestial_runestone', 'bdx_celestial_archfragment'
 );
+
+// R28 W2-D HAND-EDIT — landmarks are placed explicitly by maps.js (kept OUT of the
+// scatter pool); the mote shard is the biome's ambient motion.
+registerLandmarks('celestial', ['lmk_cel_stair', 'lmk_cel_halo']);
+registerAmbient('celestial', ['bdxa_cel_motes']);
 

@@ -21,13 +21,17 @@ Enemies.register({
   desc: '貪婪的金甲蟲，貼身搶走你的金幣後拔腿就跑——宰了牠把錢拿回來。',
 });
 defineAnim('s2_goldbug', 16, 13, 4, (p, f) => {
+  // R28 W3-A3: carapace/legs enlarged for a stronger silhouette; rimLight+shadeBottom
+  // added (had neither before).
   const sc = [0, 1, 0, -1][f % 4]; const by = 8;
-  p.rect(3, by + 3, 2, 2, P.goldD); p.rect(11, by + 3, 2, 2, P.goldD);   // legs
-  p.ellipse(8, by, 5.4, 4, P.goldD); p.ellipse(8, by - 0.4, 4.4, 3.2, P.gold);
-  p.ellipse(6.5, by - 1.6, 2, 1.2, P.goldL); p.vline(by - 3, by + 3, 8, P.goldD);   // carapace seam
+  p.rect(3, by + 3, 3, 2, P.goldD); p.rect(10, by + 3, 3, 2, P.goldD);   // legs (widened)
+  p.ellipse(8, by, 6, 4.4, P.goldD); p.ellipse(8, by - 0.4, 5, 3.6, P.gold);
+  p.ellipse(6.5, by - 1.6, 2.2, 1.4, P.goldL); p.vline(by - 3, by + 3, 8, P.goldD);   // carapace seam
   p.px(5, by - 1, P.white); p.px(11, by - 1, P.white);                   // greedy eyes
   p.line(5, by - 3, 3 + sc, by - 5, P.goldD); p.line(11, by - 3, 13 - sc, by - 5, P.goldD);   // antennae
   p.px(8, by, lighten(P.gold, 0.3));
+  p.rimLight(P.rim, 0.4);
+  p.shadeBottom(0.2, 9);
   p.outline(P.ink);
 }, { anchor: [8, 12], fps: 9 });
 
@@ -41,12 +45,20 @@ Enemies.register({
   desc: '飄忽的魅影，貼上來吸食你的經驗便遁走——擊殺可奪回失去的記憶。',
 });
 defineAnim('s2_wraith', 16, 16, 3, (p, f) => {
+  // R28 W3-A3: fill 50.4%->=55% floor via a wider core body + doubled tail-tendril
+  // width; rimLight+shadeBottom added (had neither before).
   const yb = [0, -1, 0][f % 3]; const cy = 7 + yb;
-  for (let i = 0; i < 4; i++) { const tx = 4 + i * 3; p.vline(cy + 2, 13 + (i % 2), tx, withAlpha(P.manaL, 0.8)); }   // tattered tail
-  p.ellipse(8, cy, 4, 4.4, P.purpleD); p.ellipse(8, cy - 0.4, 3, 3.4, P.purple);
-  p.ellipse(7, cy - 1.6, 1.4, 1.2, P.purpleL);
-  p.ellipse(8, cy, 2, 1.6, P.manaL); p.px(8, cy, P.white);                // glowing core
+  for (let i = 0; i < 4; i++) {
+    const tx = 4 + i * 3;
+    p.vline(cy + 2, 13 + (i % 2), tx, withAlpha(P.manaL, 0.8));
+    p.vline(cy + 2, 12 + (i % 2), tx + 1, withAlpha(P.manaL, 0.6));
+  }   // tattered tail (thickened)
+  p.ellipse(8, cy, 5, 5.4, P.purpleD); p.ellipse(8, cy - 0.4, 4, 4.4, P.purple);
+  p.ellipse(7, cy - 1.6, 1.8, 1.4, P.purpleL);
+  p.ellipse(8, cy, 2.4, 2, P.manaL); p.px(8, cy, P.white);                // glowing core
   p.px(6, cy - 2, P.manaL); p.px(10, cy - 2, P.manaL);
+  p.rimLight(P.rimCool, 0.4);
+  p.shadeBottom(0.2, 11);
   p.outline(P.ink);
 }, { anchor: [8, 13], fps: 5 });
 
@@ -69,6 +81,8 @@ defineAnim('s2_bombard', 16, 15, 4, (p, f) => {
   p.rect(7, by - 6, 2, 2, P.woodD);                                        // fuse collar
   p.line(8, by - 6, 9 + fuse - 1, by - 9 - fuse, P.wood); p.px(9 + fuse - 1, by - 9 - fuse, P.emberL);
   if (fuse >= 1) p.px(10 + fuse - 1, by - 10 - fuse, P.white);
+  p.rimLight(P.rim, 0.4);   // R28 W3-A3: value-tier gap fix — had neither rimLight nor shadeBottom
+  p.shadeBottom(0.2, 11);
   p.outline(P.ink);
 }, { anchor: [8, 14], fps: 9 });
 
@@ -81,13 +95,21 @@ Enemies.register({
   steal: { gold: 90 }, attack: { range: 150, cooldown: 1.6 },
   desc: '老練的黑市掮客，瞅準空檔猛撲奪走一大袋金幣就閃——務必追殺回本。',
 });
-defineAnim('s2_brigand', 16, 17, 4, (p, f) => {
+defineAnim('s2_brigand', 16, 16, 4, (p, f) => {
+  // R28 W3-A3: canvas 16x17->16x16 (-1px translate to recentre the unchanged
+  // silhouette); a trailing cape silhouette added behind the torso to clear the
+  // >=55% fill floor (51.1%->); rimLight+shadeBottom added (had neither before).
+  p.ctx.save(); p.ctx.translate(0, -1);
   const oy = (f === 1 || f === 3) ? -1 : 0; const by = 9 + oy;
+  p.rect(3, by - 3, 3, 9, darken(P.leather, 0.3));                       // trailing cape
   p.rect(4, 15 + oy, 3, 2, P.woodD); p.rect(9, 15 + oy, 3, 2, P.woodD);   // boots
   p.rect(4, by, 8, 6, darken(P.leather, 0.2)); p.rect(5, by, 6, 5, P.leather);   // cloaked torso
   p.hline(4, 11, by + 3, P.woodD); p.rect(6, by + 1, 4, 3, darken(P.bronze, 0.1));   // belt + purse
   p.ellipse(8, by - 3, 3, 3, darken(P.leather, 0.25)); p.rect(5, by - 4, 6, 2, P.leather);   // hood
   p.rect(6, by - 3, 4, 2, P.ink2); p.px(6, by - 3, P.emberL); p.px(9, by - 3, P.emberL);      // masked eyes
   p.line(11, by, 14, by - 3, P.steelL); p.px(14, by - 4, P.white);        // dagger
+  p.ctx.restore();
+  p.rimLight(P.rim, 0.4);
+  p.shadeBottom(0.2, 10);
   p.outline(P.ink);
-}, { anchor: [8, 16], fps: 9 });
+}, { anchor: [8, 15], fps: 9 });

@@ -17,7 +17,62 @@
       src: url('./assets/font/PressStart2P-latin.woff2') format('woff2');
       unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
     }
-    :root { --bg: #0b0d1a; }
+    :root {
+      --bg: #0b0d1a;
+
+      /* R28/W4-H (ART-08) — the single source of truth for DOM "chrome" (modal frames,
+         buttons, tabs, badges) shared by src/net/ui.js and src/net/social.js, so their two
+         independently-evolved stylesheets stop drifting apart. Values mirror the Canvas UI
+         vocabulary in src/engine/{palette,renderer}.js — P.shard/P.shardL/P.emberL for
+         accents, UI.FONT_* for type sizes — so a screenshot with the labels hidden still
+         reads as one game. DOM text is NOT multiplied by uiScale() (a different coordinate
+         system than the canvas); these are fixed px tuned to read right at a 1280-wide
+         viewport, same as the canvas base sizes. */
+      --chrome-bg-top: #1a2042;
+      --chrome-bg-bot: #0e1126;
+      --chrome-border: #34407a;
+      --chrome-border-soft: #2a3056;
+      --chrome-accent: #48e0d0;        /* P.shard */
+      --chrome-accent-light: #a8fff4;  /* P.shardL */
+      --chrome-gold: #ffd479;          /* P.emberL */
+      --chrome-ink: #0b0e20;           /* field/input fill — matches canvas P.ink family */
+      --chrome-text: #dfe3f5;
+      --chrome-text-dim: #8ea0d8;
+      --chrome-danger: #ff8a7a;        /* P.redL */
+      --chrome-danger-light: #ffb4a8;
+      --chrome-ok: #9be36b;
+
+      --chrome-radius: 10px;           /* matches canvas uiRect() radius 8–14 at uiScale()~1 */
+      --chrome-radius-sm: 7px;
+      --chrome-border-w: 2px;          /* matches canvas uiButton() default lw:2 */
+      --chrome-header-h: 44px;         /* matches the title-notes panel header band (46*S@1280) */
+
+      --chrome-font-title: 22px;       /* UI.FONT_TITLE */
+      --chrome-font-heading: 16px;     /* UI.FONT_HEADING */
+      --chrome-font-body: 13px;        /* UI.FONT_BODY */
+      --chrome-font-caption: 10.5px;   /* UI.FONT_CAPTION — repo-wide floor, never go smaller */
+      --chrome-weight-title: 900;
+      --chrome-weight-heading: 800;
+      --chrome-weight-body: 600;
+
+      --chrome-gap-sm: 8px;
+      --chrome-gap-md: 16px;
+      --chrome-gap-lg: 24px;
+
+      /* button three-state (+ error, via --chrome-danger above) tokens */
+      --chrome-btn-primary-1: #5cf0e0;
+      --chrome-btn-primary-2: #2bb5a6;
+      --chrome-btn-primary-fg: #04221f;
+      --chrome-btn-ghost-1: #202852;
+      --chrome-btn-ghost-2: #171d3c;
+      --chrome-btn-ghost-fg: #cdd3f0;
+      --chrome-btn-warn-1: #43243a;
+      --chrome-btn-warn-2: #321c2c;
+      --chrome-btn-warn-fg: #ffb4a8;
+      --chrome-focus-ring: #ffffff;
+      --chrome-disabled-bg: #2a4a48;
+      --chrome-disabled-fg: #789;
+    }
     * { margin: 0; padding: 0; box-sizing: border-box; }
     html, body {
       width: 100%; height: 100%; overflow: hidden;

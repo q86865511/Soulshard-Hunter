@@ -98,68 +98,111 @@ defineSprite('wc_bolt_turret', 8, 8, (p) => {
 // Weapon icons (16x16 panel + symbol; outline auto-applied by defineIcon)
 // ============================================================================
 
-// boomerang: crescent blade arcing with a motion trail
-defineIcon('weapon_wc_boomerang', P.steelD, (p) => {
-  p.ring(8, 8, 5, P.steel);
-  p.ring(8, 8, 4, P.steelL);
-  p.ellipse(11, 8, 3.4, 3.4, P.steelD);
-  p.px(5, 5, P.white); p.px(4, 6, P.shardL);
-  // trailing dots
-  p.px(2, 12, P.gray3); p.px(4, 13, P.gray2);
-});
+// R28 W3-B-rework — ART_SPEC 第 5 節鐵律：glyph 畫「那一把武器本身」，同類別內
+// 任兩張輪廓不得雷同。以下每張都是可命名的實物：弦月飛刃／十字弩／聚能稜晶塔／
+// 地裂石刺／流星彈道／守護砲塔。
 
-// spread cone: barrel fanning three green shards
-defineIcon('weapon_wc_cone', P.greenD, (p) => {
-  p.rect(2, 7, 5, 3, P.wood);
-  p.rect(2, 7, 5, 1, P.woodL);
-  p.px(2, 8, P.greenL);
-  for (let i = 0; i < 3; i++) {
-    const a = -0.55 + i * 0.55;
-    const x = 9 + Math.cos(a) * 4, y = 8 + Math.sin(a) * 4;
-    p.line(7, 8, x, y, i === 1 ? P.greenL : P.green);
-    p.px(Math.round(x), Math.round(y), P.white);
+// 回旋月刃 — 一柄弦月飛刃：兩圓相減的 C 形實體，內緣開鋒（亮），外背中段纏皮握位。
+// （g_boomer 是折角的 ∧ 形回力鏢；這裡是平滑的 C，兩者輪廓刻意不共用。）
+defineIcon('weapon_wc_boomerang', P.steelD, (p) => {   // R28 B-rework
+  for (let y = 1; y <= 14; y++) for (let x = 1; x <= 14; x++) {
+    const d0 = Math.hypot(x - 8, y - 8), d1 = Math.hypot(x - 11.4, y - 8);
+    if (d0 > 6.3 || d1 < 5.4) continue;
+    const inner = d1 < 6.2;                                        // 靠內緣＝開鋒面
+    p.px(x, y, inner ? P.steelL : (d0 > 5.4 ? P.steelD : P.steel));
   }
+  for (let y = 3; y <= 13; y++) { const x = Math.round(11.4 - Math.sqrt(Math.max(0, 29.16 - (y - 8) * (y - 8)))); p.px(x, y, P.white); }   // 刃口
+  p.rect(2, 7, 3, 3, P.leather); p.hline(2, 4, 7, P.woodL);        // 外背纏皮握位
+  p.px(2, 9, darken(P.leather, 0.4));
+  p.px(4, 4, P.glint); p.px(5, 3, P.steelL);
 });
 
-// beam: focused crystal emitter firing a lance of light
-defineIcon('weapon_wc_beam', P.blueD, (p) => {
-  p.rect(2, 7, 4, 3, P.steel);
-  p.ellipse(3, 8, 1.4, 1.6, P.blueL);
-  p.rect(6, 7, 8, 2, P.blueL);
-  p.rect(6, 7, 8, 1, P.white);
-  p.px(13, 8, P.white); p.px(14, 8, P.iceD);
-});
-
-// ground spikes: row of erupting crystal teeth from a fissure
-defineIcon('weapon_wc_spikes', P.gray1, (p) => {
-  p.hline(1, 14, 13, P.steelD);
-  for (let i = 0; i < 4; i++) {
-    const bx = 2 + i * 4, h = 4 + (i % 2) * 3;
-    p.line(bx, 13, bx + 1, 13 - h, P.ice);
-    p.line(bx + 2, 13, bx + 1, 13 - h, P.iceD);
-    p.px(bx + 1, 13 - h, P.white);
+// 散華弩 — 一把十字弩：木質弩身托＋彎曲弩臂（prod）＋拉開的弦＋已上膛的弩矢。
+defineIcon('weapon_wc_cone', P.greenD, (p) => {   // R28 B-rework
+  p.rect(2, 8, 9, 3, P.wood);                                      // 弩身托
+  p.hline(2, 10, 8, P.woodL); p.hline(2, 10, 10, P.woodD);
+  p.rect(2, 9, 2, 4, P.woodD); p.px(2, 12, darken(P.woodD, 0.4));  // 托尾
+  p.rect(5, 11, 2, 2, P.iron); p.px(5, 12, P.gray3);               // 扳機護弓
+  for (let t = -1; t <= 1; t += 0.06) {                            // 弩臂：兩端後掠的弧
+    const y = 8 + t * 5.4, x = 11.6 - Math.abs(t) * Math.abs(t) * 2.6;
+    p.px(Math.round(x), Math.round(y), t < 0 ? P.greenL : P.green);
+    p.px(Math.round(x - 1), Math.round(y), P.greenD);
   }
+  p.line(9, 3, 7, 8, P.gray4); p.line(9, 13, 7, 8, P.gray3);       // 弦（拉開）
+  p.hline(7, 14, 8, P.bone); p.px(14, 8, P.steelL);                // 上膛的弩矢
+  p.px(8, 7, P.greenL); p.px(9, 3, P.greenL); p.px(9, 13, P.green);
 });
 
-// ricochet: zig-zag bounce path with a glowing pearl
-defineIcon('weapon_wc_ricochet', '#5a4a1a', (p) => {
-  p.line(2, 4, 6, 11, P.emberL);
-  p.line(6, 11, 10, 4, P.gold);
-  p.line(10, 4, 13, 11, P.emberL);
-  p.ellipse(13, 11, 1.6, 1.6, P.gold);
-  p.px(13, 11, P.white);
-  p.px(2, 4, P.emberL);
+// 聚能光束 — 一座聚能稜晶塔：三腳金屬座托著一顆懸浮八面體水晶，
+// 光束向右射出並穿過兩片小稜鏡片。（g_laserbeam 是有握把散熱鰭的槍，兩者不同物。）
+defineIcon('weapon_wc_beam', P.blueD, (p) => {   // R28 B-rework
+  p.glow(5, 6, 5, P.blueL, 0.28, 3);
+  p.line(5, 10, 2, 14, P.gray3); p.line(5, 10, 5, 14, P.gray2); p.line(5, 10, 8, 14, P.gray3);   // 三腳座
+  p.line(5, 11, 3, 14, P.gray1); p.line(5, 11, 7, 14, P.gray1);
+  p.hline(2, 8, 14, darken(P.gray1, 0.4));
+  p.ellipse(5, 10, 2.2, 1.2, P.iron); p.hline(3, 7, 9, P.gray4);   // 座頂承盤
+  for (let d = -4; d <= 4; d++) {                                  // 八面體水晶
+    const w = Math.round((1 - Math.abs(d) / 4) * 2.6);
+    p.hline(5 - w, 5 + w, 6 + d, d < 0 ? P.blueL : P.blue);
+  }
+  p.vline(2, 10, 5, withAlpha(P.hiSky, 0.8)); p.px(4, 4, P.white); // 晶稜與高光
+  p.vline(4, 8, 7, darken(P.blueD, 0.2));
+  p.hline(8, 15, 6, P.ice); p.hline(8, 15, 5, withAlpha(P.hiSky, 0.75));   // 射出的光束
+  p.line(10, 4, 9, 8, P.iceD); p.line(13, 4, 12, 8, P.iceD);       // 兩片稜鏡
+  p.px(10, 6, P.white); p.px(13, 6, P.white);
 });
 
-// turret: orbiting gem cannon ringed by an orbit dot
-defineIcon('weapon_wc_turret', P.purpleD, (p) => {
-  p.ring(8, 8, 6, withAlpha(P.purpleL, 0.6));
-  p.ellipse(8, 9, 3.4, 2.6, P.steelD);
-  p.ellipse(8, 9, 2.2, 1.6, P.iron);
-  p.rect(8, 6, 4, 2, P.gray2);
-  p.ellipse(8, 7, 1.8, 1.8, P.purple);
-  p.px(8, 7, P.purpleL);
-  p.px(14, 4, P.manaL);
+// 碎地尖刺 — 從地裂中掀起的一排石刺：地平線＋裂縫＋四根不等高、有寬基座的尖刺。
+defineIcon('weapon_wc_spikes', P.gray1, (p) => {   // R28 B-rework
+  const H = [7, 4, 9, 5], BX = [2, 6, 9, 12];
+  for (let i = 0; i < 4; i++) {                                    // 尖刺：有寬基座的三角錐
+    const bx = BX[i], h = H[i];
+    for (let k = 0; k <= h; k++) {
+      const w = Math.round((1 - k / h) * 1.8);
+      p.hline(bx - w, bx + w, 12 - k, k > h - 2 ? P.hiSky : (k > h * 0.5 ? P.ice : P.iceD));
+      p.px(bx - w, 12 - k, P.steelL);
+      p.px(bx + w, 12 - k, darken(P.iceD, 0.3));
+    }
+    p.px(bx, 12 - h, P.white);
+  }
+  p.hline(1, 14, 13, P.gray1); p.hline(1, 14, 12, P.gray2);        // 地平線
+  p.hline(2, 13, 14, darken(P.gray1, 0.45));
+  p.line(3, 13, 5, 14, P.ink2); p.line(8, 13, 10, 14, P.ink2);     // 地裂
+});
+
+// 跳躍流星 — 一顆五芒星流星彈沿之字彈道彈跳，兩個轉折點各留一朵撞擊爆星。
+// （g_ricochet 畫的是彈弓本體；這裡畫的是彈丸與彈道，兩者不共用輪廓。）
+defineIcon('weapon_wc_ricochet', '#5a4a1a', (p) => {   // R28 B-rework
+  const path = [[2, 12], [6, 4], [10, 12], [13, 5]];
+  for (let i = 0; i < path.length - 1; i++) {
+    p.line(path[i][0], path[i][1], path[i + 1][0], path[i + 1][1], withAlpha(P.goldD, 0.55));
+    p.line(path[i][0] + 1, path[i][1], path[i + 1][0] + 1, path[i + 1][1], withAlpha(P.emberL, 0.35));
+  }
+  for (const [bx, by] of [[6, 4], [10, 12]]) {                     // 撞擊爆星
+    for (let a = 0; a < 8; a++) { const t = a * Math.PI / 4; p.px(Math.round(bx + Math.cos(t) * 2), Math.round(by + Math.sin(t) * 2), a % 2 ? P.gold : P.emberL); }
+    p.px(bx, by, P.white);
+  }
+  const cx = 11, cy = 6;                                           // 五芒星彈丸（實心星形，非圓珠）
+  for (const [dy, a, b] of [[-3, 0, 0], [-2, -1, 1], [-1, -3, 3], [0, -2, 2]]) p.hline(cx + a, cx + b, cy + dy, dy < -1 ? P.emberL : P.gold);
+  p.hline(cx - 2, cx - 1, cy + 1, P.gold); p.hline(cx + 1, cx + 2, cy + 1, P.goldD);
+  p.hline(cx - 3, cx - 2, cy + 2, P.goldD); p.hline(cx + 2, cx + 3, cy + 2, darken(P.goldD, 0.25));
+  p.px(cx, cy, P.white); p.px(cx - 1, cy - 1, P.holyL);
+});
+
+// 守護砲塔 — 一座砲塔：梯形底盤＋圓形旋轉台＋斜指右上的長砲管＋側邊瞄準鏡。
+defineIcon('weapon_wc_turret', P.purpleD, (p) => {   // R28 B-rework
+  p.glow(12, 5, 3.5, P.manaL, 0.26, 3);
+  p.hline(2, 13, 13, P.gray1); p.hline(3, 12, 12, P.gray2);        // 梯形底盤
+  p.hline(2, 13, 14, darken(P.gray1, 0.45));
+  p.ellipse(8, 11, 4.2, 1.8, P.iron); p.hline(4, 11, 10, P.gray3); // 旋轉台
+  for (let s = -1; s <= 1; s++) {                                  // 長砲管（三像素寬）
+    p.line(8 + s, 8 + s * 0.6, 13 + s, 3 + s * 0.6, s < 0 ? P.gray4 : (s ? darken(P.gray1, 0.2) : P.gray2));
+  }
+  p.ellipse(13, 3, 1.5, 1.5, P.gray2); p.ellipse(13, 3, 0.8, 0.8, P.manaL);   // 砲口
+  p.ellipse(8, 8.6, 3, 2.6, P.gray1);                              // 塔身
+  p.ellipse(7.2, 8, 1.9, 1.6, P.gray2); p.px(6, 7, P.gray4);
+  p.ellipse(8, 9, 1.4, 1.4, P.purple); p.px(8, 9, P.purpleL);      // 能量核
+  p.rect(4, 7, 2, 2, P.gray2); p.px(4, 7, P.neonL);                // 瞄準鏡
 });
 
 // ============================================================================
@@ -213,7 +256,7 @@ Weapons.register({
     const blades = inst.st.blades; if (!blades) return;
     const sp = getSprite('wc_fx_boomerang');
     for (const b of blades) {
-      glowWorld(b.x, b.y, 7, P.steelL, 0.4);
+      glowWorld(b.x, b.y, 7, P.steelL, 0.4, { deco: true });   // HAND-EDIT R28/FIX-1: deco glow channel
       drawSprite(sp.frames[0], b.x, b.y, { ax: sp.ax, ay: sp.ay, rot: b.spin });
     }
   },
@@ -292,8 +335,8 @@ Weapons.register({
   },
   draw(world, p, inst) {
     const s = inst.st.shot; if (!s) return;
-    glowWorld(s.x1, s.y1, 7, P.blueL, 0.5);
-    glowWorld((s.x0 + s.x1) / 2, (s.y0 + s.y1) / 2, 6, P.iceD, 0.22);
+    glowWorld(s.x1, s.y1, 7, P.blueL, 0.5, { deco: true });   // HAND-EDIT R28/FIX-1: deco glow channel
+    glowWorld((s.x0 + s.x1) / 2, (s.y0 + s.y1) / 2, 6, P.iceD, 0.22, { deco: true });   // HAND-EDIT R28/FIX-1: deco glow channel
   },
   levelDesc: (l) => '每跳 ' + ((7 + l * 2.0) | 0) + '・射程 ' + (WC_BAL.AIM_RANGE + l * 10) + '・持續灼燒',
   desc: '鎖定最近敵人持續灼燒的聚能光束，貫穿一線上的所有敵人。',
@@ -347,7 +390,7 @@ Weapons.register({
         fillCircleWorld(s.x, s.y, s.r * 0.6, withAlpha(P.iceD, 0.10));
       } else {
         const k = Math.max(0, Math.min(1, (s.life + s.warn) / s.life));   // 1 -> 0 fade
-        glowWorld(s.x, s.y, 8, P.ice, 0.35 * k);
+        glowWorld(s.x, s.y, 8, P.ice, 0.35 * k, { deco: true });   // HAND-EDIT R28/FIX-1: deco glow channel
         drawSprite(sp.frames[0], s.x, s.y, { ax: sp.ax, ay: sp.ay, scale: 0.7 + k * 0.5 });
       }
     }
@@ -449,7 +492,7 @@ Weapons.register({
     const turrets = inst.st.turrets; if (!turrets) return;
     const sp = getSprite('wc_fx_turret');
     for (const t of turrets) {
-      glowWorld(t.x, t.y, 7, P.purpleL, 0.35);
+      glowWorld(t.x, t.y, 7, P.purpleL, 0.35, { deco: true });   // HAND-EDIT R28/FIX-1: deco glow channel
       drawSprite(sp.frames[0], t.x, t.y, { ax: sp.ax, ay: sp.ay, rot: t.a });
     }
   },

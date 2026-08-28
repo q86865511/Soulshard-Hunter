@@ -1,7 +1,7 @@
 // Guest co-op scene (Phase 2). The guest does NOT simulate: it renders the host's
 // authoritative world snapshots (interpolated) and pilots its own avatar with local
 // prediction + reconciliation. Camera follows the guest's own avatar (each-follows-own).
-import { World, TS } from '../world.js';
+import { World, TS, BEAM_STYLE, beamFamily } from '../world.js';
 import { Player } from '../player.js';
 import { Enemy } from '../enemy.js';
 import { Enemies } from '../content/registry.js';
@@ -12,7 +12,7 @@ import { setScene } from '../scene.js';
 import { refs } from './refs.js';
 import { Particles } from '../../engine/particles.js';
 import {
-  camera, vignette, uiText, uiRect, uiBar, uiScale, view, worldToScreen,
+  camera, vignette, uiText, uiRect, uiBar, uiScale, view, worldToScreen, UI,
   drawSprite, drawShadow, glowWorld, lineWorld, drawSpriteUI,
 } from '../../engine/renderer.js';
 import { getSprite, frameAt, iconOr } from '../../engine/sprites.js';
@@ -254,7 +254,7 @@ export const coopScene = {
       const sp = getSprite(iconOr(o.icon, 'weapon_w_soulbolt')); const isc = (r.w * 0.36) / sp.w;
       drawSpriteUI(sp.frames[0], r.x + r.w / 2 - sp.w * isc / 2, r.y + oy + 12 * S, isc);
       const midY = r.y + oy + 14 * S + sp.h * isc;
-      uiText(o.act === 'new' ? '新武器' : o.act === 'heal' ? '回復生命' : ('Lv.' + o.lvl + ' → ' + (o.lvl + 1)), r.x + r.w / 2, midY + 8 * S, { size: 10 * S, align: 'center', color: P.shardL, weight: '800' });
+      uiText(o.act === 'new' ? '新武器' : o.act === 'heal' ? '回復生命' : ('Lv.' + o.lvl + ' → ' + (o.lvl + 1)), r.x + r.w / 2, midY + 8 * S, { size: UI.FONT_CAPTION * S, align: 'center', color: P.shardL, weight: UI.WEIGHT_HEADING });
       uiText(o.name, r.x + r.w / 2, midY + 24 * S, { size: 13 * S, align: 'center', color: '#fff', weight: '800' });
       uiText(String(i + 1), r.x + 9 * S, r.y + oy + 18 * S, { size: 13 * S, color: withAlpha('#fff', 0.45), weight: '900' });
     });
@@ -281,28 +281,56 @@ export const coopScene = {
     if (this.disconnected && !this.hostGone && !this.migrated) this.drawDisconnected();
   },
 
+  // R28/W1-B2: aligned to world.js draw()'s 8-layer order (ART_SPEC 2.1) + the beam family
+  // styling from ART_SPEC 3, so host and guest render the same fight legibly. Reuses the
+  // host's own World instance methods (`this.world` is a real World, not a copy) instead of
+  // re-deriving the ring/cue math — see world.js `drawBossRings`/`drawBeamCues`/`BEAM_STYLE`.
   drawField() {
+    const cb = this.world._cullBounds();
+    const me = (this.spectator || this.selfDead) ? null : this.self;   // identity marks belong to the LOCAL, LIVING avatar only
     this.world.drawTiles();
+    // R28/FIX-1 (Codex #3): layer 1 ground marks. The wire format drops `decals`, so this is a
+    // no-op today — it is here so the guest keeps the host's layer ORDER if decals ever ship.
+    this.world.drawDecals(cb);
     this.world.drawHazards();
     for (const d of this.world.decor) { const sp = getSprite(d.sprite); drawSprite(frameAt(sp, this.world.time, d.phase || 0), d.x, d.y, { ax: sp.ax, ay: sp.ay }); }
-    // depth-sorted actors (pickups + enemies + players)
+    // layer 2 (ground pool) — decor light pools + the guest's OWN player ring + the boss
+    // contact rings, all through the host's method, fed the guest's enemy map and avatar.
+    // R28/FIX-1 (Codex #3): the guest used to call drawBossRings alone, so it was missing
+    // the decor lights AND its own identity ring entirely.
+    this.world.drawSceneLights(cb, me, this.guest.enemies.values());
+    // layer 3 — pickups leave the actor y-sort, drawn under every actor.
+    for (const q of this.guest.pickups.values()) this.drawPickup(q);
+    // layer 4 — depth-sorted actors (enemies + players). Enemy.draw() already carries the
+    // R28/W1-B boss rim outline (shared code, not host-only), so guest bosses get it for free.
     const draws = [];
-    for (const q of this.guest.pickups.values()) draws.push({ y: q.y, fn: () => this.drawPickup(q) });
     for (const e of this.guest.enemies.values()) draws.push({ y: e.y, fn: () => e.draw(this.world) });
     for (const pl of this.players) if (pl && !pl.dead && pl.x != null) draws.push({ y: pl.y, fn: () => pl.draw(this.world) });
     draws.sort((a, b) => a.y - b.y);
     for (const d of draws) { try { d.fn(); } catch (e) { /* */ } }
-    // projectiles above actors
+    // layer 5 — projectiles, then beams (boss/event telegraphs use the SAME ownership-colour
+    // family table + cue drawer as the host: base line at family weight, white-hot core on
+    // top, then the shared dash+arrowhead cue).
     for (const p of this.guest.projectiles) {
       glowWorld(p.x, p.y, 3 * 2.2 * p.scale, p.color, 0.5);
       const sp = getSprite(p.sprite); drawSprite(sp.frames[0], p.x, p.y, { ax: sp.ax, ay: sp.ay, rot: p.rot + Math.PI / 2, scale: p.scale });
     }
     for (const b of this.guest.beams) {
       const a = Math.max(0, b.life / b.max);
-      lineWorld(b.x0, b.y0, b.x1, b.y1, withAlpha('#ffffff', a), 3);
-      lineWorld(b.x0, b.y0, b.x1, b.y1, withAlpha(b.color, a * 0.8), 1.5);
+      const st = BEAM_STYLE[beamFamily(b.color)];
+      // R28/W5-fix (defect 3-a): dark outline under the family line, same as the host loop in
+      // world.js draw() — without it the guest loses telegraphs on bright ground (desert).
+      lineWorld(b.x0, b.y0, b.x1, b.y1, withAlpha(P.ink, a), st.lw + 2);
+      lineWorld(b.x0, b.y0, b.x1, b.y1, withAlpha(b.color, a), st.lw);
+      lineWorld(b.x0, b.y0, b.x1, b.y1, withAlpha('#ffffff', a * 0.85), st.core);
+      this.world.drawBeamCues(b, a, st);
     }
+    // R28/FIX-1 (gate 高項) — the guest gets the same two top-layer identity marks as the
+    // host: the always-on foot ring, and the surrounded beacon. The beacon runs off the
+    // snapshot enemy map because the guest has no host-side spatial grid to query.
+    this.world.drawPlayerTopRing(me);
     this.particles.draw();
+    this.world.drawSurroundBeacon(me, this.guest.enemies.values());
   },
 
   drawPickup(q) {
@@ -320,26 +348,26 @@ export const coopScene = {
         uiText('★ ' + hud.bn, view.W / 2, 44 * S, { size: 13 * S, align: 'center', color: P.redL, weight: '800' });
         const bw = Math.min(360 * S, view.W * 0.5);
         uiBar(view.W / 2 - bw / 2, 52 * S, bw, 9 * S, hud.bf || 0, { fg: P.red, bg: '#2a0e14', border: P.ink, glow: true });
-      } else if (hud.su) uiText(hud.su, view.W / 2, 42 * S, { size: 13 * S, align: 'center', color: P.gray3, weight: '700' });
+      } else if (hud.su) uiText(hud.su, view.W / 2, 42 * S, { size: UI.FONT_BODY * S, align: 'center', color: P.gray3, weight: UI.WEIGHT_BODY });
     }
     // self HP + kills (players only; a spectator has no avatar)
     const s = this.self;
     if (s && !this.spectator) {
       const sm = s.nmax || 1;
       uiBar(12 * S, 14 * S, 180 * S, 14 * S, Math.max(0, Math.min(1, s.hp / sm)), { fg: P.red, bg: '#2a0e14', border: P.ink });
-      uiText(Math.max(0, Math.round(s.hp)) + ' / ' + Math.round(sm), 102 * S, 24 * S, { size: 10 * S, align: 'center', color: '#fff', weight: '700' });
+      uiText(Math.max(0, Math.round(s.hp)) + ' / ' + Math.round(sm), 102 * S, 24 * S, { size: UI.FONT_CAPTION * S, align: 'center', color: '#fff', weight: UI.WEIGHT_HEADING });
     }
-    uiText('連線合作 · ' + (this.spectator ? '觀戰' : '訪客') + (hud ? '　擊殺 ' + (hud.kills || 0) : ''), view.W - 12 * S, 18 * S, { size: 11 * S, align: 'right', color: withAlpha(P.shardL, 0.85), weight: '700' });
+    uiText('連線合作 · ' + (this.spectator ? '觀戰' : '訪客') + (hud ? '　擊殺 ' + (hud.kills || 0) : ''), view.W - 12 * S, 18 * S, { size: UI.FONT_CAPTION * S, align: 'right', color: withAlpha(P.shardL, 0.85), weight: UI.WEIGHT_BODY });
     // teammate name + hp tags above avatars
     for (const pl of this.players) {
       if (!pl || pl.dead || pl.x == null) continue;
       const ns = worldToScreen(pl.x, pl.y - 20);
-      uiText(pl.netName + (pl.isSelf ? '（你）' : ''), ns.x, ns.y, { size: 9.5 * S, align: 'center', color: pl.isSelf ? P.shardL : '#cfe0ff', weight: '700', shadowColor: withAlpha('#000', 0.8) });
+      uiText(pl.netName + (pl.isSelf ? '（你）' : ''), ns.x, ns.y, { size: UI.FONT_CAPTION * S, align: 'center', color: pl.isSelf ? P.shardL : '#cfe0ff', weight: UI.WEIGHT_HEADING, shadowColor: withAlpha('#000', 0.8) });
       const bw = 30 * S, bx = ns.x - bw / 2, by = ns.y + 3 * S;
       uiRect(bx, by, bw, 3.2 * S, withAlpha('#2a0e14', 0.9), { radius: 1.5 * S });
       uiRect(bx, by, bw * Math.max(0, Math.min(1, pl.hp / (pl.nmax || 1))), 3.2 * S, pl.isSelf ? P.greenL : P.red, { radius: 1.5 * S });
     }
-    uiText(this.spectator ? 'Tab 切換視角　Esc 離開' : 'Esc 離開房間', view.W - 12 * S, view.H - 10 * S, { size: 10 * S, align: 'right', color: withAlpha('#fff', 0.3) });
+    uiText(this.spectator ? 'Tab 切換視角　Esc 離開' : 'Esc 離開房間', view.W - 12 * S, view.H - 10 * S, { size: UI.FONT_CAPTION * S, align: 'right', color: withAlpha('#fff', 0.3) });
   },
 
   drawSpectate() {
@@ -351,16 +379,16 @@ export const coopScene = {
     const S = uiScale(); const won = this.runResult && this.runResult.won;
     uiRect(0, 0, view.W, view.H, withAlpha(won ? '#0b1a0d' : '#0b0d1a', 0.82));
     uiText(won ? '隊伍通關！' : '探索結束', view.W / 2, view.H * 0.36, { size: 34 * S, align: 'center', color: won ? P.goldL : P.redL, weight: '900' });
-    if (this.runResult && this.runResult.score != null) uiText('隊伍分數 ' + this.runResult.score, view.W / 2, view.H * 0.36 + 36 * S, { size: 15 * S, align: 'center', color: '#fff', weight: '700' });
+    if (this.runResult && this.runResult.score != null) uiText('隊伍分數 ' + this.runResult.score, view.W / 2, view.H * 0.36 + 36 * S, { size: 15 * S, align: 'center', color: '#fff', weight: UI.WEIGHT_HEADING });
     const blink = Math.sin(this.t * 4) * 0.5 + 0.5;
-    uiText('點擊 / 空白鍵 返回城鎮', view.W / 2, view.H * 0.9, { size: 15 * S, align: 'center', color: withAlpha('#ffd479', 0.5 + blink * 0.5), weight: '700' });
+    uiText('點擊 / 空白鍵 返回城鎮', view.W / 2, view.H * 0.9, { size: 15 * S, align: 'center', color: withAlpha('#ffd479', 0.5 + blink * 0.5), weight: UI.WEIGHT_HEADING });
   },
   drawHostGone() {
     const S = uiScale();
     uiRect(0, 0, view.W, view.H, withAlpha('#0b0d1a', 0.82));
     uiText('房間已關閉', view.W / 2, view.H * 0.42, { size: 30 * S, align: 'center', color: P.redL, weight: '900' });
     uiText('房主已離線或結束遊戲', view.W / 2, view.H * 0.42 + 30 * S, { size: 14 * S, align: 'center', color: P.gray3 });
-    uiText('點擊返回城鎮', view.W / 2, view.H * 0.9, { size: 15 * S, align: 'center', color: withAlpha('#ffd479', 0.8), weight: '700' });
+    uiText('點擊返回城鎮', view.W / 2, view.H * 0.9, { size: 15 * S, align: 'center', color: withAlpha('#ffd479', 0.8), weight: UI.WEIGHT_HEADING });
   },
   drawDisconnected() {
     const S = uiScale();
@@ -368,7 +396,7 @@ export const coopScene = {
     const dots = '.'.repeat(1 + (Math.floor(this.t * 2) % 3));
     uiText('連線中斷，重新連線中' + dots, view.W / 2, view.H * 0.44, { size: 24 * S, align: 'center', color: P.redL, weight: '900' });
     uiText('保持頁面開啟即可自動回到戰場', view.W / 2, view.H * 0.44 + 28 * S, { size: 13 * S, align: 'center', color: P.gray3 });
-    uiText('（按 Esc 放棄並返回城鎮）', view.W / 2, view.H * 0.9, { size: 12 * S, align: 'center', color: withAlpha('#fff', 0.4) });
+    uiText('（按 Esc 放棄並返回城鎮）', view.W / 2, view.H * 0.9, { size: UI.FONT_BODY * S, align: 'center', color: withAlpha('#fff', 0.4) });
   },
   drawWaiting() {
     const S = uiScale();
@@ -383,7 +411,7 @@ export const coopScene = {
     uiText('房主已離線', view.W / 2, view.H * 0.4, { size: 30 * S, align: 'center', color: P.redL, weight: '900' });
     const mine = this.migrated && this.migrated.hostCid === this.selfCid;
     uiText(mine ? '你已成為新房主 — 回到房間即可重新開始' : '已指派新房主 — 回到房間即可重新開始', view.W / 2, view.H * 0.4 + 30 * S, { size: 14 * S, align: 'center', color: P.gray3 });
-    uiText('點擊返回房間大廳', view.W / 2, view.H * 0.9, { size: 15 * S, align: 'center', color: withAlpha('#ffd479', 0.85), weight: '700' });
+    uiText('點擊返回房間大廳', view.W / 2, view.H * 0.9, { size: 15 * S, align: 'center', color: withAlpha('#ffd479', 0.85), weight: UI.WEIGHT_HEADING });
   },
 };
 

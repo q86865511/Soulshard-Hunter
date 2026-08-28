@@ -3,7 +3,7 @@ import { defineSprite, defineAnim, Painter } from '../../engine/sprites.js';
 import { P, lighten, darken, mix, withAlpha } from '../../engine/palette.js';
 import { defineIcon, panel, sym } from '../icons.js';
 import { drawSlime, drawBat, drawWisp, drawBrute, drawHunter, registerHeroBody, drawHeroBody } from '../core.js';
-import { registerDecals } from '../biome_decals.js';
+import { registerDecals, registerLandmarks, registerAmbient } from '../biome_decals.js';
 import { DECOR_SETS, DECOR_CLUSTERS } from '../biome_decor.js';
 
 // ABYSS 深淵海溝 — ground decal + standing decor pack.
@@ -149,6 +149,131 @@ defineSprite('bdx_abyss_wreckplank', 20, 14, (p) => {         // sunken ship pla
   p.outline(P.ink);
 }, { anchor: 'feet' });
 
+// ============================ R28 W3-C2 HAND-EDIT — LANDMARKS + AMBIENT ============================
+// ART_SPEC §6: ≥3×3 tile silhouettes placed explicitly by maps.js (pattern from the W3-C1
+// frost pack). Ground contact is an OPAQUE silt mound INSIDE the silhouette; the soft
+// contact shadow goes down AFTER outline(), or it comes back ringed in ink.
+
+defineSprite('lmk_abyss_whalefall', 76, 52, (p) => {          // 鯨落骨骸 — a whale fall, still feeding the trench
+  const bone = mix(P.bone, AB_F2, 0.3), boneL = lighten(bone, 0.2), boneD = darken(bone, 0.32);
+  // the silt mound it settled into (back half — the near drift goes over the ribs later)
+  p.ellipse(38, 43, 35, 8, darken(AB_F1, 0.12));
+  p.ellipse(36, 40, 29, 6, AB_F2);
+  p.speckle(6, 34, 64, 11, darken(AB_F1, 0.2), 20, 181);
+  // spine: a run of vertebrae, tapering to the tail
+  for (let i = 0; i < 11; i++) {
+    const x = 22 + i * 4.4, w = 3.4 - i * 0.18, y = 26 + Math.round(i * 0.5);
+    p.ellipse(x, y, w, w * 0.8, bone);
+    p.px(Math.round(x - w), y - 1, boneL);
+    p.vline(y - Math.round(w) - 2, y - Math.round(w), Math.round(x), boneD);           // neural spine
+  }
+  // the ribcage: arcs of unequal span. sin(t*2.1) peaks BEFORE the tip, so each rib swings
+  // out and then curls back in — the first pass used sin(t*1.5), which is monotonic over the
+  // range and drew straight bars (the cage read as a comb). Far bank first and DARKER, near
+  // bank over the spine and lighter, or the two banks fuse into one flat mass.
+  const rib = (x, span, h, c, lit) => {
+    for (let i = 0; i <= h; i++) {
+      const t = i / h, rx = x + Math.round(Math.sin(t * 2.1) * span);
+      p.px(rx, 40 - i, c);
+      p.px(rx + (span < 0 ? 1 : -1), 40 - i, i > h * 0.55 ? lit : c);
+    }
+    p.px(x + Math.round(Math.sin(2.1) * span), 40 - h, lit);
+  };
+  rib(25, -12, 21, boneD, bone); rib(32, -14, 25, boneD, bone); rib(39, -10, 22, boneD, bone);
+  rib(27, 11, 19, bone, boneL); rib(34, 13, 24, bone, boneL); rib(41, 9, 20, bone, boneL);
+  // the skull, long and heavy, at the head end
+  p.ellipse(15, 32, 12, 7, bone);
+  p.ellipse(11, 30, 8, 4.6, boneL);
+  p.line(3, 33, 20, 36, boneD); p.line(4, 30, 19, 33, bone);                            // the jaw, dropped open
+  p.ellipse(17, 29, 2.6, 2, darken(boneD, 0.35)); p.px(17, 28, withAlpha(P.neon, 0.4)); // the eye socket, occupied
+  // what lives on it now
+  p.speckle(20, 26, 40, 16, withAlpha(P.neonL, 0.3), 14, 191);                          // bacterial mat
+  p.ellipse(46, 34, 3, 2, withAlpha(P.coral, 0.5)); p.px(46, 32, withAlpha(P.sakuraL, 0.6));
+  p.ellipse(28, 38, 2.4, 1.4, withAlpha(P.moss, 0.4));
+  // the near silt drift, over the rib feet → half buried, not standing on the floor
+  p.ellipse(30, 41, 22, 4.6, AB_F2);
+  p.ellipse(22, 39, 11, 2.6, lighten(AB_F2, 0.1));
+  p.ellipse(56, 42, 14, 3.4, darken(AB_F2, 0.06));
+  p.line(6, 44, 22, 39, withAlpha(darken(AB_F1, 0.14), 0.85)); p.line(44, 40, 66, 44, withAlpha(darken(AB_F1, 0.14), 0.7));
+  p.speckle(6, 36, 62, 9, withAlpha(P.oceanL, 0.2), 12, 197);
+  p.rimLight(P.rimCool, 0.34);
+  p.outline(P.ink);
+  p.glow(30, 33, 5, P.neon, 0.18, 4); p.glow(52, 36, 3, P.neonL, 0.12, 3);              // glows AFTER outline
+  p.ellipse(38, 47, 34, 3, withAlpha(P.shadow, 0.28));
+}, { anchor: [38, 48] });
+
+defineSprite('lmk_abyss_wreckprow', 60, 80, (p) => {          // 沉船艏 — a prow standing out of the seabed
+  const wd = mix(P.woodD, P.abyss, 0.42), wdL = mix(P.wood, P.abyss, 0.3), wdD = darken(wd, 0.3);
+  // the silt it drove into (back half)
+  p.ellipse(30, 70, 27, 8, darken(AB_F1, 0.12));
+  p.ellipse(29, 67, 22, 5.5, AB_F2);
+  // The hull. First pass tapered symmetrically to a point and read as a witch's hat. A prow
+  // is ASYMMETRIC: the stem is one long leading edge sweeping up, and the hull hangs off it
+  // to one side, ending in a torn-away aft edge. Rows are driven off the stem, not a centre.
+  const rust = mix(P.iron, P.woodD, 0.55);
+  const stemX = (t) => 30 - t * 16 - Math.sin(t * Math.PI) * 3;                           // the sweep of the leading edge
+  const hullW = (t) => Math.max(6, 22 - t * 15);
+  for (let y = 66; y >= 14; y--) {
+    const t = (66 - y) / 52;
+    const sx = stemX(t), hw = hullW(t);
+    // the aft edge is torn, not cut — but a per-ROW hash saws it into a comb, so the tear
+    // rides a low-frequency wave (period ~9 rows) with the odd deeper bite
+    const ragged = t > 0.25 ? Math.round(Math.sin(y * 0.7) * 1.3 + (y % 11 === 0 ? -1.5 : 0)) : 0;
+    const xr = Math.round(sx + hw + ragged);
+    p.hline(Math.round(sx), xr, y, wd);
+    p.px(Math.round(sx), y, wdL); p.px(Math.round(sx) + 1, y, lighten(wdL, 0.12));        // the stem, catching light
+    p.px(xr, y, wdD); p.px(xr - 1, y, darken(wd, 0.12));
+    if (y % 5 === 0) p.hline(Math.round(sx) + 2, xr, y, withAlpha(wdD, 0.55));            // plank seams
+  }
+  // bowsprit off the stem head, and a rail snapped short
+  p.line(12, 14, 3, 6, wdL); p.line(12, 15, 4, 7, wd); p.px(3, 5, lighten(wdL, 0.24));
+  p.line(20, 22, 30, 20, wd); p.px(30, 20, wdD);
+  p.px(12, 16, lighten(wdL, 0.3));
+  // rusted bands following the hull, and a lantern still hanging off the stem head
+  const band = (y, h) => {
+    const t = (66 - y) / 52, sx = Math.round(stemX(t)) + 1, w = Math.round(hullW(t)) - 2;
+    p.rect(sx, y, w, h, darken(rust, 0.3));
+    p.hline(sx, sx + w - 1, y, rust);
+  };
+  band(32, 3); band(52, 3);
+  p.line(15, 19, 19, 22, darken(rust, 0.2)); p.px(19, 23, withAlpha(P.neonL, 0.6));
+  // what the trench has grown over it
+  p.speckle(14, 18, 34, 46, P.oceanD, 22, 199);
+  p.speckle(16, 30, 30, 34, withAlpha(P.moss, 0.3), 14, 211);
+  p.ellipse(24, 44, 3, 2.2, withAlpha(P.coral, 0.55)); p.px(24, 42, withAlpha(P.sakuraL, 0.6));
+  p.ellipse(36, 58, 2.6, 1.8, withAlpha(P.coral, 0.4));
+  p.ellipse(28, 27, 2.2, 1.4, withAlpha(P.sand, 0.4));                                    // barnacle crust
+  // the near silt, over the hull foot
+  p.ellipse(25, 67, 19, 4.6, AB_F2);
+  p.ellipse(18, 65, 10, 2.6, lighten(AB_F2, 0.1));
+  p.ellipse(42, 69, 12, 3.4, darken(AB_F2, 0.06));
+  p.line(5, 71, 19, 66, withAlpha(darken(AB_F1, 0.14), 0.85)); p.line(34, 67, 52, 71, withAlpha(darken(AB_F1, 0.14), 0.7));
+  p.speckle(5, 62, 50, 9, withAlpha(P.oceanL, 0.2), 12, 223);
+  p.rimLight(P.rimCool, 0.32);
+  p.outline(P.ink);
+  p.glow(19, 23, 3, P.neon, 0.2, 3);                                                     // glows AFTER outline, or they come back traced
+  p.glow(24, 44, 3, P.neon, 0.12, 3);
+  p.ellipse(30, 75, 26, 3, withAlpha(P.shadow, 0.28));
+}, { anchor: [30, 76] });
+
+defineAnim('bdxa_abyss_bubblecolumn', 16, 18, 4, (p, f) => {  // signature motion — a cold seep venting a bubble column
+  // outline() BEFORE the bubbles (bdxa_frost_snowveil lesson): tracing afterwards rims each
+  // bubble in ink and the column reads as a beaded chain, not as water.
+  p.ellipse(8, 16, 6, 1.8, withAlpha(darken(AB_F1, 0.1), 0.85));                        // the seep mound
+  p.ellipse(8, 16, 3.6, 1.1, withAlpha(AB_F2, 0.8));
+  p.px(6, 15, withAlpha(P.neonL, 0.45)); p.px(10, 16, withAlpha(P.oceanL, 0.4));
+  p.outline(withAlpha(P.ink, 0.35));                                                    // only the mound is rimmed
+  for (let i = 0; i < 8; i++) {                                                         // bubbles rising, widening apart, fading
+    const t = ((i * 3 + f) % 8) / 8;
+    const x = 8 + Math.sin(t * 3.1 + i * 1.1) * (1.4 + t * 2.4);
+    const y = 14 - t * 13;
+    const r = 0.6 + t * 0.6;                                                            // capped small — at r>1.3 the
+    p.ellipse(x, y, r, r * 0.9, withAlpha(t > 0.55 ? P.hiSky : P.oceanL, 0.5 - t * 0.24));  // caps merged into a smoke plume
+    p.px(Math.round(x - r), Math.round(y - r), withAlpha(P.white, 0.34 - t * 0.2));      // the specular cap
+  }
+  p.px(Math.round(8 + Math.cos(f * 1.57) * 4), 3, withAlpha(P.hiSky, 0.3));
+}, { anchor: [8, 17], fps: 5 });
+
 // ============================ REGISTRATION ============================
 registerDecals('abyss', [
   'decal_abyss_ripple',
@@ -170,4 +295,9 @@ registerDecals('abyss', [
   'bdx_abyss_fancoral',
   'bdx_abyss_hornfingers',
 );
+
+// R28 W3-C2 HAND-EDIT — landmarks are placed explicitly by maps.js (kept OUT of the
+// scatter pool); the seep bubble column is the biome's ambient motion.
+registerLandmarks('abyss', ['lmk_abyss_whalefall', 'lmk_abyss_wreckprow']);
+registerAmbient('abyss', ['bdxa_abyss_bubblecolumn']);
 

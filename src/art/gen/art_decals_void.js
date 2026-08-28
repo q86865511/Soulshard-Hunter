@@ -3,7 +3,7 @@ import { defineSprite, defineAnim, Painter } from '../../engine/sprites.js';
 import { P, lighten, darken, mix, withAlpha } from '../../engine/palette.js';
 import { defineIcon, panel, sym } from '../icons.js';
 import { drawSlime, drawBat, drawWisp, drawBrute, drawHunter, registerHeroBody, drawHeroBody } from '../core.js';
-import { registerDecals } from '../biome_decals.js';
+import { registerDecals, registerLandmarks, registerAmbient } from '../biome_decals.js';
 import { DECOR_SETS, DECOR_CLUSTERS } from '../biome_decor.js';
 
 // ============================================================================
@@ -148,6 +148,113 @@ defineSprite('bdx_void_husk', 14, 20, (p) => {              // petrified twisted
   p.outline(P.ink);
 }, { anchor: [7, 19] });
 
+// --------- R28 W3-C1 HAND-EDIT — LANDMARKS + signature environment motion ----------
+// ART_SPEC §6: ≥3×3 tile silhouettes placed explicitly by maps.js (pattern from the W2-D
+// desert pack). Ground contact is OPAQUE and INSIDE the silhouette; the contact shadow
+// goes down AFTER outline(), or a 50 px softShadow comes back ringed in ink.
+
+defineSprite('lmk_void_shatteredring', 72, 60, (p) => {     // 破碎星環 — a broken orbital ring, drifting apart
+  const stone = mix(P.gray2, P.purple, 0.3), stoneL = lighten(stone, 0.24), stoneD = darken(stone, 0.34);
+  // the tear in the ground the ring stands over
+  p.ellipse(36, 50, 25, 6.5, mix(P.void, P.ink, 0.35));
+  p.ellipse(34, 49, 17, 4, P.ink);
+  p.speckle(14, 45, 44, 9, withAlpha(P.star, 0.4), 8, 61);
+  // star field caught inside the ring
+  p.speckle(14, 8, 44, 34, withAlpha(P.star, 0.45), 14, 71);
+  p.px(30, 20, withAlpha(P.white, 0.6)); p.px(45, 30, withAlpha(P.manaL, 0.5));
+  // the ring: four arcs, one of them knocked out of alignment
+  const seg = (a0, a1, ox, oy) => {
+    for (let a = a0; a <= a1; a += 0.014) {
+      const ca = Math.cos(a), sa = Math.sin(a);
+      for (let d = -3; d <= 3; d++) {
+        p.px(Math.round(36 + ox + ca * (28 + d)), Math.round(26 + oy + sa * (22 + d * 0.8)),
+          d < -1 ? stoneL : (d > 1 ? stoneD : stone));
+      }
+    }
+  };
+  seg(-3.0, -1.95, 0, 0);
+  seg(-1.75, -0.25, 0, 0);
+  seg(0.15, 1.05, 3, 4);            // this arc has slipped out of the circle
+  seg(1.45, 2.7, 0, 0);
+  // glyph inlays along the band + the raw glow at every break
+  p.px(12, 20, withAlpha(P.star, 0.7)); p.px(36, 3, withAlpha(P.manaL, 0.6)); p.px(60, 30, withAlpha(P.star, 0.6));
+  p.glow(58, 40, 5, P.astral, 0.2, 4); p.glow(24, 47, 4, P.astral, 0.16, 4);
+  p.glow(43, 7, 4, P.purpleL, 0.14, 3);
+  p.star4(58, 40, 3, P.astralL, P.white);
+  // fragments that broke off the band entirely, hanging in the gaps
+  p.rect(50, 45, 5, 3, stone); p.px(50, 45, stoneL);
+  p.rect(19, 12, 4, 3, stoneD); p.px(19, 12, stoneL);
+  p.px(46, 49, withAlpha(P.purpleL, 0.5));
+  // front lip of the tear, over the ring's foot
+  p.ellipse(32, 48, 15, 3.2, mix(P.void, P.purpleD, 0.35));
+  p.px(26, 47, withAlpha(P.manaL, 0.4));
+  p.rimLight(P.rimCool, 0.34);
+  p.outline(P.ink);
+  p.ellipse(36, 54, 24, 3, withAlpha(P.shadow, 0.3));
+}, { anchor: [36, 55] });
+
+defineSprite('lmk_void_obelisk', 44, 84, (p) => {           // 懸浮方尖碑 — a monolith broken into hovering segments
+  const stone = mix(P.gray1, P.purpleD, 0.4), stoneL = lighten(stone, 0.26), stoneD = darken(stone, 0.36);
+  const rune = withAlpha(P.manaL, 0.6);
+  // rune-cut plinth, still on the ground
+  p.ellipse(22, 74, 19, 6, mix(P.void, P.ink, 0.4));
+  p.rect(8, 64, 28, 10, stone); p.rect(8, 64, 28, 2, stoneL); p.rect(8, 72, 28, 2, stoneD);
+  p.rect(11, 60, 22, 5, stone); p.rect(11, 60, 22, 1, stoneL);
+  p.hline(13, 30, 68, rune); p.px(16, 70, withAlpha(P.star, 0.6)); p.px(28, 66, withAlpha(P.astralL, 0.5));
+  // the three segments, each drifted a little off the axis it was cut from
+  const block = (y0, y1, x0, x1, dx) => {
+    const a = x0 + dx, b = x1 + dx;
+    for (let y = y0; y <= y1; y++) {
+      p.hline(a, b, y, stone);
+      p.px(a, y, stoneL); p.px(a + 1, y, lighten(stone, 0.12));
+      p.px(b, y, stoneD); p.px(b - 1, y, darken(stone, 0.18));
+    }
+  };
+  // Gaps must be WIDE and the segments visibly out of line, or the thing reads as one solid
+  // pillar (first pass: 2 px gaps filled by their own glow → a plain tower).
+  // An obelisk is SLENDER — the first pass' 19 px-wide, 12 px-tall segments read as a stack
+  // of crates. Shaft is 11-13 px wide over ~54 px of height (≈4.5:1).
+  block(44, 58, 16, 28, 0);          // lower segment, still nearly seated
+  block(25, 40, 17, 27, 3);          // middle, floated right
+  block(8, 21, 17, 27, -3);          // upper, floated left
+  // the crown, tapering to a point (rides with the upper segment)
+  for (let y = 2; y <= 8; y++) {
+    const t = (y - 2) / 6, hw = Math.round(0.5 + t * 4.5);
+    p.hline(19 - hw, 19 + hw, y, stone);
+    p.px(19 - hw, y, stoneL); p.px(19 + hw, y, stoneD);
+  }
+  // the cut faces glow — that is what is holding the thing up. Keep the glow INSIDE the
+  // stone (on the two facing edges), never filling the gap, so the gap stays readable.
+  p.hline(20, 30, 40, withAlpha(P.manaL, 0.6)); p.hline(16, 28, 44, withAlpha(P.manaL, 0.5));
+  p.hline(14, 24, 21, withAlpha(P.astralL, 0.55)); p.hline(20, 30, 25, withAlpha(P.astralL, 0.45));
+  p.glow(23, 42, 5, P.astral, 0.16, 4); p.glow(20, 23, 5, P.astral, 0.14, 4);
+  p.px(23, 42, withAlpha(P.manaL, 0.45)); p.px(20, 23, withAlpha(P.astralL, 0.4));
+  // rune columns down the lit face, at uneven heights
+  p.vline(11, 18, 16, rune); p.vline(28, 37, 21, rune); p.vline(47, 55, 18, withAlpha(P.astralL, 0.5));
+  p.px(24, 14, withAlpha(P.star, 0.7)); p.px(25, 33, withAlpha(P.star, 0.6)); p.px(24, 51, withAlpha(P.manaL, 0.5));
+  p.speckle(15, 9, 14, 48, withAlpha(P.ink, 0.3), 12, 83);
+  p.star4(19, 4, 3, P.astralL, P.white);
+  p.rimLight(P.rimCool, 0.4);
+  p.outline(P.ink);
+  p.ellipse(22, 78, 17, 3, withAlpha(P.shadow, 0.34));
+}, { anchor: [22, 79] });
+
+defineAnim('bdxa_void_dustmote', 14, 26, 4, (p, f) => {     // signature motion — void dust spiralling off the ground
+  p.ellipse(7, 23, 5, 1.3, withAlpha(mix(P.void, P.ink, 0.3), 0.5));
+  p.ellipse(6, 23, 3, 0.8, withAlpha(P.purpleD, 0.4));
+  // outline the ground seam only, then lay the motes on top — outlining afterwards would
+  // trace every airborne pixel and the helix would read as a dotted comb.
+  p.outline(withAlpha(P.purpleD, 0.35));
+  for (let i = 0; i < 9; i++) {                                            // motes climb a slow helix
+    const y = 22 - ((i * 2.4 + f * 1.2) % 21);
+    const ph = f * 1.57 + i * 0.7;
+    const x = 7 + Math.cos(ph) * (1 + (22 - y) * 0.13);
+    const a = Math.max(0.08, 0.55 - (22 - y) * 0.02);
+    p.px(Math.round(x), Math.round(y), withAlpha(i % 3 === 0 ? P.star : (i & 1 ? P.manaL : P.purpleL), a));
+  }
+  if (f === 1 || f === 3) p.px(7, 4, withAlpha(P.white, 0.4));
+}, { anchor: [7, 24], fps: 4 });
+
 // ------------------------------ registration --------------------------------
 registerDecals('void', [
   'decal_void_crack_a', 'decal_void_crack_b', 'decal_void_stardust', 'decal_void_rune_faint',
@@ -159,4 +266,9 @@ registerDecals('void', [
 (DECOR_CLUSTERS['void'] = DECOR_CLUSTERS['void'] || []).push(
   'bdx_void_rubble', 'bdx_void_rift',
 );
+
+// R28 W3-C1 HAND-EDIT — landmarks are placed explicitly by maps.js (kept OUT of the
+// scatter pool); the drifting void dust is the biome's ambient motion.
+registerLandmarks('void', ['lmk_void_shatteredring', 'lmk_void_obelisk']);
+registerAmbient('void', ['bdxa_void_dustmote']);
 

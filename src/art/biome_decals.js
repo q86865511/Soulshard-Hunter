@@ -16,3 +16,25 @@ export function registerDecals(biomeId, names) {
   for (const n of (Array.isArray(names) ? names : [names])) if (n && !pool.includes(n)) pool.push(n);
   return pool;
 }
+
+// ── R28/W2-D — biome IDENTITY registries (ART_SPEC §6) ─────────────────────
+// LANDMARK_SETS[biome] = ordered list of large (≥3×3 tile) landmark sprite names.
+// maps.js places entry [0] inside the opening viewport and entry [1] a short walk
+// away. Landmark sprites are named `lmk_*` — world.js keys its wider cull box off
+// that prefix, and the prefix survives the co-op map wire format (which carries
+// decor sprite names but drops every other decor field).
+// AMBIENT_SETS[biome] = the biome's signature ANIMATED decor (its "environment
+// motion"); maps.js scatters a handful per map.
+// Both start EMPTY: a biome with no entry keeps the pre-R28 placement path exactly.
+export const LANDMARK_SETS = {};
+export const AMBIENT_SETS = {};
+export function registerLandmarks(biomeId, names) {
+  const pool = LANDMARK_SETS[biomeId] || (LANDMARK_SETS[biomeId] = []);
+  for (const n of (Array.isArray(names) ? names : [names])) if (n && !pool.includes(n)) pool.push(n);
+  return pool;
+}
+export function registerAmbient(biomeId, names) {
+  const pool = AMBIENT_SETS[biomeId] || (AMBIENT_SETS[biomeId] = []);
+  for (const n of (Array.isArray(names) ? names : [names])) if (n && !pool.includes(n)) pool.push(n);
+  return pool;
+}

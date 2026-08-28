@@ -10,6 +10,13 @@ import { Enemies } from '../../content/registry.js';
 import { TS } from '../../world.js';
 import { REAPER_ID, SURROUND_PROBES } from './shared.js';
 
+// R28/W1-B (ART_SPEC 3) — in-run events + event mobs own the 琥珀 beam family; boss moves own
+// 紅橙 and player weapons own the cold end. Passed as the RAW family hex (no withAlpha): the
+// render side fades by beam life and reads the family off the colour to pick the 4 px weight,
+// so a pre-alpha'd rgba() string here would demote the telegraph to player weight.
+const BEAM_EVT_A = (BALANCE.ARTV && BALANCE.ARTV.BEAM_FAM_EVENT && BALANCE.ARTV.BEAM_FAM_EVENT[0]) || '#ffc23c';
+const BEAM_EVT_B = (BALANCE.ARTV && BALANCE.ARTV.BEAM_FAM_EVENT && BALANCE.ARTV.BEAM_FAM_EVENT[1]) || '#ffd75a';
+
 export const eventsMixin = {
   // ---- special harasser events: mushrooms / surround ring (D2) / Higgs (D3) -
   eventsTick() {
@@ -129,10 +136,10 @@ export const eventsMixin = {
     for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
       for (let s = 1; s <= L; s++) {
         const x = e.x + dx * s * TS, y = e.y + dy * s * TS;
-        this.world.particles.burst(x, y, 6, { color: [P.laser, P.shardL, '#ffffff'], speed: 50, size: 2, life: 0.3, glow: true });
+        this.world.particles.burst(x, y, 6, { color: [P.laser, P.shardL, '#ffffff'], speed: 50, size: 2, life: 0.3, glow: true, warn: true });
         this.world.dealAreaDamage(x, y, 12, dmg * 0.55, { knockback: 50 });
       }
-      this.world.addBeam(e.x, e.y, e.x + dx * L * TS, e.y + dy * L * TS, P.laser);
+      this.world.addBeam(e.x, e.y, e.x + dx * L * TS, e.y + dy * L * TS, BEAM_EVT_A);
     }
     if (p && !p.dead) {   // player check: within half a tile of either axis line, inside arm reach
       const ax = Math.abs(p.x - e.x), ay = Math.abs(p.y - e.y), reach = L * TS + 8;
@@ -247,8 +254,8 @@ export const eventsMixin = {
         if (e.evtFuse <= 0) { e.dead = true; continue; }   // detonate next pass (keeps kill + fuse paths identical)
         if (e.evtFuse < 1.0 && e.evtTel <= 0) {
           e.evtTel = 0.09; const L = BALANCE.EVT_BOMB_ARM_LEN * TS;
-          this.world.addBeam(e.x - L, e.y, e.x + L, e.y, withAlpha(P.laser, 0.5));
-          this.world.addBeam(e.x, e.y - L, e.x, e.y + L, withAlpha(P.laser, 0.5));
+          this.world.addBeam(e.x - L, e.y, e.x + L, e.y, BEAM_EVT_B);
+          this.world.addBeam(e.x, e.y - L, e.x, e.y + L, BEAM_EVT_B);
           e.flash = 0.04;
         }
         continue;
@@ -259,7 +266,7 @@ export const eventsMixin = {
     // boulder lanes: telegraph countdown → spawn the crusher on its fixed trajectory
     for (let i = this.evtLanes.length - 1; i >= 0; i--) {
       const ln = this.evtLanes[i]; ln.t -= dt; ln.tel -= dt;
-      if (ln.tel <= 0) { ln.tel = 0.09; this.world.addBeam(ln.x0, ln.y0, ln.x0 + ln.dx * 540, ln.y0 + ln.dy * 540, withAlpha(P.emberL, 0.45)); }
+      if (ln.tel <= 0) { ln.tel = 0.09; this.world.addBeam(ln.x0, ln.y0, ln.x0 + ln.dx * 540, ln.y0 + ln.dy * 540, BEAM_EVT_A); }
       if (ln.t > 0) continue;
       this.evtLanes.splice(i, 1);
       const x = clamp(ln.x0, TS, this.world.pxW - TS), y = clamp(ln.y0, TS, this.world.pxH - TS);

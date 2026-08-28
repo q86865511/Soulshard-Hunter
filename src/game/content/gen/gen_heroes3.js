@@ -35,6 +35,7 @@ function drawH3_spearmaiden(p, f, a) {
   const step = f === 1 ? 1 : f === 3 ? -1 : 0;
   const cloak = a.cloak ?? P.blue, cloakD = a.cloakD ?? P.blueD, cloakL = a.cloakL ?? P.blueL;
   const trim = a.trim ?? P.gold, eye = a.eye ?? P.iceD, skin = a.skin ?? P.skin;
+  p.softShadow(8, 17 + oy, 5, 1.4, 0.34);   // R28 W3-A3: ground-contact softShadow (had none)
 
   // boots
   p.rect(5, 16 + oy, 2, 2, darken(cloakD, 0.25));
@@ -70,6 +71,7 @@ function drawH3_spearmaiden(p, f, a) {
 
   // head + hair + circlet
   p.ellipse(8, 5 + oy, 3, 3, skin);           // face
+  p.px(7, 4 + oy, lighten(skin, 0.18));       // R28 W3-A3: 2nd face step (brow highlight)
   p.rect(5, 3 + oy, 6, 2, cloakD);            // hair top
   p.px(5, 5 + oy, cloakD); p.px(10, 5 + oy, cloakD);   // side hair
   p.vline(6 + oy, 9 + oy, 5, cloakD);         // long hair strand (left, behind)
@@ -85,73 +87,120 @@ function drawH3_spearmaiden(p, f, a) {
   p.px(13, 1 + oy, P.steelL);                  // blade tip
   p.px(12, 3 + oy, P.steelL);
   p.px(13, 5 + oy, trim);                      // collar under blade
+
+  p.shadeBottom(0.2, 12);   // R28 W3-A3: value-tier gap fix — had neither rimLight nor shadeBottom
+  p.rimLight(P.rim, 0.4);
 }
 
 // ===========================================================================
 // 2) PLAGUE-DOCTOR — wide-brim hat, long beaked mask, buttoned long coat,
 //    a satchel on the hip and a short cane. Unmistakable silhouette.
 // ===========================================================================
+// R28 HAND-EDIT (W2-E, ART-01): body rebuilt to the ART_SPEC scale ladder —
+// re-integrating gen_heroes3 from the workflow source WILL revert this. Changes:
+// full-canvas-width brim, heavier coat + shoulder mass, a longer 2 px beak with a
+// 2-step bone read, 2 px goggle lenses with dark rims, and a glowing plague VIAL
+// held in the right hand so the class symbol lives in the silhouette.
 function drawH3_plague(p, f, a) {
   const oy = (f === 1 || f === 3) ? -1 : 0;
   const step = f === 1 ? 1 : f === 3 ? -1 : 0;
   const cloak = a.cloak ?? P.gray1, cloakD = a.cloakD ?? P.shadow, cloakL = a.cloakL ?? P.gray3;
   const trim = a.trim ?? P.bone, eye = a.eye ?? P.toxic, beak = P.bone;
+  const deep = mix(cloakD, P.ink, 0.35);
+  const beakD = darken(beak, 0.26), beakM = darken(beak, 0.12);
+  // the plague palette is monochrome grey — pull the CLOTH down a step so the bone
+  // beak, the brass goggles and the green vial are the only bright notes.
+  const coatD = mix(cloakD, cloak, 0.4), coat = cloak, coatL = mix(cloak, cloakL, 0.5);
+  p.softShadow(8, 17 + oy, 5, 1.4, 0.34);      // ground contact (ART_SPEC §1)
 
-  // boots
-  p.rect(5, 16 + oy, 2, 2, P.ink2);
-  p.rect(9, 16 + oy, 2, 2, P.ink2);
-  if (step > 0) p.px(6, 17 + oy, P.shadow);
-  if (step < 0) p.px(9, 17 + oy, P.shadow);
+  // boots — wide stance
+  p.rect(3, 16 + oy, 4, 2, P.ink2);
+  p.rect(9, 16 + oy, 4, 2, P.ink2);
+  p.hline(3, 6, 16 + oy, mix(P.ink2, cloakL, 0.35));
+  p.hline(9, 12, 16 + oy, mix(P.ink2, cloakL, 0.35));
+  if (step > 0) p.hline(3, 6, 17 + oy, P.shadow);
+  if (step < 0) p.hline(9, 12, 17 + oy, P.shadow);
 
-  // long coat (straight, ankle length)
-  const cTop = 9 + oy, cBot = 16 + oy;
+  // long coat — straight, ankle length, flaring to the full canvas width
+  const cTop = 8 + oy, cBot = 16 + oy;
   for (let y = cTop; y <= cBot; y++) {
     const t = (y - cTop) / (cBot - cTop);
-    const hw = Math.round(3 + t * 1.5);
-    p.hline(8 - hw, 7 + hw, y, cloakD);
+    const hw = Math.round(4 + t * 2.5);
+    p.hline(8 - hw, 7 + hw, y, coatD);
   }
-  for (let y = cTop + 1; y <= cBot; y++) {
+  for (let y = cTop + 1; y <= cBot - 1; y++) {
     const t = (y - cTop) / (cBot - cTop);
-    const hw = Math.round(2 + t * 1);
-    p.hline(8 - hw, 7 + hw, y, cloak);
+    const hw = Math.round(3 + t * 1.6);
+    p.hline(8 - hw, 7 + hw, y, mix(coatL, coat, t));
   }
-  p.vline(cTop + 1, cBot, 8, cloakD);         // coat seam
-  p.px(8, 11 + oy, trim); p.px(8, 13 + oy, trim); p.px(8, 15 + oy, trim); // buttons
+  p.hline(1, 14, 16 + oy, deep);              // hem under-shade
+  p.vline(cTop + 1, cBot, 8, coatD);          // coat seam
+  p.vline(cTop + 1, cBot - 2, 5, coatL);      // top-left lit lapel
+  p.px(8, 10 + oy, trim); p.px(8, 12 + oy, trim); p.px(8, 14 + oy, trim); // buttons
 
-  // arms
-  p.rect(3, 10 + oy, 2, 4, cloakD);           // left
-  p.rect(11, 10 + oy, 2, 4, cloakD);          // right
-  p.px(4, 10 + oy, cloak);
+  // shoulders / arms — the coat's mass, not sticks
+  p.rect(1, 8 + oy, 4, 5, coatD); p.rect(11, 8 + oy, 4, 5, coatD);
+  p.hline(1, 4, 8 + oy, coatL); p.hline(11, 14, 8 + oy, mix(coatL, coat, 0.5));
+  p.hline(1, 4, 12 + oy, deep); p.hline(11, 14, 12 + oy, deep);
 
-  // satchel on left hip
-  p.rect(2, 12 + oy, 3, 3, P.leather);
-  p.rect(2, 12 + oy, 3, 1, darken(P.leather, 0.2));
-  p.px(3, 13 + oy, trim);                      // buckle
+  // satchel on the left hip
+  p.rect(0, 11 + oy, 4, 4, P.leather);
+  p.hline(0, 3, 11 + oy, darken(P.leather, 0.25));
+  p.hline(0, 3, 14 + oy, darken(P.leather, 0.35));
+  p.px(1, 13 + oy, trim);                      // buckle
 
-  // neck
-  p.rect(7, 8 + oy, 2, 1, cloakD);
+  // plague VIAL raised in the right hand — the class symbol, in silhouette
+  p.rect(12, 12 + oy, 3, 4, mix(P.steelD, cloakD, 0.4));   // gloved hand + flask base
+  p.glow(13, 13 + oy, 3, eye, 0.55, 4);
+  p.rect(13, 13 + oy, 2, 3, eye);
+  p.px(13, 13 + oy, mix(eye, P.white, 0.6)); p.px(14, 15 + oy, darken(eye, 0.35));
+  p.rect(13, 11 + oy, 2, 1, P.bone);           // cork stopper
+  p.px(12, 10 + oy, withAlpha(eye, 0.7));      // escaping vapour
 
-  // head: round mask base
-  p.ellipse(8, 5 + oy, 3, 3, cloakL);
-  p.ellipse(8, 5 + oy, 3, 3, mix(cloakL, P.white, 0.15));
-  // round goggle lenses
-  p.px(6, 5 + oy, P.steelD); p.px(7, 5 + oy, eye);
-  p.px(9, 5 + oy, eye); p.px(10, 5 + oy, P.steelD);
-  // long downward beak
-  p.line(8, 6 + oy, 7, 9 + oy, beak);
-  p.line(9, 6 + oy, 8, 9 + oy, beak);
-  p.px(8, 7 + oy, darken(beak, 0.15));
-  p.px(7, 9 + oy, darken(beak, 0.2));
+  // neck / collar (dark, so the mask never fuses with the coat)
+  p.rect(5, 8 + oy, 6, 2, deep);
 
-  // wide-brim hat (crown kept at y1 so -1 bob stays in-canvas)
-  p.hline(2, 13, 3 + oy, cloakD);             // wide brim
-  p.hline(3, 12, 2 + oy, cloak);
-  p.rect(6, 1 + oy, 4, 2, cloakD);            // crown
-  p.hline(6, 9, 1 + oy, mix(cloakD, P.white, 0.12));
+  // head: mask shell kept a value step DOWN from the beak so the beak reads
+  const shell = mix(cloak, cloakL, 0.35), shellL = mix(cloakL, P.white, 0.1);
+  p.ellipse(8, 6 + oy, 3.4, 2.8, shell);
+  p.hline(5, 10, 4 + oy, shellL);                              // lit crown (top-left light)
+  p.hline(5, 10, 8 + oy, mix(shell, cloakD, 0.5));             // 2nd step: shaded jaw line
 
-  // cane in right hand
-  p.vline(11 + oy, 16 + oy, 13, P.woodD);
-  p.px(13, 10 + oy, trim);                     // cane knob
+  // round goggle lenses — 2 px glass in a dark rim
+  p.rect(4, 5 + oy, 3, 3, P.steelD); p.rect(9, 5 + oy, 3, 3, P.steelD);
+  p.rect(5, 6 + oy, 2, 2, darken(eye, 0.35)); p.rect(9, 6 + oy, 2, 2, darken(eye, 0.35));
+  p.glow(5, 6 + oy, 1.8, eye, 0.5, 3); p.glow(10, 6 + oy, 1.8, eye, 0.5, 3);
+  p.px(5, 6 + oy, eye); p.px(10, 6 + oy, eye);                 // 1 px eye position
+  p.px(5, 6 + oy, P.glint);                                    // catch-light (top-left)
+
+  // the BEAK — a bright bone wedge driven down across the dark collar; 2 px wide
+  // with a 2-step bone read and a hooked tip, unmistakable at game zoom
+  p.rect(7, 7 + oy, 2, 5, beak);
+  p.px(7, 7 + oy, lighten(beak, 0.24));                        // top-left highlight
+  p.px(8, 8 + oy, beakM); p.px(8, 9 + oy, beakM); p.px(8, 10 + oy, beakM); // right shade step
+  p.px(8, 11 + oy, beakD);
+  p.px(7, 12 + oy, beakD);                                     // hooked tip
+
+  // wide-brim hat — near-full canvas width, drooping at the tips
+  p.hline(1, 14, 3 + oy, coatD);
+  p.hline(2, 13, 2 + oy, mix(coatD, coat, 0.5));
+  p.hline(4, 11, 4 + oy, deep);                                // brim under-shade
+  p.px(0, 4 + oy, coatD); p.px(15, 4 + oy, coatD);             // drooping tips
+  p.px(1, 4 + oy, deep); p.px(14, 4 + oy, deep);
+  p.rect(5, 0 + oy, 6, 3, coatD);                              // tall crown
+  p.hline(5, 10, 0 + oy, mix(coatD, coatL, 0.6));
+  p.vline(0 + oy, 2 + oy, 5, coat);                            // crown lit edge (top-left)
+  p.hline(4, 11, 3 + oy, mix(trim, coatD, 0.35));              // hat band
+
+  // cane in the left hand
+  p.rect(0, 6 + oy, 2, 6, P.woodD);
+  p.vline(6 + oy, 11 + oy, 0, mix(P.woodD, P.woodL, 0.5));
+  p.rect(0, 5 + oy, 2, 1, trim);                               // cane knob
+
+  p.shadeBottom(0.2, 12);
+  p.rimLight(P.rim, 0.34, -1, -1);   // gentler than the archetype default: flat brims
+                                     // otherwise read as a lit shelf across the head
+
 }
 
 // ===========================================================================
@@ -164,6 +213,7 @@ function drawH3_beastfang(p, f, a) {
   const cloak = a.cloak ?? P.leather, cloakD = a.cloakD ?? P.woodD, cloakL = a.cloakL ?? P.woodL;
   const trim = a.trim ?? P.bone, eye = a.eye ?? P.emberL, skin = a.skin ?? P.skin2;
   const fur = mix(cloak, P.bone, 0.25), furD = darken(cloakD, 0.1);
+  p.softShadow(8, 17 + oy, 5, 1.4, 0.34);   // R28 W3-A3: ground-contact softShadow (had none)
 
   // wide stance feet (wraps)
   p.rect(3, 16 + oy, 3, 2, furD);
@@ -202,9 +252,13 @@ function drawH3_beastfang(p, f, a) {
   p.px(5, 3 + oy, cloak);  p.px(11, 3 + oy, cloak);
   // shadowed face under hood
   p.rect(6, 5 + oy, 4, 2, P.ink2);
+  p.px(7, 5 + oy, lighten(P.ink2, 0.2));      // R28 W3-A3: 2nd face step (eye-socket rim highlight)
   p.px(6, 5 + oy, eye); p.px(9, 5 + oy, eye); // feral eyes
   // fangs
   p.px(7, 7 + oy, P.bone); p.px(8, 7 + oy, P.bone);
+
+  p.shadeBottom(0.2, 12);   // R28 W3-A3: value-tier gap fix — had neither rimLight nor shadeBottom
+  p.rimLight(P.rim, 0.4);
 }
 
 // ===========================================================================

@@ -87,12 +87,18 @@ defineAnim('g_emberslime', 16, 14, 4, (p, f) => {
   p.ellipse(8, 9 + yb * 0.5, 2, 1.3, P.redL);
   p.px(4, 11, P.ember); p.px(12, 11, P.ember);
   p.rimLight(P.rim, 0.5);
+  // R28 W3-A2: value-tier gap fix — canvas already standard-tier (16x14), missing shadeBottom.
+  p.shadeBottom(0.2, 10);
   p.outline(P.ink);
   p.star4(13, 3, 2, P.emberL, P.white);            // ambient kira spark
 }, { anchor: [8, 13], fps: 6 });
 
 // ENEMY 2: frost wisp — ice shooter, reuse wisp base
-defineAnim('g_frostwisp', 16, 16, 3, (p, f) => {
+defineAnim('g_frostwisp', 14, 14, 3, (p, f) => {
+  // R28 W3-A2: swarm-tier 14x14 canvas (was 16x16, matches core.js's 'wisp' base
+  // after W3-A1's shrink — drawWisp's own body shrank there, dragging this
+  // caller's fill below the 55% floor); -1/-1px shift to recentre.
+  p.ctx.save(); p.ctx.translate(-1, -1);
   const ph = f / 3;
   const yb = [0, -1, 0][f % 3];
   // cold halo + faint snow drift
@@ -110,14 +116,19 @@ defineAnim('g_frostwisp', 16, 16, 3, (p, f) => {
   p.px(7, 6 + yb, P.blueL); p.px(9, 6 + yb, P.blueL);
   // drifting snow specks (deterministic)
   p.speckle(2, 2, 12, 10, withAlpha(P.white, 0.9), 4, f + 1);
+  p.ctx.restore();
   p.rimLight(P.rimCool, 0.5);
+  p.shadeBottom(0.2, 9);
   p.outline(P.ink);
-  p.star4(3, 4, 2, P.rimCool, P.white);
-  p.sparkle(13, 9, P.ice, 1);
-}, { anchor: [8, 12], fps: 5 });
+  p.star4(2, 3, 2, P.rimCool, P.white);
+  p.sparkle(12, 8, P.ice, 1);
+}, { anchor: [7, 11], fps: 5 });
 
 // ENEMY 3: storm wisp — thunder shooter, reuse wisp base
-defineAnim('g_stormwisp', 16, 16, 3, (p, f) => {
+defineAnim('g_stormwisp', 14, 14, 3, (p, f) => {
+  // R28 W3-A2: swarm-tier 14x14 canvas (was 16x16); -1/-1px shift to recentre
+  // (same drawWisp fill-tier fix as g_frostwisp).
+  p.ctx.save(); p.ctx.translate(-1, -1);
   const ph = f / 3;
   const yb = [0, -1, 0][f % 3];
   // electric neon halo + crackle aura
@@ -135,11 +146,13 @@ defineAnim('g_stormwisp', 16, 16, 3, (p, f) => {
   p.line(bx, 7 + yb, bx - 1, 10 + yb, P.neonL);
   p.line(bx - 1, 10 + yb, bx + 1, 11 + yb, P.white);
   p.line(8, 4 + yb, 7, 8 + yb, P.neonL); p.line(7, 8 + yb, 9, 9 + yb, P.white);
+  p.ctx.restore();
   p.rimLight(P.neonL, 0.5);
+  p.shadeBottom(0.2, 9);
   p.outline(P.ink);
-  p.star4(12, 3, 2, P.neon, P.white);
-  p.sparkle(3, 9, P.neonL, 1);
-}, { anchor: [8, 12], fps: 6 });
+  p.star4(11, 2, 2, P.neon, P.white);
+  p.sparkle(2, 8, P.neonL, 1);
+}, { anchor: [7, 11], fps: 6 });
 
 // ENEMY 4: venom brute — poison charger, reuse brute base
 defineAnim('g_venombrute', 18, 18, 2, (p, f) => {
@@ -161,6 +174,8 @@ defineAnim('g_venombrute', 18, 18, 2, (p, f) => {
   p.px(5, 15, P.slimeBog); p.px(13, 15, P.slimeBog);
   p.speckle(4, 8, 10, 8, withAlpha(P.toxic, 0.8), 5, f + 2);
   p.rimLight(P.poison, 0.45);
+  // R28 W3-A2: value-tier gap fix — canvas already large-tier (18x18), missing shadeBottom.
+  p.shadeBottom(0.2, 12);
   p.outline(P.ink);
   p.star4(15, 4, 2, P.toxic, P.white);
 }, { anchor: [9, 17], fps: 3 });
@@ -184,6 +199,8 @@ defineAnim('g_crystalsentry', 18, 18, 2, (p, f) => {
   p.px(8, 6 + yb, P.white); p.px(11, 6 + yb, P.white);
   p.dither(6, 12 + yb, 6, 2, withAlpha(P.shardL, 0.5), withAlpha(P.shard, 0.0)); // faint prism shimmer
   p.rimLight(P.rimCool, 0.5);
+  // R28 W3-A2: value-tier gap fix — canvas already large-tier (18x18), missing shadeBottom.
+  p.shadeBottom(0.2, 12);
   p.outline(P.ink);
   p.star4(4, 4, 2, P.shardL, P.white); p.star4(14, 14, 1, P.neonL, P.white);
 }, { anchor: [9, 17], fps: 3 });
@@ -214,6 +231,8 @@ defineAnim('g_infernobrute', 18, 18, 2, (p, f) => {
   p.px(7, 6 + yb, P.white); p.px(11, 6 + yb, P.white);
   p.speckle(3, 3, 12, 8, withAlpha(P.emberL, 0.8), 5, f + 3); // floating embers
   p.rimLight(P.rim, 0.6);
+  // R28 W3-A2: value-tier gap fix — canvas already large-tier (18x18), missing shadeBottom.
+  p.shadeBottom(0.2, 12);
   p.outline(P.ink);
   p.star4(15, 3, 2, P.emberL, P.white); p.star4(3, 14, 2, P.redL, P.white);
 }, { anchor: [9, 17], fps: 3 });

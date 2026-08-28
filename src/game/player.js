@@ -231,6 +231,8 @@ export class Player {
     world._curSrc = null;
   }
 
+  // R28/W1-B (ART_SPEC 2.1 layer 5): called by World.draw AFTER the actor pass, not from
+  // draw() below — continuous weapon VFX must sit above every body, not at the player's y.
   drawWeapons(world) { for (const inst of this.weapons) if (inst.def.draw) inst.def.draw(world, this, inst); }
 
   draw(world) {
@@ -247,6 +249,5 @@ export class Player {
     if (this.status.slow) glowWorld(this.x, this.y - 5, this.radius + 5, P.ice, 0.3);
     else if (this.status.burn || this.status.poison || this.status.bleed) glowWorld(this.x, this.y - 5, this.radius + 5, this.status.burn ? P.emberL : this.status.poison ? P.toxic : P.redL, 0.28);
     if (this.shieldT > 0) glowWorld(this.x, this.y - 6, this.radius + 7, P.ice, 0.35 + Math.sin(this.t * 10) * 0.1);
-    if (world) this.drawWeapons(world);
   }
 }

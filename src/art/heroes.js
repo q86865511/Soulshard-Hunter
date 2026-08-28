@@ -113,6 +113,7 @@ registerHeroBody('mage', (p, f, a) => {
   // orb staff with a glowing gem
   p.vline(7 + oy, 15 + oy, 13, P.wood); p.glow(13, 6 + oy, 3, c.eye, 0.5, 4);
   p.ellipse(13, 6 + oy, 2, 2, c.eye); p.px(12, 5 + oy, P.glint); p.px(13, 6 + oy, P.white);
+  p.shadeBottom(0.2, 12);   // R28 W3-A3: value-tier gap fix — had rimLight but no shadeBottom
   rimFinish(p);
 });
 
@@ -134,6 +135,7 @@ registerHeroBody('pyromancer', (p, f, a) => {
   p.vline(8 + oy, 14 + oy, 13, P.woodD); p.glow(13, 6 + oy, 3, P.ember, 0.5, 4);
   p.ellipse(13, 7 + oy, 1.6, 2, P.ember); p.px(13, 6 + oy, P.emberL); p.px(13, 5 + oy, P.white);
   p.sparkle(14, 4 + oy, P.emberL, 1);
+  p.shadeBottom(0.2, 12);   // R28 W3-A3: value-tier gap fix — had rimLight but no shadeBottom
   rimFinish(p);
 });
 
@@ -155,27 +157,78 @@ registerHeroBody('warlock', (p, f, a) => {
   p.glow(13, 10 + oy, 3, c.eye, 0.45, 4);
   p.ellipse(13, 10 + oy, 1.6, 1.6, c.eye); p.px(13, 10 + oy, P.white);
   p.ring(13, 10 + oy, 2.6, withAlphaSafe(c.eye, 0.6)); p.aura(13, 10 + oy, 3, c.eye, f / 4, 2);
+  p.shadeBottom(0.2, 12);   // R28 W3-A3: value-tier gap fix — had rimLight but no shadeBottom
   rimFinish(p);
 });
 function withAlphaSafe(col, a = 0.55) { return withAlpha(col, a); }
 
-// ── NECROMANCER — bone skull mask, hooded shroud, scythe ──
+// ── NECROMANCER — R28 rebuild (ART-01). A heavy grave-shroud with bone spaulders,
+//    a full skull mask (2-step bone: lit cranium / shaded jaw) inside a deep hood,
+//    and a 2 px full-height necro-staff on the right topped by a soul LANTERN —
+//    the staff+lantern are the silhouette signature, with a drifting wisp on the
+//    left flank per frame. ──
 registerHeroBody('necromancer', (p, f, a) => {
   const c = pal(a); const oy = bob(f);
+  const deep = mix(c.cD, P.ink2, 0.5);
+  const boneD = darken(P.bone, 0.3), boneM = darken(P.bone, 0.14);
   groundShadow(p, oy);
-  for (let y = 9 + oy; y <= 16 + oy; y++) { const hw = 2 + (y - (9 + oy)) * 0.5; p.hline(8 - hw, 8 + hw, y, c.cD); }
-  p.gradV(5, 9 + oy, 6, 5, c.cL, c.cloak); p.rect(5, 10 + oy, 6, 4, c.cloak); p.hline(4, 11, 16 + oy, P.bone);
-  // hood
-  p.ellipse(8, 6 + oy, 3.4, 3.4, c.cD); p.ellipse(8, 5 + oy, 2.6, 2, c.cloak); p.px(6, 4 + oy, c.cL);
-  // skull face with glowing sockets
-  p.ellipse(8, 7 + oy, 2.2, 2.2, P.bone); p.px(7, 9 + oy, darken(P.bone, 0.2));
-  p.glow(7, 7 + oy, 1.4, c.eye, 0.55, 3); p.glow(9, 7 + oy, 1.4, c.eye, 0.55, 3);
-  p.px(7, 7 + oy, c.eye); p.px(9, 7 + oy, c.eye); p.px(8, 9 + oy, P.ink2);
-  // scythe: pole + curved energy blade
-  p.vline(1 + oy, 15 + oy, 13, P.woodD);
-  p.line(13, 1 + oy, 10, 2 + oy, P.steelL); p.line(10, 2 + oy, 9, 4 + oy, P.steelL);
-  p.line(13, 0 + oy, 10, 1 + oy, withAlpha(c.eye, 0.55)); p.px(13, 0 + oy, P.glint); // blade aura + glint
-  p.sparkle(12, 4 + oy, mix(c.eye, P.white, 0.4), 1);
+
+  // ── grave-shroud: broad bell from the shoulders to a full-width hem ──
+  for (let y = 8 + oy; y <= 16 + oy; y++) {
+    const hw = Math.round(3.5 + (y - (8 + oy)) * 0.6);
+    p.hline(8 - hw, 7 + hw, y, c.cD);
+  }
+  for (let y = 9 + oy; y <= 15 + oy; y++) {
+    const hw = Math.round(2.5 + (y - (9 + oy)) * 0.45);
+    const t = (y - (9 + oy)) / 6;
+    p.hline(8 - hw, 7 + hw, y, mix(c.cL, c.cloak, t));
+  }
+  p.hline(1, 14, 16 + oy, deep);                                   // hem under-shade
+  p.hline(2, 13, 15 + oy, mix(P.bone, c.cD, 0.55));                // bone-braid hem trim
+  for (let x = 2; x <= 13; x += 3) p.px(x, 15 + oy, boneM);        // vertebra beads
+  p.vline(10 + oy, 15 + oy, 8, deep);                              // centre fold gutter
+  p.vline(10 + oy, 14 + oy, 4, mix(c.cL, c.cloak, 0.35));          // lit fold (top-left)
+
+  // ── bone spaulders: the shoulder mass (kept a value step below the skull so the
+  //    top of the sprite does not read as one pale blob) ──
+  const spa = mix(P.bone, c.cD, 0.45);
+  p.rect(1, 8 + oy, 4, 3, spa); p.rect(11, 8 + oy, 4, 3, spa);
+  p.hline(1, 4, 8 + oy, boneM); p.hline(11, 14, 8 + oy, mix(spa, boneM, 0.5));
+  p.hline(1, 4, 10 + oy, darken(spa, 0.35)); p.hline(11, 14, 10 + oy, darken(spa, 0.35));
+  p.px(1, 8 + oy, P.bone);
+
+  // ── deep hood ──
+  p.ellipse(8, 5 + oy, 4, 4.2, c.cD);
+  p.ellipse(8, 4 + oy, 3, 2.6, c.cloak);
+  p.px(5, 2 + oy, c.cL); p.px(6, 1 + oy, mix(c.cL, P.rim, 0.4));   // hood crest sheen
+  p.rect(5, 4 + oy, 6, 5, P.ink2);                                 // hood interior void
+
+  // ── skull mask: lit cranium, shaded jaw, 1 px burning sockets ──
+  p.ellipse(8, 5 + oy, 2.6, 2.4, P.bone);
+  p.ellipse(8, 4 + oy, 2.2, 1.4, lighten(P.bone, 0.16));           // cranium highlight
+  p.hline(6, 10, 7 + oy, boneM); p.hline(6, 10, 8 + oy, boneD);    // jaw — 2nd bone step
+  p.px(6, 8 + oy, boneM); p.px(8, 8 + oy, boneM); p.px(10, 8 + oy, boneM); // teeth
+  glowEye(p, 6, 5 + oy, c.eye); glowEye(p, 10, 5 + oy, c.eye);
+  p.px(8, 6 + oy, P.ink2);                                         // nasal void
+  p.hline(5, 10, 9 + oy, mix(c.cD, P.ink, 0.5));                   // collar shadow (separator)
+
+  // ── necro-staff + soul lantern (right flank, full height, 2 px shaft) ──
+  p.rect(13, 4 + oy, 2, 12, P.woodD);
+  p.vline(4 + oy, 15 + oy, 13, mix(P.woodD, P.woodL, 0.45));       // lit shaft edge
+  p.rect(12, 8 + oy, 2, 1, boneM);                                 // bone binding
+  p.rect(12, 1 + oy, 4, 4, mix(P.iron, c.cD, 0.4));                // lantern cage
+  p.hline(12, 15, 1 + oy, P.iron); p.hline(12, 15, 4 + oy, darken(P.iron, 0.3));
+  p.glow(13, 3 + oy, 3, c.eye, 0.6, 4);
+  p.rect(13, 2 + oy, 2, 2, c.eye); p.px(13, 2 + oy, P.white);      // soul flame
+  p.px(12, 0 + oy, boneM); p.px(15, 0 + oy, boneM);                // lantern hook
+
+  // ── drifting soul wisp on the left flank (per-frame) ──
+  const wy = 6 + ((f + 1) % 3) + oy;
+  p.px(0, wy, withAlpha(c.eye, 0.85)); p.px(1, wy, withAlpha(c.eye, 0.5));
+  p.px(0, wy + 1, withAlpha(c.eye, 0.45));
+  p.sparkle(1, wy - 2, mix(c.eye, P.white, 0.4), 1);
+
+  p.shadeBottom(0.2, 12);
   rimFinish(p);
 });
 
@@ -196,42 +249,130 @@ registerHeroBody('ranger', (p, f, a) => {
   p.line(2, 3 + oy, 1, 8 + oy, c.trim); p.line(1, 8 + oy, 2, 13 + oy, c.trim);
   p.line(2, 3 + oy, 2, 13 + oy, withAlphaSafe(c.cL, 0.7));
   p.line(2, 3 + oy, 2, 13 + oy, withAlpha(c.eye, 0.3)); p.px(1, 8 + oy, P.glint);
+  p.shadeBottom(0.2, 12);   // R28 W3-A3: value-tier gap fix — had rimLight but no shadeBottom
   rimFinish(p);
 });
 
-// ── HUNTER — low hood, scarf, a crossbow held across the chest ──
+// ── HUNTER — R28 rebuild (ART-01). Deep hood over a heavy storm-mantle, a bolt
+//    quiver slung on the back and a broad crossbow carried across the waist whose
+//    swept limbs reach BOTH canvas edges, so the weapon lives in the silhouette
+//    rather than only in the palette. Head ≈40% of the visible body; the hood
+//    cavity carries a 2-step face read with 1 px glowing eyes. ──
 registerHeroBody('hunter', (p, f, a) => {
-  const c = pal(a); const oy = bob(f);
+  const c = pal(a); const oy = bob(f); const s = step(f);
+  const deep = mix(c.cD, P.ink2, 0.45);            // 4th (deepest) cloth step
+  const boot = P.woodD, bootL = lighten(P.woodD, 0.3);
   groundShadow(p, oy);
-  legs(p, f, oy, P.woodD);
-  p.rect(4, 9 + oy, 8, 7, c.cD); p.gradV(5, 9 + oy, 6, 6, c.cL, c.cloak); p.rect(5, 10 + oy, 6, 5, c.cloak);
-  p.hline(4, 11, 12 + oy, c.trim);                                  // belt
-  p.ellipse(8, 6 + oy, 3.2, 3, c.cD); p.ellipse(8, 5 + oy, 2.6, 2, c.cloak); p.px(6, 4 + oy, c.cL); // hood
-  p.rect(5, 6 + oy, 6, 3, P.ink2);
-  p.glow(6, 7 + oy, 1.5, c.eye, 0.5, 3); p.glow(9, 7 + oy, 1.5, c.eye, 0.5, 3);
-  p.rect(5, 7 + oy, 2, 1, c.eye); p.rect(9, 7 + oy, 2, 1, c.eye); p.px(5, 7 + oy, P.glint); p.px(9, 7 + oy, P.glint);
-  p.px(6, 9 + oy, c.cL); p.px(9, 9 + oy, c.cL);                     // scarf tips
-  // crossbow across the body w/ a charged bolt tip
-  p.hline(2, 12, 12 + oy, P.wood); p.line(3, 10 + oy, 3, 14 + oy, c.trim);
-  p.glow(12, 12 + oy, 1.8, c.eye, 0.5, 3); p.px(12, 12 + oy, c.eye); p.px(12, 12 + oy, P.glint);
+
+  // ── boots: wide planted stance ──
+  p.rect(3, 16 + oy, 4, 2, boot); p.rect(9, 16 + oy, 4, 2, boot);
+  p.hline(3, 6, 16 + oy, bootL); p.hline(9, 12, 16 + oy, bootL);
+  if (s > 0) p.hline(3, 6, 17 + oy, darken(boot, 0.3));
+  if (s < 0) p.hline(9, 12, 17 + oy, darken(boot, 0.3));
+
+  // ── long coat: waist to hem, flaring to full canvas width ──
+  p.rect(2, 13 + oy, 12, 3, c.cD);
+  p.rect(3, 13 + oy, 10, 2, c.cloak);
+  p.gradV(4, 13 + oy, 8, 2, c.cL, c.cloak);
+  p.hline(2, 13, 15 + oy, deep);                                   // hem under-shade
+  p.vline(13 + oy, 15 + oy, 2, mix(c.cL, c.cloak, 0.5));           // top-left lit edge
+  p.vline(14 + oy, 15 + oy, 8, deep);                              // coat split seam
+
+  // ── torso + storm mantle (broad shoulders, pauldron caps at the edges) ──
+  p.rect(3, 9 + oy, 11, 4, c.cD);
+  p.rect(4, 10 + oy, 9, 3, c.cloak);
+  p.gradV(4, 10 + oy, 9, 2, c.cL, c.cloak);
+  p.hline(3, 13, 9 + oy, mix(c.cL, c.cloak, 0.4));                 // mantle top-light
+  p.rect(1, 9 + oy, 3, 3, c.cD); p.rect(12, 9 + oy, 3, 3, c.cD);   // pauldrons
+  p.hline(1, 3, 9 + oy, c.cL); p.px(12, 9 + oy, mix(c.cloak, c.cL, 0.4));
+  p.px(1, 11 + oy, deep); p.px(14, 11 + oy, deep);
+  p.hline(3, 12, 12 + oy, c.trim); p.px(8, 12 + oy, lighten(c.trim, 0.35)); // belt + buckle
+
+  // ── bolt quiver on the back-left (silhouette mass, not a decal) ──
+  p.rect(0, 4 + oy, 3, 6, darken(P.leather, 0.32));
+  p.hline(0, 2, 4 + oy, P.leather); p.px(0, 6 + oy, c.trim);
+  p.px(0, 3 + oy, P.bone); p.px(1, 2 + oy, c.eye); p.px(2, 3 + oy, P.bone); // fletchings
+
+  // ── hood: big, deep, 2-step face cavity, sitting ON a dark collar so the head
+  //    does not fuse with the mantle ──
+  p.ellipse(8, 4 + oy, 3.8, 3.8, c.cD);
+  p.ellipse(8, 3 + oy, 3, 2.6, c.cloak);
+  p.px(5, 1 + oy, c.cL); p.px(6, 0 + oy, mix(c.cL, P.rim, 0.4));    // hood crest sheen
+  p.rect(5, 3 + oy, 6, 4, P.ink2);                                  // cavity — dark step
+  p.hline(5, 10, 6 + oy, mix(P.ink2, c.cD, 0.55));                  // cavity — lit step
+  p.hline(5, 10, 2 + oy, mix(c.cD, P.ink, 0.4));                    // brow shadow
+  glowEye(p, 6, 4 + oy, c.eye); glowEye(p, 10, 4 + oy, c.eye);
+  p.hline(4, 11, 7 + oy, mix(c.cloak, c.cL, 0.3));                  // scarf across the jaw
+  p.hline(3, 12, 8 + oy, mix(c.cD, P.ink, 0.45));                   // collar shadow (separator)
+  p.px(2, 8 + oy, c.cL); p.px(1, 7 + oy, mix(c.cL, c.cloak, 0.5));  // scarf tail streaming left
+
+  // ── crossbow carried across the waist: limbs sweep out to both edges ──
+  p.rect(4, 11 + oy, 8, 2, P.wood); p.hline(4, 11, 11 + oy, P.woodL);
+  p.rect(0, 11 + oy, 4, 2, P.iron); p.rect(12, 11 + oy, 4, 2, P.iron);
+  p.hline(0, 3, 11 + oy, P.steel); p.hline(12, 15, 11 + oy, P.steel);
+  p.px(0, 12 + oy, P.steelD); p.px(15, 12 + oy, P.steelD);          // limb tips curl down
+  p.hline(5, 11, 12 + oy, P.steelL);                                // the loaded bolt
+  p.glow(12, 12 + oy, 2, c.eye, 0.55, 3); p.px(12, 12 + oy, c.eye); p.px(11, 12 + oy, P.glint);
+
+  p.shadeBottom(0.2, 12);
   rimFinish(p);
 });
 
-// ── ROGUE — low cowl + face wrap, hunched, twin daggers ──
+// ── ROGUE — R28 rebuild (ART-01). A high-collared cowl over a broad shoulder
+//    cape, hunched stance, and TWIN reverse-grip short blades held wide — each
+//    blade is a 2 px steel band running the full flank, so the twin-dagger read
+//    survives at game zoom. Face wrap keeps a 2-step read under the cowl. ──
 registerHeroBody('rogue', (p, f, a) => {
-  const c = pal(a); const oy = bob(f);
+  const c = pal(a); const oy = bob(f); const s = step(f);
+  const deep = mix(c.cD, P.ink2, 0.5);
+  const edge = mix(c.eye, P.neon, 0.35);
   groundShadow(p, oy);
-  legs(p, f, oy, P.ink2);
-  p.rect(4, 10 + oy, 8, 6, c.cD); p.gradV(5, 10 + oy, 6, 5, c.cL, c.cloak); p.rect(5, 11 + oy, 6, 4, c.cloak); // hunched lower body
-  p.ellipse(8, 7 + oy, 2.8, 2.6, c.cD); p.px(6, 5 + oy, c.cL);      // cowl + sheen
-  p.rect(6, 7 + oy, 4, 2, P.ink2);
-  p.glow(6.5, 7 + oy, 1.4, c.eye, 0.5, 3); p.glow(9.5, 7 + oy, 1.4, c.eye, 0.5, 3);
-  p.rect(6, 7 + oy, 1.5, 1, c.eye); p.rect(9, 7 + oy, 1.5, 1, c.eye); p.px(6, 7 + oy, P.glint);
-  p.hline(5, 11, 9 + oy, c.cD);                                     // face wrap line
-  // twin daggers with cool neon edges + flash
-  p.line(2, 14 + oy, 4, 10 + oy, P.steelL); p.line(14, 14 + oy, 12, 10 + oy, P.steelL);
-  p.line(2, 14 + oy, 4, 10 + oy, withAlpha(P.neon, 0.4)); p.line(14, 14 + oy, 12, 10 + oy, withAlpha(P.neon, 0.4));
-  p.px(4, 10 + oy, P.glint); p.px(12, 10 + oy, P.glint); p.star4(4, 9 + oy, 1, P.neonL, P.glint);
+
+  // ── boots (wide, low centre of gravity) ──
+  p.rect(3, 16 + oy, 4, 2, P.ink2); p.rect(9, 16 + oy, 4, 2, P.ink2);
+  p.hline(3, 6, 16 + oy, mix(P.ink2, c.cL, 0.35)); p.hline(9, 12, 16 + oy, mix(P.ink2, c.cL, 0.35));
+  if (s > 0) p.hline(3, 6, 17 + oy, P.shadow);
+  if (s < 0) p.hline(9, 12, 17 + oy, P.shadow);
+
+  // ── crouched body: wrap skirt + torso (leaner than the mage bell) ──
+  p.rect(4, 12 + oy, 8, 4, c.cD);
+  p.rect(5, 12 + oy, 6, 3, c.cloak);
+  p.hline(4, 11, 15 + oy, deep);
+  p.line(5, 12 + oy, 10, 15 + oy, mix(c.cloak, c.cD, 0.5));         // wrapped hem fold
+  p.rect(4, 9 + oy, 8, 4, c.cD);
+  p.gradV(5, 9 + oy, 6, 3, c.cL, c.cloak);
+  p.hline(4, 11, 11 + oy, c.trim);                                  // sash
+  p.px(6, 11 + oy, lighten(c.trim, 0.4));
+
+  // ── shoulder cape: broad and sharp-cornered (top-left lit) ──
+  p.rect(2, 8 + oy, 12, 3, c.cD);
+  p.hline(2, 13, 8 + oy, mix(c.cL, c.cloak, 0.45));
+  p.hline(2, 13, 10 + oy, deep);                                    // cape under-shade
+  p.px(2, 11 + oy, c.cD); p.px(13, 11 + oy, c.cD);                  // cape points
+
+  // ── cowl + high collar, 2-step face cavity, dark collar separates head/body ──
+  p.ellipse(8, 4 + oy, 3.6, 3.6, c.cD);
+  p.ellipse(8, 3 + oy, 2.8, 2.4, c.cloak);
+  p.px(5, 1 + oy, c.cL); p.px(6, 0 + oy, mix(c.cL, P.rim, 0.35));   // cowl sheen
+  p.rect(5, 3 + oy, 6, 4, P.ink2);                                   // cavity — dark step
+  p.hline(5, 10, 5 + oy, mix(P.ink2, c.cD, 0.7));                    // cavity — lit step
+  p.hline(5, 10, 2 + oy, mix(c.cD, P.ink, 0.4));                     // brow shadow
+  glowEye(p, 6, 4 + oy, c.eye); glowEye(p, 10, 4 + oy, c.eye);
+  p.hline(5, 10, 6 + oy, mix(c.cD, P.ink2, 0.4));                    // face wrap
+  p.hline(4, 11, 7 + oy, mix(c.cD, P.ink, 0.45));                    // collar shadow
+
+  // ── twin blades held UP and OUT — two 2 px steel diagonals cutting into the
+  //    empty top corners; the crossed-blade read is what sells the assassin ──
+  p.rect(2, 10 + oy, 2, 2, c.cD); p.rect(12, 10 + oy, 2, 2, c.cD);   // gauntleted fists
+  p.px(2, 10 + oy, c.cL); p.px(3, 9 + oy, c.trim); p.px(12, 9 + oy, c.trim); // pommels
+  p.line(3, 9 + oy, 0, 4 + oy, P.steelD); p.line(4, 9 + oy, 1, 4 + oy, P.steelL);
+  p.line(12, 9 + oy, 15, 4 + oy, P.steelD); p.line(11, 9 + oy, 14, 4 + oy, P.steelL);
+  p.line(4, 9 + oy, 1, 4 + oy, withAlpha(edge, 0.45));
+  p.line(11, 9 + oy, 14, 4 + oy, withAlpha(edge, 0.45));
+  p.px(0, 4 + oy, P.glint); p.px(15, 4 + oy, P.glint);               // blade tips
+  p.star4(1, 3 + oy, 1, P.neonL, P.glint);
+
+  p.shadeBottom(0.2, 12);
   rimFinish(p);
 });
 
@@ -253,6 +394,7 @@ registerHeroBody('samurai', (p, f, a) => {
   p.line(11, 13 + oy, 15, 9 + oy, P.steelL); p.line(11, 13 + oy, 15, 9 + oy, withAlpha(P.sakuraL, 0.0));
   p.line(11, 12 + oy, 15, 8 + oy, withAlpha(c.eye, 0.4)); p.px(15, 8 + oy, P.glint);
   p.rect(10, 13 + oy, 2, 1, c.trim); p.star4(15, 8 + oy, 1, P.sakuraL, P.glint);
+  p.shadeBottom(0.2, 12);   // R28 W3-A3: value-tier gap fix — had rimLight but no shadeBottom
   rimFinish(p);
 });
 
@@ -274,6 +416,7 @@ registerHeroBody('berserker', (p, f, a) => {
   // big two-handed axe over the shoulder w/ a glinting edge
   p.vline(4 + oy, 15 + oy, 13, P.woodD); p.ellipse(13, 5 + oy, 3, 2.4, P.iron); p.rect(11, 4 + oy, 4, 3, P.steelL);
   p.px(11, 4 + oy, P.glint); p.line(15, 3 + oy, 15, 7 + oy, withAlpha(P.laser, 0.5)); // axe-edge energy
+  p.shadeBottom(0.2, 12);   // R28 W3-A3: value-tier gap fix — had rimLight but no shadeBottom
   rimFinish(p);
 });
 
@@ -294,6 +437,7 @@ registerHeroBody('gunner', (p, f, a) => {
   p.line(2, 13 + oy, 13, 8 + oy, P.iron); p.line(2, 13 + oy, 13, 9 + oy, P.steelL);
   p.glow(13, 8 + oy, 2.6, P.emberL, 0.5, 3); p.px(13, 8 + oy, P.white); p.rect(3, 12 + oy, 2, 2, P.woodD);
   p.sparkle(14, 7 + oy, P.emberL, 1);
+  p.shadeBottom(0.2, 12);   // R28 W3-A3: value-tier gap fix — had rimLight but no shadeBottom
   rimFinish(p);
 });
 
@@ -312,6 +456,7 @@ registerHeroBody('monk', (p, f, a) => {
   // chi aura + forehead mark
   p.aura(8, 8 + oy, 6, c.eye, f / 4, 2); p.ring(8, 8 + oy, 6, withAlphaSafe(c.eye, 0.5));
   p.px(8, 4 + oy, c.eye); p.px(8, 4 + oy, P.glint);
+  p.shadeBottom(0.2, 12);   // R28 W3-A3: value-tier gap fix — had rimLight but no shadeBottom
   rimFinish(p);
 });
 
@@ -332,6 +477,7 @@ registerHeroBody('shaman', (p, f, a) => {
   // totem staff with a charged tip
   p.vline(4 + oy, 15 + oy, 13, P.wood); p.glow(13, 4 + oy, 3, c.eye, 0.5, 4);
   p.ellipse(13, 4 + oy, 1.8, 1.8, c.eye); p.px(13, 4 + oy, P.white); p.sparkle(14, 2 + oy, lighten(c.eye, 0.3), 1);
+  p.shadeBottom(0.2, 12);   // R28 W3-A3: value-tier gap fix — had rimLight but no shadeBottom
   rimFinish(p);
 });
 
@@ -355,6 +501,7 @@ registerHeroBody('valkyrie', (p, f, a) => {
   // radiant spear
   p.vline(1 + oy, 15 + oy, 13, P.wood); p.line(13, 1 + oy, 13, 3 + oy, P.steelL);
   p.glow(13, 1 + oy, 2.4, P.hiSky, 0.5, 3); p.px(13, 0 + oy, P.white); p.star4(13, 0 + oy, 2, P.rimCool, P.glint);
+  p.shadeBottom(0.2, 12);   // R28 W3-A3: value-tier gap fix — had rimLight but no shadeBottom
   rimFinish(p);
 });
 
@@ -376,6 +523,7 @@ registerHeroBody('scout', (p, f, a) => {
   p.line(13, 4 + oy, 14, 8 + oy, c.cL); p.line(14, 8 + oy, 13, 12 + oy, c.cL);
   p.vline(4 + oy, 12 + oy, 12, withAlphaSafe(c.trim, 0.7)); p.vline(4 + oy, 12 + oy, 12, withAlpha(c.eye, 0.3));
   p.px(14, 8 + oy, P.glint);
+  p.shadeBottom(0.2, 12);   // R28 W3-A3: value-tier gap fix — had rimLight but no shadeBottom
   rimFinish(p);
 });
 
@@ -397,26 +545,75 @@ registerHeroBody('stormpriest', (p, f, a) => {
   p.vline(2 + oy, 15 + oy, 13, P.steel); p.glow(13, 2 + oy, 3, P.neon, 0.45, 4);
   p.line(13, 2 + oy, 12, 0 + oy, P.neonL); p.line(13, 2 + oy, 15, 1 + oy, P.neonL); p.line(13, 2 + oy, 14, 4 + oy, P.neon);
   p.px(13, 2 + oy, P.white); p.sparkle(14, 0 + oy, P.neonL, 1);
+  p.shadeBottom(0.2, 12);   // R28 W3-A3: value-tier gap fix — had rimLight but no shadeBottom
   rimFinish(p);
 });
 
 // ── VOID-MAGE — a low cowl with a glowing third-eye sigil, a tattered robe, and a
 //    floating dark orb cradled in one hand. Distinct from MAGE (tall wide-brim hat). ──
+// ── VOID-MAGE — R28 rebuild (ART-01). The old body was near-black on black; it is
+//    now a READABLE hooded humanoid — the robe is stepped up from the (very dark)
+//    art palette toward cloakL so it carries 4 tonal steps, a bright void CORE sits
+//    in the chest as the class symbol, and two 2 px tendrils curl out to the canvas
+//    edges. Third-eye sigil + 1 px eyes give the cowl a face. ──
 registerHeroBody('voidmage', (p, f, a) => {
   const c = pal(a); const oy = bob(f);
+  // the voidcaller palette bottoms out near ink — lift the mid/light steps so the
+  // silhouette separates from a dark biome floor (colour family unchanged).
+  const bodyD = mix(c.cD, c.cL, 0.3);
+  const body = mix(c.cloak, c.cL, 0.45);
+  const bodyL = mix(c.cloak, c.cL, 0.75);
+  const core = mix(c.eye, P.astralL, 0.3);
   groundShadow(p, oy);
-  for (let y = 8 + oy; y <= 16 + oy; y++) { const hw = 2 + (y - (8 + oy)) * 0.5; p.hline(8 - hw, 8 + hw, y, c.cD); }
-  for (let x = 4; x <= 12; x += 2) p.px(x, 16 + oy, c.cloak);       // tattered hem
-  p.gradV(5, 9 + oy, 6, 4, c.cL, c.cloak); p.rect(5, 10 + oy, 6, 3, c.cloak); p.px(8, 11 + oy, c.trim);
-  p.ellipse(8, 6 + oy, 3, 3, c.cD); p.ellipse(8, 6 + oy, 2.3, 2.2, P.ink2); p.px(6, 4 + oy, c.cL); // deep cowl
-  // glowing third-eye sigil
-  p.glow(8, 6 + oy, 1.8, c.eye, 0.55, 3); p.px(8, 6 + oy, c.eye); p.px(8, 6 + oy, P.glint);
-  p.px(8, 5 + oy, withAlphaSafe(c.cL, 0.8));
-  // floating void orb cupped in the right hand w/ an astral aura
-  p.glow(13, 10 + oy, 3.2, mix(c.eye, P.astral, 0.5), 0.5, 4);
-  p.ellipse(13, 10 + oy, 2, 2, c.cD); p.ellipse(13, 10 + oy, 1.3, 1.3, c.eye); p.px(13, 10 + oy, P.white);
-  p.rect(11, 11 + oy, 2, 2, c.cloak);                               // hand under the orb
-  p.ring(13, 10 + oy, 3, withAlphaSafe(c.eye, 0.6)); p.aura(13, 10 + oy, 3.4, P.astralL, f / 4, 2);
+
+  // ── robe: broad bell, tattered hem, 4 tonal steps ──
+  for (let y = 8 + oy; y <= 16 + oy; y++) {
+    const hw = Math.round(3.5 + (y - (8 + oy)) * 0.6);
+    p.hline(8 - hw, 7 + hw, y, bodyD);
+  }
+  for (let y = 9 + oy; y <= 15 + oy; y++) {
+    const hw = Math.round(2.5 + (y - (9 + oy)) * 0.5);
+    const t = (y - (9 + oy)) / 6;
+    p.hline(8 - hw, 7 + hw, y, mix(bodyL, body, t));
+  }
+  p.hline(1, 14, 16 + oy, c.cD);                                   // hem sinks into shadow
+  for (let x = 1; x <= 14; x += 3) p.px(x, 16 + oy, withAlpha(c.cL, 0.55)); // tattered tips
+  p.vline(10 + oy, 15 + oy, 4, bodyD); p.vline(10 + oy, 15 + oy, 11, bodyD); // fold gutters
+  p.vline(9 + oy, 14 + oy, 5, bodyL);                              // top-left lit fold
+
+  // ── shoulders / sleeves ──
+  p.rect(1, 8 + oy, 4, 4, bodyD); p.rect(11, 8 + oy, 4, 4, bodyD);
+  p.hline(1, 4, 8 + oy, bodyL); p.hline(11, 14, 8 + oy, body);
+  p.hline(1, 4, 11 + oy, c.cD); p.hline(11, 14, 11 + oy, c.cD);
+
+  // ── void CORE cupped in both hands — the class symbol, inside the silhouette ──
+  p.rect(4, 11 + oy, 2, 2, bodyD); p.rect(10, 11 + oy, 2, 2, bodyD);   // cupped hands
+  p.px(4, 11 + oy, bodyL); p.px(11, 12 + oy, c.cD);
+  p.glow(8, 11 + oy, 3, core, 0.45, 4);
+  p.ellipse(8, 11 + oy, 1.9, 1.9, P.ink2);                              // dark socket ring
+  p.rect(7, 11 + oy, 2, 2, c.trim);
+  p.px(7, 11 + oy, P.white); p.px(8, 12 + oy, mix(c.trim, P.ink2, 0.4));
+  p.ring(8, 11 + oy, 3, withAlphaSafe(core, 0.45));
+
+  // ── two void tendrils curling out to the canvas edges (2 px, short segments) ──
+  const sw = (f === 1 || f === 3) ? 1 : 0;
+  p.rect(0, 12 + sw + oy, 2, 2, c.cD); p.px(2, 13 + sw + oy, withAlpha(core, 0.7));
+  p.rect(14, 12 - sw + oy, 2, 2, c.cD); p.px(13, 13 - sw + oy, withAlpha(core, 0.7));
+  p.px(0, 11 + sw + oy, withAlpha(c.cL, 0.6)); p.px(15, 11 - sw + oy, withAlpha(c.cL, 0.6));
+
+  // ── deep cowl + 2-step face cavity, third-eye sigil above 1 px eyes ──
+  p.ellipse(8, 4 + oy, 3.8, 3.8, bodyD);
+  p.ellipse(8, 3 + oy, 3, 2.4, body);
+  p.px(5, 1 + oy, bodyL); p.px(6, 0 + oy, mix(bodyL, P.rim, 0.35));   // cowl crest sheen
+  p.rect(5, 3 + oy, 6, 4, P.ink2);                                    // cavity — dark step
+  p.hline(5, 10, 6 + oy, mix(P.ink2, bodyD, 0.6));                    // cavity — lit step
+  p.hline(5, 10, 2 + oy, mix(c.cD, P.ink, 0.4));                      // brow shadow
+  p.glow(8, 2 + oy, 2, c.eye, 0.6, 3); p.px(8, 2 + oy, c.eye); p.px(8, 2 + oy, P.glint); // third eye
+  glowEye(p, 6, 4 + oy, c.eye); glowEye(p, 10, 4 + oy, c.eye);
+  p.hline(4, 11, 7 + oy, mix(c.cD, P.ink, 0.45));                     // collar shadow
+  p.aura(8, 3 + oy, 5, P.astralL, f / 4, 1);
+
+  p.shadeBottom(0.2, 12);
   rimFinish(p);
 });
 

@@ -189,11 +189,16 @@ export function drawSlime(p, frame, body = P.green, bodyD = P.greenD, bodyL = P.
   p.px(8, Math.round(cy + 1), P.ink);
   p.px(7, Math.round(cy + 1.5), P.ink); p.px(9, Math.round(cy + 1.5), P.ink);
 }
-defineAnim('slime', 16, 14, 4, (p, f) => {
+defineAnim('slime', 14, 14, 4, (p, f) => {
+  // R28 W3-A1: recentred into the swarm-tier 14x14 canvas (was 16x14) via a
+  // uniform -1px x-shift; same drawSlime concept, no coordinate redesign.
+  p.ctx.save(); p.ctx.translate(-1, 0);
   drawSlime(p, f);
+  p.ctx.restore();
   p.rimLight(P.rimCool, 0.45);
+  p.shadeBottom(0.2, 9);
   p.outline(P.ink);
-}, { anchor: [8, 13], fps: 6 });
+}, { anchor: [7, 13], fps: 6 });
 
 // ---------------------------------------------------------------------------
 // ENEMY: BAT — flapping, 16x12, 2 frames. Glowing eyes + membrane sheen.
@@ -230,11 +235,15 @@ export function drawBat(p, frame, body = P.purple, bodyD = P.purpleD, eye = P.em
     p.px(2, 8, lighten(body, 0.3)); p.px(13, 8, lighten(body, 0.3));
   }
 }
-defineAnim('bat', 16, 12, 2, (p, f) => {
+defineAnim('bat', 14, 12, 2, (p, f) => {
+  // R28 W3-A1: swarm-tier 14x12 canvas (was 16x12), -1px x-shift to recentre.
+  p.ctx.save(); p.ctx.translate(-1, 0);
   drawBat(p, f);
+  p.ctx.restore();
   p.rimLight(P.rimCool, 0.4);
+  p.shadeBottom(0.2, 8);
   p.outline(P.ink);
-}, { anchor: [8, 8], fps: 8 });
+}, { anchor: [7, 8], fps: 8 });
 
 // ---------------------------------------------------------------------------
 // PROJECTILES — glowing energy motes with white-hot cores + sparks.
@@ -496,30 +505,37 @@ defineAnim('torch', 12, 18, 3, (p, f) => {
 export function drawWisp(p, frame, body = P.purple, bodyD = P.purpleD, core = P.manaL) {
   const yb = [0, -1, 0][frame % 3];
   // ethereal outer aura
-  p.glow(8, 6 + yb, 6, body, 0.3, 4);
+  p.glow(8, 6 + yb, 4, body, 0.3, 4);
   // wispy tail tatters (graded so they fade downward)
   for (let i = 0; i < 3; i++) {
     const tx = 4 + i * 4;
-    p.vline(10 + yb, 13 + (i % 2) + yb, tx, withAlpha(bodyD, 0.85));
-    p.px(tx, 13 + (i % 2) + yb, withAlpha(body, 0.5));
+    p.vline(9 + yb, 10 + (i % 2) + yb, tx, withAlpha(bodyD, 0.85));
+    p.px(tx, 10 + (i % 2) + yb, withAlpha(body, 0.5));
   }
-  // ghostly body — soft dome with crown light
-  p.ellipse(8, 7 + yb, 4, 5, bodyD);
-  p.ellipse(8, 6 + yb, 3, 4, body);
-  p.ellipse(7, 4 + yb, 1.5, 1.5, lighten(body, 0.3));
+  // ghostly body — soft dome with crown light (R28 W3-A1: ry 5->4 to hit the
+  // swarm-tier visible-height band alongside bat/slime/evt_bomb)
+  p.ellipse(8, 7 + yb, 6, 4, bodyD);
+  p.ellipse(8, 6 + yb, 5, 3.2, body);
+  p.ellipse(7, 5 + yb, 1.8, 1.3, lighten(body, 0.3));
   // glowing soul core — radiant halo + bright core + white center
   p.glow(8, 7 + yb, 3, core, 0.55, 4);
-  p.ellipse(8, 7 + yb, 2, 2, core);
+  p.ellipse(8, 7 + yb, 2.4, 2, core);
   p.px(8, 7 + yb, P.white);
   p.px(7, 6 + yb, lighten(core, 0.3));   // core catch-light
 }
-defineAnim('wisp', 16, 16, 3, (p, f) => {
+defineAnim('wisp', 14, 14, 3, (p, f) => {
+  // R28 W3-A1: swarm-tier 14x14 canvas (was 16x16), -1/-1px shift to recentre;
+  // also missing rimLight/shadeBottom (value-tier gap) added.
+  p.ctx.save(); p.ctx.translate(-1, -1);
   drawWisp(p, f);
+  p.ctx.restore();
   const yb = [0, -1, 0][f % 3];
-  p.aura(8, 7 + yb, 5, P.manaL, f / 3, 2);   // pulsing soul ring
+  p.aura(7, 6 + yb, 3, P.manaL, f / 3, 2);   // pulsing soul ring
+  p.rimLight(P.rimCool, 0.4);
+  p.shadeBottom(0.2, 9);
   p.outline(P.ink);
-  if (f === 1) p.star4(12, 4, 1, P.manaL, P.white);
-}, { anchor: [8, 12], fps: 5 });
+  if (f === 1) p.star4(11, 3, 1, P.manaL, P.white);
+}, { anchor: [7, 11], fps: 5 });
 
 // ENEMY: BRUTE — cracked stone golem boss, charger. 18x18. Molten-eye drama.
 export function drawBrute(p, frame, stone = P.gray2, stoneD = P.gray1, eye = P.emberL) {
@@ -559,6 +575,7 @@ export function drawBrute(p, frame, stone = P.gray2, stoneD = P.gray1, eye = P.e
 defineAnim('brute', 18, 18, 2, (p, f) => {
   p.softShadow(9, 17, 7, 1.4, 0.32);
   drawBrute(p, f);
+  p.shadeBottom(0.2, 12);
   p.rimLight(P.rim, 0.45);
   p.outline(P.ink);
 }, { anchor: [9, 17], fps: 3 });

@@ -118,66 +118,99 @@ Items.register({
 // ICONS (16x16 panel; outline() called last via defineIcon convention)
 // ===========================================================================
 
-// reusable flask body (matches core content-icon style)
-function icFlask(p, liquid) {
-  p.rect(6, 2, 4, 2, P.gray4);     // cork
-  p.rect(5, 3, 6, 1, P.gray3);     // neck rim
-  p.ellipse(8, 9, 3.4, 4.4, darken(liquid, 0.28));
-  p.ellipse(8, 9, 2.6, 3.4, liquid);
-  p.px(6, 7, lighten(liquid, 0.4));                       // glint
-  p.ellipse(8, 5.5, 2.2, 1, lighten(liquid, 0.2));        // surface
-}
+// R28 B-rework — ART_SPEC 第 5 節鐵律：本檔原有三個共用 icFlask 的球肚瓶（嗜血／
+// 疾影／劇毒）＋一面與 item_g_ward_stone 撞形的盾。改成各自的容器：獠牙形吊瓶／
+// 寬口藥膏罐／長頸球底瓶／彈夾裡的三發晶質彈／裹布火焰瓶／束口圓錢袋。
+// kira 依 def tier：t1 的 quicksilver / toxic_flask / coin_cache 不給。
 
-// 1) bloodthirst — red flask with a fang
+// 1) bloodthirst 嗜血藥劑 — 倒獠牙形的吊瓶（上寬下收成尖），瓶尖滴血
 defineIcon('item_ic_bloodthirst_vial', P.blood, (p) => {
-  icFlask(p, P.red);
-  p.px(7, 6, P.white); p.line(7, 6, 7, 9, P.white); // fang
-  p.px(9, 6, P.redL);
-});
-
-// 2) warding salve — steel shield crest over a jar
-defineIcon('item_ic_warding_salve', P.steelD, (p) => {
-  for (let y = 3; y <= 12; y++) {
-    const t = (y - 3) / 9;
-    const wd = 4.2 * (1 - t * 0.55) * (y > 9 ? (13 - y) / 3.5 : 1);
-    p.hline(8 - wd, 7 + wd, y, t < 0.45 ? P.steel : darken(P.steel, 0.18));
+  p.glow(8, 7, 5, P.red, 0.34, 4);
+  p.rect(4, 1, 8, 2, P.gray4); p.hline(4, 11, 1, P.steelL); p.px(4, 1, P.glint); // 金屬瓶蓋
+  p.hline(4, 11, 3, darken(P.gray1, 0.3));
+  for (let y = 4; y <= 13; y++) {                          // 獠牙形瓶身（上寬 → 下收成尖）
+    const w = 4.0 * (1 - (y - 4) / 10.5);
+    p.hline(8 - w, 7 + w, y, P.bone);                      // 亮色玻璃殼（與暗紅底板拉開明度）
+    p.hline(8 - w + 1, 6 + w, y, y < 6 ? P.redL : P.red);  // 藥液＋亮液面
+    p.px(Math.round(8 - w), y, P.white);                   // 左反光柱
+    p.px(Math.round(6 + w), y, darken(P.redD, 0.35));      // 右暗邊
   }
-  p.hline(5, 10, 3, P.steelL);
-  p.vline(4, 9, 8, lighten(P.steel, 0.2));
-  p.line(6, 6, 8, 9, P.iceD); p.line(10, 6, 8, 9, P.iceD); // chevron
+  p.px(8, 14, P.redL); p.px(8, 15, P.laser);               // 瓶尖滴血
+  p.px(6, 5, P.white);
 });
 
-// 3) quicksilver — green flask with speed lines
+// 2) warding salve 鐵衛護膏 — 寬口矮藥膏罐：外突的旋蓋＋罐身，蓋上一抹挑起的護膏
+defineIcon('item_ic_warding_salve', P.steelD, (p) => {
+  p.softShadow(8, 13, 5, 1.1, 0.32);
+  p.rect(2, 4, 12, 3, P.gray3); p.hline(2, 13, 4, P.steelL);           // 旋蓋（比罐身寬）
+  p.hline(2, 13, 6, darken(P.gray1, 0.3));
+  for (let x = 3; x <= 12; x += 2) p.vline(5, 6, x, darken(P.gray2, 0.25)); // 蓋緣滾花
+  p.gradV(3, 7, 10, 6, lighten(P.bone, 0.1), darken(P.bone, 0.45));    // 罐身
+  p.hline(3, 12, 7, lighten(P.bone, 0.3)); p.hline(3, 12, 12, darken(P.bone, 0.55));
+  p.vline(8, 11, 3, lighten(P.bone, 0.2)); p.vline(8, 11, 12, darken(P.bone, 0.45));
+  p.rect(5, 9, 6, 2, P.steel); p.px(5, 9, P.steelL);                   // 標籤鐵牌
+  p.ellipse(11, 3, 2, 1.4, P.ice); p.px(10, 2, P.white);               // 挑起的一抹護膏
+  p.px(4, 5, P.glint);
+});
+
+// 3) quicksilver 疾影靈藥 — 長頸球底瓶（細長頸＋正圓底球），左側拖三道速度線
 defineIcon('item_ic_quicksilver_tonic', P.greenD, (p) => {
-  icFlask(p, P.toxic);
-  p.hline(1, 4, 5, P.green); p.hline(1, 5, 8, P.toxic); p.hline(1, 4, 11, P.green); // trail
+  p.glow(9, 10, 4, P.toxic, 0.3, 3);
+  p.rect(8, 1, 3, 1, P.woodD); p.px(8, 1, P.woodL);                    // 小塞
+  p.rect(8, 2, 3, 5, P.gray4); p.vline(2, 6, 8, P.steelL); p.vline(2, 6, 10, P.gray1); // 銀質細長頸
+  p.ellipse(9, 11, 4.2, 3.8, P.gray1);                                 // 水銀球底（銀殼，與綠底板拉開明度）
+  p.ellipse(9, 11, 3.4, 3.0, P.steelL);
+  p.ellipse(8.4, 10.4, 2.2, 1.8, P.toxic);                             // 內部靈藥
+  p.ellipse(8.2, 10.2, 1.2, 1.0, lighten(P.toxic, 0.4));
+  p.px(7, 9, P.white); p.px(11, 13, darken(P.gray1, 0.3));
+  p.hline(1, 5, 6, withAlpha(P.hiSky, 0.85));                          // 速度線
+  p.hline(0, 4, 9, withAlpha(P.white, 0.8)); p.hline(1, 4, 12, withAlpha(P.hiSky, 0.65));
 });
 
-// 4) splinter rounds — a clutch of crystalline darts fanning out
+// 4) splinter rounds 裂片彈藥 — 三發晶質彈直立在一個彈夾裡（非扇形飛鏢）
 defineIcon('item_ic_splinter_rounds', P.shardD, (p) => {
-  p.line(3, 13, 8, 4, P.shard);
-  p.line(8, 13, 8, 3, P.shardL);
-  p.line(13, 13, 8, 4, P.shard);
-  p.px(8, 3, P.white); p.px(3, 13, P.shardL); p.px(13, 13, P.shardL);
-  p.px(6, 8, lighten(P.shardL, 0.2)); p.px(10, 8, lighten(P.shardL, 0.2));
+  p.glow(8, 6, 5, P.shard, 0.3, 4);
+  for (let i = 0; i < 3; i++) {                                        // 三發彈：錐頭＋黃銅彈殼
+    const x = 4 + i * 4;
+    for (let y = 2; y <= 5; y++) { const w = (y - 1) * 0.5; p.hline(x - w, x + w, y, y < 4 ? P.shardL : P.shard); }
+    p.px(x, 2, P.white);
+    p.rect(x - 1, 6, 3, 4, P.goldD); p.rect(x - 1, 6, 3, 1, P.goldL);  // 彈殼
+    p.vline(7, 9, x - 1, P.gold); p.px(x + 1, 9, darken(P.goldD, 0.3));
+  }
+  p.rect(1, 10, 14, 3, P.iron); p.hline(1, 14, 10, P.steelL);          // 彈夾
+  p.hline(1, 14, 12, darken(P.iron, 0.45)); p.px(1, 10, P.glint);
+  for (let x = 3; x <= 12; x += 3) p.px(x, 11, darken(P.iron, 0.3));   // 夾口卡榫
 });
 
-// 5) toxic flask — bulbous poison bottle with a vapour wisp
+// 5) toxic flask 劇毒燒瓶 — 投擲用的裹布火焰瓶：瓶口塞一團燃燒的布條
 defineIcon('item_ic_toxic_flask', P.poisonD, (p) => {
-  p.rect(7, 2, 2, 2, P.gray4);                 // cork
-  p.ellipse(8, 10, 4, 4, darken(P.poison, 0.3));
-  p.ellipse(8, 10, 3, 3, P.poison);
-  p.px(6, 8, P.toxic); p.px(9, 11, P.toxic);   // bubbles
-  p.line(8, 5, 7, 2, P.toxic); p.line(8, 5, 9, 1, P.toxic); // vapour
+  p.glow(11, 1, 4, P.ember, 0.6, 3);
+  p.line(9, 4, 11, 2, P.bone); p.line(10, 4, 12, 2, darken(P.bone, 0.35)); // 塞在瓶口的布條
+  p.px(12, 0, P.emberL); p.px(11, 1, P.ember); p.px(13, 1, P.holyL);   // 燃燒的布頭（暖色，拉開與綠底的對比）
+  p.rect(7, 3, 3, 3, P.gray2); p.vline(3, 5, 7, P.gray4);              // 瓶頸
+  for (let y = 6; y <= 13; y++) {                                      // 矮胖瓶身
+    const t = (y - 6) / 7, w = y >= 12 ? 4.6 - (y - 11) * 1.5 : 2.6 + t * 3.0;
+    p.hline(8 - w, 7 + w, y, darken(P.poison, 0.55));                  // 玻璃暗邊
+    p.hline(8 - w + 1, 6 + w, y, P.green);
+    p.hline(8 - w + 2, 5 + w, y, y > 8 ? P.toxic : P.green);           // 亮色藥液核
+    p.px(Math.round(8 - w) + 1, y, withAlpha(P.white, 0.5));
+  }
+  p.px(6, 9, lighten(P.toxic, 0.4)); p.px(10, 11, P.toxic); p.px(5, 8, P.white); // 氣泡＋反光
 });
 
-// 6) coin cache — a leather pouch bulging with a gold coin
+// 6) coin cache 賞金錢袋 — 束口的圓鼓錢袋，繩結打成蝴蝶結，前面壓著一枚金幣
 defineIcon('item_ic_coin_cache', P.woodD, (p) => {
-  p.ellipse(8, 10, 5, 4, P.leather);
-  p.ellipse(8, 10, 4, 3, darken(P.leather, 0.18));
-  p.rect(6, 4, 4, 2, darken(P.leather, 0.3));  // cinched neck
-  p.hline(6, 9, 5, P.woodL);
-  p.ellipse(8, 10, 2, 2, P.gold); p.px(8, 10, P.goldL); // coin
-  p.px(7, 9, P.white);
+  p.softShadow(8, 14, 5, 1.2, 0.34);
+  p.line(5, 3, 7, 4, P.bone); p.line(11, 3, 9, 4, P.bone); p.px(5, 3, P.white); // 蝴蝶結
+  p.rect(6, 4, 4, 2, darken(P.leather, 0.45)); p.hline(6, 9, 4, P.woodL);       // 束口
+  for (let y = 6; y <= 13; y++) {                                      // 圓鼓袋身
+    const t = (y - 6) / 7;
+    const w = y <= 10 ? 2.6 + t * 5.2 : 5.4 - (y - 10) * 1.2;
+    p.hline(8 - w, 7 + w, y, mix(P.leather, darken(P.woodD, 0.4), t));
+    p.px(Math.round(8 - w), y, lighten(P.woodL, 0.3));
+    p.px(Math.round(7 + w), y, darken(P.woodD, 0.5));
+  }
+  p.ellipse(8, 10, 2.4, 2.4, P.goldD); p.ellipse(8, 10, 1.7, 1.7, P.gold);      // 壓在前面的金幣
+  p.px(7, 9, P.goldL); p.px(7, 8, P.white); p.px(9, 11, darken(P.goldD, 0.3));
 });
 

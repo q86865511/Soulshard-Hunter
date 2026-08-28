@@ -13,7 +13,7 @@ import { BALANCE } from '../balance.js';
 import { applyStatus } from '../status.js';
 import { addShake } from '../../engine/renderer.js';
 import { dist, clamp, TAU } from '../../engine/math.js';
-import { P, withAlpha } from '../../engine/palette.js';
+import { P } from '../../engine/palette.js';
 import { Sfx } from '../../engine/audio.js';
 
 // which bosses know which moves (finals get 2 thematic moves; the 3 dedicated
@@ -35,6 +35,14 @@ const WIRE = {
   g_frostmonarch: ['wall_cage'],
 };
 
+// R28/W1-B (ART_SPEC 3) — boss telegraphs are the ONLY owner of the 紅橙 beam family. The
+// colour is the ownership signature on the `bm` channel (no protocol field), so these are
+// passed as the raw family hex: the render side fades them by beam life and picks the 5 px
+// boss weight from the colour. Per-call withAlpha() is gone — a pre-alpha'd rgba() string
+// would not match the family table and the beam would silently demote to player weight.
+const BEAM_BOSS_A = (BALANCE.ARTV && BALANCE.ARTV.BEAM_FAM_BOSS && BALANCE.ARTV.BEAM_FAM_BOSS[0]) || '#ff5a3c';
+const BEAM_BOSS_B = (BALANCE.ARTV && BALANCE.ARTV.BEAM_FAM_BOSS && BALANCE.ARTV.BEAM_FAM_BOSS[1]) || '#ff8a50';
+
 const nearest = (world, x, y) => (world.nearestPlayer ? world.nearestPlayer(x, y) : world.player);
 const eachPlayer = (world) => world.players || [world.player];
 
@@ -55,14 +63,14 @@ export const BOSS_MOVES = {
     start(e, world) {
       const p = nearest(world, e.x, e.y);
       if (!p || p.dead) return null;
-      world.particles.text(e.x, e.y - e.radius * e.scale - 10, '蓄力跳躍！', { color: P.emberL, size: 12, weight: '800' });
+      world.addMoveLabel(e, '蓄力跳躍！', P.emberL);   // R28/W5-fix: sprite-anchor offset + dark pill (ART_SPEC 9)
       return { ph: 'crouch', t: 0.5, tel: 0 };
     },
     tick(e, world, dt, st) {
       st.t -= dt;
       if (st.ph === 'crouch') {
         e.vx = e.vy = 0;
-        if ((st.tel -= dt) <= 0) { st.tel = 0.07; world.particles.ring(e.x, e.y, e.tint || P.emberL, 6, 40); }
+        if ((st.tel -= dt) <= 0) { st.tel = 0.07; world.particles.ring(e.x, e.y, e.tint || P.emberL, 6, 40, { warn: true }); }
         if (st.t <= 0) {
           const p = nearest(world, e.x, e.y);
           if (!p || p.dead) return true;
@@ -78,7 +86,7 @@ export const BOSS_MOVES = {
       e.x = st.sx + (st.tx - st.sx) * k; e.y = st.sy + (st.ty - st.sy) * k;
       e.mvLift = Math.sin(Math.PI * k) * 46;
       e.vx = e.vy = 0;
-      if ((st.tel -= dt) <= 0) { st.tel = 0.09; beamRing(world, st.tx, st.ty, BALANCE.BOSSMOVE_SLAM_RADIUS, withAlpha(P.redL, 0.5)); }
+      if ((st.tel -= dt) <= 0) { st.tel = 0.09; beamRing(world, st.tx, st.ty, BALANCE.BOSSMOVE_SLAM_RADIUS, BEAM_BOSS_A); }
       if (st.t <= 0) {
         e.mvLift = 0;
         const R = BALANCE.BOSSMOVE_SLAM_RADIUS, dmg = e.damage * BALANCE.BOSSMOVE_SLAM_DMG_MULT;
@@ -101,14 +109,15 @@ export const BOSS_MOVES = {
     start(e, world) {
       const p = nearest(world, e.x, e.y);
       if (!p || p.dead) return null;
-      world.particles.text(e.x, e.y - e.radius * e.scale - 10, '魂柱囚籠！', { color: P.purpleL, size: 12, weight: '800' });
+      world.addMoveLabel(e, '魂柱囚籠！', P.purpleL);   // R28/W5-fix: sprite-anchor offset + dark pill (ART_SPEC 9)
       return { ph: 'cast', t: 0.8, tel: 0, px: p.x, py: p.y };
     },
     tick(e, world, dt, st) {
       st.t -= dt; e.vx = e.vy = 0;
       const p = nearest(world, e.x, e.y);
       if (p && !p.dead) { st.px = p.x; st.py = p.y; }       // track until the slam-down
-      if ((st.tel -= dt) <= 0) { st.tel = 0.09; beamRing(world, st.px, st.py, BALANCE.BOSSMOVE_PILLAR_RING, withAlpha(P.purpleL, 0.45)); }
+      // was 紫 — the cage ring is a boss telegraph, so it joins the 紅橙 family like the rest.
+      if ((st.tel -= dt) <= 0) { st.tel = 0.09; beamRing(world, st.px, st.py, BALANCE.BOSSMOVE_PILLAR_RING, BEAM_BOSS_B); }
       if (st.t > 0) return false;
       const N = BALANCE.BOSSMOVE_PILLAR_COUNT, R = BALANCE.BOSSMOVE_PILLAR_RING;
       const gap = (Math.random() * N) | 0;                   // one slot stays open — find it or break one
@@ -131,7 +140,7 @@ export const BOSS_MOVES = {
     start(e, world) {
       const p = nearest(world, e.x, e.y);
       if (!p || p.dead) return null;
-      world.particles.text(e.x, e.y - e.radius * e.scale - 10, '連續衝撞！', { color: P.redL, size: 12, weight: '800' });
+      world.addMoveLabel(e, '連續衝撞！', P.redL);   // R28/W5-fix: sprite-anchor offset + dark pill (ART_SPEC 9)
       return { ph: 'tel', t: 0.35, n: 3, tel: 0 };
     },
     tick(e, world, dt, st) {
@@ -142,7 +151,7 @@ export const BOSS_MOVES = {
         if (st.a !== undefined && (st.tel -= dt) <= 0) {
           st.tel = 0.08;
           const L = BALANCE.BOSSMOVE_CHARGE_SPEED * BALANCE.BOSSMOVE_CHARGE_TIME;
-          world.addBeam(e.x, e.y, e.x + Math.cos(st.a) * L, e.y + Math.sin(st.a) * L, withAlpha(P.redL, 0.5));
+          world.addBeam(e.x, e.y, e.x + Math.cos(st.a) * L, e.y + Math.sin(st.a) * L, BEAM_BOSS_A);
         }
         if (st.t <= 0) {
           if (st.a === undefined) return true;
@@ -182,7 +191,7 @@ export const BOSS_MOVES = {
       const n = BALANCE.BOSSMOVE_SHOCK_RAYS + e.phase, off = Math.random() * TAU;
       const rays = [];
       for (let i = 0; i < n; i++) rays.push({ a: off + (i / n) * TAU, hitSet: new Set() });
-      world.particles.text(e.x, e.y - e.radius * e.scale - 10, '地裂衝擊！', { color: P.emberL, size: 12, weight: '800' });
+      world.addMoveLabel(e, '地裂衝擊！', P.emberL);   // R28/W5-fix: sprite-anchor offset + dark pill (ART_SPEC 9)
       return { ph: 'cast', t: 0.6, rays, d: 14, tel: 0 };
     },
     tick(e, world, dt, st) {
@@ -191,7 +200,7 @@ export const BOSS_MOVES = {
         st.t -= dt;
         if ((st.tel -= dt) <= 0) {
           st.tel = 0.08;
-          for (const r of st.rays) world.addBeam(e.x + Math.cos(r.a) * 14, e.y + Math.sin(r.a) * 14, e.x + Math.cos(r.a) * 60, e.y + Math.sin(r.a) * 60, withAlpha(P.emberL, 0.4));
+          for (const r of st.rays) world.addBeam(e.x + Math.cos(r.a) * 14, e.y + Math.sin(r.a) * 14, e.x + Math.cos(r.a) * 60, e.y + Math.sin(r.a) * 60, BEAM_BOSS_B);
         }
         if (st.t <= 0) { st.ph = 'wave'; Sfx.play('boss'); addShake(5); }
         return false;
@@ -200,8 +209,8 @@ export const BOSS_MOVES = {
       const dmg = e.damage * BALANCE.BOSSMOVE_SHOCK_DMG_MULT;
       for (const r of st.rays) {
         const x = e.x + Math.cos(r.a) * st.d, y = e.y + Math.sin(r.a) * st.d;
-        world.addBeam(e.x + Math.cos(r.a) * d0, e.y + Math.sin(r.a) * d0, x, y, withAlpha(P.emberL, 0.6));
-        world.particles.burst(x, y, 2, { color: [P.emberL, P.ember], speed: 30, size: 2, life: 0.25, glow: true });
+        world.addBeam(e.x + Math.cos(r.a) * d0, e.y + Math.sin(r.a) * d0, x, y, BEAM_BOSS_A);
+        world.particles.burst(x, y, 2, { color: [P.emberL, P.ember], speed: 30, size: 2, life: 0.25, glow: true, warn: true });   // the shockwave front IS the damage — not decoration
         for (const p of eachPlayer(world)) {
           if (!p || p.dead || r.hitSet.has(p)) continue;     // once per ray per player
           if (dist(p.x, p.y, x, y) < 15 + p.radius) { p.takeDamage(dmg, r.a, world, 'boss:shock_lines'); r.hitSet.add(p); }

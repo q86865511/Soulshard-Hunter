@@ -1,0 +1,10 @@
+crypt      	L=34cbb51f	A=36c412f4	ALL=39e39534	decor=362	decals=627
+cavern     	L=c1813b56	A=670bba52	ALL=c034da4f	decor=331	decals=641
+frost      	L=567d8313	A=a1591dd7	ALL=6c444369	decor=331	decals=641
+inferno    	L=d98860c2	A=471e0395	ALL=c3b33b34	decor=331	decals=641
+void       	L=369cfe5d	A=958dd65d	ALL=2a547933	decor=331	decals=641
+verdant    	L=93f24975	A=2badeee1	ALL=94fa1139	decor=331	decals=641
+desert     	L=8545fd8f	A=989a4944	ALL=2d5d2112	decor=362	decals=627
+swamp      	L=34fd19b9	A=ee235bec	ALL=b261ee74	decor=331	decals=641
+abyss      	L=b96e7009	A=201f7e5f	ALL=b6148955	decor=331	decals=641
+celestial  	L=7f60137b	A=38c3c88f	ALL=4c3751a3	decor=362	decals=627

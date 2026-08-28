@@ -62,6 +62,9 @@ defineAnim('g_spider', 16, 14, 4, (p, f) => {
   p.px(7, 7 + lift, withAlpha(P.toxic, 0.6)); // 毒滴
   p.mirrorX();
   p.rimLight(P.rimCool, 0.45);
+  // R28 W3-A2: value-tier gap fix — canvas already standard-tier (16x14), had
+  // rimLight but no shadeBottom.
+  p.shadeBottom(0.2, 10);
   p.outline(P.ink);
 }, { anchor: [8, 13], fps: 7 });
 
@@ -107,56 +110,66 @@ defineAnim('g_wolf', 18, 16, 4, (p, f) => {
   p.px(16, 9, P.white);
   p.px(15, 10, withAlpha(P.bone, 0.7));
   p.rimLight(P.rim, 0.5);
+  // R28 W3-A2: value-tier gap fix — canvas already large-tier (18x16), missing shadeBottom.
+  p.shadeBottom(0.2, 11);
   p.outline(P.ink);
 }, { anchor: [9, 15], fps: 8 });
 
-// --- 沙蠍 (tier2, shooter) 18x14 ---
-defineAnim('g_scorpion', 18, 14, 4, (p, f) => {
+// --- 沙蠍 (tier2, shooter) 18x16 ---
+defineAnim('g_scorpion', 18, 16, 4, (p, f) => {
+  // R28 W3-A2: large-tier 18x16 canvas (was 18x14); +1px y-shift to recentre.
+  // Shell/claws/legs thickened to hold >=55% fill on the taller canvas.
+  p.ctx.save(); p.ctx.translate(0, 1);
   const sh = P.bronze, shD = P.woodD, shL = P.goldL, shLL = lighten(P.goldL, 0.18);
   const sting = [0, -1, -2, -1][f % 4]; // 尾巴上下擺
   const charge = (sting <= -2); // 蓄毒幀
   // 接地陰影
   p.softShadow(8, 13, 5.5, 1.2, 0.3);
-  // 腳 (左右各3) — 關節點
+  // 腳 (左右各3，加粗) — 關節點
   for (let i = 0; i < 3; i++) {
     const lx = 6 + i * 2;
-    p.line(lx, 9, lx - 3, 12, shD);
-    p.line(18 - lx, 9, 18 - lx + 3, 12, shD);
+    p.line(lx, 9, lx - 3, 12, shD); p.line(lx, 10, lx - 3, 13, shD);
+    p.line(18 - lx, 9, 18 - lx + 3, 12, shD); p.line(18 - lx, 10, 18 - lx + 3, 13, shD);
     p.px(lx - 3, 12, P.ink); p.px(18 - lx + 3, 12, P.ink);
   }
-  // 身軀分節 — 三階甲殼 + 鏡面
-  p.ellipse(8, 8, 4, 2.6, shD);
-  p.ellipse(8, 7.5, 3.2, 2, sh);
-  p.hline(5, 11, 6, shL);
+  // 身軀分節 — 三階甲殼 + 鏡面 (加大)
+  p.ellipse(8, 8, 4.6, 3, shD);
+  p.ellipse(8, 7.5, 3.7, 2.3, sh);
+  p.hline(4, 12, 6, shL);
   p.px(6, 6, shLL); p.px(9, 6, withAlpha(shL, 0.7)); // 殼面高光
-  // 頭
-  p.ellipse(4, 8, 2, 1.8, sh);
+  // 頭 (加大)
+  p.ellipse(4, 8, 2.4, 2.1, sh);
   // 眼 (發光紅)
   p.glow(3, 7, 1.2, P.ember, 0.45, 3);
   p.px(3, 7, P.ink); p.px(4, 7, P.red);
   p.px(3, 7, withAlpha(P.emberL, 0.9));
-  // 大螯 (前方左右)
-  p.ellipse(2, 6, 1.6, 1.4, shD); p.line(1, 5, 0, 4, sh); p.px(1, 5, shL);
-  p.ellipse(2, 10, 1.6, 1.4, shD); p.line(1, 11, 0, 12, sh); p.px(1, 11, shL);
-  // 尾巴 (向上彎曲，分節)
-  p.line(11, 7, 14, 6 + sting, shD);
-  p.ellipse(13, 6 + sting, 1.4, 1.4, sh);
+  // 大螯 (前方左右，加大)
+  p.ellipse(2, 6, 2, 1.7, shD); p.line(1, 5, 0, 4, sh); p.px(1, 5, shL);
+  p.ellipse(2, 10, 2, 1.7, shD); p.line(1, 11, 0, 12, sh); p.px(1, 11, shL);
+  // 尾巴 (向上彎曲，分節，加粗)
+  p.line(11, 7, 14, 6 + sting, shD); p.line(11, 8, 14, 7 + sting, shD);
+  p.ellipse(13, 6 + sting, 1.7, 1.7, sh);
   p.line(14, 6 + sting, 16, 3 + sting, shD);
-  p.ellipse(15, 4 + sting, 1.3, 1.3, sh);
+  p.ellipse(15, 4 + sting, 1.5, 1.5, sh);
   p.px(15, 3 + sting, shL); // 尾節高光
   // 毒針 + 毒液光 (蓄毒幀更亮)
   p.glow(16, 2 + sting, charge ? 2.4 : 1.6, P.toxic, charge ? 0.6 : 0.4, 3);
   p.px(16, 2 + sting, P.poison);
   p.px(16, 3 + sting, P.toxic);
-  p.ellipse(16, 2 + sting, 1, 1, P.poison);
+  p.ellipse(16, 2 + sting, 1.2, 1.2, P.poison);
   p.px(16, 2 + sting, P.white);
   if (charge) { p.sparkle(16, 2 + sting, withAlpha(P.toxic, 0.7), 1); }
+  p.ctx.restore();
   p.rimLight(P.rim, 0.45);
+  p.shadeBottom(0.2, 11);
   p.outline(P.ink);
-}, { anchor: [9, 13], fps: 6 });
+}, { anchor: [9, 14], fps: 6 });
 
-// --- 劇毒蛾 (tier1, flyer) 重用 drawBat 改毒綠 16x12 ---
-defineAnim('g_venommoth', 16, 12, 2, (p, f) => {
+// --- 劇毒蛾 (tier1, flyer) 重用 drawBat 改毒綠 14x12 (swarm 級距) ---
+defineAnim('g_venommoth', 14, 12, 2, (p, f) => {
+  // R28 W3-A2: swarm-tier 14x12 canvas (was 16x12, matches core.js's 'bat' base
+  // after W3-A1's shrink); -1px x-shift to recentre.
+  p.ctx.save(); p.ctx.translate(-1, 0);
   drawBat(p, f, P.poison, P.poisonD, P.purpleL);
   const up = f % 2 === 0;
   // 翅上毒斑與鱗粉 (發光眼斑)
@@ -176,9 +189,11 @@ defineAnim('g_venommoth', 16, 12, 2, (p, f) => {
   p.px(6, 1, withAlpha(P.poisonD, 0.6)); p.px(10, 1, withAlpha(P.poisonD, 0.6));
   p.glow(7, 6, 1, P.emberL, 0.4, 2); p.glow(9, 6, 1, P.emberL, 0.4, 2);
   p.px(7, 6, P.emberL); p.px(9, 6, P.emberL);
+  p.ctx.restore();
   p.rimLight(P.rimCool, 0.4);
+  p.shadeBottom(0.2, 8);
   p.outline(P.ink);
-}, { anchor: [8, 8], fps: 9 });
+}, { anchor: [7, 8], fps: 9 });
 
 // --- 獠牙野豬 (tier3, charger) 20x16 ---
 defineAnim('g_boar', 20, 16, 4, (p, f) => {
@@ -218,11 +233,15 @@ defineAnim('g_boar', 20, 16, 4, (p, f) => {
   // 鼻孔噴氣 (衝刺幀)
   if (charge) { p.px(19, 11, withAlpha(P.white, 0.4)); p.px(19, 12, withAlpha(P.white, 0.25)); }
   p.rimLight(P.rim, 0.5);
+  // R28 W3-A2: value-tier gap fix — canvas already large-tier (20x16), missing shadeBottom.
+  p.shadeBottom(0.2, 11);
   p.outline(P.ink);
 }, { anchor: [10, 15], fps: 8 });
 
-// --- 劇毒巨蟾 (tier3, shooter) 18x15 ---
-defineAnim('g_toad', 18, 15, 4, (p, f) => {
+// --- 劇毒巨蟾 (tier3, shooter) 18x16 ---
+defineAnim('g_toad', 18, 16, 4, (p, f) => {
+  // R28 W3-A2: large-tier 18x16 canvas (was 18x15); +0.5px y-shift to recentre.
+  p.ctx.save(); p.ctx.translate(0, 0.5);
   const skin = P.greenD, skinL = P.green, skinD = darken(P.greenD, 0.25), warty = P.poisonD;
   const skinLL = lighten(P.green, 0.18);
   const puff = [0, 1, 2, 1][f % 4]; // 鳴囊鼓動
@@ -259,6 +278,8 @@ defineAnim('g_toad', 18, 15, 4, (p, f) => {
   p.hline(6, 12, 8, skinD);
   // 滿氣幀: 嘴角毒滴
   if (full) { p.px(9, 9, withAlpha(P.toxic, 0.7)); p.sparkle(9, 11, withAlpha(P.toxic, 0.6), 1); }
+  p.ctx.restore();
   p.rimLight(P.rimCool, 0.45);
+  p.shadeBottom(0.2, 11);
   p.outline(P.ink);
-}, { anchor: [9, 14], fps: 5 });
+}, { anchor: [9, 14.5], fps: 5 });

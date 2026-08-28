@@ -4,7 +4,7 @@ import { Sfx } from '../../../engine/audio.js';
 import { mouse, pressed } from '../../../engine/input.js';
 import { rng } from '../../../engine/math.js';
 import { P, withAlpha } from '../../../engine/palette.js';
-import { drawSpriteUI, fillCircleWorld, glowWorld, strokeCircleWorld, uiClipRound, uiRect, uiScale, uiText, view, worldToScreen } from '../../../engine/renderer.js';
+import { drawSpriteUI, fillCircleWorld, glowWorld, strokeCircleWorld, UI, uiClipRound, uiRect, uiScale, uiText, view, worldToScreen } from '../../../engine/renderer.js';
 import { getSprite, iconOr } from '../../../engine/sprites.js';
 import { BALANCE } from '../../balance.js';
 import { skinSpriteName } from '../../content/characters.js';
@@ -173,7 +173,7 @@ export const shopHiddenMixin = {
   drawVaultPrompt() {
     const pk = this.world.vaultNear; if (!pk || this.dead) return;
     const S = uiScale(); const ps = worldToScreen(pk.x, pk.y - 18);
-    uiText('【E】使用鑰匙開啟寶庫', ps.x, ps.y, { size: 12 * S, align: 'center', color: withAlpha('#ffd479', 0.65 + Math.sin(this.t * 6) * 0.3), weight: '800', shadowColor: withAlpha('#000', 0.8) });
+    uiText('【E】使用鑰匙開啟寶庫', ps.x, ps.y, { size: UI.FONT_BODY * S, align: 'center', color: withAlpha('#ffd479', 0.65 + Math.sin(this.t * 6) * 0.3), weight: UI.WEIGHT_BODY, shadowColor: withAlpha('#000', 0.8) });
   },
   drawHiddenRooms() {
     if (!this.hiddenRooms) return; const S = uiScale();
@@ -184,8 +184,8 @@ export const shopHiddenMixin = {
       strokeCircleWorld(h.x, h.y - 4, 11 + pulse * 2, room.color, 2);
       strokeCircleWorld(h.x, h.y - 4, 6, withAlpha(room.color, 0.7), 1.5);
       fillCircleWorld(h.x, h.y - 4, 2.5, room.color);
-      const ns = worldToScreen(h.x, h.y - 22); uiText('✦', ns.x, ns.y, { size: 14 * S, align: 'center', color: room.color, weight: '900', shadowColor: withAlpha('#000', 0.8) });
-      if (this.nearHidden === h) { const ps = worldToScreen(h.x, h.y + 10); uiText('按 E 進入隱藏房間', ps.x, ps.y, { size: 11 * S, align: 'center', color: withAlpha('#fff', 0.6 + Math.sin(this.t * 6) * 0.3), weight: '800' }); }
+      const ns = worldToScreen(h.x, h.y - 22); uiText('✦', ns.x, ns.y, { size: UI.FONT_HEADING * S, align: 'center', color: room.color, weight: UI.WEIGHT_HEADING, shadowColor: withAlpha('#000', 0.8) });
+      if (this.nearHidden === h) { const ps = worldToScreen(h.x, h.y + 10); uiText('按 E 進入隱藏房間', ps.x, ps.y, { size: UI.FONT_BODY * S, align: 'center', color: withAlpha('#fff', 0.6 + Math.sin(this.t * 6) * 0.3), weight: UI.WEIGHT_BODY }); }
     }
   },
   drawHidden() {
@@ -197,9 +197,9 @@ export const shopHiddenMixin = {
     const x = (view.W - w) / 2, y = (view.H - h) / 2;
     uiRect(x, y, w, h, withAlpha('#12152a', 0.98), { radius: 12 * S, stroke: room.color || P.goldL, lw: 2.5 });
     uiClipRound(x, y, w, h, 12 * S, () => uiRect(x, y, w, 6 * S, withAlpha(room.color || P.goldL, 0.7)));   // #7
-    uiText('✦ 隱藏房間 ✦', view.W / 2, y + 26 * S, { size: 12 * S, align: 'center', color: withAlpha(room.color || P.goldL, 0.85), weight: '800' });
-    uiText(room.name, view.W / 2, y + 56 * S, { size: 26 * S, align: 'center', color: room.color || P.goldL, weight: '900', shadowColor: withAlpha('#000', 0.8) });
-    this.wrapText(room.desc || '', view.W / 2, y + 86 * S, w - 60 * S, 13 * S, P.gray3);
+    uiText('✦ 隱藏房間 ✦', view.W / 2, y + 26 * S, { size: UI.FONT_HEADING * S, align: 'center', color: withAlpha(room.color || P.goldL, 0.85), weight: UI.WEIGHT_HEADING });
+    uiText(room.name, view.W / 2, y + 56 * S, { size: UI.FONT_TITLE * S, align: 'center', color: room.color || P.goldL, weight: UI.WEIGHT_TITLE, shadowColor: withAlpha('#000', 0.8) });
+    this.wrapText(room.desc || '', view.W / 2, y + 86 * S, w - 60 * S, UI.FONT_BODY * S, P.gray3);
     if (hp.result != null && typeof hp.result === 'object') {
       // R17/6.5: reveal card — the unlocked thing's icon + name, not just a sentence
       const rv = hp.result;
@@ -209,14 +209,14 @@ export const shopHiddenMixin = {
       const pulse = 0.5 + Math.sin(this.t * 4) * 0.5;
       uiRect(ix - 7 * S, iy - 7 * S, isz + 14 * S, isz + 14 * S, withAlpha('#10121f', 0.9), { radius: 9 * S, stroke: withAlpha(P.goldL, 0.6 + pulse * 0.4), lw: 2.5 });
       drawSpriteUI(sp.frames[0], ix, iy, isz / sp.w);
-      uiText(rv.name || '', view.W / 2, iy + isz + 24 * S, { size: 17 * S, align: 'center', color: P.goldL, weight: '900', shadowColor: withAlpha('#000', 0.8) });
-      if (rv.kindLabel) uiText('— ' + rv.kindLabel + ' —', view.W / 2, iy + isz + 40 * S, { size: 10.5 * S, align: 'center', color: P.shardL, weight: '700' });
-      this.wrapText(rv.text || '', view.W / 2, iy + isz + 58 * S, w - 56 * S, 12.5 * S, P.gray4);
+      uiText(rv.name || '', view.W / 2, iy + isz + 24 * S, { size: UI.FONT_HEADING * S, align: 'center', color: P.goldL, weight: UI.WEIGHT_HEADING, shadowColor: withAlpha('#000', 0.8) });
+      if (rv.kindLabel) uiText('— ' + rv.kindLabel + ' —', view.W / 2, iy + isz + 40 * S, { size: UI.FONT_CAPTION * S, align: 'center', color: P.shardL, weight: UI.WEIGHT_BODY });
+      this.wrapText(rv.text || '', view.W / 2, iy + isz + 58 * S, w - 56 * S, UI.FONT_BODY * S, P.gray4);
     }
-    else if (hp.result != null) this.wrapText(hp.result, view.W / 2, y + h * 0.55, w - 56 * S, 14.5 * S, P.goldL);
-    else if (hp.claimed) uiText('（此密室你已探索過）', view.W / 2, y + h * 0.55, { size: 13 * S, align: 'center', color: P.gray3 });
-    else uiText('一份未知的寶藏在此等候…', view.W / 2, y + h * 0.55, { size: 13 * S, align: 'center', color: withAlpha('#fff', 0.7), weight: '600' });
-    uiText(hp.result != null ? '點擊 / 按 E 關閉' : '點擊 / 按 E 探索此密室', view.W / 2, y + h - 22 * S, { size: 12 * S, align: 'center', color: withAlpha('#ffd479', 0.6 + 0.3 * Math.sin(this.t * 5)), weight: '700' });
+    else if (hp.result != null) this.wrapText(hp.result, view.W / 2, y + h * 0.55, w - 56 * S, UI.FONT_HEADING * S, P.goldL);
+    else if (hp.claimed) uiText('（此密室你已探索過）', view.W / 2, y + h * 0.55, { size: UI.FONT_BODY * S, align: 'center', color: P.gray3 });
+    else uiText('一份未知的寶藏在此等候…', view.W / 2, y + h * 0.55, { size: UI.FONT_BODY * S, align: 'center', color: withAlpha('#fff', 0.7), weight: UI.WEIGHT_BODY });
+    uiText(hp.result != null ? '點擊 / 按 E 關閉' : '點擊 / 按 E 探索此密室', view.W / 2, y + h - 22 * S, { size: UI.FONT_CAPTION * S, align: 'center', color: withAlpha('#ffd479', 0.6 + 0.3 * Math.sin(this.t * 5)), weight: UI.WEIGHT_BODY });
     settingsUI.draw();
   },
 };

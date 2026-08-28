@@ -82,6 +82,7 @@ export function updateCamera(dt) {
 
 // ---- frame ----------------------------------------------------------------
 export function clear(color = P.shadow) {
+  glowFrameReset();          // R28/W0 — the once-per-frame reset point for the glow counter
   ctx.fillStyle = color;
   ctx.fillRect(0, 0, W, H);
 }
@@ -167,8 +168,40 @@ export function lineWorld(x0, y0, x1, y1, color, lw = 1) {
   ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
 }
 
+// ---- R28/W0 glow brightness budget (ART_SPEC 2.2) --------------------------
+// Module-level knobs for the world light channel. The DEFAULTS ARE IDENTITY —
+// scale 1 / decoCap 1 / budget Infinity mean glowWorld + glowWorldCached render exactly
+// what they rendered before this batch; nothing is dialled until a later batch calls
+// setGlowCfg(). `deco:true` (opt-in, no caller passes it yet) marks the decorative channel
+// that ART_SPEC caps at 0.35; warning/telegraph glows never pass it and stay uncapped.
+// The per-frame call count is COUNTED ONLY here — no degradation is wired in W0.
+const GLOW_CFG = { scale: 1, decoCap: 1, budget: Infinity };
+let _glowCalls = 0;
+export function setGlowCfg(cfg = {}) {
+  if (cfg.scale != null) GLOW_CFG.scale = Math.max(0, +cfg.scale || 0);
+  if (cfg.decoCap != null) GLOW_CFG.decoCap = Math.max(0, Math.min(1, +cfg.decoCap || 0));
+  if (cfg.budget != null) GLOW_CFG.budget = cfg.budget === Infinity ? Infinity : Math.max(0, +cfg.budget || 0);
+  return glowCfg();
+}
+export function glowCfg() { return { ...GLOW_CFG }; }
+export function glowFrameCount() { return _glowCalls; }              // calls since the last clear()
+export function glowOverBudget() { return _glowCalls > GLOW_CFG.budget; }   // always false at the default budget
+export function glowFrameReset() { _glowCalls = 0; }
+// alpha pipeline: global scale, then the decorative cap (identity at the defaults).
+function glowAlpha(alpha, deco) {
+  const a = alpha * GLOW_CFG.scale;
+  return deco ? Math.min(a, GLOW_CFG.decoCap) : a;
+}
+
 // A soft radial glow in world space (additive) — good for projectiles, fire, shards.
-export function glowWorld(wx, wy, r, color, alpha = 0.5) {
+export function glowWorld(wx, wy, r, color, alpha = 0.5, { deco = false } = {}) {
+  // R28/W1-B (ART_SPEC 2.2) — once the frame is over its soft glow budget, DECORATIVE glows
+  // silently degrade to the cached low-radius blit: no per-call gradient build, smaller
+  // footprint, so a 200-enemy screen sheds bloom instead of framerate. Warning/telegraph
+  // glows never pass `deco` and are never degraded. Identity while budget is Infinity.
+  if (deco && _glowCalls > GLOW_CFG.budget) { glowWorldCached(wx, wy, r * 0.6, color, alpha, { deco: true }); return; }
+  _glowCalls++;
+  alpha = glowAlpha(alpha, deco);
   const s = worldToScreen(wx, wy);
   const rr = r * camera.zoom;
   const g = ctx.createRadialGradient(s.x, s.y, 0, s.x, s.y, rr);
@@ -199,7 +232,9 @@ function glowTexture(r, color) {
   }
   return c;
 }
-export function glowWorldCached(wx, wy, r, color, alpha = 0.5) {
+export function glowWorldCached(wx, wy, r, color, alpha = 0.5, { deco = false } = {}) {
+  _glowCalls++;
+  alpha = glowAlpha(alpha, deco);
   if (!(alpha > 0)) return;
   const s = worldToScreen(wx, wy), z = camera.zoom;
   const tex = glowTexture(Math.max(1, Math.round(r)), color), rr = r * z;
@@ -273,10 +308,17 @@ const FONT = '"Microsoft JhengHei", "PingFang TC", "Noto Sans CJK TC", system-ui
 // round16/1.6 — UI sizing tokens (foundation): shared font sizes + component metrics so
 // menus and sub-panels stay proportional. Consumed incrementally by UI code (sizes are the
 // design base; callers still multiply by uiScale()).
+// R28/W0 — aligned with ART_SPEC 4.1/4.2. Sizes stay the design base (callers still
+// multiply by uiScale()); WEIGHT_* pin the only three allowed weights; GAP_* are the 8 px
+// grid. GAP_SM/MD/LG were 6/10/16 and had ZERO consumers repo-wide, so re-basing them onto
+// the spec grid changes no pixel today.
+// R28/W1 — FONT_CAPTION folded up to the ART_SPEC 4.1 floor (10.5,「全案最小字級，禁止
+// <10.5」); FONT_CAPTION_SPEC (the temporary W0 holding pen for that floor) is retired.
 export const UI = {
-  FONT_TITLE: 22, FONT_HEADING: 16, FONT_BODY: 13, FONT_CAPTION: 10,
+  FONT_TITLE: 22, FONT_HEADING: 16, FONT_BODY: 13, FONT_CAPTION: 10.5,
+  WEIGHT_TITLE: '900', WEIGHT_HEADING: '800', WEIGHT_BODY: '600',
   BTN_H: 36, ICON_SM: 16, ICON_MD: 24, ICON_LG: 32,
-  GAP_SM: 6, GAP_MD: 10, GAP_LG: 16,
+  GAP_SM: 8, GAP_MD: 16, GAP_LG: 24,
 };
 export function uiText(str, x, y, {
   size = 16, color = '#fff', align = 'left', baseline = 'alphabetic',
@@ -298,6 +340,58 @@ export function textWidth(str, size = 16, weight = '600', font = FONT) {
   const w = ctx.measureText(str).width;
   ctx.restore();
   return w;
+}
+
+// R28/W0 — ART_SPEC 4.2: THE button primitive (hover / focus / disabled built in), meant to
+// replace the ~5 hand-rolled `btn` closures in the hub panels. The visual vocabulary is
+// lifted from hub/panels.js's bank buttons so migrated call sites look unchanged. Pass either
+// an explicit `hover`, or `mx`/`my` to have the hit-test done here. Returns the rect (with
+// `.hover`/`.disabled`) so the caller can hit-test clicks against the same geometry.
+// NO consumers yet — W1 migrates them.
+export function uiButton(x, y, w, h, label, {
+  S = 1, mx = null, my = null, hover = null, focus = false, disabled = false,
+  size = UI.FONT_BODY * S, weight = UI.WEIGHT_TITLE, radius = 8 * S, lw = 2,
+  fill = '#1b2138', fillHover = '#27306a', fillDisabled = '#141827',
+  stroke = P.shardL, strokeDisabled = P.ink2, color = '#fff', colorDisabled = P.gray2,
+  alpha = 0.96, dy = 1 * S,
+} = {}) {
+  const hot = disabled ? false
+    : (hover != null ? !!hover
+      : (mx != null && my != null && mx >= x && mx <= x + w && my >= y && my <= y + h));
+  uiRect(x, y, w, h, withAlpha(disabled ? fillDisabled : (hot ? fillHover : fill), alpha),
+    { radius, stroke: disabled ? strokeDisabled : stroke, lw });
+  // focus ring sits OUTSIDE the frame, so keyboard focus stays readable on a hovered button
+  if (focus) uiRect(x - 2 * S, y - 2 * S, w + 4 * S, h + 4 * S, null,
+    { radius: radius + 2 * S, stroke: withAlpha('#ffffff', 0.75), lw: Math.max(1, lw - 0.5) });
+  if (label != null && label !== '') uiText(label, x + w / 2, y + h / 2 + dy,
+    { size, align: 'center', baseline: 'middle', color: disabled ? colorDisabled : color, weight });
+  return { x, y, w, h, hover: hot, disabled: !!disabled };
+}
+
+// R28/W0 — shared text-measuring helpers (pure: they MEASURE, the caller draws). Behaviour
+// mirrors the two hand-rolled copies still in the tree — hub/render_personal.js `clip1()` and
+// run/overlays.js `wrapText()` — which W1 folds into these. Both are untouched by this batch.
+// Single-line clip with an ellipsis; returns the string that fits in `maxW`.
+export function uiClip1(text, maxW, size = UI.FONT_BODY, weight = UI.WEIGHT_BODY) {
+  const str = String(text ?? '');
+  if (!(maxW > 0)) return str;
+  let s = str;
+  while (s.length > 1 && textWidth(s, size, weight) > maxW) s = s.slice(0, -1);
+  if (s.length < str.length && s.length > 1) s = s.slice(0, -1) + '…';
+  return s;
+}
+// Greedy per-character wrap (correct for CJK, which has no spaces); returns the lines.
+// Explicit '\n' also breaks — text without newlines wraps exactly like the overlays copy.
+export function uiWrapText(text, maxW, size = UI.FONT_BODY, weight = UI.WEIGHT_BODY) {
+  const str = String(text ?? '');
+  const lines = []; let line = '';
+  for (const ch of str) {
+    if (ch === '\n') { lines.push(line); line = ''; continue; }
+    if (textWidth(line + ch, size, weight) > maxW && line) { lines.push(line); line = ch; }
+    else line += ch;
+  }
+  if (line) lines.push(line);
+  return lines;
 }
 // round16/1.4 → R17/2.1: the 🪙 emoji is missing from the CJK font stack on common
 // Windows configs (rendered as □), so the STRING form is now text-only「N 金幣」.

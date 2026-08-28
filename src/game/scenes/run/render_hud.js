@@ -4,7 +4,7 @@ import { Sfx } from '../../../engine/audio.js';
 import { mouse, pressed } from '../../../engine/input.js';
 import { clamp } from '../../../engine/math.js';
 import { P, withAlpha } from '../../../engine/palette.js';
-import { camera, ctxRaw, drawSpriteUI, fillCircleWorld, strokeCircleWorld, textWidth, uiBar, uiClipRound, uiRect, uiScale, uiText, view, worldToScreen } from '../../../engine/renderer.js';
+import { camera, ctxRaw, drawSpriteUI, fillCircleWorld, strokeCircleWorld, textWidth, UI, uiBar, uiClipRound, uiRect, uiScale, uiText, view, worldToScreen } from '../../../engine/renderer.js';
 import { getSprite, iconOr } from '../../../engine/sprites.js';
 import { BONDS, bondProgress } from '../../content/bonds.js';
 import { fmtQuestVal, trackedQuestStates } from '../../content/quests.js';
@@ -55,10 +55,10 @@ export const renderHudMixin = {
     const x = 12 * S, w = 158 * S, h = 46 * S, gap = 6 * S; let y = 196 * S;
     for (const q of list) {
       uiRect(x, y, w, h, withAlpha('#0b0d1a', 0.6), { radius: 5 * S, stroke: withAlpha(P.goldL, q.done ? 0.85 : 0.6), lw: 1.5 });
-      uiText('任務 · ' + q.title, x + 8 * S, y + 15 * S, { size: 10.5 * S, color: q.done ? P.greenL : P.goldL, weight: '800' });
-      if (q.sub) uiText(q.sub, x + 8 * S, y + 28 * S, { size: 9 * S, color: P.gray3 });
+      uiText('任務 · ' + q.title, x + 8 * S, y + 15 * S, { size: UI.FONT_BODY * S, color: q.done ? P.greenL : P.goldL, weight: UI.WEIGHT_BODY });
+      if (q.sub) uiText(q.sub, x + 8 * S, y + 28 * S, { size: UI.FONT_CAPTION * S, color: P.gray3 });
       uiBar(x + 8 * S, y + 34 * S, w - 16 * S, 5 * S, q.frac || 0, { fg: q.done ? P.greenL : P.shardL, bg: '#16183a', border: P.ink });
-      if (q.goal) uiText(fmtQuestVal(q.prog, q.fmt) + '/' + fmtQuestVal(q.goal, q.fmt), x + w - 8 * S, y + 31 * S, { size: 9 * S, align: 'right', color: P.gray3 });
+      if (q.goal) uiText(fmtQuestVal(q.prog, q.fmt) + '/' + fmtQuestVal(q.goal, q.fmt), x + w - 8 * S, y + 31 * S, { size: UI.FONT_CAPTION * S, align: 'right', color: P.gray3 });
       y += h + gap;
     }
   },
@@ -76,7 +76,7 @@ export const renderHudMixin = {
     const a = e.t < 0.5 ? e.t / 0.5 : (e.t > 3.5 ? Math.max(0, (4 - e.t) / 0.5) : 1);
     const w = Math.min(view.W * 0.7, 520 * S), h = 38 * S, x = (view.W - w) / 2, y = view.H - 124 * S;
     uiRect(x, y, w, h, withAlpha('#0d1430', 0.86 * a), { radius: 8 * S, stroke: withAlpha(P.shardL, 0.7 * a), lw: 1.5 });
-    uiText('💡 ' + e.text, x + w / 2, y + h / 2 + 1 * S, { size: 13 * S, align: 'center', baseline: 'middle', color: withAlpha('#fff', a), weight: '700' });
+    uiText('💡 ' + e.text, x + w / 2, y + h / 2 + 1 * S, { size: UI.FONT_BODY * S, align: 'center', baseline: 'middle', color: withAlpha('#fff', a), weight: UI.WEIGHT_BODY });
   },
   // 6.3A: first-run HUD walkthrough — paused overlay with callouts pointing at the live HUD regions.
   updateHudTut() {
@@ -87,25 +87,25 @@ export const renderHudMixin = {
   drawHudTut() {
     const S = uiScale(); const W = view.W, H = view.H, pad = 12 * S;
     uiRect(0, 0, W, H, withAlpha('#070912', 0.78));
-    uiText('新 手 指 南 · 介 面 一 覽', W / 2, 56 * S, { size: 24 * S, align: 'center', color: P.shardL, weight: '900' });
-    uiText('熟悉一下畫面上的資訊（每個帳號只出現一次）', W / 2, 80 * S, { size: 13 * S, align: 'center', color: P.gray3, weight: '600' });
+    uiText('新 手 指 南 · 介 面 一 覽', W / 2, 56 * S, { size: UI.FONT_TITLE * S, align: 'center', color: P.shardL, weight: UI.WEIGHT_TITLE });
+    uiText('熟悉一下畫面上的資訊（每個帳號只出現一次）', W / 2, 80 * S, { size: UI.FONT_BODY * S, align: 'center', color: P.gray3, weight: UI.WEIGHT_BODY });
     const ctx = ctxRaw();
     const callout = (tx, ty, bx, by, label) => {
-      const tw = textWidth(label, 12 * S, '700') + 18 * S, bh = 26 * S;
+      const tw = textWidth(label, UI.FONT_BODY * S, UI.WEIGHT_BODY) + 18 * S, bh = 26 * S;
       const rx = bx - tw / 2, ry = by - bh / 2;
       ctx.save(); ctx.strokeStyle = withAlpha('#fff', 0.7); ctx.lineWidth = 1.5 * S;
       ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(tx, ty); ctx.stroke();
       ctx.fillStyle = withAlpha(P.shardL, 0.9); ctx.beginPath(); ctx.arc(tx, ty, 3.5 * S, 0, Math.PI * 2); ctx.fill();
       ctx.restore();
       uiRect(rx, ry, tw, bh, withAlpha('#10142c', 0.97), { radius: 6 * S, stroke: P.shardL, lw: 1.5 });
-      uiText(label, bx, by + 1 * S, { size: 12 * S, align: 'center', baseline: 'middle', color: '#fff', weight: '700' });
+      uiText(label, bx, by + 1 * S, { size: UI.FONT_BODY * S, align: 'center', baseline: 'middle', color: '#fff', weight: UI.WEIGHT_BODY });
     };
     // anchors mirror hud.js layout (vitals top-left, counters top-right, weapons bottom-left, quest tracker left)
     callout(pad + 90 * S, pad + 18 * S, pad + 250 * S, pad + 24 * S, '生命 · 經驗 · 衝刺');
     callout(W - pad - 56 * S, pad + 30 * S, W - pad - 150 * S, pad + 96 * S, '金幣 · 魂晶 · 擊殺');
     callout(pad + 40 * S, H - pad - 16 * S, pad + 150 * S, H - pad - 70 * S, '武器（自動開火 / 升級進化）');
     callout(pad + 70 * S, 210 * S, pad + 230 * S, 210 * S, '任務追蹤 · 羈絆');
-    uiText('按任意鍵（或點擊）開始狩獵', W / 2, H - 40 * S, { size: 15 * S, align: 'center', color: withAlpha(P.goldL, 0.7 + 0.3 * Math.sin(this.t * 5)), weight: '800' });
+    uiText('按任意鍵（或點擊）開始狩獵', W / 2, H - 40 * S, { size: UI.FONT_BODY * S, align: 'center', color: withAlpha(P.goldL, 0.7 + 0.3 * Math.sin(this.t * 5)), weight: UI.WEIGHT_BODY });
   },
 
   // 8.2: live 羈絆 panel on the left, BELOW the quest tracker — shows the bonds
@@ -117,7 +117,7 @@ export const renderHudMixin = {
     fillCircleWorld(this.player.x, this.player.y, r, withAlpha(P.shardL, 0.06));
     strokeCircleWorld(this.player.x, this.player.y, r, withAlpha(P.shardL, 0.5 + 0.3 * pz), 2);
     const ns = worldToScreen(this.player.x, this.player.y - r - 8);
-    uiText('拾取範圍 ' + Math.round(r), ns.x, ns.y, { size: 11 * uiScale(), align: 'center', color: P.shardL, weight: '800', shadowColor: withAlpha('#000', 0.8) });
+    uiText('拾取範圍 ' + Math.round(r), ns.x, ns.y, { size: UI.FONT_BODY * uiScale(), align: 'center', color: P.shardL, weight: UI.WEIGHT_BODY, shadowColor: withAlpha('#000', 0.8) });
   },
   // 4.2 + R16 #6: persistent recent-pickup log (bottom-right) shown as ICON chips (latest at the
   // bottom, brightest). Hover a chip → tooltip with its effect; a chip whose timed buff is still
@@ -128,7 +128,7 @@ export const renderHudMixin = {
     if (!log || !log.length || this.dead || this.choice || this.equipChoice || this.shopOpen || this.bigMap || this.showBuild || this.paused) return;
     const S = uiScale(), shown = log.slice(-6);
     const sz = 26 * S, gap = 5 * S, x = view.W - 12 * S - sz, y0 = view.H - 70 * S;
-    uiText('近期拾取', x + sz, y0 - shown.length * (sz + gap) - 4 * S, { size: 9 * S, align: 'right', color: P.gray3, weight: '700', shadowColor: withAlpha('#000', 0.8) });
+    uiText('近期拾取', x + sz, y0 - shown.length * (sz + gap) - 4 * S, { size: UI.FONT_HEADING * S, align: 'right', color: P.gray3, weight: UI.WEIGHT_HEADING, shadowColor: withAlpha('#000', 0.8) });
     shown.forEach((e, i) => {
       const idx = shown.length - 1 - i;                 // 0 = latest (sits at the bottom)
       const y = y0 - idx * (sz + gap);
@@ -137,11 +137,11 @@ export const renderHudMixin = {
       const accent = active ? (e.buff.color || P.shardL) : (e.color || P.shardL);
       uiRect(x, y, sz, sz, withAlpha('#10121f', active ? 0.94 : 0.55 + 0.3 * a), { radius: 5 * S, stroke: withAlpha(accent, active ? 1 : 0.55 * a + 0.2), lw: active ? 2 : 1.5 });
       if (e.icon) { const sp = getSprite(iconOr(e.icon, 'shard')); drawSpriteUI(sp.frames[0], x + 3 * S, y + 3 * S, (sz - 6 * S) / sp.w, { alpha: active ? 1 : a }); }
-      else uiText(e.emoji || '·', x + sz / 2, y + sz / 2 + 1 * S, { size: 14 * S, align: 'center', baseline: 'middle', color: withAlpha(accent, a) });
+      else uiText(e.emoji || '·', x + sz / 2, y + sz / 2 + 1 * S, { size: UI.FONT_HEADING * S, align: 'center', baseline: 'middle', color: withAlpha(accent, a) });
       if (active) {                                     // remaining-seconds badge + draining bar
         const frac = Math.max(0, Math.min(1, e.buff.t / (e.buff.dur || e.buff.t)));
         uiRect(x + 2 * S, y + sz - 4 * S, (sz - 4 * S) * frac, 2.5 * S, withAlpha(accent, 0.9), { radius: 1.2 * S });
-        uiText(Math.ceil(e.buff.t) + 's', x + sz - 2 * S, y + 10 * S, { size: 9 * S, align: 'right', baseline: 'middle', color: accent, weight: '900', shadowColor: withAlpha('#000', 0.85) });
+        uiText(Math.ceil(e.buff.t) + 's', x + sz - 2 * S, y + 10 * S, { size: UI.FONT_CAPTION * S, align: 'right', baseline: 'middle', color: accent, weight: UI.WEIGHT_BODY, shadowColor: withAlpha('#000', 0.85) });
       }
       hudIcons.push({ x, y, w: sz, h: sz, kind: 'pickup', entry: e, active, rem: active ? Math.ceil(e.buff.t) : 0 });
     });
@@ -150,7 +150,7 @@ export const renderHudMixin = {
   drawPickupTooltip(ic, mx, my, S) {
     const e = ic.entry; const W = 198 * S;
     const lines = []; let line = '';
-    for (const ch of (e.desc || '')) { if (textWidth(line + ch, 10.5 * S, '500') > W - 16 * S && line) { lines.push(line); line = ch; } else line += ch; }
+    for (const ch of (e.desc || '')) { if (textWidth(line + ch, UI.FONT_CAPTION * S, UI.WEIGHT_BODY) > W - 16 * S && line) { lines.push(line); line = ch; } else line += ch; }
     if (line) lines.push(line);
     const H = (28 + lines.length * 13 + (ic.active ? 14 : 0)) * S;
     let x = mx + 14 * S, y = my - H - 8 * S;
@@ -158,16 +158,16 @@ export const renderHudMixin = {
     if (y < 6 * S) y = my + 16 * S;
     const accent = (ic.active && e.buff) ? (e.buff.color || P.shardL) : (e.color || P.shardL);
     uiRect(x, y, W, H, withAlpha('#10121f', 0.97), { radius: 6 * S, stroke: accent, lw: 2 });
-    uiText((e.emoji ? e.emoji + ' ' : '') + (e.name || e.text || '拾取'), x + 8 * S, y + 17 * S, { size: 12 * S, color: '#fff', weight: '800' });
-    lines.forEach((l, i) => uiText(l, x + 8 * S, y + 31 * S + i * 13 * S, { size: 10.5 * S, color: P.gray4, weight: '500' }));
-    if (ic.active) uiText('剩餘 ' + ic.rem + ' 秒', x + 8 * S, y + 31 * S + lines.length * 13 * S, { size: 10.5 * S, color: accent, weight: '800' });
+    uiText((e.emoji ? e.emoji + ' ' : '') + (e.name || e.text || '拾取'), x + 8 * S, y + 17 * S, { size: UI.FONT_BODY * S, color: '#fff', weight: UI.WEIGHT_BODY });
+    lines.forEach((l, i) => uiText(l, x + 8 * S, y + 31 * S + i * 13 * S, { size: UI.FONT_CAPTION * S, color: P.gray4, weight: UI.WEIGHT_BODY }));
+    if (ic.active) uiText('剩餘 ' + ic.rem + ' 秒', x + 8 * S, y + 31 * S + lines.length * 13 * S, { size: UI.FONT_CAPTION * S, color: accent, weight: UI.WEIGHT_BODY });
   },
   // 4.22: held vault keys (dropped by 守護怪, spent on locked vault chests).
   drawKeyHud() {
     const keys = (this.world && this.world.keys) | 0;
     if (keys <= 0 || this.dead) return;
     const S = uiScale();
-    uiText('🔑 × ' + keys, view.W - 12 * S, 96 * S, { size: 13 * S, align: 'right', color: P.goldL, weight: '800', shadowColor: withAlpha('#000', 0.8) });
+    uiText('🔑 × ' + keys, view.W - 12 * S, 96 * S, { size: UI.FONT_BODY * S, align: 'right', color: P.goldL, weight: UI.WEIGHT_BODY, shadowColor: withAlpha('#000', 0.8) });
   },
   // 4.14: persistent patron-buff strip (top-centre, under the stage line). Hover a patron icon → its effect.
   drawPatronHud() {
@@ -185,14 +185,14 @@ export const renderHudMixin = {
   },
   drawPatronTooltip(ic, mx, my, S) {
     const p = ic.patron; const W = 204 * S; const lines = []; let line = '';
-    for (const ch of (p.desc || '')) { if (textWidth(line + ch, 10.5 * S, '500') > W - 16 * S && line) { lines.push(line); line = ch; } else line += ch; }
+    for (const ch of (p.desc || '')) { if (textWidth(line + ch, UI.FONT_CAPTION * S, UI.WEIGHT_BODY) > W - 16 * S && line) { lines.push(line); line = ch; } else line += ch; }
     if (line) lines.push(line);
     const H = (44 + lines.length * 13) * S;
     let x = mx + 14 * S, y = my + 8 * S; if (x + W > view.W) x = view.W - W - 6 * S; if (y + H > view.H) y = view.H - H - 6 * S;
     uiRect(x, y, W, H, withAlpha('#10121f', 0.97), { radius: 6 * S, stroke: P.goldL, lw: 2 });
-    uiText('✦ ' + p.name, x + 8 * S, y + 17 * S, { size: 12 * S, color: P.goldL, weight: '800' });
-    uiText((p.role ? p.role + ' · ' : '') + '「' + (p.title || '') + '」', x + 8 * S, y + 32 * S, { size: 10 * S, color: P.shardL, weight: '700' });
-    lines.forEach((l, i) => uiText(l, x + 8 * S, y + 46 * S + i * 13 * S, { size: 10.5 * S, color: P.gray4, weight: '500' }));
+    uiText('✦ ' + p.name, x + 8 * S, y + 17 * S, { size: UI.FONT_BODY * S, color: P.goldL, weight: UI.WEIGHT_BODY });
+    uiText((p.role ? p.role + ' · ' : '') + '「' + (p.title || '') + '」', x + 8 * S, y + 32 * S, { size: UI.FONT_CAPTION * S, color: P.shardL, weight: UI.WEIGHT_BODY });
+    lines.forEach((l, i) => uiText(l, x + 8 * S, y + 46 * S + i * 13 * S, { size: UI.FONT_CAPTION * S, color: P.gray4, weight: UI.WEIGHT_BODY }));
   },
   // TFT 式羈絆側欄：六角徽章（依階級銅/銀/金配色）＋名稱＋階數；已達成＋快達成。
   drawBondTracker() {
@@ -216,7 +216,7 @@ export const renderHudMixin = {
     const headH = 22 * S, rowH = 22 * S;
     const h = headH + rows.length * rowH + (extra > 0 ? 12 * S : 0) + 6 * S;
     uiRect(x, y, w, h, withAlpha('#0b0d1a', 0.62), { radius: 6 * S, stroke: withAlpha(P.goldL, 0.45), lw: 1.5 });
-    uiText('羈絆 · ' + achievedN, x + 10 * S, y + 15 * S, { size: 10 * S, color: P.goldL, weight: '800' });
+    uiText('羈絆 · ' + achievedN, x + 10 * S, y + 15 * S, { size: UI.FONT_HEADING * S, color: P.goldL, weight: UI.WEIGHT_HEADING });
     // tier → TFT 銅/銀/金 配色
     const tierStyle = (lvl) => lvl <= 0 ? { fill: '#262c40', stroke: '#566089', txt: '#aeb6d8' }
       : lvl === 1 ? { fill: '#6e4322', stroke: '#c8843e', txt: '#ffe6c8' }
@@ -233,16 +233,16 @@ export const renderHudMixin = {
       ctx.fillStyle = st.fill; ctx.fill();
       ctx.lineWidth = 1.6 * S; ctx.strokeStyle = st.stroke; ctx.stroke();
       ctx.restore();
-      uiText(o.b.tag, hx, cy + 0.5 * S, { size: 9 * S, align: 'center', baseline: 'middle', color: st.txt, weight: '900', shadow: false });
+      uiText(o.b.tag, hx, cy + 0.5 * S, { size: UI.FONT_CAPTION * S, align: 'center', baseline: 'middle', color: st.txt, weight: UI.WEIGHT_BODY, shadow: false });
       const nameX = hx + hr + 7 * S;
       let nm = o.b.name;
-      while (nm.length > 1 && textWidth(nm, 10 * S, '800') > w - (nameX - x) - 42 * S) nm = nm.slice(0, -1);
-      uiText(nm, nameX, cy + 0.5 * S, { size: 10 * S, baseline: 'middle', color: o.near ? '#aeb6d8' : '#f0e4c0', weight: '800' });
+      while (nm.length > 1 && textWidth(nm, UI.FONT_BODY * S, UI.WEIGHT_BODY) > w - (nameX - x) - 42 * S) nm = nm.slice(0, -1);
+      uiText(nm, nameX, cy + 0.5 * S, { size: UI.FONT_BODY * S, baseline: 'middle', color: o.near ? '#aeb6d8' : '#f0e4c0', weight: UI.WEIGHT_BODY });
       // near = how many requirement pieces collected (e.g. 1/2); achieved = current tier / max tier
-      uiText(o.near ? (o.pg.count + '/' + o.pg.tiers[0].at) : (o.pg.level + '/' + o.pg.max), x + w - 10 * S, cy + 0.5 * S, { size: 9.5 * S, align: 'right', baseline: 'middle', color: o.near ? P.shardL : st.stroke, weight: '900' });
+      uiText(o.near ? (o.pg.count + '/' + o.pg.tiers[0].at) : (o.pg.level + '/' + o.pg.max), x + w - 10 * S, cy + 0.5 * S, { size: UI.FONT_CAPTION * S, align: 'right', baseline: 'middle', color: o.near ? P.shardL : st.stroke, weight: UI.WEIGHT_BODY });
       hudIcons.push({ x, y: cy - rowH / 2 + 2 * S, w, h: rowH, kind: 'bond', bond: o.b, prog: o.pg });   // hover → effect tooltip (drawBondTooltip)
     });
-    if (extra > 0) uiText('＋' + extra + ' 個…', x + w - 10 * S, y + h - 6 * S, { size: 8 * S, align: 'right', color: P.gray3, weight: '600' });
+    if (extra > 0) uiText('＋' + extra + ' 個…', x + w - 10 * S, y + h - 6 * S, { size: UI.FONT_CAPTION * S, align: 'right', color: P.gray3, weight: UI.WEIGHT_BODY });
   },
 
   // M: a big semi-transparent minimap floating in the centre of the screen
@@ -262,7 +262,7 @@ export const renderHudMixin = {
     const asz = 24 * S, asc = (asz - 4 * S) / psp.w, pz = Math.sin(this.t * 5) * 0.5 + 0.5;
     uiRect(pdx - asz / 2, pdy - asz / 2, asz, asz, withAlpha('#10121f', 0.9), { radius: asz / 2, stroke: withAlpha(P.goldL, 0.6 + 0.4 * pz), lw: 2 });
     drawSpriteUI(psp.frames[0], pdx - psp.w * asc / 2, pdy - psp.h * asc / 2, asc);
-    uiText('放大地圖　·　M 關閉', view.W / 2, my - 12 * S, { size: 12 * S, align: 'center', color: withAlpha(P.shardL, 0.85), weight: '700' });
+    uiText('放大地圖　·　M 關閉', view.W / 2, my - 12 * S, { size: UI.FONT_BODY * S, align: 'center', color: withAlpha(P.shardL, 0.85), weight: UI.WEIGHT_BODY });
   },
 
   aimCamera() {

@@ -7,6 +7,11 @@
 // matching the original town props' convention.
 import { defineSprite, defineAnim } from '../engine/sprites.js';
 import { P, lighten, darken, mix, withAlpha } from '../engine/palette.js';
+// R28/W4-G (ART_SPEC 7): the interior density set — dedicated floor materials, ground
+// decals, per-room focal installations, narrative objects, foreground occluders and the
+// layered out-of-bounds tiles. Imported from here (rather than main.js) so the whole
+// rint_*/rfoc_*/rnar_*/rfg_* interior family stays behind one entry point.
+import './town_ruin_interior2.js';
 
 // ── shared ruin-interior tones ───────────────────────────────────────────────
 const RWOOD  = mix(P.wood,  P.gray1, 0.28);   // ash-dulled wood body

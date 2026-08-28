@@ -10,6 +10,10 @@ import { defineIcon, panel, sym } from '../icons.js';
 import { drawSlime, drawBat, drawWisp, drawBrute, drawHunter } from '../core.js';
 
 // ===== items art (consumables) =====================================
+// NOTE (R28 B-rework): _flask / _glassShine / _shield / _crystal are now unreferenced —
+// the shared _flask body was exactly the 同輪廓不同色 defect ART_SPEC 第 5 節 bans, and
+// _shield duplicated item_ic_warding_salve. Kept because integrate.mjs regenerates this
+// file wholesale; deleting them here would only be undone on the next re-integration.
 // Shared local shape helpers (no import/export). Drawn with documented
 // Painter primitives + sym only. Each defineIcon already adds panel + outline.
 
@@ -84,71 +88,79 @@ function _crystal(p, c) {
   p.sparkle(8, 5, P.glint, 1);
 }
 
-// 1) medkit — instant heal (heart + cross on a flask)
+// R28 B-rework — ART_SPEC 第 5 節鐵律：道具類原本有六個「軟木塞＋球肚燒瓶」換色
+// （本檔 3 個＋gen_items_c 3 個），是同輪廓不同色的主犯。本檔改成各自的容器／實體：
+// 鐵皮急救盒／鑄鐵炸彈／木碗熱湯／立起的護符晶柱／號角／撕開的布袋／垂直光柱／細長試管。
+// kira 依 def tier（items.js：t1 = medkit/lure_horn/swift_draught 不給）。
+
+// 1) medkit — 戰地急救盒：鐵皮扁盒＋提把＋卡榫，正面一枚白十字（不是藥瓶）
 defineIcon('item_g_medkit', P.blood, (p) => {
-  p.glow(8, 10, 5, P.red, 0.3, 3);
-  _flask(p, P.red, true);
-  // white cross badge on the bulb (with a soft red core glow)
-  p.rect(7, 8, 2, 5, P.white);
-  p.rect(6, 9.5, 4, 2, P.white);
-  p.px(7, 8, lighten(P.white, 0.0));
-  p.px(7, 10, P.redL);
-  p.px(8, 10, withAlpha(P.red, 0.6));
+  p.softShadow(8, 13, 5, 1.2, 0.34);
+  p.rect(6, 2, 4, 1, P.gray4); p.px(6, 2, P.steelL);                 // 提把
+  p.vline(2, 3, 6, P.gray3); p.vline(2, 3, 9, P.gray3);
+  p.gradV(3, 4, 10, 8, lighten(P.bone, 0.2), darken(P.bone, 0.4));   // 盒身
+  p.hline(3, 12, 4, P.white); p.hline(3, 12, 11, darken(P.bone, 0.55));
+  p.vline(4, 11, 3, lighten(P.bone, 0.3)); p.vline(4, 11, 12, darken(P.bone, 0.4));
+  p.hline(3, 12, 8, darken(P.gray2, 0.2));                           // 開闔接縫
+  p.rect(7, 7, 2, 2, P.gray4); p.px(7, 7, P.steelL);                 // 卡榫
+  p.rect(7, 5, 2, 6, P.red); p.rect(5, 7, 6, 2, P.red);              // 白底上的紅十字
+  p.px(7, 5, P.redL); p.px(8, 10, darken(P.redD, 0.2));
+  p.px(4, 5, P.glint);
   p.rimLight(P.rim, 0.5);
 });
 
-// 2) inferno_bomb — large fire AoE (bomb with a lit fuse + flame)
+// 2) inferno_bomb — 烈焰震爆彈：改成「圓筒燃燒罐」（罐身箍帶＋尾翼＋提環），
+//    與 content_icons.js 的 item_bomb（圓球型炸彈）在道具類別裡分家（R28 B-rework）
 defineIcon('item_g_inferno_bomb', P.gray1, (p) => {
-  p.softShadow(8, 14, 4, 1.2, 0.35);
-  // iron casing with a cool top-left sheen and a hot crack of lava
-  p.ellipse(8, 10, 4, 4, P.ink2);
-  p.ellipse(8, 10, 3.4, 3.4, P.gray1);
-  p.ellipse(8, 10, 2.6, 2.6, P.gray2);
-  p.ellipse(7, 9, 1.4, 1.4, P.gray4);
-  p.px(6, 8, P.steelL);                  // specular highlight
-  p.px(9, 12, P.ink);
-  // glowing fire-vent crack on the casing
-  p.px(9, 11, P.ember); p.px(10, 11, P.emberL); p.px(9, 10, P.ember);
-  // metal collar + fuse rising up-right
-  p.rect(7, 6, 3, 2, P.iron);
-  p.px(7, 6, P.steelL);
-  p.line(9, 6, 11, 3, P.wood);
-  p.px(10, 5, P.woodL);
-  // burning fuse-tip flame with a glow halo
-  p.glow(11, 2, 3, P.ember, 0.6, 3);
-  p.px(11, 2, P.ember);
-  p.px(12, 2, P.emberL);
-  p.px(11, 1, P.emberL);
-  p.px(11, 0, P.holyL);
-  p.sparkle(12, 1, P.holyL, 1);
+  p.softShadow(8, 14, 5, 1.2, 0.35);
+  p.ring(8, 1, 1.8, P.gray4); p.px(7, 0, P.steelL);                  // 提環
+  p.rect(6, 2, 5, 2, P.iron); p.hline(6, 10, 2, P.steelL);           // 罐頸
+  p.gradV(4, 4, 8, 8, lighten(P.gray2, 0.2), darken(P.gray1, 0.35)); // 圓筒罐身
+  p.vline(5, 11, 4, P.gray4); p.vline(5, 11, 11, darken(P.ink2, 0.1));
+  p.hline(4, 11, 4, P.gray4); p.hline(4, 11, 11, darken(P.ink2, 0.1));
+  p.rect(4, 6, 8, 1, darken(P.gray1, 0.5)); p.rect(4, 9, 8, 1, darken(P.gray1, 0.5)); // 兩道箍帶
+  p.px(5, 5, P.steelL); p.px(6, 5, P.glint);
+  p.px(9, 7, P.ember); p.px(10, 8, P.emberL); p.px(9, 10, P.ember);  // 罐壁的熔岩裂縫
+  p.glow(10, 8, 3, P.ember, 0.45, 3);
+  p.line(3, 12, 1, 14, P.gray4); p.line(12, 12, 14, 14, P.gray4);    // 尾翼
+  p.line(4, 12, 2, 14, darken(P.gray1, 0.3)); p.line(11, 12, 13, 14, darken(P.gray1, 0.3));
+  p.px(1, 14, P.steelL);
 });
 
-// 3) berserk_tonic — timed offense buff (aggressive red brew, jagged shine)
+// 3) berserk_tonic — 狂戰藥湯：一只寬口木碗盛著滾燙紅湯，上方蒸氣捲成怒焰
 defineIcon('item_g_berserk_tonic', '#5a1a1a', (p) => {
-  _flask(p, P.redD, false);
-  // ember energy rising off the cork + a rage aura behind the bolt
-  p.glow(8, 2, 3, P.ember, 0.5, 3);
-  p.px(8, 1, P.emberL);
-  p.px(7, 0, P.ember);
-  p.px(9, 0, P.ember);
-  sym.bolt(p, P.emberL);
-  p.px(7, 8, P.holyL);                   // hot core of the bolt
-  p.sparkle(11, 6, P.ember, 1);
+  p.softShadow(8, 13, 5, 1.1, 0.34);
+  p.glow(8, 4, 4, P.ember, 0.35, 3);
+  p.line(6, 4, 5, 1, P.ember); p.line(7, 3, 8, 0, P.emberL);         // 蒸氣／怒焰
+  p.line(10, 4, 11, 1, P.ember); p.px(8, 0, P.holyL);
+  p.ellipse(8, 7, 5.4, 1.6, darken(P.woodD, 0.3));                   // 碗口
+  p.ellipse(8, 7, 4.4, 1.2, P.redD); p.ellipse(8, 6.7, 3.4, 0.9, P.red); // 湯面
+  p.px(6, 7, P.redL); p.px(10, 7, darken(P.redD, 0.3));
+  for (let y = 8; y <= 12; y++) {                                    // 碗身：由寬收窄
+    const w = 5.4 - (y - 8) * 0.95;
+    p.hline(8 - w, 7 + w, y, mix(P.woodL, darken(P.woodD, 0.35), (y - 8) / 4));
+    p.px(Math.round(8 - w), y, lighten(P.woodL, 0.3));
+    p.px(Math.round(7 + w), y, darken(P.woodD, 0.45));
+  }
+  p.rect(6, 13, 4, 1, darken(P.woodD, 0.5));                         // 碗足
+  p.px(4, 8, P.glint);
   p.rimLight(P.laser, 0.4);
 });
 
-// 4) ward_stone — temporary shield/invuln (ice shield + gem)
+// 4) ward_stone — 守護結晶：一根立起的護符晶柱，底下一圈刻著符文的石座與守護環
 defineIcon('item_g_ward_stone', P.blueD, (p) => {
-  p.glow(8, 8, 6, P.blueL, 0.28, 3);     // protective aura
-  _shield(p, P.ice);
-  // glowing focus gem at the boss of the shield
-  p.glow(8, 8, 2.4, P.neonL, 0.5, 3);
-  p.ellipse(8, 8, 1.8, 1.8, P.blueL);
-  p.ellipse(8, 8, 1.1, 1.1, P.ice);
-  p.px(8, 8, P.white);
-  p.px(7, 7, P.steelL);
-  p.aura(8, 8, 5, P.rimCool, 0.0, 1);    // faint warding ring
-  p.star4(8, 4, 2, P.hiSky, P.white);
+  p.glow(8, 6, 6, P.hiSky, 0.34, 4);
+  for (let y = 1; y <= 10; y++) {                                    // 晶柱（尖頂、六面感）
+    const w = y <= 3 ? y * 0.8 : 2.6;
+    p.hline(8 - w, 7 + w, y, y <= 3 ? P.hiSky : P.iceD);
+    p.vline(3, 10, 6, P.ice); p.vline(4, 10, 5, P.hiSky);            // 左受光面
+    p.px(Math.round(7 + w), y, darken(P.blueD, 0.2));                // 右背光面
+  }
+  p.px(8, 1, P.white); p.px(6, 4, P.white);
+  p.rect(3, 11, 10, 2, P.gray2); p.hline(3, 12, 11, P.gray4);        // 石座
+  p.hline(2, 13, 13, darken(P.gray1, 0.2));
+  p.px(5, 12, P.shardL); p.px(8, 12, P.shardL); p.px(11, 12, P.shardL); // 座上符文
+  p.aura(8, 7, 6, P.rimCool, 0.0, 1);                                // 守護環
   p.rimLight(P.rimCool, 0.5);
 });
 
@@ -174,58 +186,62 @@ defineIcon('item_g_lure_horn', '#5a4a1a', (p) => {
   p.rimLight(P.rim, 0.45);
 });
 
-// 6) shard_cache — spawn soul-shards (pouch overflowing with crystals)
+// 6) shard_cache — 魂晶儲囊：一只「被撕開」的高布袋，破口參差、魂晶自破口噴出成扇
 defineIcon('item_g_shard_cache', P.shardD, (p) => {
-  p.softShadow(8, 14, 4, 1.1, 0.32);
-  // leather pouch with a lit upper face and shaded belly
-  for (let y = 7; y <= 13; y++) {
-    const t = (y - 7) / 6;
-    const w = 2.5 + t * 2.5;
-    const base = t < 0.4 ? P.leather : P.woodD;
-    p.hline(8 - w, 7 + w, y, mix(base, t < 0.4 ? P.woodL : P.shadow, t < 0.4 ? 0.25 : 0.15 * t));
+  p.softShadow(8, 14, 5, 1.1, 0.32);
+  for (let y = 6; y <= 14; y++) {                                    // 高布袋（下鼓）
+    const t = (y - 6) / 8, w = 2.6 + t * 2.6;
+    p.hline(8 - w, 7 + w, y, mix(P.leather, darken(P.woodD, 0.4), t));
+    p.px(Math.round(8 - w), y, lighten(P.woodL, 0.25));
+    p.px(Math.round(7 + w), y, darken(P.woodD, 0.5));
   }
-  p.hline(5, 10, 7, P.woodL);            // drawstring
-  p.px(5, 7, lighten(P.woodL, 0.2));
-  p.px(5, 6, P.bone); p.px(10, 6, P.bone);
-  // shards spilling out the top, lit by their own glow
-  p.glow(8, 6, 4, P.shard, 0.4, 3);
-  _crystal(p, P.shard);
-  p.ellipse(5, 6, 1, 2, P.shardL);
-  p.ellipse(11, 6, 1, 2, lighten(P.shard, 0.2));
-  p.px(5, 5, P.white); p.px(11, 5, P.white);
-  p.star4(11, 5, 2, P.shardL, P.white);
-  p.sparkle(5, 4, P.glint, 1);
+  for (let i = 0; i < 5; i++) p.px(5 + i, 6 - (i % 2), P.woodD);     // 撕裂的破口鋸齒
+  p.hline(4, 11, 11, withAlpha(P.bone, 0.35));                       // 縫線
+  p.glow(8, 3, 4, P.shard, 0.36, 3);
+  for (let i = 0; i < 3; i++) {                                      // 噴出的魂晶（三顆，各帶暗邊）
+    const x = 4 + i * 4, top = 1 + (i === 1 ? 0 : 2), h = i === 1 ? 4 : 3;
+    for (let y = top; y <= top + h; y++) {
+      const w = 1.6 * (1 - Math.abs(y - (top + h * 0.55)) / (h * 0.8));
+      p.hline(x - w, x + w, y, darken(P.shard, 0.5));                // 暗邊
+      p.px(Math.round(x), y, P.shard);
+      p.px(Math.round(x - w) + 1, y, P.shardL);                      // 受光面
+    }
+    p.px(x, top, P.white);
+  }
+  p.px(12, 4, P.glint);
 });
 
-// 7) purge_wave — full-screen area damage (radiant shockwave nova)
+// 7) purge_wave — 淨化衝擊波：一道從地面竄起的「垂直光柱」＋腳下兩圈擴散環
 defineIcon('item_g_purge_wave', '#3a1a4a', (p) => {
-  // expanding nova rings, brightest at the core
-  p.glow(8, 8, 6, P.astral, 0.35, 4);
-  p.ring(8, 8, 6, P.purpleD);
-  p.ring(8, 8, 5, withAlpha(P.astralL, 0.6));
-  p.ring(8, 8, 4.5, P.purpleL);
-  p.ring(8, 8, 3, P.manaL);
-  p.glow(8, 8, 2.6, P.holyL, 0.7, 3);
-  sym.star(p, P.shardL);
-  p.px(8, 8, P.white);
-  // shrapnel kira sparks on the diagonals
-  p.star4(4, 4, 1, P.astralL, P.white);
-  p.star4(12, 12, 1, P.astralL, P.white);
-  p.sparkle(12, 4, P.holyL, 1);
-  p.sparkle(4, 12, P.holyL, 1);
+  p.glow(8, 6, 7, P.astral, 0.42, 5);
+  for (let y = 1; y <= 11; y++) {                                    // 光柱（上寬下窄）
+    const w = 3.4 - y * 0.16;
+    p.hline(8 - w, 7 + w, y, withAlpha(P.purpleL, 0.85));
+    p.hline(8 - w + 1, 6 + w, y, P.manaL);
+    p.vline(1, 11, 8, P.white);                                      // 白熱核
+  }
+  p.px(8, 0, P.holyL); p.px(7, 2, P.white);
+  p.ellipse(8, 12, 6.4, 1.8, withAlpha(P.astralL, 0.55));            // 地面擴散環（外）
+  p.ellipse(8, 12, 4.2, 1.2, P.purpleL);
+  p.ellipse(8, 12, 2.2, 0.8, P.holyL);
+  p.px(2, 12, P.astralL); p.px(13, 12, P.astralL);
+  p.px(4, 4, withAlpha(P.holyL, 0.7)); p.px(12, 7, withAlpha(P.holyL, 0.7)); // 淨化星屑
 });
 
-// 8) swift_draught — timed crit/proj-speed buff (cool blue brew + arrows)
+// 8) swift_draught — 疾風靈藥：細長試管（筆直窄筒、無球肚），斜倚著疾風雪佛龍
 defineIcon('item_g_swift_draught', '#1a2a5a', (p) => {
-  _flask(p, P.blue, false);
-  // chilled vapour rising off the cork + neon speed chevrons
-  p.glow(8, 1, 2.5, P.neonL, 0.45, 3);
-  p.px(8, 1, P.iceD);
-  p.px(8, 0, P.ice);
-  sym.chevrons(p, P.iceD);
-  // accent the chevrons with a bright neon leading edge for motion
-  p.line(5, 4, 9, 8, withAlpha(P.neonL, 0.8));
-  p.line(8, 4, 12, 8, withAlpha(P.neonL, 0.8));
-  p.sparkle(12, 8, P.hiSky, 1);
+  p.glow(8, 8, 4, P.ice, 0.3, 3);
+  p.rect(6, 1, 4, 2, P.woodL); p.rect(6, 1, 4, 1, P.bone); p.px(6, 1, P.white); // 木塞
+  p.rect(6, 3, 4, 10, darken(P.blueD, 0.35));                        // 玻璃窄筒
+  p.rect(7, 5, 2, 7, P.blue); p.rect(7, 5, 2, 1, lighten(P.blue, 0.4));  // 藥液＋液面
+  p.hline(6, 9, 12, P.blueD); p.px(7, 12, P.hiSky);                   // 圓底
+  p.vline(4, 11, 6, withAlpha(P.white, 0.6)); p.px(6, 4, P.white);    // 玻璃反光
+  p.vline(4, 11, 9, darken(P.blueD, 0.4));
+  for (let i = 0; i < 3; i++) {                                      // 疾風雪佛龍
+    const x = 1 + i * 4;
+    p.line(x, 4 + i, x + 2, 7 + i, P.iceD); p.line(x + 2, 7 + i, x, 10 + i, P.iceD);
+    p.line(x + 1, 4 + i, x + 3, 7 + i, P.neonL);
+  }
+  p.px(12, 8, P.hiSky);
   p.rimLight(P.rimCool, 0.5);
 });

@@ -117,6 +117,9 @@ defineAnim('b3_thornking', 38, 40, 4, (p, f) => {
   p.px(13,0+oy,P.goldL); p.px(19,0+oy,P.goldL); p.px(25,0+oy,P.goldL);
   p.px(13,4+oy,P.woodD); p.px(25,4+oy,P.woodD);
   p.px(17,3+oy,P.moss); p.px(21,4+oy,P.moss);
+  // R28 W3-A1: canvas already final-boss-tier (38x40, content already fills it) —
+  // value-tier gap only (had rimLight but no shadeBottom).
+  p.shadeBottom(0.15, 30);
   p.rimLight(P.rim);
   p.outline(P.ink);
 }, { anchor:[19, 39], fps:5 });

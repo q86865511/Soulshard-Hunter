@@ -8,7 +8,7 @@ import { openAuth, openLeaderboard, isModalOpen, netToast } from '../../net/ui.j
 import { openSocial } from '../../net/social.js';
 import { Characters } from '../content/registry.js';
 import { PATCH_NOTES, GAME_VERSION } from '../content/patchnotes.js';
-import { uiText, uiRect, uiScale, view, drawSpriteUI, vignette, ctxRaw, textWidth } from '../../engine/renderer.js';
+import { uiText, uiRect, uiScale, view, drawSpriteUI, vignette, ctxRaw, textWidth, UI } from '../../engine/renderer.js';
 import { getSprite, frameAt } from '../../engine/sprites.js';
 import { pressed, mouse } from '../../engine/input.js';
 import { P, withAlpha } from '../../engine/palette.js';
@@ -31,7 +31,10 @@ const SQUAD = [
   { sprite: 'char_h4_gravekeeper', rx: 0.272, ry: 0.702, s: 2.4, ph: 9 },
   // mid rank
   { sprite: 'char_h4_paladin', rx: 0.092, ry: 0.778, s: 3.2, ph: 1 },
-  { sprite: 'char_h4_starcaller', rx: 0.300, ry: 0.772, s: 3.0, ph: 4 },
+  // R28/W4-H: was rx 0.300/ry 0.772 — nearly coincident with bladedancer's rx 0.292,
+  // and her foot-line landed on bladedancer's shoulder (read as "standing on her head").
+  // Pulled back onto the ridge (higher/further) so the two ranks stay visually separate.
+  { sprite: 'char_h4_starcaller', rx: 0.320, ry: 0.740, s: 3.0, ph: 4 },
   { sprite: 'char_h3_dragoon', rx: 0.372, ry: 0.784, s: 3.1, ph: 3 },
   // front rank — the vanguard, closest to the camera
   { sprite: 'player', rx: 0.172, ry: 0.856, s: 4.3, ph: 0, lead: true },
@@ -371,7 +374,14 @@ export const titleScene = {
       const qx = W * q.rx, qy = H * q.ry + bob;
       ctx.fillStyle = 'rgba(0,0,0,0.45)';
       ctx.beginPath(); ctx.ellipse(qx, H * q.ry + 1 * S, sp.w * sc * 0.34, sp.w * sc * 0.11, 0, 0, Math.PI * 2); ctx.fill();
-      if (q.lead) {                                                   // the player's avatar leads the charge
+      // R28/W4-H: unified moonlight rim — a faint cool wash offset to the upper-left of
+      // every squad member (matches the moon's screen position and the ridge rim-stroke
+      // in the ground pass above), so the whole ridge reads as one consistently-lit scene
+      // instead of only the lead getting a glow.
+      const rim = ctx.createRadialGradient(qx - sp.w * sc * 0.30, qy - sp.h * sc * 0.85, 0, qx - sp.w * sc * 0.30, qy - sp.h * sc * 0.85, sp.h * sc * 0.6);
+      rim.addColorStop(0, withAlpha('#eaf6ff', 0.14)); rim.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = rim; ctx.fillRect(qx - sp.w * sc, qy - sp.h * sc * 1.5, sp.w * sc * 2, sp.h * sc * 1.6);
+      if (q.lead) {                                                   // the player's avatar ALSO gets the soul-glow accent
         const lg = ctx.createRadialGradient(qx, qy - sp.h * sc * 0.45, 0, qx, qy - sp.h * sc * 0.45, sp.h * sc * 0.9);
         lg.addColorStop(0, withAlpha(P.shard, 0.16)); lg.addColorStop(1, 'rgba(0,0,0,0)');
         ctx.fillStyle = lg; ctx.fillRect(qx - sp.h * sc, qy - sp.h * sc * 1.4, sp.h * sc * 2, sp.h * sc * 1.8);
@@ -482,11 +492,17 @@ export const titleScene = {
     ctx.fillStyle = P.goldL; ctx.fillRect(-3 * S, -3 * S, 6 * S, 6 * S);
     ctx.fillStyle = '#fff2cf'; ctx.fillRect(-1.2 * S, -1.2 * S, 2.4 * S, 2.4 * S);
     ctx.restore();
-    uiText('S O U L S H A R D   H U N T E R', cx, ry2 + (compact ? 11 : 15) * S, { size: (compact ? 9.5 : 12.5) * S, align: 'center', color: withAlpha('#d8c08a', 0.9), weight: '700' });
+    uiText('S O U L S H A R D   H U N T E R', cx, ry2 + (compact ? 11 : 15) * S, { size: (compact ? UI.FONT_CAPTION : 12.5) * S, align: 'center', color: withAlpha('#d8c08a', 0.9), weight: UI.WEIGHT_HEADING });
   },
+  // R28/W4-H: footer stack anchored from the BOTTOM safe-area line (95% — ART-12 flagged the
+  // old fixed H*0.97/H*0.93 fractions as encroaching the 5% safe margin at constrained-height
+  // viewports, e.g. the 2560×1374 QHD case). hintY is the lowest line; everything else stacks
+  // upward from it so the whole footer scales together instead of drifting per-viewport.
+  footerHintY() { return view.H * 0.95; },
   notesBtn() {   // R20.1: parked at the bottom, just above the 金庫/最高威脅 footer line
     const S = this.menuScale(); const w = 180 * S, h = 28 * S;
-    return { x: view.W / 2 - w / 2, y: view.H * 0.93 - 46 * S, w, h };
+    const goldY = this.footerHintY() - 20 * S, notesBottomY = goldY - 14 * S;
+    return { x: view.W / 2 - w / 2, y: notesBottomY - h, w, h };
   },
   // very small CJK-aware wrap that draws + returns line count
   wrapNote(str, x, y, maxw, size) {
@@ -554,7 +570,7 @@ export const titleScene = {
       const backR = { x: x + 10 * S, y: y + 9 * S, w: 70 * S, h: 28 * S };
       const bh = inside(mx, my, backR);
       uiRect(backR.x, backR.y, backR.w, backR.h, withAlpha(bh ? '#27306a' : '#141832', 0.95), { radius: 6 * S, stroke: withAlpha(P.shardL, bh ? 0.9 : 0.5), lw: 1.5 });
-      uiText('◀ 返回', backR.x + backR.w / 2, backR.y + backR.h / 2 + 1 * S, { size: 11 * S, align: 'center', baseline: 'middle', color: '#cfe0ff', weight: '700' });
+      uiText('◀ 返回', backR.x + backR.w / 2, backR.y + backR.h / 2 + 1 * S, { size: UI.FONT_CAPTION * S, align: 'center', baseline: 'middle', color: '#cfe0ff', weight: UI.WEIGHT_HEADING });
       this._notesBack = backR;
     }
     const ctx = ctxRaw(); ctx.save(); ctx.beginPath(); ctx.rect(x, y + 50 * S, w, h - 70 * S); ctx.clip();
@@ -567,9 +583,9 @@ export const titleScene = {
         const hov = inside(mx, my, r);
         uiRect(r.x, r.y, r.w, r.h, withAlpha(hov ? '#27306a' : (i === 0 ? '#1d2440' : '#171c34'), 0.96), { radius: 8 * S, stroke: hov ? P.shardL : (i === 0 ? withAlpha(P.goldL, 0.55) : P.ink2), lw: hov ? 2.5 : 1.5 });
         uiText(note.v, r.x + 14 * S, r.y + 19 * S, { size: 14 * S, color: i === 0 ? P.goldL : '#eaf2ff', weight: '900' });
-        if (i === 0) uiText('最新', r.x + 14 * S + textWidth(note.v, 14 * S, '900') + 8 * S, r.y + 18 * S, { size: 9 * S, color: P.emberL, weight: '800' });
+        if (i === 0) uiText('最新', r.x + 14 * S + textWidth(note.v, 14 * S, '900') + 8 * S, r.y + 18 * S, { size: UI.FONT_CAPTION * S, color: P.emberL, weight: UI.WEIGHT_HEADING });
         this.clipNote(note.title || '', r.x + 14 * S, r.y + 35 * S, r.w - 120 * S, 10.5 * S, P.gray4);
-        uiText((note.date ? note.date + '　·　' : '') + note.items.length + ' 項　›', r.x + r.w - 12 * S, r.y + r.h / 2 + 4 * S, { size: 10 * S, align: 'right', color: P.gray3, weight: '700' });
+        uiText((note.date ? note.date + '　·　' : '') + note.items.length + ' 項　›', r.x + r.w - 12 * S, r.y + r.h / 2 + 4 * S, { size: UI.FONT_CAPTION * S, align: 'right', color: P.gray3, weight: UI.WEIGHT_BODY });
         this._noteRows.push(r);
         yy += rowH + gap;
       });
@@ -581,7 +597,7 @@ export const titleScene = {
       if (sel.date) {
         const tw2 = textWidth('📜 ' + sel.v + (sel.title ? '　·　' + sel.title : ''), 16 * S, '900');
         const dLeft = closeR.x - 8 * S - textWidth(sel.date, 10 * S, '600');
-        if (dLeft > x + w / 2 + tw2 / 2 + 6 * S) uiText(sel.date, closeR.x - 8 * S, y + 29 * S, { size: 10 * S, align: 'right', color: P.gray3 });
+        if (dLeft > x + w / 2 + tw2 / 2 + 6 * S) uiText(sel.date, closeR.x - 8 * S, y + 29 * S, { size: UI.FONT_CAPTION * S, align: 'right', color: P.gray3 });
       }
       // R20: rich items — { h, t } draws a coloured category chip + body; a plain string keeps
       // the legacy look but still gets number/《》 highlighting routed through drawRich.
@@ -600,7 +616,7 @@ export const titleScene = {
     }
     this.notesMax = Math.max(0, (yy + (this.notesScroll || 0)) - (y + 64 * S) - (h - 80 * S));
     ctx.restore();
-    uiText(sel ? '滑鼠滾輪捲動　·　Esc / ◀ 返回版本一覽' : '點擊版本查看詳細內容　·　Esc / 點外部關閉', x + w / 2, y + h - 14 * S, { size: 10 * S, align: 'center', color: P.gray3 });
+    uiText(sel ? '滑鼠滾輪捲動　·　Esc / ◀ 返回版本一覽' : '點擊版本查看詳細內容　·　Esc / 點外部關閉', x + w / 2, y + h - 14 * S, { size: UI.FONT_CAPTION * S, align: 'center', color: P.gray3 });
     this._notesClose = closeR; this._notesPanel = { x, y, w, h };
   },
   // single-line CJK clip with ellipsis (local helper for the version list rows)
@@ -633,10 +649,11 @@ export const titleScene = {
     // 📜 更新日誌 button
     const nb = this.notesBtn(), nhov = inside(mx, my, nb);
     uiRect(nb.x, nb.y, nb.w, nb.h, withAlpha(nhov ? '#33251a' : '#171225', 0.92), { radius: 7 * S, stroke: nhov ? P.goldL : withAlpha(P.goldL, 0.45), lw: nhov ? 2.5 : 1.5 });
-    uiText('📜 更新日誌 · ' + GAME_VERSION, nb.x + nb.w / 2, nb.y + nb.h / 2 + 1 * S, { size: 12 * S, align: 'center', baseline: 'middle', color: nhov ? '#fff' : P.goldL, weight: '700' });
+    uiText('📜 更新日誌 · ' + GAME_VERSION, nb.x + nb.w / 2, nb.y + nb.h / 2 + 1 * S, { size: 12 * S, align: 'center', baseline: 'middle', color: nhov ? '#fff' : P.goldL, weight: UI.WEIGHT_HEADING });
     if (this.mobileHint) uiText('📱 目前建議使用實體鍵盤遊玩　·　完整觸控操作尚未支援', view.W / 2, nb.y - 10 * S, { size: 11 * S, align: 'center', color: withAlpha(P.goldL, 0.9) });   // R21.8 hint; R26/B3: anchored above the notes button (H*0.885 landed inside it and the two overlapped)
-    uiText('金庫 ' + Math.round(META.gold || 0) + '　·　最高威脅 ' + (META.stats.bestStage || 0) + ' 級　·　最高分 ' + (META.stats.bestScore || 0), view.W / 2, view.H * 0.93, { size: 12 * S, align: 'center', color: P.gray3 });   // R17/2.1:「金庫」already labels it — no broken 🪙 glyph
-    uiText('空白鍵 快速進入上次存檔　·　Esc 設定', view.W / 2, view.H * 0.97, { size: 11 * S, align: 'center', color: withAlpha(P.gray2, 0.8) });
+    const hintY = this.footerHintY(), goldY = hintY - 20 * S;   // R28/W4-H: bottom-anchored so both lines keep a ≥5% safe-area margin at every viewport (ART-12)
+    uiText('金庫 ' + Math.round(META.gold || 0) + '　·　最高威脅 ' + (META.stats.bestStage || 0) + ' 級　·　最高分 ' + (META.stats.bestScore || 0), view.W / 2, goldY, { size: 12 * S, align: 'center', color: P.gray3 });   // R17/2.1:「金庫」already labels it — no broken 🪙 glyph
+    uiText('空白鍵 快速進入上次存檔　·　Esc 設定', view.W / 2, hintY, { size: 11 * S, align: 'center', color: withAlpha(P.gray2, 0.8) });
   },
 
   drawSlots(S) {
@@ -653,12 +670,12 @@ export const titleScene = {
       } else {
         const char = Characters.get(s.char); const cn = char ? char.name : s.char;
         uiText('存檔格 ' + (c.i + 1) + '　' + cn + (s.active ? '　★使用中' : ''), px, r.y + 26 * S, { size: 15 * S, color: '#fff', weight: '800' });
-        uiText('遊戲時數 ' + fmtTime(s.playTime) + '　·　成就 ' + s.achievements + '　·　金庫 ' + Math.round(s.gold || 0), px, r.y + 48 * S, { size: 12 * S, color: P.shardL, weight: '700' });   // R17/2.1
+        uiText('遊戲時數 ' + fmtTime(s.playTime) + '　·　成就 ' + s.achievements + '　·　金庫 ' + Math.round(s.gold || 0), px, r.y + 48 * S, { size: 12 * S, color: P.shardL, weight: UI.WEIGHT_BODY });   // R17/2.1
         if (r.h >= 78 * S) uiText('最高威脅 ' + s.bestStage + ' 級　·　最高分 ' + s.bestScore + '　·　通關 ' + s.clears + '　·　生態 ' + s.biomesUnlocked + '/10', px, r.y + 68 * S, { size: 11.5 * S, color: P.gray3 });   // R17/1.1: dropped when cards compress
         // delete button (two-click confirm)
         const d = c.delR; const confirming = this.confirm === c.i;
         uiRect(d.x, d.y, d.w, d.h, withAlpha(confirming ? '#5a2030' : '#2a1620', 0.95), { radius: 6 * S, stroke: withAlpha('#ff8a7a', confirming ? 0.9 : 0.4), lw: confirming ? 2 : 1 });
-        uiText(confirming ? '確認?' : '刪除', d.x + d.w / 2, d.y + d.h / 2 + 4 * S, { size: 11 * S, align: 'center', color: confirming ? '#ffb4a8' : withAlpha('#ff8a7a', 0.85), weight: '700' });
+        uiText(confirming ? '確認?' : '刪除', d.x + d.w / 2, d.y + d.h / 2 + 4 * S, { size: UI.FONT_CAPTION * S, align: 'center', color: confirming ? '#ffb4a8' : withAlpha('#ff8a7a', 0.85), weight: UI.WEIGHT_HEADING });
       }
     }
     const bhov = inside(mx, my, L.back);

@@ -199,100 +199,158 @@ function epPrismGlint(p, cx, cy) {
   p.px(cx, cy, P.white);
 }
 
-// chromatic core — a faceted multicolour gem.
+// R28 B-rework — ART_SPEC 第 5 節鐵律：這 9 張原本是「橢圓寶石 ×2／圓盤 ×2／
+// 方管槍 ×2」的換色家族。改成各自可命名的實體：切工寶石／兜帽／三角稜鏡／
+// 帶柄放大鏡／相位重影符印／橫置晶槍／墜落隕星／轉輪連弩／喇叭口散彈。
+// 9 件全是 tier 3，kira 一律開。
+
+// chromatic core — 一顆有明確刻面的切工寶石（八角外形＋輻射刻面線）
 defineIcon('equip_ep_chromatic_core', P.void, (p) => {
-  p.ellipse(8, 8, 4.6, 5, darken(P.purple, 0.2));
-  p.ellipse(8, 8, 3.4, 4, P.purple);
-  // colour facets
-  p.hline(5, 7, 6, P.red); p.hline(8, 11, 6, P.gold);
-  p.hline(5, 7, 9, P.green); p.hline(8, 11, 9, P.blueL);
-  p.line(8, 3, 8, 13, P.white);
-  p.px(7, 5, P.white);
-});
-
-// void mantle — dark hooded cloak with a faint rune.
-defineIcon('equip_ep_void_mantle', P.void, (p) => {
-  for (let y = 3; y <= 13; y++) { const w = 1 + (y - 3) * 0.42; p.hline(8 - w, 7 + w, y, P.purpleD); }
-  for (let y = 4; y <= 12; y++) { const w = (y - 4) * 0.34; p.hline(8 - w, 7 + w, y, darken(P.purple, 0.15)); }
-  p.hline(3, 12, 13, P.purpleL);
-  p.ellipse(8, 5, 2, 2, P.ink2);
-  p.px(7, 6, P.manaL); p.px(9, 6, P.manaL);
-});
-
-// blood prism — a crimson crystal weeping a droplet.
-defineIcon('equip_ep_blood_prism', P.blood, (p) => {
-  p.ellipse(8, 7, 2.8, 4.2, darken(P.red, 0.25));
-  p.ellipse(8, 7, 1.8, 3.2, P.red);
-  p.vline(3, 11, 8, P.redL);
-  p.px(7, 5, P.white);
-  // droplet
-  p.ellipse(8, 13, 1.4, 1.8, P.redD);
-  p.px(8, 11, P.redL);
-});
-
-// giant lens — a big convex lens / magnifier disc.
-defineIcon('equip_ep_giant_lens', P.steelD, (p) => {
-  p.ring(8, 8, 5.5, P.gold);
-  p.ellipse(8, 8, 4.6, 4.6, withAlpha(P.shardL, 0.9));
-  p.ellipse(8, 8, 4.6, 4.6, P.shard);
-  p.ellipse(8, 8, 3, 3, P.shardL);
-  p.px(6, 6, P.white); p.px(7, 5, P.white);
-});
-
-// phase sigil — a swirling rune disc with motion streaks.
-defineIcon('equip_ep_phase_sigil', P.purpleD, (p) => {
-  p.ring(8, 8, 5, P.manaL);
-  p.ring(8, 8, 3, P.purpleL);
-  p.line(8, 8, 12, 5, P.manaL);
-  p.line(8, 8, 4, 11, P.manaL);
-  epPrismGlint(p, 8, 8);
-  // speed streaks
-  p.px(1, 7, P.shardL); p.px(2, 7, P.manaL);
-  p.px(13, 9, P.shardL); p.px(14, 9, P.manaL);
-});
-
-// prism lance — an angled crystalline spear with a bright tip.
-defineIcon('equip_ep_prism_lance', P.shardD, (p) => {
-  p.line(3, 13, 12, 4, P.shard);
-  p.line(4, 13, 13, 4, P.shardL);
-  p.px(13, 3, P.white); p.px(12, 4, P.white);
-  // barbs
-  p.line(11, 5, 10, 8, P.shardL);
-  p.line(11, 5, 8, 6, P.shardL);
-  p.px(3, 13, P.iceD);
-});
-
-// starfall orb — a violet star-sphere with radiating points.
-defineIcon('equip_ep_starfall_orb', P.void, (p) => {
-  p.ellipse(8, 8, 4, 4, P.purpleD);
-  p.ellipse(8, 8, 3, 3, P.purple);
-  p.ellipse(8, 8, 1.6, 1.6, P.manaL);
-  p.vline(1, 15, 8, withAlpha(P.purpleL, 0.8));
-  p.hline(1, 15, 8, withAlpha(P.purpleL, 0.8));
-  p.vline(2, 14, 8, P.purpleL); p.hline(2, 14, 8, P.purpleL);
-  p.px(8, 8, P.white);
-});
-
-// tempest repeater — a multi-barrel crystal repeater spitting motes.
-defineIcon('equip_ep_tempest_repeater', P.steelD, (p) => {
-  p.rect(2, 6, 7, 2, P.iron);
-  p.rect(2, 9, 7, 2, P.iron);
-  p.rect(2, 6, 7, 1, P.gray3);
-  p.rect(8, 5, 2, 7, P.shard);
-  p.px(2, 7, P.shardL); p.px(2, 10, P.shardL);
-  for (let i = 0; i < 4; i++) { const x = 11 + i; p.px(x, 7, P.shardL); p.px(x, 9, P.shardL); }
-});
-
-// doom scatter — a stubby cannon erupting a fan of ember shards.
-defineIcon('equip_ep_doom_scatter', P.woodD, (p) => {
-  p.rect(2, 7, 6, 3, P.iron);
-  p.rect(2, 7, 6, 1, P.gray3);
-  p.rect(7, 6, 2, 5, P.steel);
-  p.px(2, 8, P.emberL);
-  for (let i = 0; i < 5; i++) {
-    const a = -0.7 + i * 0.35;
-    p.px(10 + Math.cos(a) * 3, 8 + Math.sin(a) * 3, P.emberL);
-    p.px(12 + Math.cos(a) * 3, 8 + Math.sin(a) * 3, P.ember);
+  p.glow(8, 8, 6, P.astral, 0.3, 4);
+  for (let y = 2; y <= 13; y++) {                       // 八角切工外形
+    const t = (y - 2) / 11;
+    const w = y <= 5 ? 2 + y * 0.7 : 5.6 - (y - 5) * 0.62;
+    p.hline(8 - w, 7 + w, y, mix(P.purpleL, darken(P.purple, 0.4), t));
   }
-  p.px(13, 8, P.white);
-});
+  p.hline(5, 10, 2, lighten(P.purpleL, 0.3));           // 檯面
+  p.line(5, 2, 2, 6, P.red); p.line(10, 2, 13, 6, P.gold);        // 冠部刻面（分光）
+  p.line(2, 7, 8, 13, P.green); p.line(13, 7, 8, 13, P.blueL);    // 亭部刻面
+  p.line(5, 2, 8, 13, withAlpha(P.white, 0.7)); p.line(10, 2, 8, 13, withAlpha(P.shardL, 0.7));
+  p.px(6, 3, P.white); p.px(8, 13, P.white);
+}, { kira: true });
+
+// void mantle — 圓拱形兜帽半身（Ω 形，非三角）：帽緣一圈、帽內全黑、兩點星眸＋外張肩線
+defineIcon('equip_ep_void_mantle', P.void, (p) => {
+  p.glow(8, 7, 6, P.purpleL, 0.24, 4);
+  for (let y = 1; y <= 9; y++) {                        // 帽殼：頂部渾圓、頸側收窄
+    const t = (y - 1) / 8;
+    const w = y <= 4 ? 2.0 + Math.sqrt(y) * 1.5 : 5.0 - (y - 4) * 0.42;
+    p.hline(8 - w, 7 + w, y, t < 0.4 ? P.purple : P.purpleD);
+    p.px(Math.round(8 - w), y, P.purpleL);
+    p.px(Math.round(7 + w), y, darken(P.purpleD, 0.4));
+  }
+  for (let y = 3; y <= 9; y++) {                        // 帽內虛空（跟著帽殼收）
+    const w = y <= 5 ? (y - 2) * 1.1 : 3.3 - (y - 5) * 0.5;
+    p.hline(8 - w, 7 + w, y, darken(P.void, 0.6));
+  }
+  p.px(6, 6, P.manaL); p.px(9, 6, P.manaL); p.px(6, 5, withAlpha(P.astralL, 0.6)); // 星眸
+  for (let y = 10; y <= 12; y++) {                      // 外張的肩線（Ω 的兩隻腳）
+    const w = 4.6 + (y - 10) * 1.6;
+    p.hline(8 - w, 7 + w, y, y === 10 ? P.purple : P.purpleD);
+  }
+  for (let i = 0; i < 7; i++) p.px(1 + i * 2, 13 + (i % 2), withAlpha(P.purpleL, 0.6 - i * 0.06)); // 消散下擺
+  p.px(4, 3, P.astralL);
+}, { kira: true });
+
+// blood prism — 一枚正三角稜鏡：白光自左入射、右側折出紅色光譜
+defineIcon('equip_ep_blood_prism', P.blood, (p) => {
+  p.glow(8, 9, 6, P.red, 0.28, 4);
+  for (let y = 3; y <= 13; y++) {                       // 三角稜鏡本體
+    const w = (y - 3) * 0.55;
+    p.hline(8 - w, 7 + w, y, mix(P.redL, P.redD, (y - 3) / 10));
+    p.px(Math.round(8 - w), y, lighten(P.redL, 0.35));  // 左稜受光
+    p.px(Math.round(7 + w), y, darken(P.redD, 0.35));
+  }
+  p.hline(3, 12, 13, P.redD); p.px(8, 3, P.white);
+  p.line(1, 7, 6, 9, P.white);                          // 入射白光
+  p.line(9, 9, 14, 6, P.laser); p.line(9, 10, 14, 8, P.red); p.line(9, 11, 14, 10, P.redD); // 折射光譜
+  p.px(6, 7, P.white);
+}, { kira: true });
+
+// giant lens — 帶握柄的放大鏡（圓框＋斜下的柄），與無柄符印圓盤分家
+defineIcon('equip_ep_giant_lens', P.steelD, (p) => {
+  p.glow(7, 6, 5, P.shard, 0.3, 4);
+  p.line(9, 10, 13, 14, P.woodD); p.line(10, 10, 14, 14, P.wood);   // 握柄
+  p.px(10, 11, P.woodL); p.rect(12, 12, 2, 2, P.gold);
+  p.ellipse(7, 6, 5, 5, P.goldD); p.ellipse(7, 6, 4.4, 4.4, P.gold); // 金屬鏡框
+  p.ellipse(7, 6, 3.6, 3.6, withAlpha(P.shard, 0.9));               // 鏡片
+  p.ellipse(7, 6, 2.2, 2.2, P.shardL);
+  p.line(4, 8, 8, 3, withAlpha(P.white, 0.7));                      // 玻璃反光帶
+  p.px(5, 4, P.white); p.px(9, 9, darken(P.goldD, 0.3));
+}, { kira: true });
+
+// phase sigil — 一塊圓頂符印石碑，連同「錯位半格的相位重影」一起顯現（雙重輪廓）
+defineIcon('equip_ep_phase_sigil', P.purpleD, (p) => {
+  p.glow(8, 8, 6, P.mana, 0.28, 4);
+  const stele = (ox, oy, body, edge, rune) => {         // 圓頂石碑
+    for (let y = 2 + oy; y <= 13 + oy; y++) {
+      const k = y - oy;
+      const w = k <= 5 ? 1.4 + Math.sqrt(k - 1) * 1.5 : 3.6;
+      p.hline(8 + ox - w, 7 + ox + w, y, body);
+      p.px(Math.round(8 + ox - w), y, edge);
+    }
+    p.hline(3 + ox, 12 + ox, 13 + oy, edge);
+    p.vline(6 + oy, 11 + oy, 8 + ox, rune);             // 碑面符文
+    p.hline(5 + ox, 10 + ox, 8 + oy, rune);
+    p.px(6 + ox, 9 + oy, rune); p.px(10 + ox, 9 + oy, rune);
+  };
+  stele(-3, 2, withAlpha(P.purpleD, 0.45), withAlpha(P.purpleL, 0.4), withAlpha(P.manaL, 0.35)); // 落後的殘影
+  stele(0, 0, P.purple, P.purpleL, P.manaL);                                                     // 本體
+  stele(3, -2, withAlpha(P.shardD, 0.4), withAlpha(P.shardL, 0.5), withAlpha(P.white, 0.5));     // 超前的相位
+  epPrismGlint(p, 8, 8);
+  p.px(1, 12, P.manaL); p.px(14, 2, P.shardL);
+}, { kira: true });
+
+// prism lance — 橫置的晶槍：左端配重、右端槍尖射出三道折射光（與斜／直槍分家）
+defineIcon('equip_ep_prism_lance', P.shardD, (p) => {
+  p.glow(10, 8, 5, P.shard, 0.3, 4);
+  p.hline(1, 14, 11, darken(P.void, 0.45));                         // 槍身下方的通長暗邊（把輪廓切出來）
+  p.rect(1, 7, 3, 4, darken(P.iron, 0.3)); p.rect(1, 7, 3, 1, P.steelL);   // 尾端配重
+  p.px(1, 7, P.glint);
+  p.rect(4, 8, 3, 3, P.gray1); p.rect(4, 8, 3, 1, P.gray4);         // 握段
+  p.rect(7, 7, 1, 5, P.goldD); p.px(7, 7, P.goldL);                 // 細護盤（不再是大方塊）
+  for (let x = 8; x <= 14; x++) {                                   // 橫置錐形晶槍尖：由粗轉尖
+    const w = 2.8 - (x - 8) * 0.42;
+    for (let y = Math.round(9 - w); y <= 10; y++) {
+      p.px(x, y, y <= 9 - w + 1 ? P.white : (y <= 9 ? P.hiSky : P.shard));
+    }
+  }
+  p.px(14, 10, P.white); p.px(9, 7, P.white);
+  p.line(13, 9, 15, 5, withAlpha(P.red, 0.8)); p.line(13, 10, 15, 14, withAlpha(P.blueL, 0.8)); // 折射光
+}, { kira: true });
+
+// starfall orb — 一顆「墜落中的隕星」：右上是火核，左下拖出漸淡的尾焰
+defineIcon('equip_ep_starfall_orb', P.void, (p) => {
+  p.glow(11, 5, 6, P.purpleL, 0.36, 5);
+  for (let i = 0; i < 7; i++) {                                     // 尾焰（越後越細越淡）
+    const x = 9 - i * 1.4, y = 7 + i * 1.2, w = 2.2 - i * 0.28;
+    p.hline(x - w, x + w, y, withAlpha(P.purple, 0.85 - i * 0.11));
+    p.px(Math.round(x), Math.round(y), withAlpha(P.manaL, 0.9 - i * 0.12));
+  }
+  p.ellipse(11, 5, 3.6, 3.6, P.purpleD);                            // 隕核
+  p.ellipse(11, 5, 2.6, 2.6, P.purple);
+  p.ellipse(10.4, 4.4, 1.4, 1.4, P.manaL);
+  p.px(10, 4, P.white); p.px(12, 7, darken(P.purpleD, 0.3));
+  p.px(13, 2, P.astralL); p.px(2, 13, withAlpha(P.purpleL, 0.5));   // 迸散星屑
+}, { kira: true });
+
+// tempest repeater — 轉輪連弩：正面一組六管轉輪（圓盤＋六個管口）＋短槍身
+defineIcon('equip_ep_tempest_repeater', P.steelD, (p) => {
+  p.rect(9, 7, 6, 3, P.iron); p.hline(9, 14, 7, P.steelL); p.hline(9, 14, 9, darken(P.iron, 0.4)); // 槍身
+  p.rect(11, 10, 2, 4, P.woodD); p.px(11, 10, P.woodL);             // 握把
+  p.ellipse(6, 8, 5.4, 5.4, darken(P.iron, 0.3));                   // 轉輪外殼
+  p.ellipse(6, 8, 4.4, 4.4, P.iron); p.ring(6, 8, 5.4, P.steelL);
+  for (let i = 0; i < 6; i++) {                                     // 六個管口
+    const a = i * Math.PI / 3;
+    const bx = 6 + Math.cos(a) * 3, by = 8 + Math.sin(a) * 3;
+    p.ellipse(bx, by, 1.1, 1.1, P.gray1); p.px(bx, by, P.shardL);
+  }
+  p.ellipse(6, 8, 1.2, 1.2, P.steelL); p.px(4, 6, P.white);         // 輪軸＋高光
+  p.px(2, 8, P.shard); p.px(6, 4, P.shardL);
+}, { kira: true });
+
+// doom scatter — 喇叭口散彈：後粗前開的鐘形槍口＋木托，與雙管／轉輪分家
+defineIcon('equip_ep_doom_scatter', P.woodD, (p) => {
+  p.gradV(1, 8, 5, 4, lighten(P.woodL, 0.2), darken(P.woodD, 0.2));  // 木托
+  p.hline(1, 5, 8, lighten(P.woodL, 0.35)); p.px(1, 8, P.rim);
+  for (let x = 5; x <= 12; x++) {                                    // 鐘形喇叭口（往右張開）
+    const w = 1.4 + (x - 5) * 0.62;
+    for (let y = Math.round(8 - w); y <= Math.round(8 + w); y++) {
+      p.px(x, y, y < 8 - w + 1 ? P.steelL : (y > 8 + w - 1 ? darken(P.iron, 0.4) : P.iron));
+    }
+  }
+  p.vline(3, 13, 12, P.gray4); p.px(12, 3, P.glint);                 // 口緣
+  p.glow(13, 8, 3, P.ember, 0.5, 3);
+  for (let i = 0; i < 5; i++) p.px(13 + (i % 2), 4 + i * 2, i % 2 ? P.ember : P.emberL); // 噴出的裂片
+  p.px(14, 8, P.white);
+}, { kira: true });

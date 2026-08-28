@@ -53,20 +53,23 @@ function ud_spectralWash(p, cx, cy, r, col, phase = 0) {
 }
 
 // ---------------------------------------------------------------------------
-// g_skeleton — bony footsoldier with a rusted cleaver. 16x18, feet anchored.
+// g_skeleton — bony footsoldier with a rusted cleaver. 16x16, feet anchored.
 // ---------------------------------------------------------------------------
-defineAnim('g_skeleton', 16, 18, 4, (p, f) => {
+// R28 W3-A2: standard-tier 16x16 canvas (was 16x18 — not a valid tier row;
+// only the hero row is 16x18). Legs shortened by 2px (feet 17->15) to fit the
+// shorter canvas; skull/ribs/arms/cleaver were already within y<=13, untouched.
+defineAnim('g_skeleton', 16, 16, 4, (p, f) => {
   const bone = P.bone, boneD = darken(P.bone, 0.32), boneL = lighten(P.bone, 0.22);
   const bob = (f === 1 || f === 3) ? 1 : 0;
   const step = f === 1 ? 1 : f === 3 ? -1 : 0;
   const oy = -bob;
   // ground contact shadow
-  p.softShadow(8, 17, 5, 1.6, 0.34);
+  p.softShadow(8, 15, 5, 1.6, 0.34);
   // leg bones
-  p.vline(13 + oy, 17 + oy, 6, boneD); p.vline(13 + oy, 17 + oy, 9, boneD);
-  p.vline(13 + oy, 16 + oy, 6, bone); p.vline(13 + oy, 16 + oy, 9, bone);
-  if (step > 0) p.px(6, 17 + oy, boneD);
-  if (step < 0) p.px(9, 17 + oy, boneD);
+  p.vline(13 + oy, 15 + oy, 6, boneD); p.vline(13 + oy, 15 + oy, 9, boneD);
+  p.vline(13 + oy, 14 + oy, 6, bone); p.vline(13 + oy, 14 + oy, 9, bone);
+  if (step > 0) p.px(6, 15 + oy, boneD);
+  if (step < 0) p.px(9, 15 + oy, boneD);
   // pelvis
   p.rect(5, 12 + oy, 6, 2, boneD);
   p.hline(5, 10, 12 + oy, bone);
@@ -95,21 +98,24 @@ defineAnim('g_skeleton', 16, 18, 4, (p, f) => {
   // ember motes near the eyes on the off-beat for spook
   if (f === 2) p.px(5, 1 + oy, withAlpha(P.emberL, 0.7));
   p.rimLight(P.rim, 0.5);
+  p.shadeBottom(0.2, 10);
   p.outline(P.ink);
-}, { anchor: [8, 17], fps: 6 });
+}, { anchor: [8, 15], fps: 6 });
 
 // ---------------------------------------------------------------------------
-// g_bonearcher — skeletal archer that looses bone arrows. 16x18.
+// g_bonearcher — skeletal archer that looses bone arrows. 16x16.
 // ---------------------------------------------------------------------------
-defineAnim('g_bonearcher', 16, 18, 4, (p, f) => {
+// R28 W3-A2: standard-tier 16x16 canvas (was 16x18, same fix as g_skeleton) —
+// legs shortened by 2px (feet 17->15); hood/skull/bow/arm already y<=14.
+defineAnim('g_bonearcher', 16, 16, 4, (p, f) => {
   const bone = mix(P.bone, P.greenD, 0.18), boneD = darken(bone, 0.34);
   const hood = mix(P.greenD, P.ink, 0.25), hoodL = mix(P.greenD, P.toxic, 0.3);
   const draw = (f === 2); // mid-frame: bowstring drawn
   const oy = (f === 1 || f === 3) ? -1 : 0;
-  p.softShadow(8, 17, 5, 1.6, 0.32);
+  p.softShadow(8, 15, 5, 1.6, 0.32);
   // legs
-  p.vline(13 + oy, 17 + oy, 6, boneD); p.vline(13 + oy, 17 + oy, 9, boneD);
-  p.vline(13 + oy, 16 + oy, 6, bone); p.vline(13 + oy, 16 + oy, 9, bone);
+  p.vline(13 + oy, 15 + oy, 6, boneD); p.vline(13 + oy, 15 + oy, 9, boneD);
+  p.vline(13 + oy, 14 + oy, 6, bone); p.vline(13 + oy, 14 + oy, 9, bone);
   p.rect(5, 12 + oy, 6, 2, boneD);
   ud_ribs(p, 8, 7 + oy, 12 + oy, bone, boneD);
   // tattered hood remnant with a toxic-green inner sheen
@@ -139,8 +145,9 @@ defineAnim('g_bonearcher', 16, 18, 4, (p, f) => {
   p.vline(7 + oy, 9 + oy, 11, boneD);
   p.px(11, 8 + oy, bone);
   p.rimLight(P.rimCool, 0.45);
+  p.shadeBottom(0.2, 10);
   p.outline(P.ink);
-}, { anchor: [8, 17], fps: 5 });
+}, { anchor: [8, 15], fps: 5 });
 
 // projectile: bone arrow used by g_bonearcher
 defineSprite('g_bonearrow', 8, 8, (p) => {
@@ -159,7 +166,11 @@ defineSprite('g_bonearrow', 8, 8, (p) => {
 // g_ghoul — hunched rotting carrion-eater. Reuses drawHunter base in sickly
 // flesh tones, then adds gore, claw fingers and a dripping maw.
 // ---------------------------------------------------------------------------
-defineAnim('g_ghoul', 16, 18, 4, (p, f) => {
+// R28 W3-A2: standard-tier 16x16 canvas (was 16x18 — drawHunter's own coordinate
+// space is hero-only 16x18 and stays untouched in core.js); whole draw wrapped
+// in a -2px y-shift, clipping ~2px off the hood/hair top (feet 17->15 fits).
+defineAnim('g_ghoul', 16, 16, 4, (p, f) => {
+  p.ctx.save(); p.ctx.translate(0, -2);
   const flesh = mix(P.greenD, P.skinD, 0.45);
   const fleshD = darken(flesh, 0.3);
   const fleshL = lighten(flesh, 0.22);
@@ -182,15 +193,21 @@ defineAnim('g_ghoul', 16, 18, 4, (p, f) => {
   p.rect(6, 10 + oy, 4, 1, P.blood);
   p.px(7, 11 + oy, P.red);
   p.px(8, 11 + oy, withAlpha(P.redL, 0.7));
+  p.ctx.restore();
   p.rimLight(mix(P.poison, P.rim, 0.4), 0.4);
+  p.shadeBottom(0.2, 10);
   p.outline(P.ink);
-}, { anchor: [8, 17], fps: 6 });
+}, { anchor: [8, 15], fps: 6 });
 
 // ---------------------------------------------------------------------------
 // g_necromancer — dark-robed undead caster. drawHunter variant (void robe),
 // hurls shadow bolts. Adds a bone staff topped with a green soul-flame.
 // ---------------------------------------------------------------------------
-defineAnim('g_necromancer', 16, 18, 4, (p, f) => {
+// R28 W3-A2: standard-tier 16x16 canvas (was 16x18, same drawHunter fix as
+// g_ghoul) — whole draw wrapped in a -2px y-shift (feet 17->15; the staff's
+// flame tip loses ~1-2px of its topmost highlight, acceptable trim).
+defineAnim('g_necromancer', 16, 16, 4, (p, f) => {
+  p.ctx.save(); p.ctx.translate(0, -2);
   p.softShadow(8, 17, 5, 1.6, 0.34);
   drawHunter(p, f, { cloak: P.purpleD, cloakD: P.void, cloakL: P.purple, trim: P.toxic, eye: P.toxic, skin: P.bone });
   const oy = (f === 1 || f === 3) ? -1 : 0;
@@ -213,9 +230,11 @@ defineAnim('g_necromancer', 16, 18, 4, (p, f) => {
   p.px(5, 4 + oy, P.bone); p.px(10, 4 + oy, P.bone);
   // sakura-cool rune glint on the chest
   p.px(8, 9 + oy, withAlpha(P.astralL, 0.8));
+  p.ctx.restore();
   p.rimLight(P.astralL, 0.4);
+  p.shadeBottom(0.2, 10);
   p.outline(P.ink);
-}, { anchor: [8, 17], fps: 6 });
+}, { anchor: [8, 15], fps: 6 });
 
 // projectile: shadow bolt used by g_necromancer
 defineSprite('g_shadowbolt', 8, 8, (p) => {
@@ -235,7 +254,11 @@ defineSprite('g_shadowbolt', 8, 8, (p) => {
 // g_wraith — fast vengeful spirit. drawWisp variant in void/purple, plus a
 // hollow hood, cold eyes and trailing skeletal claws.
 // ---------------------------------------------------------------------------
-defineAnim('g_wraith', 16, 16, 3, (p, f) => {
+// R28 W3-A2: swarm-tier 14x14 canvas (was 16x16, same drawWisp-family fix as
+// g_frostwisp/g_stormwisp) — -1/-1px shift to recentre; had rimLight but no
+// shadeBottom.
+defineAnim('g_wraith', 14, 14, 3, (p, f) => {
+  p.ctx.save(); p.ctx.translate(-1, -1);
   const phase = f / 3;
   // ghostly wash beneath the wisp body
   ud_spectralWash(p, 8, 8, 5, P.astral, phase);
@@ -258,9 +281,11 @@ defineAnim('g_wraith', 16, 16, 3, (p, f) => {
   p.px(4, 11 + yb, P.gray4);
   // kira twinkle trailing the spirit
   if (f === 1) p.sparkle(3, 4 + yb, withAlpha(P.rimCool, 0.8), 1);
+  p.ctx.restore();
   p.rimLight(P.rimCool, 0.5);
+  p.shadeBottom(0.2, 9);
   p.outline(P.ink);
-}, { anchor: [8, 12], fps: 7 });
+}, { anchor: [7, 11], fps: 7 });
 
 // ---------------------------------------------------------------------------
 // g_deathknight — armored skeletal champion, slow heavy charger. Custom,
@@ -308,6 +333,8 @@ defineAnim('g_deathknight', 18, 18, 2, (p, f) => {
   p.px(16, 1 + yb, P.white);
   p.star4(16, 1 + yb, 2, withAlpha(P.rimCool, 0.7), P.glint); // blade kira
   p.rimLight(P.rim, 0.45);
+  // R28 W3-A2: value-tier gap fix — canvas already large-tier (18x18), missing shadeBottom.
+  p.shadeBottom(0.2, 12);
   p.outline(P.ink);
 }, { anchor: [9, 17], fps: 3 });
 

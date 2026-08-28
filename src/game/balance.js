@@ -199,10 +199,15 @@ export const BALANCE = {
   DECOR: { SINGLES: 75, CLUSTERS: 20, WALL: 24, DECALS: 360 },   // R26/B1b density pass (was 55/14/20/90); DECALS = render-only ground-mark channel (empty pools → no-op)
 
   // ---- R26/B1 scene-composition FX (render-only tuning) ------------------
+  // R28/FIX-1 (gate 高項「玩家淹沒」): at 60 enemies the ground pool + beacon were both too
+  // faint to find the avatar in the pile. Three knobs move together — a stronger/wider ground
+  // pool, a NEW top-layer foot ring (drawn above every actor, see world.drawPlayerTopRing),
+  // and a brighter beacon. All render-only: no sim value reads SCENE_FX.
   SCENE_FX: {
-    PLAYER_RING_R: 20, PLAYER_RING_A: 0.12,   // local-player cold-white ground pool (identity)
+    PLAYER_RING_R: 24, PLAYER_RING_A: 0.30,   // local-player cold-white ground pool (identity; was 20 / 0.12)
+    PLAYER_RING_TOP_R: 10, PLAYER_RING_TOP_A: 0.5,   // top-layer 1.5 px foot ring — the only mark that survives being fully covered
     SURROUND_N: 4, SURROUND_R: 14,            // ≥N enemies within R px of the player → "surrounded" beacon
-    SURROUND_A_MIN: 0.25, SURROUND_A_MAX: 0.45,  // beacon silhouette pulse range
+    SURROUND_A_MIN: 0.25, SURROUND_A_MAX: 0.65,  // beacon silhouette pulse range (max was 0.45)
     WALL_AO_ALPHA: 0.35,                       // south-edge wall-foot ambient-occlusion strength
   },
 
@@ -210,6 +215,37 @@ export const BALANCE = {
   // Cool, low-saturation vignette over the hub — unifies the 末日遺鎮 mood and frames
   // the scattered districts. Tint is a desaturated cold navy; strength kept faint.
   HUB_VIGNETTE: { strength: 0.4, rgb: '20,28,52' },
+
+  // ---- R28/W0 art tokens (ART_SPEC 2.2/2.3/3) -----------------------------
+  // Definitions ONLY — no consumer yet, so this batch changes no pixel. BEAM_FAM_* are the
+  // ownership colour families for the co-op `bm` telegraph channel (boss = 紅橙, event = 琥珀;
+  // player weapons keep cold colours and must never borrow these). The alphas are the caps
+  // ART_SPEC 2.2 puts on the decorative channel, plus the boss ground-ring strength.
+  ARTV: {
+    BEAM_FAM_BOSS: ['#ff5a3c', '#ff8a50'],
+    BEAM_FAM_EVENT: ['#ffc23c', '#ffd75a'],
+    BOSS_RING_A: 0.18,
+    DECO_PARTICLE_ALPHA: 0.5,
+    GLOW_DECO_ALPHA: 0.35,
+    // R28/W2-D — biome macro-variation (ART_SPEC §6). Consumed ONLY by the biomes
+    // that opt in via BIOME_MACRO (crypt / celestial / desert this slice); the other
+    // seven never read these, so retuning here cannot move their tiles.
+    // Thresholds are calibrated against the value-noise distribution on a 138×102
+    // map: FLOOR_T 0.63 @ sc 2.8 ≈ 32% cover with ~4-tile runs (spec asks 2-5);
+    // CALM_T 0.80 @ sc 7.5 ≈ 13% (spec asks 10-15%).
+    MACRO: {
+      FLOOR_SC: 2.8, FLOOR_T: 0.63,        // v1 alt-shade patches: clustered, not per-tile
+      CALM_SC: 7.5, CALM_T: 0.80,          // large "rest" zones — no v1, no decals
+      DECAL_SC: 5.0, DECAL_PEAK_T: 0.62,   // decal clusters only ride noise peaks
+      DECAL_CLUSTER_FRAC: 0.7,             // share of the DECOR.DECALS budget spent in clusters
+      DECAL_PER_CLUSTER: 9, DECAL_CLUSTER_R: 34,
+      LMK_NEAR: [4.5, 8.5], LMK_FAR: [15, 26],   // landmark distance rings, in TILES from spawn
+      LMK_CLEAR: 40,                       // px: keep scatter decor this far off a landmark
+      AMBIENT: 18,                         // signature animated props per map (× area factor k) —
+                                           // ~1 in view per viewport; 8 was so sparse the biome's
+                                           // signature motion was usually off-screen entirely
+    },
+  },
 };
 
 // Effective weapon level cap: evolved weapons are terminal (level 1), everything

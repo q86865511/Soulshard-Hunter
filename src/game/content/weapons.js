@@ -92,7 +92,7 @@ W({
   },
   draw(world, p, inst) {
     const l = inst.level, n = 2 + Math.floor(l * 0.7), R = 30 + l * 3, sp = getSprite('fx_blade');
-    for (let i = 0; i < n; i++) { const a = (inst.st.a || 0) + i / n * TAU, ox = p.x + Math.cos(a) * R, oy = p.y + Math.sin(a) * R; glowWorld(ox, oy, 6, P.shardL, 0.4); drawSprite(sp.frames[0], ox, oy, { ax: sp.ax, ay: sp.ay, rot: a + Math.PI / 2 }); }
+    for (let i = 0; i < n; i++) { const a = (inst.st.a || 0) + i / n * TAU, ox = p.x + Math.cos(a) * R, oy = p.y + Math.sin(a) * R; glowWorld(ox, oy, 6, P.shardL, 0.4, { deco: true }); drawSprite(sp.frames[0], ox, oy, { ax: sp.ax, ay: sp.ay, rot: a + Math.PI / 2 }); }
   },
   desc: '召喚環繞的魂刃，持續切割周圍敵人。',
 });
@@ -165,8 +165,10 @@ W({
       const { dmg, crit } = roll(p, 10 + l * 4);
       best.hurt(dmg, 0, 0, world, crit);
       if (c === 0) applyStatus(best, 'stun', world, { dur: 0.5 });   // first link stuns (D6)
-      world.addBeam(from.x, from.y, best.x, best.y, P.emberL);
-      world.particles.spawn({ x: best.x, y: best.y, life: 0.2, size: 3, color: P.emberL, glow: true });
+      // R28/W1-B (ART_SPEC 3): player weapons are barred from the 紅橙/琥珀 warning families —
+      // ember read as an event telegraph. Lightning goes cold blue-white, arc spark with it.
+      world.addBeam(from.x, from.y, best.x, best.y, P.ice);
+      world.particles.spawn({ x: best.x, y: best.y, life: 0.2, size: 3, color: P.ice, glow: true });
       from = { x: best.x, y: best.y };
     }
     Sfx.play('crit');

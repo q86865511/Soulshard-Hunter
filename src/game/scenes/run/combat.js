@@ -4,7 +4,7 @@ import { Music, Sfx } from '../../../engine/audio.js';
 import { mouse, pressed } from '../../../engine/input.js';
 import { rng } from '../../../engine/math.js';
 import { P, withAlpha } from '../../../engine/palette.js';
-import { drawSpriteUI, uiRect, uiScale, uiText, view } from '../../../engine/renderer.js';
+import { drawSpriteUI, UI, uiButton, uiRect, uiScale, uiText, view } from '../../../engine/renderer.js';
 import { getSprite, iconOr } from '../../../engine/sprites.js';
 import { RT } from '../../../net/rt.js';
 import { BALANCE } from '../../balance.js';
@@ -129,15 +129,15 @@ export const combatMixin = {
   drawEquipDiff(x, y, w, def, S, opts = {}) {
     const rows = this.equipDiffRows(def);
     const title = opts.title !== undefined ? opts.title : '替換後變化';
-    if (title) uiText(title, x, y, { size: 11 * S, color: P.gray3, weight: '700' });
+    if (title) uiText(title, x, y, { size: UI.FONT_HEADING * S, color: P.gray3, weight: UI.WEIGHT_HEADING });
     let yy = y + (title ? 15 * S : 0);
-    if (!rows.length) { uiText('（無屬性變化）', x, yy, { size: 10 * S, color: P.gray2 }); return yy + 12 * S - y; }
+    if (!rows.length) { uiText('（無屬性變化）', x, yy, { size: UI.FONT_CAPTION * S, color: P.gray2 }); return yy + 12 * S - y; }
     for (const [lab, b, a, fmt] of rows.slice(0, opts.max || 8)) {
       const up = a > b; const col = up ? P.greenL : P.redL;
-      uiText(lab, x, yy, { size: 10.5 * S, color: P.gray4 });
-      uiText(fmtStat(b, fmt), x + (opts.lw || 92 * S), yy, { size: 10.5 * S, align: 'right', color: P.gray3 });
-      uiText('→', x + (opts.lw || 92 * S) + 8 * S, yy, { size: 10 * S, color: P.gray3 });
-      uiText(fmtStat(a, fmt), x + (opts.lw || 92 * S) + 56 * S, yy, { size: 10.5 * S, align: 'right', color: col, weight: '800' });
+      uiText(lab, x, yy, { size: UI.FONT_CAPTION * S, color: P.gray4 });
+      uiText(fmtStat(b, fmt), x + (opts.lw || 92 * S), yy, { size: UI.FONT_CAPTION * S, align: 'right', color: P.gray3 });
+      uiText('→', x + (opts.lw || 92 * S) + 8 * S, yy, { size: UI.FONT_CAPTION * S, color: P.gray3 });
+      uiText(fmtStat(a, fmt), x + (opts.lw || 92 * S) + 56 * S, yy, { size: UI.FONT_CAPTION * S, align: 'right', color: col, weight: UI.WEIGHT_BODY });
       yy += 13.5 * S;
     }
     return yy - y;
@@ -176,12 +176,12 @@ export const combatMixin = {
     const mx = mouse.x * view.dpr, my = mouse.y * view.dpr;
     uiRect(0, 0, view.W, view.H, withAlpha('#0b0d1a', 0.78));
     uiRect(L.x, L.y, L.w, L.h, withAlpha('#161a30', 0.99), { radius: 10 * S, stroke: P.goldL, lw: 2 });
-    uiText('撿到裝備', L.x + L.w / 2, L.y + 26 * S, { size: 18 * S, align: 'center', color: '#fff', weight: '900' });
+    uiText('撿到裝備', L.x + L.w / 2, L.y + 26 * S, { size: UI.FONT_TITLE * S, align: 'center', color: '#fff', weight: UI.WEIGHT_TITLE });
     const sp = getSprite(iconOr(def.icon, 'equip_leather_armor'));
     drawSpriteUI(sp.frames[0], L.x + L.w / 2 - 16 * S, L.y + 38 * S, (32 * S) / sp.w);
     const slotName = def.slot === 'weapon' ? '專武' : def.slot === 'armor' ? '護甲' : '飾品';
-    uiText(def.name + '　·　' + slotName, L.x + L.w / 2, L.y + 88 * S, { size: 14 * S, align: 'center', color: RARITY[rarityOf(def)].accent, weight: '800' });   // R17/5.1
-    this.wrapText(def.desc || '', L.x + L.w / 2, L.y + 106 * S, L.w - 44 * S, 11 * S, P.gray4);
+    uiText(def.name + '　·　' + slotName, L.x + L.w / 2, L.y + 88 * S, { size: UI.FONT_HEADING * S, align: 'center', color: RARITY[rarityOf(def)].accent, weight: UI.WEIGHT_HEADING });   // R17/5.1
+    this.wrapText(def.desc || '', L.x + L.w / 2, L.y + 106 * S, L.w - 44 * S, UI.FONT_BODY * S, P.gray4);
     // current equipment by category (依類別分區)
     const eq = this.run.equipment || {};
     const slots = [['weapon', '專武'], ['armor', '護甲'], ['trinket', '飾品']];
@@ -189,16 +189,16 @@ export const combatMixin = {
     slots.forEach(([slot, label], i) => {
       const cx = L.x + 24 * S + i * (cellW + 6 * S); const cur = eq[slot] && Equipment.get(eq[slot]); const isTarget = def.slot === slot;
       uiRect(cx, sy, cellW, 52 * S, withAlpha('#10121f', 0.85), { radius: 6 * S, stroke: isTarget ? P.goldL : P.ink2, lw: isTarget ? 2 : 1 });
-      uiText(label + (isTarget ? ' ◀' : ''), cx + cellW / 2, sy + 13 * S, { size: 10 * S, align: 'center', color: isTarget ? P.goldL : P.gray3, weight: '700' });
+      uiText(label + (isTarget ? ' ◀' : ''), cx + cellW / 2, sy + 13 * S, { size: UI.FONT_CAPTION * S, align: 'center', color: isTarget ? P.goldL : P.gray3, weight: UI.WEIGHT_BODY });
       if (cur) { const csp = getSprite(iconOr(cur.icon, 'equip_leather_armor')); drawSpriteUI(csp.frames[0], cx + cellW / 2 - 11 * S, sy + 20 * S, (22 * S) / csp.w); }
-      else uiText('（空）', cx + cellW / 2, sy + 36 * S, { size: 10 * S, align: 'center', color: P.gray2 });
+      else uiText('（空）', cx + cellW / 2, sy + 36 * S, { size: UI.FONT_CAPTION * S, align: 'center', color: P.gray2 });
     });
     // 原#1: before/after stat comparison vs the item currently in this slot
     this.drawEquipDiff(L.x + 24 * S, sy + 66 * S, L.w - 48 * S, def, S, { lw: 150 * S });
-    const btn = (r, label, col) => { const hov = inside(mx, my, r); uiRect(r.x, r.y, r.w, r.h, withAlpha(hov ? '#243a5a' : '#1b2138', 0.97), { radius: 8 * S, stroke: hov ? col : P.ink2, lw: hov ? 3 : 2 }); uiText(label, r.x + r.w / 2, r.y + r.h / 2 + 1 * S, { size: 14 * S, align: 'center', baseline: 'middle', color: '#fff', weight: '800' }); };
+    const btn = (r, label, col) => { const hov = inside(mx, my, r); uiButton(r.x, r.y, r.w, r.h, label, { S, hover: hov, fill: '#1b2138', fillHover: '#243a5a', stroke: hov ? col : P.ink2, lw: hov ? 3 : 2, size: UI.FONT_BODY * S, weight: UI.WEIGHT_BODY }); };
     btn(L.equip, eq[def.slot] ? '替換並裝備' : '裝備到空格', P.goldL);
     btn(L.discard, '放棄', P.redL);
-    uiText('空白鍵裝備　·　Esc 放棄', L.x + L.w / 2, L.y + L.h - 8 * S, { size: 10 * S, align: 'center', color: P.gray3 });
+    uiText('空白鍵裝備　·　Esc 放棄', L.x + L.w / 2, L.y + L.h - 8 * S, { size: UI.FONT_CAPTION * S, align: 'center', color: P.gray3 });
   },
 
   // ---- death --------------------------------------------------------------
@@ -255,12 +255,12 @@ export const combatMixin = {
     const S = uiScale(); const L = this.leaveConfirmLayout();
     const mx = mouse.x * view.dpr, my = mouse.y * view.dpr;
     uiRect(0, 0, view.W, view.H, withAlpha('#0b0d1a', 0.7));
-    uiText('離開戰場並結算勝利？', view.W / 2, view.H / 2 - 54 * S, { size: 26 * S, align: 'center', color: '#fff', weight: '900' });
-    uiText('死神仍會降臨——留下迎戰可得傳說獎勵', view.W / 2, view.H / 2 - 26 * S, { size: 13 * S, align: 'center', color: P.gray3 });
-    const btn = (r, label, col) => { const hov = inside(mx, my, r); uiRect(r.x, r.y, r.w, r.h, withAlpha(hov ? '#243a5a' : '#1b2138', 0.97), { radius: 8 * S, stroke: hov ? col : P.ink2, lw: hov ? 3 : 2 }); uiText(label, r.x + r.w / 2, r.y + r.h / 2 + 1 * S, { size: 15 * S, align: 'center', baseline: 'middle', color: '#fff', weight: '800' }); };
+    uiText('離開戰場並結算勝利？', view.W / 2, view.H / 2 - 54 * S, { size: UI.FONT_TITLE * S, align: 'center', color: '#fff', weight: UI.WEIGHT_TITLE });
+    uiText('死神仍會降臨——留下迎戰可得傳說獎勵', view.W / 2, view.H / 2 - 26 * S, { size: UI.FONT_BODY * S, align: 'center', color: P.gray3 });
+    const btn = (r, label, col) => { const hov = inside(mx, my, r); uiButton(r.x, r.y, r.w, r.h, label, { S, hover: hov, fill: '#1b2138', fillHover: '#243a5a', stroke: hov ? col : P.ink2, lw: hov ? 3 : 2, size: UI.FONT_BODY * S, weight: UI.WEIGHT_BODY }); };
     btn(L.yes, '確定離場', P.greenL);
     btn(L.no, '繼續戰鬥', P.goldL);
-    uiText('E / Enter 確定　·　Esc / 點擊外部 取消', view.W / 2, L.yes.y + L.yes.h + 24 * S, { size: 10.5 * S, align: 'center', color: P.gray3 });
+    uiText('E / Enter 確定　·　Esc / 點擊外部 取消', view.W / 2, L.yes.y + L.yes.h + 24 * S, { size: UI.FONT_CAPTION * S, align: 'center', color: P.gray3 });
   },
 
   drawPause() {
@@ -269,17 +269,16 @@ export const combatMixin = {
     uiRect(0, 0, view.W, view.H, withAlpha('#0b0d1a', 0.7));
     const btn = (r, label, col) => {
       const hov = inside(mx, my, r);
-      uiRect(r.x, r.y, r.w, r.h, withAlpha(hov ? '#243a5a' : '#1b2138', 0.97), { radius: 8 * S, stroke: hov ? (col || P.shardL) : P.ink2, lw: hov ? 3 : 2 });
-      uiText(label, r.x + r.w / 2, r.y + r.h / 2 + 1 * S, { size: 16 * S, align: 'center', baseline: 'middle', color: '#fff', weight: '800' });
+      uiButton(r.x, r.y, r.w, r.h, label, { S, hover: hov, fill: '#1b2138', fillHover: '#243a5a', stroke: hov ? (col || P.shardL) : P.ink2, lw: hov ? 3 : 2, size: UI.FONT_BODY * S, weight: UI.WEIGHT_BODY });
     };
     if (this.confirmQuit) {   // 4.8: abandon confirmation
-      uiText('確定放棄本局？', view.W / 2, L.resume.y - 40 * S, { size: 24 * S, align: 'center', color: '#fff', weight: '900' });
-      uiText('本局進度將結算後返回城鎮', view.W / 2, L.resume.y - 14 * S, { size: 12 * S, align: 'center', color: P.gray3 });
+      uiText('確定放棄本局？', view.W / 2, L.resume.y - 40 * S, { size: UI.FONT_TITLE * S, align: 'center', color: '#fff', weight: UI.WEIGHT_TITLE });
+      uiText('本局進度將結算後返回城鎮', view.W / 2, L.resume.y - 14 * S, { size: UI.FONT_BODY * S, align: 'center', color: P.gray3 });
       btn(L.resume, '確定放棄', P.redL);
       btn(L.quit, '取消');
       return;
     }
-    uiText('暫 停', view.W / 2, L.resume.y - 36 * S, { size: 30 * S, align: 'center', color: '#fff', weight: '900' });
+    uiText('暫 停', view.W / 2, L.resume.y - 36 * S, { size: UI.FONT_TITLE * S, align: 'center', color: '#fff', weight: UI.WEIGHT_TITLE });
     btn(L.resume, '繼 續');
     btn(L.settings, '設 定');
     btn(L.guide, '📖 介面一覽');   // R17/10.1: re-show the HUD walkthrough any time
