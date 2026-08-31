@@ -1,0 +1,214 @@
+[
+ {
+  "viewport": "1280x720",
+  "panels": [
+   {
+    "panel": "sortie",
+    "ctrlPct": 18.8,
+    "cells": 1824,
+    "occupied": 1310,
+    "pct": 71.8,
+    "ref": [
+     22,
+     25,
+     47
+    ]
+   },
+   {
+    "panel": "personal",
+    "ctrlPct": 0,
+    "cells": 1824,
+    "occupied": 1488,
+    "pct": 81.6,
+    "ref": [
+     22,
+     25,
+     47
+    ]
+   },
+   {
+    "panel": "bank",
+    "ctrlPct": 0,
+    "cells": 1824,
+    "occupied": 1363,
+    "pct": 74.7,
+    "ref": [
+     22,
+     25,
+     47
+    ]
+   },
+   {
+    "panel": "codex",
+    "ctrlPct": 0,
+    "cells": 1824,
+    "occupied": 1439,
+    "pct": 78.9,
+    "ref": [
+     22,
+     25,
+     47
+    ]
+   }
+  ]
+ },
+ {
+  "viewport": "1920x1080",
+  "panels": [
+   {
+    "panel": "sortie",
+    "ctrlPct": 0,
+    "cells": 4080,
+    "occupied": 2745,
+    "pct": 67.3,
+    "ref": [
+     22,
+     25,
+     47
+    ]
+   },
+   {
+    "panel": "personal",
+    "ctrlPct": 0,
+    "cells": 4080,
+    "occupied": 3123,
+    "pct": 76.5,
+    "ref": [
+     22,
+     25,
+     47
+    ]
+   },
+   {
+    "panel": "bank",
+    "ctrlPct": 0,
+    "cells": 4080,
+    "occupied": 2775,
+    "pct": 68,
+    "ref": [
+     22,
+     25,
+     47
+    ]
+   },
+   {
+    "panel": "codex",
+    "ctrlPct": 0,
+    "cells": 4080,
+    "occupied": 2864,
+    "pct": 70.2,
+    "ref": [
+     22,
+     25,
+     47
+    ]
+   }
+  ]
+ },
+ {
+  "viewport": "2560x1440",
+  "panels": [
+   {
+    "panel": "sortie",
+    "ctrlPct": 0,
+    "cells": 7296,
+    "occupied": 4869,
+    "pct": 66.7,
+    "ref": [
+     22,
+     25,
+     47
+    ]
+   },
+   {
+    "panel": "personal",
+    "ctrlPct": 0,
+    "cells": 7296,
+    "occupied": 5494,
+    "pct": 75.3,
+    "ref": [
+     22,
+     25,
+     47
+    ]
+   },
+   {
+    "panel": "bank",
+    "ctrlPct": 0,
+    "cells": 7296,
+    "occupied": 4837,
+    "pct": 66.3,
+    "ref": [
+     22,
+     25,
+     47
+    ]
+   },
+   {
+    "panel": "codex",
+    "ctrlPct": 0,
+    "cells": 7296,
+    "occupied": 4876,
+    "pct": 66.8,
+    "ref": [
+     22,
+     25,
+     47
+    ]
+   }
+  ]
+ },
+ {
+  "viewport": "1366x768",
+  "panels": [
+   {
+    "panel": "sortie",
+    "ctrlPct": 0,
+    "cells": 2074,
+    "occupied": 1416,
+    "pct": 68.3,
+    "ref": [
+     22,
+     25,
+     47
+    ]
+   },
+   {
+    "panel": "personal",
+    "ctrlPct": 0,
+    "cells": 2074,
+    "occupied": 1674,
+    "pct": 80.7,
+    "ref": [
+     22,
+     25,
+     47
+    ]
+   },
+   {
+    "panel": "bank",
+    "ctrlPct": 0,
+    "cells": 2074,
+    "occupied": 1479,
+    "pct": 71.3,
+    "ref": [
+     22,
+     25,
+     47
+    ]
+   },
+   {
+    "panel": "codex",
+    "ctrlPct": 0,
+    "cells": 2074,
+    "occupied": 1628,
+    "pct": 78.5,
+    "ref": [
+     22,
+     25,
+     47
+    ]
+   }
+  ]
+ }
+]

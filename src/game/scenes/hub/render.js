@@ -13,13 +13,14 @@ import { npcAffLevel } from '../../content/npcs.js';
 import { petById } from '../../content/pets.js';
 import { trackedQuestState } from '../../content/quests.js';
 import { TALENT_BRANCHES } from '../../content/talents.js';
-import { gateProgress } from '../../content/town_gates.js';
+import { clearedBiomes, gateProgress } from '../../content/town_gates.js';
 import { cheatUnlockAll } from '../../content/unlocks.js';
 import { drawAchievementToasts } from '../../hud.js';
 import { META, saveMeta } from '../../state.js';
 import { goldLabel } from '../../ui/gold.js';
 import { settingsUI } from '../../ui/settings.js';
 import { TS } from '../../world.js';
+import { blockHeight, columns, contentRect, dens, drawBlock } from './layout.js';
 import { AREA_TITLE, ROOM_THEME, inside } from './shared.js';
 
 export const renderMixin = {
@@ -128,6 +129,7 @@ export const renderMixin = {
     if (this.flashT > 0) uiText(this.flash, view.W / 2, view.H * 0.78, { size: UI.FONT_TITLE * S, align: 'center', color: withAlpha(P.goldL, Math.min(1, this.flashT)), weight: '800' });
     if (!this.panel && !this.dialogue) this.drawQuestTracker();
 
+    this.panelCta = null;   // R29/RE-04: re-published each frame by whichever panel draws a 下一步 CTA
     if (this.panel === 'talents') this.drawTalents();
     else if (this.panel === 'sortie') { this.drawSortie(); if (this.sortieTut) this.drawSortieTut(); }   // R17/10.2
     else if (this.panel === 'achievements') this.drawAchievements();
@@ -239,15 +241,74 @@ export const renderMixin = {
   },
 
   // R17/9.1: shared locked-panel body for progression-gated systems
+  // R29/RE-04: the gated panel WAS a lock glyph + two centred lines floating in ~85% empty
+  // panel — the worst empty state in the game, and the one a new player hits first. It is now
+  // a showcase-density page: 教學 (what the facility is for) · 進度 (the two axes the gate reads,
+  // as real bars) · 預覽 (what opens up) · 下一步 CTA (a real button into the panel that
+  // advances the gate). Everything below is derived from the gate data — no new copy per gate
+  // beyond this table, and an unknown panel still renders the generic version.
   drawLockedPanel(f, hint) {
     const S = f.S;
     this.panelMaxScroll = 0;
-    // R17 UI-sweep polish: center within the BODY (below any tab row) — anchoring at 0.42·f.h
-    // left a ~180px dead band under the smith tabs while the lock sat too low.
-    const cy = (this.bodyTop(f) + f.y + f.h - 24 * S) / 2;
-    uiText('🔒', f.x + f.w / 2, cy - 22 * S, { size: 40 * S, align: 'center', color: P.gray2, weight: '900' });   /* pictogram, exempt from type ramp */
-    uiText(hint, f.x + f.w / 2, cy + 16 * S, { size: UI.FONT_HEADING * S, align: 'center', color: '#cfe0ff', weight: '800' });
-    uiText(gateProgress(META), f.x + f.w / 2, cy + 38 * S, { size: UI.FONT_BODY * S, align: 'center', color: P.gray3 });
+    const d = dens('showcase', S);
+    const gp = guildProgress(META);
+    const cleared = clearedBiomes(META);
+    const info = LOCKED_INFO[this.panel] || LOCKED_INFO._default;
+    const body = contentRect(f, this.bodyTop(f) + 8 * S, d);
+    const mx = mouse.x * view.dpr, my = mouse.y * view.dpr;
+    // headline: the lock + the gate's own hint + the raw progress line, ON the panel ground —
+    // deliberately unframed so the page opens with air before the three blocks below it.
+    uiText('🔒', body.x + 22 * S, body.y + 30 * S, { size: 34 * S, align: 'center', color: P.gray2, weight: '900' });   /* pictogram, exempt from type ramp */
+    uiText(hint, body.x + 50 * S, body.y + 24 * S, { size: UI.FONT_HEADING * S, color: '#cfe0ff', weight: '800' });
+    uiText(gateProgress(META), body.x + 50 * S, body.y + 44 * S, { size: UI.FONT_BODY * S, color: P.gray3 });
+    // two columns: 這是什麼 / 解鎖後可以做什麼 — then a full-width 進度 + 下一步 block
+    const top = body.y + 62 * S;
+    const [cA, cB] = columns({ ...body, y: top }, 2, d);
+    const specA = { icon: info.icon, title: info.title, lines: info.what, tone: P.shardL };
+    const specB = { icon: '✦', title: '解鎖後', lines: info.preview, tone: P.goldL };
+    const colH = Math.max(blockHeight(specA, cA.w, d), blockHeight(specB, cB.w, d));
+    drawBlock(cA.x, top, cA.w, d, { ...specA, minH: colH });
+    drawBlock(cB.x, top, cB.w, d, { ...specB, minH: colH });
+    const ctaY = top + colH + d.gap;
+    const ctaSpec = {
+      icon: '📈', title: '解鎖進度', tone: P.emberL,
+      bars: [
+        { label: '公會階級　' + gp.name, frac: gp.frac || 0, note: 'Rank ' + gp.rank, color: P.gold },
+        { label: '已通關生態系', frac: Math.min(1, cleared / 10), note: cleared + ' / 10', color: P.shardL },
+      ],
+      cta: { label: info.cta.label, hint: info.cta.hint, color: P.goldL },
+      // natural height, deliberately NOT stretched to the panel bottom — a wall-to-wall panel
+      // reads as badly as an empty one; the slack below is the page's breathing room.
+      minH: 0,
+    };
+    const blk = drawBlock(body.x, ctaY, body.w, d, ctaSpec);
+    if (blk.cta) {
+      const hov = inside(mx, my, blk.cta);
+      if (hov) uiRect(blk.cta.x, blk.cta.y, blk.cta.w, blk.cta.h, null, { radius: d.radius * 0.8, stroke: P.goldL, lw: 2 });
+      this.panelCta = { ...blk.cta, panel: info.cta.panel };
+    }
     uiText('Esc 關閉', f.x + f.w / 2, f.y + f.h - 14 * S, { size: UI.FONT_BODY * S, align: 'center', color: P.gray3 });
+  },
+};
+
+// R29/RE-04: per-gate empty-state copy. `what` = 教學, `preview` = 預覽, `cta` = 下一步.
+const LOCKED_INFO = {
+  bank: {
+    icon: '🏦', title: '魂晶銀行是什麼',
+    what: ['預支金幣，在出擊前就把強化做滿。', '借款會在下一局結算時自動連本帶利償還，不必手動處理。'],
+    preview: ['可借額度隨公會階級成長，階級越高週轉空間越大。', '同時只會有一筆借款，還清後即可再借。'],
+    cta: { label: '前往公會接任務 ▸', hint: '完成委託累積公會經驗', panel: 'guild' },
+  },
+  smith: {
+    icon: '⚒', title: '鍛造爐是什麼',
+    what: ['把出擊帶回的金幣，變成永久留在武器上的強化。', '每把武器可升 5 級並鑲嵌至多 3 種效果。'],
+    preview: ['強化只在該武器開火時生效，進化／融合後會被繼承。', '設施分頁還會一併開放常駐增益。'],
+    cta: { label: '前往出擊狩獵 ▸', hint: '通關任一生態系即可點燃', panel: 'sortie' },
+  },
+  _default: {
+    icon: '🔒', title: '尚未開放',
+    what: ['這個設施還在等你把遺鎮推進到下一步。'],
+    preview: ['達成條件後即可在此建築使用完整功能。'],
+    cta: { label: '前往出擊狩獵 ▸', hint: '推進進度以解鎖', panel: 'sortie' },
   },
 };

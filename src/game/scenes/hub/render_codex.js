@@ -5,9 +5,10 @@
 import { Sfx } from '../../../engine/audio.js';
 import { mouse } from '../../../engine/input.js';
 import { P, withAlpha } from '../../../engine/palette.js';
-import { UI, ctxRaw, drawSpriteUI, textWidth, uiBar, uiRect, uiText, view } from '../../../engine/renderer.js';
+import { UI, ctxRaw, drawSpriteUI, textWidth, uiBar, uiWrapText, uiRect, uiText, view } from '../../../engine/renderer.js';
 import { frameAt, getSprite } from '../../../engine/sprites.js';
 import { allRecipes, codexCounts, isSeen, unlockHintFor } from '../../content/codex.js';
+import { contentRect, dens, drawBlock, fitBlock } from './layout.js';
 import { goalsFor } from '../../content/goals.js';
 import { Abilities, Enemies, Weapons } from '../../content/registry.js';
 import { META } from '../../state.js';
@@ -86,7 +87,6 @@ export const renderCodexMixin = {
     const S = f.S; const goals = goalsFor(META);
     this.panelMaxScroll = 0;   // ≤3 卡片，無需捲動
     const top = f.y + 98 * S, padX = 24 * S, cardH = 60 * S, gap = 12 * S;
-    if (!goals.length) { uiText('目前沒有推薦目標，自由探索吧', f.x + f.w / 2, top + 46 * S, { size: UI.FONT_BODY * S, align: 'center', color: P.gray3, weight: '600' }); return; }
     goals.forEach((g, i) => {
       const x = f.x + padX, y = top + i * (cardH + gap), w = f.w - padX * 2;
       uiRect(x, y, w, cardH, withAlpha('#1b2138', 0.95), { radius: 8 * S, stroke: withAlpha(P.shardL, 0.5), lw: 1.5 });
@@ -95,6 +95,33 @@ export const renderCodexMixin = {
       this.clip1(g.desc || '', x + 48 * S, y + 41 * S, w - 66 * S, 11 * S, P.gray3);
       uiBar(x + 48 * S, y + cardH - 12 * S, w - 72 * S, 5 * S, g.frac || 0, { fg: P.shardL, bg: '#16183a', border: P.ink });
     });
+    // R29/RE-04: the tail of this tab was flat background (3 short cards, then ~250px of
+    // nothing at 720p — the empty state of the panel whose whole job is showing progress).
+    // The leftover space now carries the discovery ledger + the one action that moves it.
+    const d = dens('standard', S);
+    const c = codexCounts();
+    const y0 = top + goals.length * (cardH + gap) + (goals.length ? gap * 0.5 : 0);
+    const body = contentRect(f, y0, d);
+    if (body.h < 90 * S) return;
+    const pct = (a) => Math.round((a[0] / Math.max(1, a[1])) * 100) + '%';
+    const spec = fitBlock({
+      icon: '📖', title: goals.length ? '圖鑑收集進度' : '還沒有推薦目標 — 自由探索吧', tone: P.shardL,
+      lines: ['圖鑑只記錄你「親自遇過」的內容：撿過的武器與被動、擊敗過的首領、親手做出來的進化配方。',
+        '配方在你第一次進化或融合之前都維持？？？，不會提前劇透。'],
+      bars: [
+        { label: '武器', frac: c.w[0] / Math.max(1, c.w[1]), note: c.w[0] + ' / ' + c.w[1] + '　' + pct(c.w), color: P.shardL },
+        { label: '被動', frac: c.a[0] / Math.max(1, c.a[1]), note: c.a[0] + ' / ' + c.a[1] + '　' + pct(c.a), color: P.greenL },
+        { label: 'Boss', frac: c.boss[0] / Math.max(1, c.boss[1]), note: c.boss[0] + ' / ' + c.boss[1] + '　' + pct(c.boss), color: P.emberL },
+        { label: '進化配方', frac: c.rec[0] / Math.max(1, c.rec[1]), note: c.rec[0] + ' / ' + c.rec[1] + '　' + pct(c.rec), color: P.goldL },
+      ],
+      cta: { label: '出擊狩獵以發現更多 ▸', hint: '點此直接開啟出擊面板', color: P.goldL },
+    }, body.w, body.h, d);
+    const blk = drawBlock(body.x, body.y, body.w, d, { ...spec, minH: Math.min(body.h, 210 * S) });
+    if (blk.cta) {
+      const mx = mouse.x * view.dpr, my = mouse.y * view.dpr;
+      if (inside(mx, my, blk.cta)) uiRect(blk.cta.x, blk.cta.y, blk.cta.w, blk.cta.h, null, { radius: d.radius * 0.8, stroke: P.goldL, lw: 2 });
+      this.panelCta = { ...blk.cta, panel: 'sortie' };
+    }
   },
 
   // ---- 武器 / 被動 / Boss 分頁（格狀圖示 + 底部詳情帶）----------------------
@@ -197,14 +224,7 @@ export const renderCodexMixin = {
   },
 
   // 詳情帶用的 2 行截斷描述
-  codexDesc(str, x, y, maxw, size) {
-    let line = '', yy = y, rows = 0;
-    for (const ch of (str || '')) {
-      if (textWidth(line + ch, size, '600') > maxw && line) {
-        if (rows >= 1) { while (line.length > 1 && textWidth(line + '…', size, '600') > maxw) line = line.slice(0, -1); uiText(line + '…', x, yy, { size, color: P.gray3, weight: '600' }); return; }
-        uiText(line, x, yy, { size, color: P.gray3, weight: '600' }); line = ch; yy += size + 4; rows++;
-      } else line += ch;
-    }
-    if (line) uiText(line, x, yy, { size, color: P.gray3, weight: '600' });
+  codexDesc(str, x, y, maxw, size) {   // R29/RE-02: shared token-aware wrap (was per-character)
+    uiWrapText(str, maxw, size, '600', 2).forEach((l, i) => uiText(l, x, y + i * (size + 4), { size, color: P.gray3, weight: '600' }));
   },
 };

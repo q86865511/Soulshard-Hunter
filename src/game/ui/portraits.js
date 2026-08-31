@@ -43,17 +43,28 @@ export function getPortrait(charId) {
 // caller should fall back (no image yet / failed / unknown id) — call sites branch on this.
 // Portraits are painterly, not pixel-art, so smoothing is switched ON for the blit only and
 // restored to the renderer's pixel-art default (false) immediately after.
-export function drawPortrait(charId, x, y, w, h, { radius = 6, alpha = 1 } = {}) {
+//
+// R29/RE-03 options:
+//   `mono` 0..1  — desaturate + darken instead of fading out. A LOCKED hero card used to hide
+//                  its portrait behind alpha 0.3, which killed the teaser: you could not tell
+//                  who you were being sold. Greyed-but-present still reads as "locked" while
+//                  keeping the face recognisable. Falls back to the alpha dim where
+//                  `ctx.filter` is unsupported (it is saved/restored by save()/restore()).
+//   `focusY` 0..1 — vertical crop anchor for the centre-crop (0 = top). Busts want their
+//                  focal point ABOVE centre, so tall slots keep the face, not the chest.
+export function drawPortrait(charId, x, y, w, h, { radius = 6, alpha = 1, mono = 0, focusY = 0.5 } = {}) {
   const img = getPortrait(charId);
   if (!img) return false;
   const ctx = ctxRaw();
+  const canFilter = typeof ctx.filter === 'string';
   ctx.save();
-  ctx.globalAlpha = alpha;
+  ctx.globalAlpha = (mono > 0 && !canFilter) ? Math.min(alpha, 0.45) : alpha;
+  if (mono > 0 && canFilter) ctx.filter = `grayscale(${mono}) brightness(0.62) contrast(1.06)`;
   roundRectPath(x, y, w, h, radius);
   ctx.clip();
   const scale = Math.max(w / img.naturalWidth, h / img.naturalHeight);
   const dw = img.naturalWidth * scale, dh = img.naturalHeight * scale;
-  const dx = x + (w - dw) / 2, dy = y + (h - dh) / 2;
+  const dx = x + (w - dw) / 2, dy = y + (h - dh) * focusY;
   ctx.imageSmoothingEnabled = true;
   ctx.drawImage(img, dx, dy, dw, dh);
   ctx.imageSmoothingEnabled = false;

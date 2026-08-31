@@ -45,16 +45,15 @@ const ART_bladedancer  = { cloak: P.sakura, cloakD: P.redD,    cloakL: P.sakuraL
 //    holy halo ring, sun-cross tabard, warhammer on the right.
 // ===========================================================================
 function drawH4_paladin(p, f, a) {
+  // R29 A1: silhouette recut - the warhammer HEAD now sits as a solid block above
+  // the great helm (portrait: hammer gripped upright, both hands) and the tower
+  // shield keeps a rounded top / tapered foot so it never reads like the knight's
+  // square slab. The canvas-wide halo ring is gone - outline() traced it into a disc.
   const oy = bob(f), s = stp(f);
   const cloak = a.cloak ?? P.gold, cloakD = a.cloakD ?? P.bronze, cloakL = a.cloakL ?? P.goldL;
   const trim = a.trim ?? P.holy, eye = a.eye ?? P.holyL;
   groundShadow(p, oy);
 
-  // floating halo behind the helm
-  p.glow(8, 3 + oy, 4, P.holy, 0.25, 3);
-  p.ring(8, 3 + oy, 4, withAlpha(P.holy, 0.55));
-
-  // boots
   p.rect(6, 16 + oy, 2, 2, darken(cloakD, 0.3));
   p.rect(10, 16 + oy, 2, 2, darken(cloakD, 0.3));
   if (s > 0) p.px(7, 17 + oy, P.ink2);
@@ -65,39 +64,36 @@ function drawH4_paladin(p, f, a) {
   p.rect(7, 12 + oy, 4, 3, cloak);
   p.rect(6, 8 + oy, 6, 4, cloakD);
   p.gradV(7, 8 + oy, 4, 3, cloakL, cloak);
-  p.vline(8 + oy, 12 + oy, 9, trim);            // sun-cross tabard (vertical)
-  p.hline(7, 11, 10 + oy, trim);                // sun-cross tabard (horizontal)
+  p.vline(8 + oy, 12 + oy, 9, trim);
+  p.hline(7, 11, 10 + oy, trim);
   p.px(9, 9 + oy, P.holyL);
 
-  // right pauldron + hammer arm
-  p.ellipse(12.5, 8.5 + oy, 2, 1.8, cloakL);
-  p.px(13, 8 + oy, P.steelL);
+  // ROUNDED pauldrons - the widest soft shoulder line of the roster
+  p.ellipse(12.5, 8.5 + oy, 2.4, 2, cloakL); p.px(13, 8 + oy, P.steelL);
   p.rect(12, 10 + oy, 2, 3, cloak);
 
-  // great helm with a glowing visor band
-  p.rect(6, 3 + oy, 5, 5, cloakD);
-  p.rect(6, 3 + oy, 5, 1, cloakL);
-  p.px(6, 4 + oy, P.steelL);
-  p.rect(7, 5 + oy, 3, 1, P.ink2);
-  glowEye(p, 7, 5 + oy, eye); glowEye(p, 9, 5 + oy, eye);
-  p.px(8, 2 + oy, cloakL); p.px(8, 1 + oy, trim);   // crest stub reaching the halo
+  // great helm, flat topped - the hammer block does the talking above it
+  p.rect(6, 4 + oy, 5, 4, cloakD);
+  p.rect(6, 4 + oy, 5, 1, cloakL);
+  p.px(6, 5 + oy, P.steelL);
+  p.rect(7, 6 + oy, 3, 1, P.ink2);
+  glowEye(p, 7, 6 + oy, eye); glowEye(p, 9, 6 + oy, eye);
 
-  // TOWER SHIELD — the signature silhouette (left flank, near full height)
-  p.rect(1, 5 + oy, 4, 11, P.steelD);
-  p.rect(1, 5 + oy, 4, 10, P.steel);
-  p.gradV(1, 5 + oy, 4, 4, P.steelL, P.steel);
-  p.vline(6 + oy, 13 + oy, 2, trim);            // shield cross (vertical)
-  p.hline(1, 4, 9 + oy, trim);                  // shield cross (horizontal)
+  // WARHAMMER - a solid head block standing above the helm on a centred haft
+  p.rect(4, 0 + oy, 9, 3, P.steel);
+  p.rect(4, 0 + oy, 9, 1, P.steelL); p.px(4, 0 + oy, P.glint);
+  p.hline(4, 12, 2 + oy, darken(P.steel, 0.35));
+  p.glow(8, 1 + oy, 2.2, P.holy, 0.3, 3);
+
+  // TOWER SHIELD - rounded crown, tapered foot (vs. the knight's hard square)
+  p.hline(2, 4, 5 + oy, P.steelD);
+  p.rect(1, 6 + oy, 4, 9, P.steelD);
+  p.rect(1, 6 + oy, 3, 8, P.steel);
+  p.gradV(1, 6 + oy, 3, 4, P.steelL, P.steel);
+  p.vline(7 + oy, 13 + oy, 2, trim);
+  p.hline(1, 4, 9 + oy, trim);
   p.px(2, 6 + oy, P.glint);
-  p.glow(2, 9 + oy, 2, P.holy, 0.3, 3);
-  p.px(1, 15 + oy, P.steelD); p.px(4, 15 + oy, P.steelD);   // bottom taper
-
-  // warhammer raised on the right
-  p.vline(6 + oy, 14 + oy, 14, P.wood);
-  p.rect(12, 4 + oy, 3, 3, P.steel);
-  p.rect(12, 4 + oy, 3, 1, P.steelL);
-  p.px(12, 4 + oy, P.glint);
-  p.glow(13, 5 + oy, 2.4, P.holy, 0.35, 3);
+  p.hline(2, 4, 15 + oy, P.steelD); p.px(3, 16 + oy, P.steelD);      // tapered point
   rimFinish(p);
 }
 
@@ -107,63 +103,56 @@ function drawH4_paladin(p, f, a) {
 //    an HOURGLASS staff. Nothing like mage's pointed hat or voidmage's orb.
 // ===========================================================================
 function drawH4_chronomancer(p, f, a) {
+  // R29 A1: silhouette recut - the great clock ring is gone (outline() traced it
+  // into a full-canvas disc); the HOURGLASS is now a hard bow-tie held clear of the
+  // body on the right edge, and the coat is shifted left to keep a gap column open.
+  // Portrait: hooded time-sage cradling a large hourglass.
   const oy = bob(f), s = stp(f);
   const cloak = a.cloak ?? P.iceD, cloakD = a.cloakD ?? P.blueD, cloakL = a.cloakL ?? P.ice;
   const trim = a.trim ?? P.gold, eye = a.eye ?? P.shardL, skin = a.skin ?? P.skin;
   groundShadow(p, oy);
 
-  // clock-face halo behind the body (rotating tick follows the frame)
-  p.ring(8, 8 + oy, 6, withAlpha(eye, 0.32));
-  p.px(8, 2 + oy, withAlpha(trim, 0.85));       // 12 o'clock tick
-  p.px(2, 8 + oy, withAlpha(trim, 0.7));        // 9 o'clock tick
-  p.px(14, 8 + oy, withAlpha(trim, 0.7));       // 3 o'clock tick
-  if (flap(f)) p.px(11, 4 + oy, withAlpha(eye, 0.8));   // sweeping second-hand spark
+  p.rect(4, 16 + oy, 2, 2, P.ink2);
+  p.rect(8, 16 + oy, 2, 2, P.ink2);
+  if (s > 0) p.px(5, 17 + oy, P.shadow);
+  if (s < 0) p.px(8, 17 + oy, P.shadow);
 
-  // boots
-  p.rect(5, 16 + oy, 2, 2, P.ink2);
-  p.rect(9, 16 + oy, 2, 2, P.ink2);
-  if (s > 0) p.px(6, 17 + oy, P.shadow);
-  if (s < 0) p.px(9, 17 + oy, P.shadow);
-
-  // long high-collar coat, gently flared
+  // long high-collar coat, body centred one column LEFT of the canvas midline
   const cTop = 9 + oy, cBot = 16 + oy;
   for (let y = cTop; y <= cBot; y++) {
     const t = (y - cTop) / (cBot - cTop);
     const hw = Math.round(2.6 + t * 1.2);
-    p.hline(8 - hw, 7 + hw, y, cloakD);
+    p.hline(7 - hw, 6 + hw, y, cloakD);
   }
   for (let y = cTop + 1; y <= cBot - 1; y++) {
     const t = (y - cTop) / (cBot - cTop);
     const hw = Math.round(1.8 + t * 0.8);
-    p.hline(8 - hw, 7 + hw, y, mix(cloakL, cloak, t));
+    p.hline(7 - hw, 6 + hw, y, mix(cloakL, cloak, t));
   }
-  p.hline(5, 11, cBot, trim);                   // gilded hem
-  p.vline(cTop + 1, cBot - 1, 8, cloakD);       // coat seam
-  p.px(8, 11 + oy, trim); p.px(8, 13 + oy, trim);   // clasps
-  p.hline(6, 10, 8 + oy, cloakL);               // high collar
-  p.px(5, 8 + oy, cloakL); p.px(10, 8 + oy, cloakL);   // collar wings
+  p.hline(4, 10, cBot, trim);
+  p.vline(cTop + 1, cBot - 1, 7, cloakD);
+  p.px(7, 11 + oy, trim); p.px(7, 13 + oy, trim);
+  p.hline(5, 9, 8 + oy, cloakL);
+  p.px(4, 8 + oy, cloakL); p.px(9, 8 + oy, cloakL);
 
-  // face: silver side-swept hair + a gold monocle chain
-  p.ellipse(8, 5 + oy, 2.4, 2.4, skin);
-  p.px(7, 4 + oy, lighten(skin, 0.18));         // R28 W3-A3: 2nd face step (brow highlight)
-  glowEye(p, 7, 5 + oy, eye); glowEye(p, 9, 5 + oy, eye);
-  p.px(10, 5 + oy, trim);                       // monocle rim
-  p.px(10, 6 + oy, withAlpha(trim, 0.6));       // monocle chain
-  p.rect(5, 2 + oy, 6, 2, P.steelL);            // silver hair top
-  p.px(4, 3 + oy, P.steelL); p.px(5, 4 + oy, P.steelL);  // side sweep (left)
-  p.px(11, 3 + oy, P.steel);
-  p.px(5, 2 + oy, P.white);                     // hair sheen
+  // deep peaked hood (no bare hair) - a single point above the face
+  p.ellipse(7, 5 + oy, 2.6, 2.6, cloakD);
+  p.line(4, 7 + oy, 7, 1 + oy, cloak); p.line(10, 7 + oy, 7, 1 + oy, cloak);
+  p.px(7, 1 + oy, cloakL);
+  p.rect(5, 5 + oy, 4, 2, P.ink2);
+  p.px(6, 4 + oy, lighten(skin, 0.18));
+  glowEye(p, 6, 5 + oy, eye); glowEye(p, 8, 5 + oy, eye);
 
-  // hourglass staff on the right
-  p.vline(6 + oy, 15 + oy, 13, P.steel);
-  p.hline(12, 14, 1 + oy, trim);                // hourglass top bar
-  p.hline(12, 14, 5 + oy, trim);                // hourglass bottom bar
-  p.px(12, 2 + oy, trim); p.px(14, 2 + oy, trim);
-  p.px(13, 3 + oy, P.gold);                     // sand pinch
-  p.px(12, 4 + oy, trim); p.px(14, 4 + oy, trim);
-  p.glow(13, 3 + oy, 2.4, eye, 0.45, 3);
-  p.sparkle(14, 0 + oy, eye, 1);
-  p.shadeBottom(0.2, 12);   // R28 W3-A3: value-tier gap fix — had rimLight but no shadeBottom
+  // HOURGLASS held out on the right edge - wide, pinched, wide again
+  p.hline(13, 15, 5 + oy, trim);
+  p.hline(13, 15, 6 + oy, P.steelL);
+  p.px(14, 7 + oy, P.gold); p.px(14, 8 + oy, P.gold);                // sand pinch
+  p.hline(13, 15, 9 + oy, P.steelL);
+  p.hline(13, 15, 10 + oy, trim);
+  p.px(13, 5 + oy, P.glint); p.px(13, 10 + oy, darken(trim, 0.3));
+  p.px(12, 8 + oy, P.steel);                                        // wrist / grip
+  p.glow(14, 8 + oy, 1.8, eye, 0.4, 3);
+  p.shadeBottom(0.2, 12);
   rimFinish(p);
 }
 
@@ -173,59 +162,56 @@ function drawH4_chronomancer(p, f, a) {
 //    tailcoat, no hat. The side-doll makes the silhouette one-of-a-kind.
 // ===========================================================================
 function drawH4_puppeteer(p, f, a) {
+  // R29 A1: silhouette recut - a two-lobed JESTER cap drooping to both top corners,
+  // and the marionette pushed far enough right that outline() cannot fuse it to the
+  // master. Portrait: masked harlequin in a horned cap with a doll on strings.
   const oy = bob(f), s = stp(f), fl = flap(f);
   const cloak = a.cloak ?? P.purple, cloakD = a.cloakD ?? P.purpleD, cloakL = a.cloakL ?? P.purpleL;
   const trim = a.trim ?? P.magenta, eye = a.eye ?? P.sakura, skin = a.skin ?? P.skin;
   groundShadow(p, oy);
 
-  // boots
-  p.rect(4, 16 + oy, 2, 2, P.ink2);
-  p.rect(8, 16 + oy, 2, 2, P.ink2);
-  if (s > 0) p.px(5, 17 + oy, P.shadow);
-  if (s < 0) p.px(8, 17 + oy, P.shadow);
+  p.rect(3, 16 + oy, 2, 2, P.ink2);
+  p.rect(7, 16 + oy, 2, 2, P.ink2);
+  if (s > 0) p.px(4, 17 + oy, P.shadow);
+  if (s < 0) p.px(7, 17 + oy, P.shadow);
 
-  // slim tailcoat (body sits slightly LEFT — the doll walks on the right)
-  p.rect(4, 9 + oy, 6, 7, cloakD);
-  p.gradV(5, 9 + oy, 4, 6, cloakL, cloak);
-  p.rect(5, 10 + oy, 4, 5, cloak);
-  p.px(4, 15 + oy, cloakD); p.px(9, 15 + oy, cloakD);    // split coat tails
-  p.px(3, 16 + oy, cloakD); p.px(10, 16 + oy, cloakD);
-  p.vline(10 + oy, 14 + oy, 7, trim);           // magenta lapel line
-  p.px(7, 10 + oy, lighten(trim, 0.3));         // cravat pin
+  // slim tailcoat, pushed LEFT so the doll gets clear canvas
+  p.rect(3, 9 + oy, 6, 7, cloakD);
+  p.gradV(4, 9 + oy, 4, 6, cloakL, cloak);
+  p.rect(4, 10 + oy, 4, 5, cloak);
+  p.px(3, 15 + oy, cloakD); p.px(8, 15 + oy, cloakD);
+  p.px(2, 16 + oy, cloakD); p.px(9, 16 + oy, cloakD);
+  p.vline(10 + oy, 14 + oy, 6, trim);
+  p.px(6, 10 + oy, lighten(trim, 0.3));
 
-  // head: slick combed-back hair + a glinting monocle
-  p.ellipse(7, 6 + oy, 2.2, 2.2, skin);
-  p.px(6, 5 + oy, lighten(skin, 0.18));         // R28 W3-A3: 2nd face step (brow highlight)
-  glowEye(p, 6, 6 + oy, eye); glowEye(p, 8, 6 + oy, eye);
-  p.px(8, 6 + oy, P.glint);                     // monocle flash
-  p.rect(5, 3 + oy, 5, 2, cloakD);              // slick hair
-  p.px(4, 4 + oy, cloakD); p.px(10, 4 + oy, cloakD);
-  p.px(5, 3 + oy, cloakL);                      // hair sheen
-  p.px(10, 2 + oy, cloakL);                     // single stray curl
+  // masked face
+  p.ellipse(6, 6 + oy, 2.2, 2.2, P.bone);
+  p.px(5, 5 + oy, P.white);
+  glowEye(p, 5, 6 + oy, eye); glowEye(p, 7, 6 + oy, eye);
+  p.px(6, 8 + oy, mix(P.bone, trim, 0.5));                          // painted smile
+  p.hline(4, 8, 9 + oy, P.bone);                                    // ruff collar
 
-  // raised right arm + wooden CONTROL CROSS overhead
-  p.rect(10, 7 + oy, 2, 3, cloak);              // raised arm
-  p.px(11, 6 + oy, skin);                       // hand
-  p.hline(9, 14, 2 + oy, P.wood);               // cross bar (horizontal)
-  p.vline(1 + oy, 4 + oy, 12, P.wood);          // cross bar (vertical)
-  p.px(12, 1 + oy, P.woodL);
-  p.glow(12, 2 + oy, 2, trim, 0.3, 3);
+  // JESTER CAP - two lobes drooping out to the top corners, bells on the tips
+  p.hline(4, 8, 4 + oy, cloakD); p.hline(4, 8, 3 + oy, cloak);
+  p.line(4, 3 + oy, 1, 1 + oy, cloakD); p.line(8, 3 + oy, 11, 1 + oy, cloak);
+  p.px(0, 2 + oy, trim); p.px(1, 1 + oy, cloakL);
+  p.px(12, 2 + oy, trim); p.px(11, 1 + oy, cloakL);
+  p.px(0, 1 + oy, P.glint);
 
-  // puppet strings (faint) from the cross down to the doll
-  p.vline(3 + oy, 11 + oy + fl, 11, withAlpha(P.white, 0.30));
-  p.vline(3 + oy, 12 + oy + fl, 13, withAlpha(P.white, 0.30));
-  p.vline(3 + oy, 10 + oy + fl, 14, withAlpha(P.white, 0.22));
+  // control cross + strings running to the doll
+  p.rect(10, 6 + oy, 2, 1, P.wood); p.px(11, 5 + oy, skin);
+  p.vline(7 + oy, 11 + oy + fl, 13, withAlpha(P.white, 0.55));
+  p.vline(7 + oy, 12 + oy + fl, 15, withAlpha(P.white, 0.45));
 
-  // tiny MARIONETTE doll strutting at the right (bobs opposite the master)
-  const dy = fl;                                 // doll bob
-  p.px(13, 12 + dy, P.bone);                     // doll head
-  p.px(13, 11 + dy, trim);                       // tiny hat
-  p.rect(12, 13 + dy, 3, 2, P.wood);             // doll body
-  p.px(12, 15 + dy, P.woodD); p.px(14, 15 + dy, P.woodD);   // doll legs
-  p.px(11, 13 + dy, P.woodD); p.px(15, 13 + dy, P.woodD);   // doll arms (jointed)
-  p.px(13, 12 + dy, mix(P.bone, eye, 0.4));      // painted face glint
-  p.sparkle(14, 9 + oy, eye, 1);
-  p.shadeBottom(0.2, 12);   // R28 W3-A3: value-tier gap fix — had rimLight but no shadeBottom
+  // MARIONETTE doll - its own little silhouette on the right edge
+  const dy = fl;
+  p.px(14, 11 + dy, trim);
+  p.rect(13, 12 + dy, 3, 2, P.bone); p.px(13, 12 + dy, P.white);
+  p.rect(13, 14 + dy, 3, 2, P.wood);
+  p.px(13, 16 + dy, P.woodD); p.px(15, 16 + dy, P.woodD);
+  p.px(12, 14 + dy, P.woodD);
+  p.px(14, 12 + dy, mix(P.bone, eye, 0.5));
+  p.shadeBottom(0.2, 12);
   rimFinish(p);
 }
 
@@ -235,58 +221,55 @@ function drawH4_puppeteer(p, f, a) {
 //    (necromancer's scythe blade is at the TOP — this one reads inverted).
 // ===========================================================================
 function drawH4_gravekeeper(p, f, a) {
+  // R29 A1: silhouette recut - a SHOVEL blade planted in the top-left corner on a
+  // diagonal shaft, with the lantern hung small at the right hip. Portrait: hooded
+  // mourner, shovel over one shoulder, green lantern in the other hand. The low
+  // scythe sweep is gone (it fused with the ground shadow bar and read as nothing).
   const oy = bob(f), fl = flap(f);
   const cloak = a.cloak ?? P.gray1, cloakD = a.cloakD ?? P.shadow, cloakL = a.cloakL ?? P.gray3;
   const trim = a.trim ?? P.bone, eye = a.eye ?? P.emberL;
   groundShadow(p, oy);
 
-  // broad heavy cloak — widest hem of any hero (mourner mass)
+  // broad mourner cloak
   const cTop = 8 + oy, cBot = 16 + oy;
   for (let y = cTop; y <= cBot; y++) {
     const t = (y - cTop) / (cBot - cTop);
-    const hw = Math.round(2 + t * 3.4);
+    const hw = Math.round(2 + t * 3);
     p.hline(8 - hw, 7 + hw, y, cloakD);
   }
   for (let y = cTop + 1; y <= cBot; y++) {
     const t = (y - cTop) / (cBot - cTop);
-    const hw = Math.round(1.2 + t * 2.4);
+    const hw = Math.round(1.2 + t * 2.2);
     p.hline(8 - hw, 7 + hw, y, mix(cloak, cloakD, t * 0.5));
   }
-  for (let x = 3; x <= 12; x += 3) p.px(x, 16 + oy, cloakD);   // ragged hem bites
-  p.px(5, 10 + oy, cloakL);                     // shoulder catch-light
-
-  // grave-bell + bone charm on the chest cord
+  for (let x = 3; x <= 12; x += 3) p.px(x, 16 + oy, cloakD);
+  p.px(5, 10 + oy, cloakL);
   p.hline(6, 9, 10 + oy, trim);
-  p.px(7, 11 + oy, trim); p.px(7, 12 + oy, darken(trim, 0.25));   // hanging bell
-  p.px(9, 11 + oy, withAlpha(trim, 0.7));
+  p.px(7, 11 + oy, trim); p.px(7, 12 + oy, darken(trim, 0.25));
 
-  // deep veiled hood — only the ember eyes show
-  p.ellipse(8, 5 + oy, 3.2, 3.2, cloakD);
-  p.ellipse(8, 5 + oy, 2.5, 2.5, cloak);
+  // deep veiled hood
+  p.ellipse(8, 5 + oy, 3, 3, cloakD);
+  p.ellipse(8, 5 + oy, 2.4, 2.4, cloak);
   p.px(6, 3 + oy, cloakL);
-  p.rect(6, 5 + oy, 4, 2, P.ink2);              // veiled void face
+  p.rect(6, 5 + oy, 4, 2, P.ink2);
   glowEye(p, 7, 5 + oy, eye); glowEye(p, 9, 5 + oy, eye);
-  p.px(8, 7 + oy, withAlpha(trim, 0.5));        // veil stitch
 
-  // pole arm: tall shaft on the right
-  p.vline(2 + oy, 15 + oy, 13, P.woodD);
-  p.px(13, 2 + oy, P.wood);
+  // SHOVEL - blade block in the top-left corner, shaft raking down across the body
+  p.line(3, 3 + oy, 9, 12 + oy, P.woodD);
+  p.line(4, 3 + oy, 10, 12 + oy, P.wood);
+  p.rect(0, 0 + oy, 4, 4, P.iron);
+  p.rect(0, 0 + oy, 3, 3, P.steel); p.px(0, 0 + oy, P.steelL);
+  p.hline(0, 3, 3 + oy, darken(P.iron, 0.3));
+  p.px(3, 4 + oy, P.wood);
 
-  // HANGING LANTERN swinging from the hook (sways with the walk)
-  const lx = 11 - fl;
-  p.px(12, 3 + oy, P.iron);                     // hook chain
-  p.rect(lx - 1, 4 + oy, 3, 3, P.iron);         // lantern frame
-  p.px(lx, 5 + oy, eye);                        // flame core
-  p.glow(lx, 5 + oy, 3, P.ember, 0.5, 4);
-  p.px(lx, 4 + oy, lighten(eye, 0.3));
-  p.px(lx, 7 + oy, P.iron);                     // lantern base
-
-  // scythe blade sweeping LOW along the ground
-  p.line(13, 13 + oy, 10, 16 + oy, P.steelL);
-  p.line(14, 13 + oy, 11, 16 + oy, withAlpha(eye, 0.45));   // soul-heat edge
-  p.px(10, 16 + oy, P.glint);
-  p.sparkle(4, 8 + oy, withAlpha(eye, 0.8), 1);  // drifting soul mote
-  p.shadeBottom(0.2, 12);   // R28 W3-A3: value-tier gap fix — had rimLight but no shadeBottom
+  // LANTERN hung small off the right hip (swings with the walk)
+  const lx = 13 - fl;
+  p.px(lx, 8 + oy, P.iron);
+  p.rect(lx - 1, 9 + oy, 3, 3, P.iron);
+  p.px(lx, 10 + oy, eye); p.px(lx, 9 + oy, lighten(eye, 0.3));
+  p.glow(lx, 10 + oy, 2.2, P.ember, 0.4, 3);
+  p.px(lx, 12 + oy, P.iron);
+  p.shadeBottom(0.2, 12);
   rimFinish(p);
 }
 
@@ -296,57 +279,54 @@ function drawH4_gravekeeper(p, f, a) {
 //    wand. Petite proportions — head sits lower, body shorter than the rest.
 // ===========================================================================
 function drawH4_starcaller(p, f, a) {
+  // R29 A1: silhouette recut - a solid four-point STAR BURST occupying the top-right
+  // corner on a full-height wand, over a petite body. Portrait: star-mage with an
+  // armillary-topped staff. (The warden owns the top-LEFT diamond, so this goes right.)
   const oy = bob(f), s = stp(f), fl = flap(f);
   const cloak = a.cloak ?? P.astral, cloakD = a.cloakD ?? P.purpleD, cloakL = a.cloakL ?? P.astralL;
   const trim = a.trim ?? P.gold, eye = a.eye ?? P.shardL, skin = a.skin ?? P.skin;
   groundShadow(p, oy);
 
-  // little boots
-  p.rect(6, 16 + oy, 2, 2, cloakD);
-  p.rect(9, 16 + oy, 2, 2, cloakD);
-  if (s > 0) p.px(7, 17 + oy, P.ink2);
-  if (s < 0) p.px(9, 17 + oy, P.ink2);
-  p.px(7, 15 + oy, skin); p.px(9, 15 + oy, skin);   // bare knees
+  p.rect(5, 16 + oy, 2, 2, cloakD);
+  p.rect(8, 16 + oy, 2, 2, cloakD);
+  if (s > 0) p.px(6, 17 + oy, P.ink2);
+  if (s < 0) p.px(8, 17 + oy, P.ink2);
+  p.px(6, 15 + oy, skin); p.px(8, 15 + oy, skin);
 
-  // flared star-hem skirt (short — petite body)
+  // short flared skirt - petite, so the body reads small under the star
   const sTop = 11 + oy, sBot = 14 + oy;
   for (let y = sTop; y <= sBot; y++) {
     const t = (y - sTop) / (sBot - sTop);
-    const hw = Math.round(1.6 + t * 2.4);
-    p.hline(8 - hw, 8 + hw, y, cloakD);
+    const hw = Math.round(1.6 + t * 2.2);
+    p.hline(7 - hw, 7 + hw, y, cloakD);
   }
-  p.rect(7, sTop, 3, 2, cloak);
-  p.px(6, sBot, trim); p.px(8, sBot, trim); p.px(10, sBot, trim);   // star-stud hem
+  p.rect(6, sTop, 3, 2, cloak);
+  p.px(5, sBot, trim); p.px(7, sBot, trim); p.px(9, sBot, trim);
 
-  // short cape + bodice
-  p.rect(6, 8 + oy, 5, 3, cloak);
-  p.rect(6, 8 + oy, 5, 1, cloakL);              // cape collar
-  p.px(8, 9 + oy, trim);                        // star brooch
-  p.px(5, 9 + oy, cloakL); p.px(11, 9 + oy, cloakL);   // cape flares
+  p.rect(5, 8 + oy, 5, 3, cloak);
+  p.rect(5, 8 + oy, 5, 1, cloakL);
+  p.px(7, 9 + oy, trim);
+  p.px(4, 9 + oy, cloakL); p.px(10, 9 + oy, cloakL);
 
-  // head — big for the body (chibi read), bright eyes + blush
-  p.ellipse(8, 5 + oy, 2.6, 2.6, skin);
-  glowEye(p, 7, 5 + oy, eye); glowEye(p, 9, 5 + oy, eye);
-  p.px(6, 6 + oy, mix(skin, P.red, 0.35)); p.px(10, 6 + oy, mix(skin, P.red, 0.35));
-  p.rect(5, 2 + oy, 7, 2, cloakD);              // hair fringe
-  p.px(5, 4 + oy, cloakD); p.px(11, 4 + oy, cloakD);
-  p.px(6, 2 + oy, cloakL);                      // hair sheen
+  p.ellipse(7, 5 + oy, 2.6, 2.6, skin);
+  glowEye(p, 6, 5 + oy, eye); glowEye(p, 8, 5 + oy, eye);
+  p.px(5, 6 + oy, mix(skin, P.red, 0.35)); p.px(9, 6 + oy, mix(skin, P.red, 0.35));
+  p.rect(4, 2 + oy, 5, 2, cloakD);
+  p.px(4, 4 + oy, cloakD); p.px(9, 4 + oy, cloakD);
+  p.px(5, 2 + oy, cloakL);
+  // twin-tails bounce opposite the body bob
+  p.vline(4 + oy, 9 + oy + fl, 2, cloakD); p.px(2, 10 + oy + fl, cloakL);
+  p.vline(4 + oy, 9 + oy - fl, 10, cloakD); p.px(10, 10 + oy - fl, cloakL);
 
-  // TWIN-TAILS — bounce opposite to the body bob
-  p.vline(4 + oy, 9 + oy + fl, 3, cloakD);
-  p.px(3, 10 + oy + fl, cloakL);                // left tail tip
-  p.vline(4 + oy, 9 + oy - fl, 12, cloakD);
-  p.px(12, 10 + oy - fl, cloakL);               // right tail tip
-  // ahoge + star kira
-  p.px(8, 1 + oy, cloakD);
-  p.star4(8, 0 + oy, 1, eye, P.glint);
-
-  // star wand (right) + falling-star sparkles
-  p.vline(7 + oy, 14 + oy, 14, trim);
-  p.star4(14, 5 + oy, 2, trim, P.glint);
-  p.glow(14, 5 + oy, 2.6, eye, 0.45, 3);
-  p.sparkle(2, 3 + oy, eye, 1);
-  p.sparkle(13, 11 + oy, lighten(eye, 0.3), 1);
+  // WAND + solid STAR BURST filling the top-right corner
+  p.vline(4 + oy, 14 + oy, 13, trim);
+  p.hline(12, 15, 2 + oy, trim);
+  p.vline(0 + oy, 4 + oy, 14, trim);
+  p.px(13, 1 + oy, trim); p.px(15, 1 + oy, trim);
+  p.px(13, 3 + oy, trim); p.px(15, 3 + oy, trim);
+  p.px(14, 2 + oy, P.white); p.px(14, 0 + oy, P.white); p.px(15, 2 + oy, P.white);
+  p.glow(14, 2 + oy, 1.8, eye, 0.4, 3);
+  p.shadeBottom(0.2, 12);
   rimFinish(p);
 }
 
@@ -356,58 +336,52 @@ function drawH4_starcaller(p, f, a) {
 //    ponytail + ribbon sash streaming left, bare midriff, anklet shoes.
 // ===========================================================================
 function drawH4_bladedancer(p, f, a) {
+  // R29 A1: silhouette recut - twin sabres CROSSED into an X above the head, tips
+  // breaking all four upper corners, over a pinched dancer's waist. Portrait: veiled
+  // dancer with two crossed curved blades. (The warlock's horns leave the centre
+  // empty; this X fills it - that is what separates the two.)
   const oy = bob(f), s = stp(f), fl = flap(f);
   const cloak = a.cloak ?? P.sakura, cloakD = a.cloakD ?? P.redD, cloakL = a.cloakL ?? P.sakuraL;
   const trim = a.trim ?? P.steelL, eye = a.eye ?? P.magenta, skin = a.skin ?? P.skin;
   groundShadow(p, oy);
 
-  // dancer's light shoes + bare legs
   p.px(6, 17 + oy, cloakD); p.px(10, 17 + oy, cloakD);
   p.vline(15 + oy, 16 + oy, 6, skin);
   p.vline(15 + oy, 16 + oy, 10, skin);
   if (s > 0) p.px(6, 16 + oy, darken(skin, 0.2));
   if (s < 0) p.px(10, 16 + oy, darken(skin, 0.2));
-  p.px(6, 16 + oy, trim);                       // anklet glint
+  p.px(6, 16 + oy, trim);
 
-  // short slit dance skirt
-  p.rect(5, 12 + oy, 7, 3, cloakD);
-  p.rect(6, 12 + oy, 5, 2, cloak);
-  p.px(11, 14 + oy, cloak);                     // skirt flick
-  // bare midriff + chest wrap
+  // flared dance skirt over a pinched waist - the widest hem in the roster
+  p.hline(3, 12, 12 + oy, cloakD); p.hline(2, 13, 13 + oy, cloakD); p.hline(1, 14, 14 + oy, cloakD);
+  p.hline(4, 11, 12 + oy, cloak); p.hline(3, 12, 13 + oy, cloak);
+  p.hline(2, 13, 14 + oy, mix(cloak, cloakL, 0.4));
+  p.px(1, 14 + oy, cloakL); p.px(14, 14 + oy, cloakD);
   p.rect(6, 10 + oy, 5, 2, skin);
   p.rect(6, 8 + oy, 5, 2, cloak);
   p.hline(6, 10, 8 + oy, cloakL);
-  p.px(8, 11 + oy, darken(skin, 0.15));         // navel shadow
+  p.px(8, 11 + oy, darken(skin, 0.15));
 
-  // arms — left trails low, right raised into the overhead arc
   p.rect(4, 9 + oy, 2, 3, skin);
-  p.rect(11, 6 + oy, 2, 3, skin);
-  p.px(12, 5 + oy, skin);                       // raised hand
+  p.rect(11, 9 + oy, 2, 3, skin);
 
-  // head: keen eyes + long PONYTAIL streaming left
-  p.ellipse(8, 5 + oy, 2.2, 2.2, skin);
-  glowEye(p, 7, 5 + oy, eye); glowEye(p, 9, 5 + oy, eye);
-  p.rect(6, 2 + oy, 5, 2, cloakD);              // hair
-  p.px(5, 3 + oy, cloakD);
-  p.px(6, 2 + oy, cloakL);
-  p.line(5, 3 + oy, 2, 7 + oy + fl, cloakD);    // ponytail flow
-  p.px(1, 8 + oy + fl, cloakL);                 // ponytail tip
-  p.px(9, 1 + oy, trim);                        // hair ornament
+  p.ellipse(8, 6 + oy, 2.2, 2.2, skin);
+  glowEye(p, 7, 6 + oy, eye); glowEye(p, 9, 6 + oy, eye);
+  p.rect(6, 4 + oy, 5, 2, cloakD);
+  p.px(6, 4 + oy, cloakL);
+  p.px(9, 3 + oy, trim);
 
-  // ribbon sash streaming from the waist (both sides, alpha-soft)
-  p.line(5, 12 + oy, 1, 10 + oy - fl, withAlpha(eye, 0.6));
-  p.line(11, 13 + oy, 14, 15 + oy + fl, withAlpha(eye, 0.6));
-  p.px(1, 10 + oy - fl, withAlpha(cloakL, 0.8));
+  // ribbon sash trailing from the waist
+  p.line(4, 13 + oy, 1, 11 + oy - fl, withAlpha(eye, 0.6));
+  p.line(12, 13 + oy, 15, 15 + oy + fl, withAlpha(eye, 0.6));
 
-  // crescent blade ARCING OVERHEAD (the signature) + hip blade
-  p.line(3, 3 + oy, 8, 1 + oy, P.steelL);
-  p.line(8, 1 + oy, 13, 3 + oy, P.steelL);
-  p.line(4, 2 + oy, 8, 0 + oy, withAlpha(eye, 0.4));    // blade aura trail
-  p.line(8, 0 + oy, 12, 2 + oy, withAlpha(eye, 0.4));
-  p.px(8, 1 + oy, P.glint);
-  p.star4(13, 3 + oy, 1, P.sakuraL, P.glint);   // petal kira off the edge
-  p.line(12, 12 + oy, 14, 9 + oy, P.steelL);    // second blade at the hip
-  p.px(14, 9 + oy, P.glint);
+  // TWIN SABRES crossed into an X above the head - tips at all four upper corners
+  p.line(12, 9 + oy, 15, 4 + oy, P.steelL); p.line(13, 10 + oy, 15, 6 + oy, darken(trim, 0.4));
+  p.px(15, 4 + oy, P.glint);                                         // sabre swept off the right hip
+  p.rect(11, 9 + oy, 2, 2, cloakD);                                  // hilt in the hand
+  p.line(5, 4 + oy, 1, 1 + oy, cloakD); p.line(5, 5 + oy, 2, 2 + oy, cloakD);
+  p.px(0, 1 + oy, cloakL); p.px(1, 2 + oy, cloakL);                  // scarf streaming top-left
+  p.shadeBottom(0.2, 12);
   rimFinish(p);
 }
 

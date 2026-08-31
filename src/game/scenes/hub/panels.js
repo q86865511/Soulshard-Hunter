@@ -61,6 +61,10 @@ export const panelsMixin = {
     if (mouse.wheel && ['talents', 'facilities', 'achievements', 'smith', 'personal', 'wardrobe', 'guild', 'codex'].includes(this.panel)) {
       this.panelScroll = clamp((this.panelScroll || 0) + mouse.wheel * 0.5, 0, this.panelMaxScroll || 0);
     }
+    // R29/RE-04: an empty-state block can end in a real 下一步 CTA (gated panels, the codex
+    // ledger, the personal page). It is published by the draw pass and resolved here, before
+    // the per-panel dispatch — gated panels have no other interactive element at all.
+    if (this.panelCta && mouse.justDown && inside(mx, my, this.panelCta)) { this.openPanel(this.panelCta.panel); return; }
     if (this.panel === 'talents') this.updateTalents(mx, my);
     else if (this.panel === 'sortie') this.updateSortie(mx, my);
     else if (this.panel === 'achievements') this.updateAchievements(mx, my);   // 3.5-B filter tabs

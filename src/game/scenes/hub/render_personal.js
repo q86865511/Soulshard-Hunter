@@ -3,7 +3,7 @@
 import { BIOMES } from '../../../art/biomes.js';
 import { mouse } from '../../../engine/input.js';
 import { P, withAlpha } from '../../../engine/palette.js';
-import { UI, ctxRaw, drawSpriteUI, textWidth, uiRect, uiScale, uiText, view } from '../../../engine/renderer.js';
+import { UI, ctxRaw, drawSpriteUI, textWidth, uiClip1, uiRect, uiScale, uiText, uiWrapText, view } from '../../../engine/renderer.js';
 import { getSprite } from '../../../engine/sprites.js';
 import { ACHIEVEMENTS } from '../../content/achievements.js';
 import { BONDS } from '../../content/bonds.js';
@@ -14,6 +14,8 @@ import { Characters, Weapons } from '../../content/registry.js';
 import { META } from '../../state.js';
 import { goldLabel } from '../../ui/gold.js';
 import { drawPortrait } from '../../ui/portraits.js';
+import { goalsFor } from '../../content/goals.js';
+import { dens, drawBlock, fitBlock } from './layout.js';
 import { inside } from './shared.js';
 
 export const renderPersonalMixin = {
@@ -32,13 +34,33 @@ export const renderPersonalMixin = {
     if ((this.personalTab || 0) === 2) { this.drawRoomTab(f); return; }   // R18/B10
     this.panelMaxScroll = 0;
     const s = META.stats || {}; const cid = META.selectedCharacter || 'hunter'; const ch = Characters.get(cid);
-    // displayed hero
-    const psp = getSprite(skinnedSprite(META, cid)), sc = 4 * S;
-    uiRect(f.x + 20 * S, f.y + 64 * S, 150 * S, 150 * S, withAlpha('#12152a', 0.9), { radius: 8 * S, stroke: P.ink2, lw: 1.5 });
-    drawSpriteUI(psp.frames[Math.floor(this.t * 4) % psp.frames.length], f.x + 20 * S + 75 * S - psp.w * sc / 2, f.y + 92 * S, sc);
+    // displayed hero — R29/RE-03: the PORTRAIT is the identity visual here (it was only ever
+    // used on the sortie card, so the most expensive art in the game had exactly one call
+    // site); the animated sprite is demoted to a labelled「遊戲內預覽」chip in the dead space
+    // under the frame. The frame box, the name line and the guild line keep their EXACT old
+    // coordinates, so a missing/not-yet-loaded portrait falls back to the old blown-up sprite
+    // with zero layout shift — only the chip below (which the fallback doesn't draw) differs.
+    const psp = getSprite(skinnedSprite(META, cid));
+    const hx = f.x + 20 * S, hy = f.y + 64 * S, hw = 150 * S, hh = 150 * S;
+    uiRect(hx, hy, hw, hh, withAlpha('#12152a', 0.9), { radius: 8 * S, stroke: P.ink2, lw: 1.5 });
+    const heroPortrait = drawPortrait(cid, hx + 2 * S, hy + 2 * S, hw - 4 * S, hh - 4 * S, { radius: 7 * S, focusY: 0.34 });
+    if (!heroPortrait) {
+      const sc = 4 * S;
+      drawSpriteUI(psp.frames[Math.floor(this.t * 4) % psp.frames.length], hx + 75 * S - psp.w * sc / 2, f.y + 92 * S, sc);
+    } else {
+      // name plate: the portrait runs edge-to-edge, so the name needs its own ground
+      uiRect(hx + 6 * S, f.y + 182 * S, hw - 12 * S, 26 * S, withAlpha('#080a16', 0.78), { radius: 6 * S });
+    }
     uiText(ch ? ch.name : cid, f.x + 95 * S, f.y + 200 * S, { size: UI.FONT_HEADING * S, align: 'center', color: '#fff', weight: '900' });
     const gp = guildProgress(META);
     uiText(gp.name, f.x + 95 * S, f.y + 230 * S, { size: UI.FONT_CAPTION * S, align: 'center', color: P.gold, weight: '600' });   // R17 UI-sweep polish: cleanly BELOW the 150S portrait frame (was straddling its border at high S)
+    if (heroPortrait) {   // 遊戲內預覽 chip — the skin-accurate sprite the player actually plays
+      const bw = 56 * S, bx = f.x + 95 * S - bw / 2, by = f.y + 246 * S;
+      uiRect(bx, by, bw, bw, withAlpha('#12152a', 0.9), { radius: 6 * S, stroke: withAlpha(P.shardL, 0.45), lw: 1.5 });
+      const sc2 = Math.min((bw - 14 * S) / psp.h, 2.6 * S);
+      drawSpriteUI(psp.frames[Math.floor(this.t * 4) % psp.frames.length], bx + bw / 2 - psp.w * sc2 / 2, by + bw - 7 * S - psp.h * sc2, sc2);
+      uiText('遊戲內預覽', f.x + 95 * S, by + bw + 14 * S, { size: UI.FONT_CAPTION * S, align: 'center', color: P.gray3, weight: '600' });
+    }
     // stat columns
     const sx = f.x + 200 * S, sw = f.w - 220 * S;
     const fmtT = (v) => Math.floor(v / 60) + ':' + String(Math.floor(v % 60)).padStart(2, '0');
@@ -48,6 +70,10 @@ export const renderPersonalMixin = {
       ['最長存活', fmtT(s.bestTime || 0)], ['最高威脅', s.bestStage || 0], ['最高角色等級', s.bestCharLevel || 0],
       ['無傷通關', s.noDmgClears || 0], ['鍛造強化', s.forgeUpgrades || 0], ['結識居民', s.npcTalks || 0],
     ];
+    // R29/RE-04: the two data groups get the panel's card ground behind them — they were bare
+    // text floating on the panel fill, which is what made the page read as mostly empty.
+    uiRect(sx - 12 * S, f.y + 66 * S, sw - 4 * S, 168 * S, withAlpha('#1e2540', 0.94), { radius: 8 * S, stroke: withAlpha(P.shardL, 0.30), lw: 1.5 });
+    uiRect(sx - 12 * S, f.y + 248 * S, sw - 4 * S, 78 * S, withAlpha('#1e2540', 0.94), { radius: 8 * S, stroke: withAlpha(P.goldL, 0.30), lw: 1.5 });
     uiText('生涯戰績', sx, f.y + 76 * S, { size: UI.FONT_BODY * S, color: P.shardL, weight: '800' });
     const cols = 2, cw = sw / cols;
     stats.forEach((st, i) => {
@@ -71,6 +97,29 @@ export const renderPersonalMixin = {
       const x = sx + c * (sw / 3), y = f.y + 96 * S + 6 * 26 * S + 30 * S + r * 24 * S;
       uiText(cc[0] + ' ' + cc[1] + (cc[2] ? '/' + cc[2] : ''), x, y, { size: UI.FONT_BODY * S, color: P.gray4, weight: '600' });
     });
+    // R29/RE-04: below the collection row the page used to be ~45% flat background. The
+    // leftover block now answers「接下來做什麼」with the same goal engine the codex uses,
+    // the guild bar the whole town economy hangs off, and one CTA into the codex.
+    const d = dens('compact', S);   // a 3-row goal list is a dense list, not a showcase block
+    // kept in the data column (aligned with the two wells above it) — the strip under the hero
+    // portrait stays open on purpose: that negative space is what lets the portrait read.
+    const body = { x: sx - 12 * S, y: f.y + 96 * S + 6 * 26 * S + 30 * S + 2 * 24 * S + 16 * S, w: sw - 4 * S };
+    body.h = Math.max(0, f.y + f.h - 34 * S - body.y);
+    if (body.h >= 100 * S) {
+      const goals = goalsFor(META);
+      const spec = fitBlock({
+        icon: '◆', title: goals.length ? '接下來的目標' : '沒有待辦目標 — 去挑戰更高難度吧', tone: P.goldL,
+        lines: goals.length ? goals.map((g) => (g.icon || '•') + ' ' + g.title + '　—　' + (g.desc || '')) : ['所有推薦目標都完成了，往更高難度或無盡挑戰前進。'],
+        bars: [{ label: '公會階級　' + gp.name, frac: gp.frac || 0, note: gp.next ? ('距下一階 ' + gp.toNext + ' 經驗') : '已達最高階', color: P.gold }],
+        cta: { label: '查看圖鑑石碑 ▸', hint: '收藏進度與進化配方', color: P.shardL },
+      }, body.w, body.h, d);
+      // natural height — the slack below the block is deliberate breathing room
+      const blk = drawBlock(body.x, body.y, body.w, d, spec);
+      if (blk.cta) {
+        if (inside(mx, my, blk.cta)) uiRect(blk.cta.x, blk.cta.y, blk.cta.w, blk.cta.h, null, { radius: d.radius * 0.8, stroke: P.shardL, lw: 2 });
+        this.panelCta = { ...blk.cta, panel: 'codex' };
+      }
+    }
     uiText('在此休憩，凝視你一路走來的足跡。　·　Esc 關閉', f.x + f.w / 2, f.y + f.h - 14 * S, { size: UI.FONT_BODY * S, align: 'center', color: P.gray3 });
   },
 
@@ -139,11 +188,15 @@ export const renderPersonalMixin = {
       // R28/W2-E(b): portrait layer (ART-05) — cover-fit into the card's left column, same
       // rounded corners as the card frame; falls back to the sprite art when the id has no
       // portrait yet (batch 1 = 6 core heroes) or the image hasn't loaded.
-      const pDrawn = drawPortrait(c.id, card.x + 4 * S, card.y + 4 * S, lw2 - 8 * S, card.h - 24 * S, { radius: 6 * S, alpha: unlocked ? 1 : 0.3 });
+      // R29/RE-03: a locked hero used to be drawn at alpha 0.3 — near-invisible, so the card
+      // could not do the one job it has (make you want that hero). Locked now means DESATURATED,
+      // not faded: the face stays readable, the colour loss + the 🔒 price row carry the state.
+      const pDrawn = drawPortrait(c.id, card.x + 4 * S, card.y + 4 * S, lw2 - 8 * S, card.h - 24 * S,
+        { radius: 6 * S, alpha: unlocked ? 1 : 0.95, mono: unlocked ? 0 : 0.85, focusY: 0.38 });
       if (!pDrawn) {
         const sp = getSprite(selected ? (this.heroSprite || c.sprite) : c.sprite);
         const sc = Math.min(2.1 * S, (card.h - 36 * S) / sp.h);
-        drawSpriteUI(sp.frames[0], card.x + lw2 / 2 - sp.w * sc / 2, card.y + 5 * S, sc, { alpha: unlocked ? 1 : 0.3 });
+        drawSpriteUI(sp.frames[0], card.x + lw2 / 2 - sp.w * sc / 2, card.y + 5 * S, sc, { alpha: unlocked ? 1 : 0.5 });
       }
       uiText(c.name, card.x + lw2 / 2, card.y + card.h - 18 * S, { size: UI.FONT_CAPTION * S, align: 'center', color: unlocked ? '#fff' : P.gray3, weight: '800' });
       if (!unlocked) {
@@ -160,14 +213,13 @@ export const renderPersonalMixin = {
       const descLines = card.h >= 70 * S ? 2 : card.h >= 52 * S ? 1 : 0;
       // R17 B12: hero descs end with their own「起始武器：X。」sentence — the card already has a
       // dedicated line for it, so strip the duplicate before wrapping the effect text.
-      const dsz = UI.FONT_CAPTION * S; let rest = (c.desc || '').replace(/(?:^|。)?\s*起始武器：[^。]*。?\s*$/, (m) => (m.startsWith('。') ? '。' : ''));
-      for (let li = 0; li < descLines && rest; li++) {
-        let line = '';
-        while (rest && textWidth(line + rest[0], dsz, '600') <= rw) { line += rest[0]; rest = rest.slice(1); }
-        if (!line) break;   // a single glyph wider than rw (degenerate) — bail
-        if (li === descLines - 1 && rest) { while (line.length > 1 && textWidth(line + '…', dsz, '600') > rw) line = line.slice(0, -1); line += '…'; rest = ''; }
+      const dsz = UI.FONT_CAPTION * S; const rest = (c.desc || '').replace(/(?:^|。)?\s*起始武器：[^。]*。?\s*$/, (m) => (m.startsWith('。') ? '。' : ''));
+      // R29/RE-02: was a hand-rolled PER-CHARACTER greedy loop, which sliced the stat numbers in
+      // these descs apart (「-10 / %」,「+0. / 3」). uiWrapText keeps signed/decimal/percent
+      // numbers atomic and does the maxLines ellipsis by whole tokens too.
+      if (descLines > 0) uiWrapText(rest, rw, dsz, '600', descLines).forEach((line, li) => {
         uiText(line, rx, card.y + 32 * S + li * 12 * S, { size: dsz, color: unlocked ? P.gray4 : P.gray2, weight: '600' });
-      }
+      });
     }
     const arrow = (r, t, on) => { uiRect(r.x, r.y, r.w, r.h, withAlpha('#1b2138', 0.96), { radius: 5 * S, stroke: on ? P.gray3 : P.ink2, lw: 2 }); uiText(t, r.x + r.w / 2, r.y + r.h / 2 + 1 * S, { size: UI.FONT_HEADING * S, align: 'center', baseline: 'middle', color: on ? '#fff' : P.gray2, weight: '900' }); };
     arrow(L.prev, '‹', this.sortPage > 0);
@@ -234,18 +286,12 @@ export const renderPersonalMixin = {
   },
 
   // ---- text helpers --------------------------------------------------------
+  // R29/RE-02: both were per-character copies of the shared renderer helpers; they now just
+  // draw what the (token-aware) helpers measure, so numbers survive clipping and wrapping.
   clip1(str, x, y, maxw, size, color, weight) {
-    let s = str;
-    while (s.length > 1 && textWidth(s, size, weight || '600') > maxw) s = s.slice(0, -1);
-    if (s.length < str.length && s.length > 1) s = s.slice(0, -1) + '…';
-    uiText(s, x, y, { size, color: color || P.gray4, weight: weight || '600' });
+    uiText(uiClip1(str, maxw, size, weight || '600'), x, y, { size, color: color || P.gray4, weight: weight || '600' });
   },
   wrap(str, x, y, maxw, size) {
-    let line = '', yy = y;
-    for (const ch of str) {
-      if (textWidth(line + ch, size, '600') > maxw && line) { uiText(line, x, yy, { size, color: P.gray4 }); line = ch; yy += size + 2; }
-      else line += ch;
-    }
-    if (line) uiText(line, x, yy, { size, color: P.gray4 });
+    uiWrapText(str, maxw, size, '600').forEach((line, i) => uiText(line, x, y + i * (size + 2), { size, color: P.gray4 }));
   },
 };
