@@ -113,8 +113,56 @@ anchor feet `[8,17]`、4 frames、填充率 ≥55%（實測最低 0.556）、3�
 - 剪影前後對照：`docs/reviews/art-r29/sil-before-a128-big.png` ／ `sil-after-a128-big.png`
   （另有 32 px 實尺寸版與逐角填充率 `*-stats.json`）。
 
-### 未收口
+### 未收口（已由批次 A2 關閉）
 
 R28 重建的那 5 名本身就是本輪填充率最高、輪廓最無特徵的 5 個（hunter 0.833／g_revenant 0.865／
 h3_plague 0.892／h2_voidcaller 0.816／shadow 0.778），彼此仍只能靠顏色分辨。
-RE-01 的「27／27」驗收在這 5 名解鎖重畫前無法關閉。
+RE-01 的「27／27」驗收在這 5 名解鎖重畫前無法關閉——見下方批次 A2。
+
+---
+
+## 批次 A2 — R28 已重建的 5 名輪廓專項收斂（關閉 RE-01）
+
+A1 解除限制後，對 hunter／shadow／g_revenant／h2_voidcaller／h3_plague 做同一套剖面重切。
+根因與 A1 相同（`Painter.outline()` 對 alpha>0 一律描邊），但這 5 名額外有兩個病因：
+（a）R28 為了拉填充率，把肊甲／大衆／武器都推到畫布邊緣且**落在同一批 row**，
+outline() 一跑就焊成一塊；（b）voidmage 結尾 `aura(8,3,5)`、plague 與 necromancer 的 `glow(...,r=3)`
+把發光半徑變成外輪廓。做法是**只搬質量、不改畫風**：把躯幹收窄、把肢體或武器推出去形成
+真空白欄，光暈半徑一律降到 1.4～1.6。每名以 `assets/portraits/<id>.png` 的辨識特徵為依據，
+並先對照 A1 已定案的 22 名剖面避免撞形。
+
+| 角色 | 輪廓簽名（胖體處＝新增） | 與誰拉開距離 |
+|---|---|---|
+| hunter | 低平頂兵帽（不尖）＋**十字弩橫桿在腰線端到端**，下方外套只有 10 px，弓臂尖勾到 row13-14 成兩點島 | ranger（尖帽＋右緣全高弓柱）、g_ranger（寬帶在肩線、頂部空）——hunter 的最寬點在**腰**且帽頂是實心平頂 |
+| shadow | 4 px 全表最窄的直筒头巾＋單一寬肩披＋**雙短刃倒換手垂於兩側畫布邊緣**，腰部損成沙漏 | h2_duelist／h4_bladedancer（刃在右上斜插）——shadow 的刃**向下**且兩側各留 2 空欄 |
+| g_revenant | 身體整體左移到 x1-9，**魂燈籠挂在右上角、杖身只到 row11「舉起來」**，右下四分之一全空 | ranger（弓柱從地到天，且 row9 下全焊死）、h4_gravekeeper（左上實心方塊） |
+| h2_voidcaller | 結尾 aura 移除；4 px 窄連帽＋**左高右低兩道觸鬚臂**（絕不同排，因此永遠不會融成一條寬帶） | h2_warlock（row3-8 整條寬帶）、g_ranger（對稱平舉） |
+| h3_plague | **窄帽冠→全寬帽簷的硬階梯（6px→16px，row2 刻意留白）**＋鳥喙前伸過左頰成鼻形；帽簷下兩側是真空氣 | stormcaller（同為寬帽，但是 7→11→14→16 的**斜坡**且無窄冠） |
+
+副作用修正：necromancer 接觸陰影改跟著左移的身體（不再靠畫布中心）；h3_plague 面具壳拉亮一階
+使臉在帽簷陰影下還讀得出來；R28 的 h3_plague 手杖移除（它把左側翼焊死，且股像上本來就沒有手杖）。
+飛出去的肢體一律補上前臂／骸手／觸鬚根部，這些連接只占 1 row，不會把空欄填回去。
+
+### 填充率（alpha>128）
+
+| 角色 | A1 後（＝A2 前） | A2 後 |
+|---|---|---|
+| hunter | 0.833 | **0.674** |
+| shadow | 0.778 | **0.601** |
+| g_revenant | 0.865 | **0.719** |
+| h2_voidcaller | 0.816 | **0.625** |
+| h3_plague | 0.892 | **0.681** |
+
+27 名全體最低填充率 0.556（h4_chronomancer，未動），均 ≥ 0.55 底線。
+
+### 驗證
+
+- `cd test && npm run test:frontend` → **59/59**。
+- `node tools/_wf_evidence.mjs sheets --out docs/reviews/art-r29/a2-after` → characters 27／
+  enemies 63／icons 219，均 missing `[]`。
+- 剖影前後對照：`docs/reviews/art-r29/a2-after/sil-before-a128-big.png`（＝A1 結果）與
+  `sil-after-a128-big.png`，另有 32 px 實尺寸版與逐角填充率 `*-stats.json`。
+- 改動檔：`src/art/heroes.js`（hunter／rogue／necromancer／voidmage 四個 archetype，分別對應
+  hunter／shadow／g_revenant／h2_voidcaller）、`src/game/content/gen/gen_heroes3.js`
+  （h3_plague，已標 `// R29 A2:` 行內註解，重跑 integrate.mjs 會覆蓋）。
+- def／stats／股像檔／敵人 sprite／圖示／UI 場景檔均未動。

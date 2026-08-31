@@ -1,0 +1,102 @@
+{
+  "crypt": {
+    "on": {
+      "joint": 33,
+      "total": 5304
+    },
+    "off": {
+      "joint": 86,
+      "total": 5304
+    }
+  },
+  "cavern": {
+    "on": {
+      "joint": 128,
+      "total": 5304
+    },
+    "off": {
+      "joint": 229,
+      "total": 5304
+    }
+  },
+  "frost": {
+    "on": {
+      "joint": 108,
+      "total": 5304
+    },
+    "off": {
+      "joint": 241,
+      "total": 5304
+    }
+  },
+  "inferno": {
+    "on": {
+      "joint": 20,
+      "total": 5304
+    },
+    "off": {
+      "joint": 56,
+      "total": 5304
+    }
+  },
+  "void": {
+    "on": {
+      "joint": 13,
+      "total": 5304
+    },
+    "off": {
+      "joint": 34,
+      "total": 5304
+    }
+  },
+  "verdant": {
+    "on": {
+      "joint": 12,
+      "total": 5304
+    },
+    "off": {
+      "joint": 35,
+      "total": 5304
+    }
+  },
+  "desert": {
+    "on": {
+      "joint": 61,
+      "total": 5304
+    },
+    "off": {
+      "joint": 111,
+      "total": 5304
+    }
+  },
+  "swamp": {
+    "on": {
+      "joint": 36,
+      "total": 5304
+    },
+    "off": {
+      "joint": 95,
+      "total": 5304
+    }
+  },
+  "abyss": {
+    "on": {
+      "joint": 56,
+      "total": 5304
+    },
+    "off": {
+      "joint": 128,
+      "total": 5304
+    }
+  },
+  "celestial": {
+    "on": {
+      "joint": 36,
+      "total": 5304
+    },
+    "off": {
+      "joint": 105,
+      "total": 5304
+    }
+  }
+}

@@ -105,6 +105,12 @@ function drawH3_spearmaiden(p, f, a) {
 // 2-step bone read, 2 px goggle lenses with dark rims, and a glowing plague VIAL
 // held in the right hand so the class symbol lives in the silhouette.
 function drawH3_plague(p, f, a) {
+  // R29 A2: silhouette recut (RE-01). The R28 body already had a beak and a brim,
+  // but the coat, the satchel and the vial glow all reached the canvas edges, so
+  // outline() closed every gap and the hero read as a featureless dome (fill .892).
+  // Recut: a narrow CROWN over empty corners, a full-width brim that overhangs air
+  // on both flanks, the bone beak driven out past the LEFT cheek as a nose, and a
+  // coat pulled in to 10 px. Portrait: wide-brim hat, long beak mask, censer smoke.
   const oy = (f === 1 || f === 3) ? -1 : 0;
   const step = f === 1 ? 1 : f === 3 ? -1 : 0;
   const cloak = a.cloak ?? P.gray1, cloakD = a.cloakD ?? P.shadow, cloakL = a.cloakL ?? P.gray3;
@@ -114,91 +120,89 @@ function drawH3_plague(p, f, a) {
   // the plague palette is monochrome grey — pull the CLOTH down a step so the bone
   // beak, the brass goggles and the green vial are the only bright notes.
   const coatD = mix(cloakD, cloak, 0.4), coat = cloak, coatL = mix(cloak, cloakL, 0.5);
-  p.softShadow(8, 17 + oy, 5, 1.4, 0.34);      // ground contact (ART_SPEC §1)
+  p.softShadow(8, 17 + oy, 4.4, 1.4, 0.34);    // ground contact (ART_SPEC §1)
 
-  // boots — wide stance
-  p.rect(3, 16 + oy, 4, 2, P.ink2);
-  p.rect(9, 16 + oy, 4, 2, P.ink2);
-  p.hline(3, 6, 16 + oy, mix(P.ink2, cloakL, 0.35));
-  p.hline(9, 12, 16 + oy, mix(P.ink2, cloakL, 0.35));
-  if (step > 0) p.hline(3, 6, 17 + oy, P.shadow);
-  if (step < 0) p.hline(9, 12, 17 + oy, P.shadow);
+  // boots — kept inside the coat so the brim stays the widest line
+  p.rect(4, 16 + oy, 3, 2, P.ink2);
+  p.rect(9, 16 + oy, 3, 2, P.ink2);
+  p.hline(4, 6, 16 + oy, mix(P.ink2, cloakL, 0.35));
+  p.hline(9, 11, 16 + oy, mix(P.ink2, cloakL, 0.35));
+  if (step > 0) p.hline(4, 6, 17 + oy, P.shadow);
+  if (step < 0) p.hline(9, 11, 17 + oy, P.shadow);
 
-  // long coat — straight, ankle length, flaring to the full canvas width
-  const cTop = 8 + oy, cBot = 16 + oy;
+  // long coat — straight and ankle length, but only 10 px wide: the brim above it
+  // must overhang REAL empty air or the hat stops being a silhouette feature
+  const cTop = 9 + oy, cBot = 16 + oy;
   for (let y = cTop; y <= cBot; y++) {
     const t = (y - cTop) / (cBot - cTop);
-    const hw = Math.round(4 + t * 2.5);
+    const hw = Math.round(3.2 + t * 1.6);
     p.hline(8 - hw, 7 + hw, y, coatD);
   }
   for (let y = cTop + 1; y <= cBot - 1; y++) {
     const t = (y - cTop) / (cBot - cTop);
-    const hw = Math.round(3 + t * 1.6);
+    const hw = Math.round(2.2 + t * 1.2);
     p.hline(8 - hw, 7 + hw, y, mix(coatL, coat, t));
   }
-  p.hline(1, 14, 16 + oy, deep);              // hem under-shade
+  p.hline(4, 11, 16 + oy, deep);              // hem under-shade
   p.vline(cTop + 1, cBot, 8, coatD);          // coat seam
-  p.vline(cTop + 1, cBot - 2, 5, coatL);      // top-left lit lapel
-  p.px(8, 10 + oy, trim); p.px(8, 12 + oy, trim); p.px(8, 14 + oy, trim); // buttons
+  p.vline(cTop + 1, cBot - 2, 6, coatL);      // top-left lit lapel
+  p.px(8, 11 + oy, trim); p.px(8, 13 + oy, trim); p.px(8, 15 + oy, trim); // buttons
 
-  // shoulders / arms — the coat's mass, not sticks
-  p.rect(1, 8 + oy, 4, 5, coatD); p.rect(11, 8 + oy, 4, 5, coatD);
-  p.hline(1, 4, 8 + oy, coatL); p.hline(11, 14, 8 + oy, mix(coatL, coat, 0.5));
-  p.hline(1, 4, 12 + oy, deep); p.hline(11, 14, 12 + oy, deep);
+  // shoulders / arms — the coat's mass, not sticks (inside the brim's shadow)
+  p.rect(4, 9 + oy, 3, 4, coatD); p.rect(9, 9 + oy, 3, 4, coatD);
+  p.hline(4, 6, 9 + oy, coatL); p.hline(9, 11, 9 + oy, mix(coatL, coat, 0.5));
+  p.hline(4, 6, 12 + oy, deep); p.hline(9, 11, 12 + oy, deep);
 
-  // satchel on the left hip
-  p.rect(0, 11 + oy, 4, 4, P.leather);
-  p.hline(0, 3, 11 + oy, darken(P.leather, 0.25));
-  p.hline(0, 3, 14 + oy, darken(P.leather, 0.35));
-  p.px(1, 13 + oy, trim);                      // buckle
+  // satchel on the left hip — a bump on the coat line, not a second edge mass
+  p.rect(3, 12 + oy, 3, 3, P.leather);
+  p.hline(3, 5, 12 + oy, darken(P.leather, 0.25));
+  p.hline(3, 5, 14 + oy, darken(P.leather, 0.35));
+  p.px(4, 13 + oy, trim);                      // buckle
 
-  // plague VIAL raised in the right hand — the class symbol, in silhouette
-  p.rect(12, 12 + oy, 3, 4, mix(P.steelD, cloakD, 0.4));   // gloved hand + flask base
-  p.glow(13, 13 + oy, 3, eye, 0.55, 4);
-  p.rect(13, 13 + oy, 2, 3, eye);
-  p.px(13, 13 + oy, mix(eye, P.white, 0.6)); p.px(14, 15 + oy, darken(eye, 0.35));
-  p.rect(13, 11 + oy, 2, 1, P.bone);           // cork stopper
-  p.px(12, 10 + oy, withAlpha(eye, 0.7));      // escaping vapour
+  // plague VIAL in the right hand — a TIGHT glow; the R28 radius-3 one refilled
+  // the whole right flank once outline() ran over it
+  p.rect(10, 12 + oy, 2, 3, mix(P.steelD, cloakD, 0.4));   // gloved hand + flask base
+  p.glow(11, 13 + oy, 1.4, eye, 0.5, 3);
+  p.rect(10, 13 + oy, 2, 2, eye);
+  p.px(10, 13 + oy, mix(eye, P.white, 0.6)); p.px(11, 14 + oy, darken(eye, 0.35));
+  p.px(10, 11 + oy, P.bone); p.px(11, 11 + oy, P.bone);    // cork stopper
 
   // neck / collar (dark, so the mask never fuses with the coat)
-  p.rect(5, 8 + oy, 6, 2, deep);
+  p.rect(6, 8 + oy, 4, 2, deep);
 
   // head: mask shell kept a value step DOWN from the beak so the beak reads
-  const shell = mix(cloak, cloakL, 0.35), shellL = mix(cloakL, P.white, 0.1);
-  p.ellipse(8, 6 + oy, 3.4, 2.8, shell);
-  p.hline(5, 10, 4 + oy, shellL);                              // lit crown (top-left light)
+  const shell = mix(cloak, cloakL, 0.8), shellL = mix(cloakL, P.white, 0.22);
+  p.rect(5, 5 + oy, 6, 4, shell);
+  p.hline(5, 10, 5 + oy, shellL);                              // lit crown (top-left light)
   p.hline(5, 10, 8 + oy, mix(shell, cloakD, 0.5));             // 2nd step: shaded jaw line
 
   // round goggle lenses — 2 px glass in a dark rim
-  p.rect(4, 5 + oy, 3, 3, P.steelD); p.rect(9, 5 + oy, 3, 3, P.steelD);
+  p.rect(5, 5 + oy, 3, 3, P.steelD); p.rect(8, 5 + oy, 3, 3, P.steelD);
   p.rect(5, 6 + oy, 2, 2, darken(eye, 0.35)); p.rect(9, 6 + oy, 2, 2, darken(eye, 0.35));
-  p.glow(5, 6 + oy, 1.8, eye, 0.5, 3); p.glow(10, 6 + oy, 1.8, eye, 0.5, 3);
-  p.px(5, 6 + oy, eye); p.px(10, 6 + oy, eye);                 // 1 px eye position
-  p.px(5, 6 + oy, P.glint);                                    // catch-light (top-left)
+  p.px(6, 6 + oy, eye); p.px(9, 6 + oy, eye);                  // 1 px eye position
+  p.px(6, 6 + oy, P.glint);                                    // catch-light (top-left)
 
-  // the BEAK — a bright bone wedge driven down across the dark collar; 2 px wide
-  // with a 2-step bone read and a hooked tip, unmistakable at game zoom
-  p.rect(7, 7 + oy, 2, 5, beak);
-  p.px(7, 7 + oy, lighten(beak, 0.24));                        // top-left highlight
-  p.px(8, 8 + oy, beakM); p.px(8, 9 + oy, beakM); p.px(8, 10 + oy, beakM); // right shade step
-  p.px(8, 11 + oy, beakD);
-  p.px(7, 12 + oy, beakD);                                     // hooked tip
+  // the BEAK — driven OUT past the left cheek, not down the chest: it is the only
+  // horizontal spur on the sprite, so the head profile has a nose at 32 px
+  p.hline(3, 5, 7 + oy, beak);
+  p.hline(4, 5, 6 + oy, lighten(beak, 0.24));                  // top-left highlight
+  p.hline(4, 5, 8 + oy, beakM);                                // 2nd bone step
+  p.px(3, 8 + oy, beakD);                                      // hooked tip
+  p.px(3, 7 + oy, lighten(beak, 0.1));
 
-  // wide-brim hat — near-full canvas width, drooping at the tips
-  p.hline(1, 14, 3 + oy, coatD);
-  p.hline(2, 13, 2 + oy, mix(coatD, coat, 0.5));
-  p.hline(4, 11, 4 + oy, deep);                                // brim under-shade
-  p.px(0, 4 + oy, coatD); p.px(15, 4 + oy, coatD);             // drooping tips
-  p.px(1, 4 + oy, deep); p.px(14, 4 + oy, deep);
-  p.rect(5, 0 + oy, 6, 3, coatD);                              // tall crown
-  p.hline(5, 10, 0 + oy, mix(coatD, coatL, 0.6));
-  p.vline(0 + oy, 2 + oy, 5, coat);                            // crown lit edge (top-left)
-  p.hline(4, 11, 3 + oy, mix(trim, coatD, 0.35));              // hat band
-
-  // cane in the left hand
-  p.rect(0, 6 + oy, 2, 6, P.woodD);
-  p.vline(6 + oy, 11 + oy, 0, mix(P.woodD, P.woodL, 0.5));
-  p.rect(0, 5 + oy, 2, 1, trim);                               // cane knob
+  // wide-brim hat — full canvas width, drooping tips, over EMPTY flanks below
+  p.hline(2, 13, 3 + oy, mix(coatD, coat, 0.55));              // brim TOP face (narrower)
+  p.hline(3, 9, 3 + oy, mix(coat, coatL, 0.55));               // top-left light on the felt
+  p.hline(0, 15, 4 + oy, deep);                                // brim EDGE — the widest row,
+  p.px(0, 4 + oy, mix(deep, coatD, 0.4)); p.px(15, 4 + oy, mix(deep, coatD, 0.4)); // in the
+  p.px(1, 4 + oy, mix(coatD, coat, 0.4));                      // DARKEST step so the brim
+  p.px(14, 4 + oy, coatD);                                     // reads as a droop, not a slab
+  //   nothing on row 2: the brim must meet the crown as a hard 6px->16px STEP, not
+  //   as a ramp (shaman/stormcaller already owns the ramped wide hat)
+  p.rect(6, 0 + oy, 4, 3, coatD);                              // tall NARROW crown
+  p.hline(6, 9, 0 + oy, mix(coatD, coatL, 0.6));
+  p.vline(0 + oy, 2 + oy, 6, coat);                            // crown lit edge (top-left)
+  p.hline(5, 10, 2 + oy, mix(trim, coatD, 0.35));              // hat band
 
   p.shadeBottom(0.2, 12);
   p.rimLight(P.rim, 0.34, -1, -1);   // gentler than the archetype default: flat brims

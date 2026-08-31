@@ -1,0 +1,390 @@
+{
+  "widths": [
+    {
+      "file": "beams-clean-dpr1.png",
+      "dense": false,
+      "dpr": 1,
+      "zoom": 3,
+      "family": "boss",
+      "color": "#ff5a3c",
+      "spec_lw": 5,
+      "spec_core": 2,
+      "spec_ah": 10,
+      "spec_aw": 6,
+      "ink_dev_p20": 8.0,
+      "body_dev_p20": 8.0,
+      "core_dev_p20": 0.0,
+      "ink_dev_max": 25.0,
+      "body_css": 8.0,
+      "core_css": 0.0,
+      "ink_css": 8.0,
+      "peak_contrast_vs_bg": 7.123667434972528,
+      "n_cols": 400
+    },
+    {
+      "file": "beams-clean-dpr1.png",
+      "dense": false,
+      "dpr": 1,
+      "zoom": 3,
+      "family": "event",
+      "color": "#ffc23c",
+      "spec_lw": 4,
+      "spec_core": 1.6,
+      "spec_ah": 8.5,
+      "spec_aw": 5.2,
+      "ink_dev_p20": 6.0,
+      "body_dev_p20": 4.0,
+      "core_dev_p20": 0.0,
+      "ink_dev_max": 25.0,
+      "body_css": 4.0,
+      "core_css": 0.0,
+      "ink_css": 6.0,
+      "peak_contrast_vs_bg": 7.19009851842485,
+      "n_cols": 400
+    },
+    {
+      "file": "beams-clean-dpr1.png",
+      "dense": false,
+      "dpr": 1,
+      "zoom": 3,
+      "family": "player",
+      "color": "#9adcff",
+      "spec_lw": 3,
+      "spec_core": 1.5,
+      "spec_ah": 7,
+      "spec_aw": 4.5,
+      "ink_dev_p20": 4.0,
+      "body_dev_p20": 4.0,
+      "core_dev_p20": 0.0,
+      "ink_dev_max": 11.0,
+      "body_css": 4.0,
+      "core_css": 0.0,
+      "ink_css": 4.0,
+      "peak_contrast_vs_bg": 9.871443113018195,
+      "n_cols": 400
+    },
+    {
+      "file": "beams-clean-dpr2.png",
+      "dense": false,
+      "dpr": 2,
+      "zoom": 5,
+      "family": "boss",
+      "color": "#ff5a3c",
+      "spec_lw": 5,
+      "spec_core": 2,
+      "spec_ah": 10,
+      "spec_aw": 6,
+      "ink_dev_p20": 8.0,
+      "body_dev_p20": 7.0,
+      "core_dev_p20": 0.0,
+      "ink_dev_max": 49.0,
+      "body_css": 3.5,
+      "core_css": 0.0,
+      "ink_css": 4.0,
+      "peak_contrast_vs_bg": 6.959015302390827,
+      "n_cols": 325
+    },
+    {
+      "file": "beams-clean-dpr2.png",
+      "dense": false,
+      "dpr": 2,
+      "zoom": 5,
+      "family": "event",
+      "color": "#ffc23c",
+      "spec_lw": 4,
+      "spec_core": 1.6,
+      "spec_ah": 8.5,
+      "spec_aw": 5.2,
+      "ink_dev_p20": 6.0,
+      "body_dev_p20": 4.0,
+      "core_dev_p20": 0.0,
+      "ink_dev_max": 49.0,
+      "body_css": 2.0,
+      "core_css": 0.0,
+      "ink_css": 3.0,
+      "peak_contrast_vs_bg": 8.943664329190538,
+      "n_cols": 325
+    },
+    {
+      "file": "beams-clean-dpr2.png",
+      "dense": false,
+      "dpr": 2,
+      "zoom": 5,
+      "family": "player",
+      "color": "#9adcff",
+      "spec_lw": 3,
+      "spec_core": 1.5,
+      "spec_ah": 7,
+      "spec_aw": 4.5,
+      "ink_dev_p20": 5.0,
+      "body_dev_p20": 4.0,
+      "core_dev_p20": 0.0,
+      "ink_dev_max": 8.0,
+      "body_css": 2.0,
+      "core_css": 0.0,
+      "ink_css": 2.5,
+      "peak_contrast_vs_bg": 9.028326997733481,
+      "n_cols": 325
+    },
+    {
+      "file": "beams-dense-dpr1.png",
+      "dense": true,
+      "dpr": 1,
+      "zoom": 3,
+      "family": "boss",
+      "color": "#ff5a3c",
+      "spec_lw": 5,
+      "spec_core": 2,
+      "spec_ah": 10,
+      "spec_aw": 6,
+      "ink_dev_p20": 8.0,
+      "body_dev_p20": 8.0,
+      "core_dev_p20": 0.0,
+      "ink_dev_max": 25.0,
+      "body_css": 8.0,
+      "core_css": 0.0,
+      "ink_css": 8.0,
+      "peak_contrast_vs_bg": 6.826778835950877,
+      "n_cols": 400
+    },
+    {
+      "file": "beams-dense-dpr1.png",
+      "dense": true,
+      "dpr": 1,
+      "zoom": 3,
+      "family": "event",
+      "color": "#ffc23c",
+      "spec_lw": 4,
+      "spec_core": 1.6,
+      "spec_ah": 8.5,
+      "spec_aw": 5.2,
+      "ink_dev_p20": 6.0,
+      "body_dev_p20": 4.0,
+      "core_dev_p20": 0.0,
+      "ink_dev_max": 25.0,
+      "body_css": 4.0,
+      "core_css": 0.0,
+      "ink_css": 6.0,
+      "peak_contrast_vs_bg": 7.19009851842485,
+      "n_cols": 400
+    },
+    {
+      "file": "beams-dense-dpr1.png",
+      "dense": true,
+      "dpr": 1,
+      "zoom": 3,
+      "family": "player",
+      "color": "#9adcff",
+      "spec_lw": 3,
+      "spec_core": 1.5,
+      "spec_ah": 7,
+      "spec_aw": 4.5,
+      "ink_dev_p20": 3.0,
+      "body_dev_p20": 2.0,
+      "core_dev_p20": 0.0,
+      "ink_dev_max": 25.0,
+      "body_css": 2.0,
+      "core_css": 0.0,
+      "ink_css": 3.0,
+      "peak_contrast_vs_bg": 8.662276334551546,
+      "n_cols": 400
+    },
+    {
+      "file": "beams-dense-dpr2.png",
+      "dense": true,
+      "dpr": 2,
+      "zoom": 5,
+      "family": "boss",
+      "color": "#ff5a3c",
+      "spec_lw": 5,
+      "spec_core": 2,
+      "spec_ah": 10,
+      "spec_aw": 6,
+      "ink_dev_p20": 8.0,
+      "body_dev_p20": 6.0,
+      "core_dev_p20": 0.0,
+      "ink_dev_max": 49.0,
+      "body_css": 3.0,
+      "core_css": 0.0,
+      "ink_css": 4.0,
+      "peak_contrast_vs_bg": 8.97883964675406,
+      "n_cols": 325
+    },
+    {
+      "file": "beams-dense-dpr2.png",
+      "dense": true,
+      "dpr": 2,
+      "zoom": 5,
+      "family": "event",
+      "color": "#ffc23c",
+      "spec_lw": 4,
+      "spec_core": 1.6,
+      "spec_ah": 8.5,
+      "spec_aw": 5.2,
+      "ink_dev_p20": 6.0,
+      "body_dev_p20": 4.0,
+      "core_dev_p20": 0.0,
+      "ink_dev_max": 49.0,
+      "body_css": 2.0,
+      "core_css": 0.0,
+      "ink_css": 3.0,
+      "peak_contrast_vs_bg": 8.664769360897433,
+      "n_cols": 325
+    },
+    {
+      "file": "beams-dense-dpr2.png",
+      "dense": true,
+      "dpr": 2,
+      "zoom": 5,
+      "family": "player",
+      "color": "#9adcff",
+      "spec_lw": 3,
+      "spec_core": 1.5,
+      "spec_ah": 7,
+      "spec_aw": 4.5,
+      "ink_dev_p20": 2.0,
+      "body_dev_p20": 2.0,
+      "core_dev_p20": 0.0,
+      "ink_dev_max": 49.0,
+      "body_css": 1.0,
+      "core_css": 0.0,
+      "ink_css": 1.0,
+      "peak_contrast_vs_bg": 1.4142887433378104,
+      "n_cols": 325
+    }
+  ],
+  "colour": {
+    "normal": {
+      "rgb": {
+        "boss": [
+          255,
+          90,
+          60
+        ],
+        "event": [
+          255,
+          194,
+          60
+        ],
+        "player": [
+          154,
+          220,
+          255
+        ]
+      },
+      "pairs": {
+        "boss|event": [
+          59.2,
+          42.5
+        ],
+        "boss|player": [
+          106.9,
+          156.8
+        ],
+        "event|player": [
+          97.4,
+          160.7
+        ]
+      }
+    },
+    "protan": {
+      "rgb": {
+        "boss": [
+          137,
+          123,
+          55
+        ],
+        "event": [
+          219,
+          195,
+          36
+        ],
+        "player": [
+          203,
+          218,
+          255
+        ]
+      },
+      "pairs": {
+        "boss|event": [
+          44.8,
+          0.7
+        ],
+        "boss|player": [
+          68.3,
+          177.7
+        ],
+        "event|player": [
+          94.8,
+          177.0
+        ]
+      }
+    },
+    "deutan": {
+      "rgb": {
+        "boss": [
+          178,
+          160,
+          54
+        ],
+        "event": [
+          234,
+          210,
+          66
+        ],
+        "player": [
+          189,
+          206,
+          255
+        ]
+      },
+      "pairs": {
+        "boss|event": [
+          23.7,
+          0.1
+        ],
+        "boss|player": [
+          83.3,
+          176.0
+        ],
+        "event|player": [
+          96.4,
+          175.9
+        ]
+      }
+    },
+    "tritan": {
+      "rgb": {
+        "boss": [
+          255,
+          42,
+          84
+        ],
+        "event": [
+          255,
+          175,
+          168
+        ],
+        "player": [
+          115,
+          230,
+          231
+        ]
+      },
+      "pairs": {
+        "boss|event": [
+          56.3,
+          6.8
+        ],
+        "boss|player": [
+          120.4,
+          176.4
+        ],
+        "event|player": [
+          66.0,
+          169.7
+        ]
+      }
+    }
+  }
+}
