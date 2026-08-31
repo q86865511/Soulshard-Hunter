@@ -13,7 +13,7 @@ import { refs } from './refs.js';
 import { Particles } from '../../engine/particles.js';
 import {
   camera, vignette, uiText, uiRect, uiBar, uiScale, view, worldToScreen, UI,
-  drawSprite, drawShadow, glowWorld, lineWorld, drawSpriteUI,
+  drawSprite, drawShadow, glowWorld, drawSpriteUI,
 } from '../../engine/renderer.js';
 import { getSprite, frameAt, iconOr } from '../../engine/sprites.js';
 import { pressed, mouse, moveAxis } from '../../engine/input.js';
@@ -318,11 +318,10 @@ export const coopScene = {
     for (const b of this.guest.beams) {
       const a = Math.max(0, b.life / b.max);
       const st = BEAM_STYLE[beamFamily(b.color)];
-      // R28/W5-fix (defect 3-a): dark outline under the family line, same as the host loop in
-      // world.js draw() — without it the guest loses telegraphs on bright ground (desert).
-      lineWorld(b.x0, b.y0, b.x1, b.y1, withAlpha(P.ink, a), st.lw + 2);
-      lineWorld(b.x0, b.y0, b.x1, b.y1, withAlpha(b.color, a), st.lw);
-      lineWorld(b.x0, b.y0, b.x1, b.y1, withAlpha('#ffffff', a * 0.85), st.core);
+      // R29/D-1: body + per-family dash/rung structure comes from the SHARED drawBeamBody
+      // (was three inlined lineWorld calls here, a second copy of the host loop) so the
+      // guest's telegraphs carry the same colour-free ownership cues as the host's.
+      this.world.drawBeamBody(b, a, st);
       this.world.drawBeamCues(b, a, st);
     }
     // R28/FIX-1 (gate 高項) — the guest gets the same two top-layer identity marks as the

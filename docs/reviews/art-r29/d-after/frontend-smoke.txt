@@ -1,0 +1,74 @@
+
+> test:frontend
+> node frontend-smoke.mjs
+
+phase 1: boot + registry
+  ok  boot completes with empty __GAME_ERROR__ (got: null)
+  ok  registry enemies === 63 (got 63)
+  ok  registry items === 28 (got 28)
+  ok  registry equipment === 60 (got 60)
+  ok  registry abilities === 54 (got 54)
+  ok  registry talents === 20 (got 20)
+  ok  registry facilities === 11 (got 11)
+  ok  registry weapons === 43 (got 43)
+  ok  registry characters === 27 (got 27)
+phase 2: nav hub/run + render
+  ok  nav(hub) + pump renders (got: true)
+  ok  nav(run) + pump renders (got: true)
+  ok  no __GAME_ERROR__ after scene navigation
+phase 3: story pause (blocking onboarding)
+  ok  fresh save first run shows a story chapter
+  ok  story still up after 120 frames (dur 6.5s)
+  ok  run.time frozen during story (0 -> 0)
+  ok  player HP unchanged during story (114 -> 114)
+  ok  enemy count unchanged during story (0 -> 0)
+  ok  story expires naturally
+  ok  run.time resumes after story (got 1.1500000000000008)
+phase 4: hudTut timing chain
+  ok  story finished before hudTut check
+  ok  hudTut pops ~2s into actual battle (run.time 2.0166666666666644)
+phase 5: codex + goals
+  ok  fresh save codex is empty
+  ok  addWeapon marks codex.w
+  ok  checkEvolve marks codex.rec + evolved weapon (got true)
+  ok  goalsFor returns 1-3 titled goals
+  ok  hub has the codex station
+  ok  codex panel renders all 5 tabs ([true,true,true,true,true])
+  ok  achievements panel renders with the focus tab default
+  ok  no __GAME_ERROR__ after codex phase
+phase 6: co-op self-tests
+  ok  coopRoundTrip ran (error: undefined)
+  ok  coopRoundTrip guestRendered (error: undefined)
+  ok  coopRoundTrip mvLift tuple round-trips (got true)
+  ok  coopBossSyncTest ran (error: undefined)
+  ok  coopBossSyncTest guest rendered ok
+  ok  coopBossSyncTest no errors ([])
+  ok  coop host records its own starting weapon in codex
+  ok  coop guest weapon does NOT leak into host codex
+  ok  no __GAME_ERROR__ after co-op self-tests
+phase 7: accessibility + assist
+  ok  settings defaults: shake is a number, flash/particles/dmgNums present
+  ok  META.assist defaults to all 1
+  ok  assist multipliers lock onto the run and flag it assisted
+  ok  no __GAME_ERROR__ after assist run
+  ok  legacy bool shake:true migrates to 1 (got 1)
+  ok  missing accessibility fields backfilled
+  ok  META.assist backfilled on legacy save
+phase 8: telemetry
+  ok  analytics defaults to on
+  ok  run_started queued after entering a run
+  ok  non-whitelisted event names are ignored
+  ok  takeDamage records lastHitSrc + run.dmgTakenBySrc
+  ok  disabling analytics stops event collection
+  ok  no __GAME_ERROR__ after telemetry phase
+phase 9: results coach
+  ok  coach reports top damage output with pct
+  ok  coach reports death source in Chinese
+  ok  coach reports top damage-taken category with pct
+  ok  coach gives one concrete advice line at >=40% share
+  ok  insufficient taken data -> no taken line and no advice
+  ok  empty run -> coach stays silent
+  ok  unseen recipe -> generic fusion hint, passive never named
+  ok  no uncaught page errors ([])
+
+59/59 assertions passed

@@ -46,9 +46,15 @@ function plainFloor(p, base, grain, s, accents) {
   p.speckle(0, 0, 16, 16, grain, 13, s);
   p.speckle(0, 0, 16, 16, withAlpha(darken(base, 0.12), 0.6), 8, s + 17);
   p.speckle(0, 0, 16, 16, withAlpha(lighten(base, 0.12), 0.5), 6, s + 41);
-  // break the extreme rows (scattered mixed-tone dots → texture, never a band line)
-  p.px(2, 0, darken(base, 0.13)); p.px(9, 0, lighten(base, 0.08)); p.px(13, 0, darken(base, 0.07));
-  p.px(4, 15, lighten(base, 0.07)); p.px(10, 15, darken(base, 0.13)); p.px(14, 15, darken(base, 0.07));
+  // Break the extreme rows. R29/D-3 (RE-06): R26 replaced the solid edge hlines with six
+  // dots, but they sat on FIXED columns of rows 0 and 15 — and since every tile of a variant
+  // is the same baked canvas, those dots re-printed a dotted rule along each 16 px tile seam.
+  // Same fix as everywhere else: seeded speckle over the whole tile. The three layers above
+  // already reach rows 0 and 15, so the edge rows still get grain (the original purpose) —
+  // they just no longer get it at the SAME columns in every tile. Measured across all 10
+  // biomes: frost v0 seam 1.177 -> 0.793, abyss v0 1.962 -> 1.143, celestial v0 2.101 -> 0.970.
+  p.speckle(0, 0, 16, 16, withAlpha(darken(base, 0.11), 0.7), 4, s + 71);
+  p.speckle(0, 0, 16, 16, withAlpha(lighten(base, 0.07), 0.65), 3, s + 97);
 }
 
 const FLOORS = {
@@ -243,9 +249,20 @@ const FLOORS = {
           q.speckle(1, 1, 14, 14, withAlpha(P.sandD, 0.42), 9, 293);
           q.speckle(1, 1, 14, 14, withAlpha(P.clay, 0.24), 5, 311);
         }
-        : (q) => {   // wind-ripple lines kept OFF the tile edges + a couple of grains
-          q.line(3, 7, 11, 5, withAlpha(P.sandD, 0.30)); q.line(5, 12, 13, 10, withAlpha(P.sandD, 0.24));
-          q.px(13, 5, P.sandL); q.px(3, 11, withAlpha(P.clay, 0.5));
+        : (q) => {   // R29/D-3 (RE-06): the two 8-9 px ripple LINES and the two accent pixels
+          // were the last fixed-position feature on a v0 base floor, and v0 is most of the
+          // map — 流沙荒漠 printed the same two diagonal strokes every 16 px. Wind ripple is
+          // kept as a FEEL (short seeded 2 px dashes on a shallow diagonal, one tone) instead
+          // of a drawn motif, so a dune field reads as grain at any distance.
+          let sd = 337;
+          const rn = () => { sd = (sd * 1103515245 + 12345) & 0x7fffffff; return sd / 0x7fffffff; };
+          for (let i = 0; i < 6; i++) {
+            const sx = 1 + Math.floor(rn() * 12), sy = 1 + Math.floor(rn() * 13);
+            q.px(sx, sy, withAlpha(P.sandD, 0.26)); q.px(sx + 1, sy, withAlpha(P.sandD, 0.20));
+          }
+          q.speckle(1, 1, 14, 14, withAlpha(P.sandD, 0.22), 6, 331);
+          q.speckle(1, 1, 14, 14, withAlpha(P.sandL, 0.5), 3, 347);
+          q.speckle(1, 1, 14, 14, withAlpha(P.clay, 0.3), 2, 359);
         });
   },
   // ── swamp: murky bog greens; feature = bubbling toxic water ────────────────

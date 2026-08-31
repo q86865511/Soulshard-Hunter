@@ -1,0 +1,104 @@
+[
+  {
+    "id": "church",
+    "tw": 33,
+    "th": 21,
+    "decor": 51,
+    "decals": 120,
+    "onSpine": 0,
+    "spineList": [],
+    "lights": [
+      {
+        "sprite": "rfoc_censer",
+        "e": 346.8
+      },
+      {
+        "sprite": "rfg_ch_chandelier",
+        "e": 220.3
+      },
+      {
+        "sprite": "rfg_ch_chandelier",
+        "e": 220.3
+      }
+    ]
+  },
+  {
+    "id": "guild",
+    "tw": 35,
+    "th": 19,
+    "decor": 57,
+    "decals": 168,
+    "onSpine": 0,
+    "spineList": [],
+    "lights": [
+      {
+        "sprite": "rfoc_stewpot",
+        "e": 414.7
+      },
+      {
+        "sprite": "rfg_gu_beam",
+        "e": 216
+      }
+    ]
+  },
+  {
+    "id": "blacksmith",
+    "tw": 33,
+    "th": 19,
+    "decor": 45,
+    "decals": 138,
+    "onSpine": 0,
+    "spineList": [],
+    "lights": [
+      {
+        "sprite": "rfoc_forgefire",
+        "e": 740.6
+      }
+    ]
+  },
+  {
+    "id": "clothing",
+    "tw": 33,
+    "th": 19,
+    "decor": 43,
+    "decals": 144,
+    "onSpine": 0,
+    "spineList": [],
+    "lights": [
+      {
+        "sprite": "rfoc_loom",
+        "e": 156.8
+      }
+    ]
+  },
+  {
+    "id": "achievements",
+    "tw": 37,
+    "th": 19,
+    "decor": 46,
+    "decals": 156,
+    "onSpine": 0,
+    "spineList": [],
+    "lights": [
+      {
+        "sprite": "rfoc_restore",
+        "e": 162.2
+      }
+    ]
+  },
+  {
+    "id": "personal",
+    "tw": 31,
+    "th": 19,
+    "decor": 36,
+    "decals": 133,
+    "onSpine": 0,
+    "spineList": [],
+    "lights": [
+      {
+        "sprite": "rfoc_hearth",
+        "e": 476.5
+      }
+    ]
+  }
+]

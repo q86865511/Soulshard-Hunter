@@ -1,0 +1,272 @@
+[
+  {
+    "biome": "crypt",
+    "variant": "v0",
+    "feat_max": 2.36,
+    "line_max": 5.83,
+    "coarse": 0.22,
+    "seam": 0.922,
+    "tile_std": 2.72
+  },
+  {
+    "biome": "crypt",
+    "variant": "v1",
+    "feat_max": 3.61,
+    "line_max": 7.58,
+    "coarse": 0.269,
+    "seam": 1.18,
+    "tile_std": 3.71
+  },
+  {
+    "biome": "crypt",
+    "variant": "v2",
+    "feat_max": 8.45,
+    "line_max": 10.11,
+    "coarse": 0.252,
+    "seam": 0.567,
+    "tile_std": 6.53
+  },
+  {
+    "biome": "cavern",
+    "variant": "v0",
+    "feat_max": 5.71,
+    "line_max": 8.38,
+    "coarse": 0.24,
+    "seam": 1.194,
+    "tile_std": 5.07
+  },
+  {
+    "biome": "cavern",
+    "variant": "v1",
+    "feat_max": 7.19,
+    "line_max": 11.51,
+    "coarse": 0.214,
+    "seam": 1.46,
+    "tile_std": 6.31
+  },
+  {
+    "biome": "cavern",
+    "variant": "v2",
+    "feat_max": 18.57,
+    "line_max": 25.69,
+    "coarse": 0.303,
+    "seam": 5.412,
+    "tile_std": 15.47
+  },
+  {
+    "biome": "frost",
+    "variant": "v0",
+    "feat_max": 9.72,
+    "line_max": 18.02,
+    "coarse": 0.23,
+    "seam": 1.177,
+    "tile_std": 8.49
+  },
+  {
+    "biome": "frost",
+    "variant": "v1",
+    "feat_max": 9.08,
+    "line_max": 17.48,
+    "coarse": 0.177,
+    "seam": 1.188,
+    "tile_std": 7.52
+  },
+  {
+    "biome": "frost",
+    "variant": "v2",
+    "feat_max": 16.47,
+    "line_max": 19.83,
+    "coarse": 0.222,
+    "seam": 0.955,
+    "tile_std": 15.07
+  },
+  {
+    "biome": "inferno",
+    "variant": "v0",
+    "feat_max": 8.8,
+    "line_max": 10.76,
+    "coarse": 0.259,
+    "seam": 1.553,
+    "tile_std": 6.55
+  },
+  {
+    "biome": "inferno",
+    "variant": "v1",
+    "feat_max": 5.25,
+    "line_max": 8.56,
+    "coarse": 0.17,
+    "seam": 0.799,
+    "tile_std": 4.98
+  },
+  {
+    "biome": "inferno",
+    "variant": "v2",
+    "feat_max": 26.02,
+    "line_max": 40.61,
+    "coarse": 0.185,
+    "seam": 6.176,
+    "tile_std": 28.26
+  },
+  {
+    "biome": "void",
+    "variant": "v0",
+    "feat_max": 11.58,
+    "line_max": 15.51,
+    "coarse": 0.183,
+    "seam": 2.792,
+    "tile_std": 9.04
+  },
+  {
+    "biome": "void",
+    "variant": "v1",
+    "feat_max": 8.16,
+    "line_max": 13.54,
+    "coarse": 0.219,
+    "seam": 0.262,
+    "tile_std": 8.93
+  },
+  {
+    "biome": "void",
+    "variant": "v2",
+    "feat_max": 21.66,
+    "line_max": 35.14,
+    "coarse": 0.228,
+    "seam": 2.802,
+    "tile_std": 21.29
+  },
+  {
+    "biome": "verdant",
+    "variant": "v0",
+    "feat_max": 9.9,
+    "line_max": 21.79,
+    "coarse": 0.223,
+    "seam": 1.402,
+    "tile_std": 8.9
+  },
+  {
+    "biome": "verdant",
+    "variant": "v1",
+    "feat_max": 8.81,
+    "line_max": 15.06,
+    "coarse": 0.2,
+    "seam": 1.611,
+    "tile_std": 6.15
+  },
+  {
+    "biome": "verdant",
+    "variant": "v2",
+    "feat_max": 25.57,
+    "line_max": 47.28,
+    "coarse": 0.251,
+    "seam": 4.291,
+    "tile_std": 20.09
+  },
+  {
+    "biome": "desert",
+    "variant": "v0",
+    "feat_max": 7.62,
+    "line_max": 14.24,
+    "coarse": 0.233,
+    "seam": 1.088,
+    "tile_std": 6.57
+  },
+  {
+    "biome": "desert",
+    "variant": "v1",
+    "feat_max": 4.38,
+    "line_max": 9.2,
+    "coarse": 0.172,
+    "seam": 1.259,
+    "tile_std": 5.35
+  },
+  {
+    "biome": "desert",
+    "variant": "v2",
+    "feat_max": 11.01,
+    "line_max": 16.24,
+    "coarse": 0.239,
+    "seam": 1.061,
+    "tile_std": 6.16
+  },
+  {
+    "biome": "swamp",
+    "variant": "v0",
+    "feat_max": 6.95,
+    "line_max": 16.6,
+    "coarse": 0.237,
+    "seam": 1.955,
+    "tile_std": 6.0
+  },
+  {
+    "biome": "swamp",
+    "variant": "v1",
+    "feat_max": 6.68,
+    "line_max": 15.62,
+    "coarse": 0.209,
+    "seam": 1.522,
+    "tile_std": 7.15
+  },
+  {
+    "biome": "swamp",
+    "variant": "v2",
+    "feat_max": 14.63,
+    "line_max": 28.28,
+    "coarse": 0.215,
+    "seam": 5.113,
+    "tile_std": 13.65
+  },
+  {
+    "biome": "abyss",
+    "variant": "v0",
+    "feat_max": 6.39,
+    "line_max": 9.57,
+    "coarse": 0.285,
+    "seam": 1.962,
+    "tile_std": 5.43
+  },
+  {
+    "biome": "abyss",
+    "variant": "v1",
+    "feat_max": 4.93,
+    "line_max": 8.69,
+    "coarse": 0.187,
+    "seam": 0.127,
+    "tile_std": 5.75
+  },
+  {
+    "biome": "abyss",
+    "variant": "v2",
+    "feat_max": 20.96,
+    "line_max": 35.13,
+    "coarse": 0.301,
+    "seam": 5.834,
+    "tile_std": 15.54
+  },
+  {
+    "biome": "celestial",
+    "variant": "v0",
+    "feat_max": 15.33,
+    "line_max": 29.78,
+    "coarse": 0.253,
+    "seam": 2.101,
+    "tile_std": 12.28
+  },
+  {
+    "biome": "celestial",
+    "variant": "v1",
+    "feat_max": 13.91,
+    "line_max": 22.11,
+    "coarse": 0.253,
+    "seam": 6.073,
+    "tile_std": 10.52
+  },
+  {
+    "biome": "celestial",
+    "variant": "v2",
+    "feat_max": 17.62,
+    "line_max": 35.64,
+    "coarse": 0.171,
+    "seam": 4.312,
+    "tile_std": 14.85
+  }
+]

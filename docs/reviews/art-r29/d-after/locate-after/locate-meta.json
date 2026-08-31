@@ -1,0 +1,152 @@
+[
+  {
+    "biomeId": "crypt",
+    "dpr": 1,
+    "W": 1280,
+    "H": 720,
+    "zoom": 3,
+    "playerScreen": {
+      "x": 640,
+      "y": 360
+    },
+    "enemies": 70,
+    "nearWithinSurroundR": 9,
+    "surroundActive": true,
+    "err": null
+  },
+  {
+    "biomeId": "cavern",
+    "dpr": 1,
+    "W": 1280,
+    "H": 720,
+    "zoom": 3,
+    "playerScreen": {
+      "x": 640,
+      "y": 360
+    },
+    "enemies": 70,
+    "nearWithinSurroundR": 11,
+    "surroundActive": true,
+    "err": null
+  },
+  {
+    "biomeId": "frost",
+    "dpr": 1,
+    "W": 1280,
+    "H": 720,
+    "zoom": 3,
+    "playerScreen": {
+      "x": 640,
+      "y": 360
+    },
+    "enemies": 70,
+    "nearWithinSurroundR": 11,
+    "surroundActive": true,
+    "err": null
+  },
+  {
+    "biomeId": "inferno",
+    "dpr": 1,
+    "W": 1280,
+    "H": 720,
+    "zoom": 3,
+    "playerScreen": {
+      "x": 640,
+      "y": 360
+    },
+    "enemies": 70,
+    "nearWithinSurroundR": 11,
+    "surroundActive": true,
+    "err": null
+  },
+  {
+    "biomeId": "void",
+    "dpr": 1,
+    "W": 1280,
+    "H": 720,
+    "zoom": 3,
+    "playerScreen": {
+      "x": 640,
+      "y": 360
+    },
+    "enemies": 70,
+    "nearWithinSurroundR": 11,
+    "surroundActive": true,
+    "err": null
+  },
+  {
+    "biomeId": "verdant",
+    "dpr": 1,
+    "W": 1280,
+    "H": 720,
+    "zoom": 3,
+    "playerScreen": {
+      "x": 640,
+      "y": 360
+    },
+    "enemies": 70,
+    "nearWithinSurroundR": 11,
+    "surroundActive": true,
+    "err": null
+  },
+  {
+    "biomeId": "desert",
+    "dpr": 1,
+    "W": 1280,
+    "H": 720,
+    "zoom": 3,
+    "playerScreen": {
+      "x": 640,
+      "y": 360
+    },
+    "enemies": 70,
+    "nearWithinSurroundR": 11,
+    "surroundActive": true,
+    "err": null
+  },
+  {
+    "biomeId": "swamp",
+    "dpr": 1,
+    "W": 1280,
+    "H": 720,
+    "zoom": 3,
+    "playerScreen": {
+      "x": 640,
+      "y": 360
+    },
+    "enemies": 70,
+    "nearWithinSurroundR": 11,
+    "surroundActive": true,
+    "err": null
+  },
+  {
+    "biomeId": "abyss",
+    "dpr": 1,
+    "W": 1280,
+    "H": 720,
+    "zoom": 3,
+    "playerScreen": {
+      "x": 640,
+      "y": 360
+    },
+    "enemies": 70,
+    "nearWithinSurroundR": 11,
+    "surroundActive": true,
+    "err": null
+  },
+  {
+    "biomeId": "celestial",
+    "dpr": 1,
+    "W": 1280,
+    "H": 720,
+    "zoom": 3,
+    "playerScreen": {
+      "x": 640,
+      "y": 360
+    },
+    "enemies": 70,
+    "nearWithinSurroundR": 9,
+    "surroundActive": true,
+    "err": null
+  }
+]

@@ -1,0 +1,98 @@
+[
+  {
+    "biomeId": "desert",
+    "n": 8,
+    "dpr": 1,
+    "W": 1280,
+    "H": 720,
+    "zoom": 3,
+    "playerScreen": {
+      "x": 640,
+      "y": 360
+    },
+    "enemies": 10,
+    "nearWithinSurroundR": 0,
+    "worldSig": 3408318778,
+    "err": null
+  },
+  {
+    "biomeId": "desert",
+    "n": 70,
+    "dpr": 1,
+    "W": 1280,
+    "H": 720,
+    "zoom": 3,
+    "playerScreen": {
+      "x": 640,
+      "y": 360
+    },
+    "enemies": 72,
+    "nearWithinSurroundR": 10,
+    "worldSig": 649515339,
+    "err": null
+  },
+  {
+    "biomeId": "celestial",
+    "n": 8,
+    "dpr": 1,
+    "W": 1280,
+    "H": 720,
+    "zoom": 3,
+    "playerScreen": {
+      "x": 640,
+      "y": 360
+    },
+    "enemies": 10,
+    "nearWithinSurroundR": 0,
+    "worldSig": 2694715242,
+    "err": null
+  },
+  {
+    "biomeId": "celestial",
+    "n": 70,
+    "dpr": 1,
+    "W": 1280,
+    "H": 720,
+    "zoom": 3,
+    "playerScreen": {
+      "x": 640,
+      "y": 360
+    },
+    "enemies": 72,
+    "nearWithinSurroundR": 12,
+    "worldSig": 1608336157,
+    "err": null
+  },
+  {
+    "biomeId": "crypt",
+    "n": 8,
+    "dpr": 1,
+    "W": 1280,
+    "H": 720,
+    "zoom": 3,
+    "playerScreen": {
+      "x": 640,
+      "y": 360
+    },
+    "enemies": 10,
+    "nearWithinSurroundR": 0,
+    "worldSig": 204453911,
+    "err": null
+  },
+  {
+    "biomeId": "crypt",
+    "n": 70,
+    "dpr": 1,
+    "W": 1280,
+    "H": 720,
+    "zoom": 3,
+    "playerScreen": {
+      "x": 640,
+      "y": 360
+    },
+    "enemies": 72,
+    "nearWithinSurroundR": 11,
+    "worldSig": 1543659431,
+    "err": null
+  }
+]

@@ -166,3 +166,117 @@ outline() 一跑就焊成一塊；（b）voidmage 結尾 `aura(8,3,5)`、plague 
   hunter／shadow／g_revenant／h2_voidcaller）、`src/game/content/gen/gen_heroes3.js`
   （h3_plague，已標 `// R29 A2:` 行內註解，重跑 integrate.mjs 會覆蓋）。
 - def／stats／股像檔／敵人 sprite／圖示／UI 場景檔均未動。
+
+---
+
+## 批次 D — 獨立驗證（批次 C／RE05_VERIFY）揪出的三項缺陷
+
+全部 **render-only**：無玩法數值、無 co-op 協定（`bm` 快照通道逐 byte 不變）、無存檔格式變更。
+`cd test && npm run test:frontend` → **59/59**；co-op 三自測（`coopRoundTrip` /
+`coopSilenceTest` / `coopBossSyncTest`）全過、`__GAME_ERROR__` 為 null。
+證據：`docs/reviews/art-r29/d-after/`。
+
+### D-1 beam 所有權在紅綠色盲下失效（ART_SPEC 3 + 9）
+
+**根因**：R28 的所有權只有「顏色＋線寬」兩個通道，而 boss `#ff5a3c` 與 event `#ffc23c` 在
+protanopia/deutanopia 下塌成同一種黃（批次 C 實繪 ΔE 18.3、色相差 0.1°），箭頭階梯
+（8.5 vs 7）又被反鋸齒抹成同一個 8 device px。剩下唯一線索是 33% 的線寬差。
+
+**修法**——加**形狀通道**，不動任何顏色：
+
+- `src/game/world.js` `BEAM_STYLE`：每族新增 `dash` / `rung` / `arrow` / `dot` 四個純繪製欄位。
+  boss ＝實心＋每 18 px 一道垂直橫檔（ladder 節奏）＋大實心箭頭；event ＝虛線 `[10,9]`
+  ＋**空心**箭頭；player ＝細實線＋小箭鏃。族的判定仍是原本的 raw hex 查表。
+- 新增 `World.drawBeamBody()`（world.js）：把 host 迴圈與 `scenes/coop.js` 各自內聯的三次
+  `lineWorld` 收成一份共用實作，guest 因此自動拿到同樣的形狀通道。R28/W5 的近黑描邊保留。
+- 箭頭階梯拉開：`ah/aw` boss 11.5/7.5・event 9.5/5.5・player 5.5/3.0；起點圓點也按族分級。
+- player 白芯 1.5→1.0（批次 C 量到玩家 beam 的冷藍族色被白芯洗掉，肩部與背景只差 d=13）。
+- 橫檔數上限 48／beam（`wall_cage` 一次可放 8 條長 beam）。
+
+**量測**（`d-after/beams-{before,after}/beam-shape.json`，乾淨背景 dpr1；achromat 遮罩，
+顏色完全不參與）：
+
+| 指標 | boss 前→後 | event 前→後 | player 前→後 |
+|---|---|---|---|
+| 中位線寬 w50 (device px) | 8 → 10 | 6 → 6 | 6 → 6 |
+| 斷開欄位比例 gap% | 0.0 → 0.0 | **0.0 → 25.4** | 28.6 → 25.1 |
+| 箭頭垂直幅 (device px) | 23 → 21 | 14 → **15** | 12 → **10** |
+| 箭頭 event↔player 間距 | — | — | **2 → 5 device px** |
+
+- 目視證據 `d-after/compare-beams-deutan-before-after.png`（上＝前，下＝後，deuteranopia 模擬）：
+  改前 boss 與 event 是兩條幾乎一樣的黃線；改後 boss 有橫檔、event 明顯斷開且箭頭是空心、
+  player 細直無節奏，三者兩兩可分。五色覺全表 `d-after/beams-after/sheet-beams-cvd.png`
+  （normal／greyscale／protan／deutan／tritan × 三族）。
+- 誠實註記：**顏色通道本身沒有改善**（as-rendered protan/deutan boss↔event ΔE 仍 11.9–30.2，
+  見 `beams-after/beam-arrow-cvd.json`）——本項是靠形狀通道成立，不是靠色。
+
+### D-2 亮/冷生態的玩家定位（ART_SPEC 9）
+
+**根因**：玩家標識（地面光池＋頂層細環＋包圍 beacon）全部走「亮＋冷」單一方向，
+所以在本身就亮或本身就冷的地板上失效（批次 C：desert WCAG 1.06、celestial 冷色百分位 18.5%）。
+量測直接證實：**改前全部場景的「被標識畫暗的像素」＝ 0 個**——這套標識沒有暗通道。
+另有結構性缺口：beacon 只在 ≥4 隻敵人進 14 px 才亮，「密集但未被包圍」完全沒有保護。
+
+**修法**（`src/game/world.js` + `src/game/balance.js` `SCENE_FX`）：
+
+- `drawPlayerTopRing()`：冷色細環下方多一圈**近黑描邊**（`PLAYER_RING_TOP_INK_W 3.2`，
+  自有 alpha `0.85`、以 `PLAYER_RING_TOP_A>0` 為開關，描兩次以抵銷反鋸齒稀釋），
+  再加四道對角 tick（`PLAYER_RING_TICK 3.4`）給它一個環狀光暈模仿不了的形狀。
+  冷環本身 1.5→2.2 px、alpha 0.5→0.62；地面光池 alpha 0.30→0.34。
+- `drawSurroundBeacon()`：① **斜坡取代懸崖**——`SURROUND_N_SOFT 2` 起淡入，到 `SURROUND_N 4`
+  滿強度（`SURROUND_N`／`R` 本身不變）；② 剪影加真正的 1 px 暗色**外框**（新的 `beaconRim()`
+  以離屏 canvas `source-in`＋`destination-out` 打洞做出環，快取在 frame 上）。
+  第一版用 4 張位移 ink tint 疊出外框，實測把 beacon 變成暗塊（patch Weber +0.46→−0.15、
+  視窗內部對比排名反而下降），已作廢。
+
+**量測**（`d-after/gap-{before,after}/gap-measurements.json`；同 seed、同 settle，
+`worldSig` 記錄世界狀態指紋；`ink` ＝被標識**畫暗**的筆畫像素對其實際背景的 WCAG 比）：
+
+| 場景 | 暗通道像素數 前→後 | ink 中位對比 | ink p90 | ink ≥3:1 比例 |
+|---|---|---|---|---|
+| desert，8 敵（地板可見） | **0 → 527** | 2.26 | 4.33 | 33.6% |
+| desert，70 敵（僅環，nobeacon） | **0 → 339** | 2.76 | 5.26 | 44.5% |
+| celestial，8 敵 | **0 → 215** | 2.33 | 5.15 | 23.3% |
+| celestial，70 敵（僅環） | **0 → 337** | 2.74 | 5.09 | 44.2% |
+| crypt，8 敵 | **0 → 75** | 3.61 | 7.23 | 62.7% |
+
+「密集但未被包圍」缺口（同一格畫面、同一版程式，只差 beacon alpha —— `nobeacon` ＝舊行為在
+near=3 的樣子，`beacon67` ＝斜坡在 near=3 給的 2/3 強度）：競爭視窗數
+desert **47 → 36（−23%）**、celestial **784 → 588（−25%）**、crypt **148 → 109（−26%）**。
+
+低密度（地板可見）時 desert 的競爭視窗 12 → 2、celestial 的亮度百分位 73.7 → 94.0。
+
+**誠實註記兩點**：
+1. 簡報寫的「desert 玩家標識對背景 ≥3:1」若照批次 C 的定義（48×48 patch 平均 vs 環帶平均）
+   **沒有達成、也做不到**——要讓 patch 平均達到 3:1 得用近乎不透明的暗塊蓋住玩家周圍，
+   那是不能接受的美術。達成的是**標識筆畫對其實際背景**的 ≥3:1：desert 暗通道 p90 4.33、
+   33.6–44.5% 的暗筆畫像素 ≥3:1（改前該通道根本不存在）。
+2. 批次 C 的「同時更亮且更冷」競爭視窗數在部分場景**變差**，因為該指標結構上假設標識是
+   純加亮的；加暗通道必然讓「比玩家更亮」的視窗變多。兩組數字都留在 JSON 裡，未挑選。
+
+### D-3 RE-06 小拋光（固定 motif 與室內動線）
+
+- `src/art/biomes.js` `plainFloor()`：R26 為打散邊緣列留的**六個固定位置像素**（row 0／15 的
+  固定欄）改成兩層全磚 seeded speckle。同一 variant 的每張磚共用一張烘焙 canvas，
+  所以「固定位置」等於每 16 px 重印一次同樣的點——這是 frost／abyss v0 僅剩的固定特徵。
+  10 生態 × 3 variant 量測（`d-after/floor-{before,after}/floor-stats.json`）：
+  frost v0 seam 1.177→0.793、abyss v0 seam 1.962→1.143、celestial v0 seam 2.101→0.970；
+  v2 全部逐值不變（v2 不走 plainFloor），確認沒有波及。
+- `src/art/biomes.js` desert v0：兩條 8–9 px 固定斜向風紋線＋兩個固定亮點 → 6 組 seeded
+  2 px 短紋＋三層 speckle。`line_max`（5 px 定向線響應）14.24 → 10.16、`feat_max` 7.62 → 6.50。
+- `src/game/world.js` `makeInterior()`：裝飾保留區從「門口 4 列」擴到**整條動線**
+  （`cx±1`，station 列到門口）。實測落在動線上的道具 guild 4／blacksmith 2／personal 2
+  → **全部 0**（`d-after/interior-{before,after}.json`）。室內道具無碰撞，故純屬視覺讓位。
+- `src/game/lights.js`：教堂兩盞吊燈 `rfg_ch_chandelier` r44/a0.26 的光能量（a·r²）503，
+  壓過焦點香爐的 347 —— 焦點是全房第三亮。改 r36/a0.17（220）後六間房**全部**由自己的
+  `rfoc_*` 領銜。
+
+### 批次 D 改動檔
+
+- `src/game/world.js` — `BEAM_STYLE` 形狀欄位、`drawBeamBody()`、`drawBeamCues()` 箭頭形式與
+  分級起點、`beaconRim()`、`drawPlayerTopRing()`、`drawSurroundBeacon()` 斜坡、
+  `makeInterior()` 動線保留區。
+- `src/game/scenes/coop.js` — guest beam 改呼叫共用 `drawBeamBody()`（少一份重複實作）。
+- `src/game/balance.js` — `SCENE_FX` 玩家標識與 beacon 的新旋鈕（全部 render-only）。
+- `src/game/lights.js` — 教堂吊燈光量。
+- `src/art/biomes.js` — `plainFloor()` 邊緣列、desert v0 風紋。
