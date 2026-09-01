@@ -280,3 +280,69 @@ desert **47 → 36（−23%）**、celestial **784 → 588（−25%）**、crypt
 - `src/game/balance.js` — `SCENE_FX` 玩家標識與 beacon 的新旋鈕（全部 render-only）。
 - `src/game/lights.js` — 教堂吊燈光量。
 - `src/art/biomes.js` — `plainFloor()` 邊緣列、desert v0 風紋。
+
+---
+
+## 批次 E — DPI 一致性（批次 C／RE05_VERIFY §1.4–1.6 的三項同源缺陷）
+
+三個問題同一個根因：**渲染基準把「裝置像素」當「設計像素」，`dpr` 洩漏進玩法與 UI**。
+只動 `src/engine/renderer.js` 三處；無內容、玩法數值、`bm` 協定、存檔格式變更。
+完整量測與證據索引：`docs/reviews/art-r29/e-after/E_DPI_REPORT.md`。
+
+### E-1 `camera.zoom` 公平性（原本是玩法差異）
+
+`resize()` 的 `Math.round(Math.min(W/430, H/280))` 吃的是 **device** 尺寸，所以 HiDPI 玩家
+看到更大的視野：1280×720 @ DPR2 可視面積 +44%、1920×1080 @ DPR2 +78%——而排行榜是共用的。
+
+改成先用 **CSS** 尺寸決定 zoom 檔位、再乘 `dpr` 回裝置座標
+（`zCss = clamp(2,6,round(min(cssW/430, cssH/280)))`；`camera.zoom = zCss * dpr`）。
+`camera.zoom` 的語義（裝置px/世界px）不變，28 處 `.zoom` 讀取端全部不用改。
+
+實測（`e-after/sweep-after.json`）：1280×720 在 dpr 1／1.5／2 一律 426.67×240 world px；
+1920×1080 一律 480×270。掃 58 種視窗尺寸 × 5 種 DPR，可視世界偏離自己 dpr1 基準的組數
+**182/232 → 1/232**（唯一那組偏差 0.03%，來自既有的 `Math.floor(cssW*dpr)`）。
+
+**已知取捨**：非整數 DPR（Windows 縮放 125%／150%）現在會得到非整數的裝置 zoom
+（如 dpr1.5 → 4.5），nearest-neighbor 的像素寬度因此 4/5 交替不均；發生率 dpr1.25 49/58、
+dpr1.5 19/58、dpr2 0/58。這些使用者原本拿到的是「不公平的更大視野」，現在換成
+「公平但縮放略不均」——架構師判定後者才是正確的取捨。目視：
+`e-after/e1-tradeoff-fractional-dpr.png`。
+
+### E-2 `uiScale()` 實體字級一致
+
+`min(W/1100, H/680)` 撞 2.6 上限 → 1920×1080 DPR2 的實體字級只有 DPR1 的 81.8%
+（UI 在高 DPI 大螢幕上整體變小）。0.6/2.6 的夾限本質是「UI 看起來該多大」的 CSS 空間判斷，
+所以改成先在 CSS 空間夾限、再乘 `dpr`。回傳值語義不變（仍是裝置像素乘數）。
+
+實測物理字級（CSS px，1920×1080 DPR2）：CAPTION 13.65 → 16.68、BODY 16.90 → 20.65、
+HEADING 20.80 → 25.41，三者都與 DPR1 相等（81.8% → 100.0%），且 AA 占比同步下降
+（BODY 0.293 → 0.270，字更大且更銳利）。
+
+### E-3 `lw` 奇數線寬的半像素對齊（所有 DPR 皆受益）
+
+`lw:1` 的描邊落在整數座標上，跨兩個裝置像素各半強度——實測峰值亮度 0.489、視覺是 2 px 灰線。
+**單點修在 `uiRect()`**（`stroke` 且 `Math.round(lw)` 為奇數時把路徑平移 0.5，fill 一起移），
+不動 102 個呼叫端。
+
+實測：`lw:1` 峰值 0.489 → **0.912**、著色列數 2 → **1** 裝置 px；`lw:3` 由「2 滿列 + 2 半列」
+變成 3 滿列。偶數線寬與 `lw: 1.5`（round 後為偶數）逐值不變。縫隙檢查：程式化掃描
+相鄰卡片之間 0 段空隙，三張面板（出擊卡框／每日橫幅／in-run HUD）4× 目視無縫、無位移。
+未動 `uiClipRound()` 與 `portraits.js` 的 `roundRectPath()`（clip／fill 不需對齊）。
+
+### 驗證
+
+- `cd test && npm run test:frontend` → **59/59**（測試檔未改）。
+- co-op 三自測（`coopRoundTrip` / `coopSilenceTest` / `coopBossSyncTest`）在 dpr1 / dpr1.5 / dpr2
+  各跑一輪全過，`__GAME_ERROR__` 皆 null；`__DBG.reg()` 三輪皆與登記數字一致。
+  這一輪特別要緊：dpr2/1080p 現在 `zoom = 8`（超過舊的 6 上限）、dpr1.5 現在 `zoom = 4.5`（非整數），
+  兩者實跑都沒問題。
+- **dpr=1 回歸**：E-1/E-2 在 dpr1 是 no-op——58/58 種視窗尺寸的 `zoom` 與 `uiScale()` 逐值相同；
+  `title` 場景全畫面與 UI probe 畫面在 dpr1 下 **逐位元相同**。E-3 的差異單獨隔離，
+  全部落在框線上。**限制**：hub/run 場景在本工具鏈中無法逐位元重現（同碼重跑就有 28–33%
+  像素不同，差異在世界背景繪製，玩法狀態逐值相同），所以那兩個場景沒有做逐位元比對，
+  詳見報告 §4.1。
+
+### 批次 E 改動檔
+
+- `src/engine/renderer.js` — `resize()` 的 zoom 檔位（E-1）、`uiScale()` 的夾限空間（E-2）、
+  `uiRect()` 的奇數線寬半像素對齊（E-3）。

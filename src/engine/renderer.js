@@ -31,8 +31,14 @@ export function resize() {
   canvas.style.height = cssH + 'px';
   // choose a zoom so a comfortable slice of the (large) world is visible —
   // a touch more zoomed-out than before so the big map reads as big.
-  const z = Math.round(Math.min(W / 430, H / 280));
-  camera.zoom = Math.max(2, Math.min(6, z));
+  // R29 E-1 — pick the zoom STEP in CSS pixels, then scale it into device space. The old
+  // form fed device pixels into the step choice, so a DPR2 player saw +44%/+78% more world
+  // than a DPR1 player on the same window — a gameplay (and shared-leaderboard) difference.
+  // Visible world is now cssW/zCss × cssH/zCss at any DPR; dpr=1 is bit-identical to before.
+  // Trade-off: fractional DPR (1.25/1.5 Windows scaling) yields a fractional device zoom, so
+  // nearest-neighbour pixel widths are slightly uneven — accepted over an unfair field of view.
+  const zCss = Math.max(2, Math.min(6, Math.round(Math.min(cssW / 430, cssH / 280))));
+  camera.zoom = zCss * dpr;
   ctx.imageSmoothingEnabled = false;
 }
 
@@ -269,13 +275,28 @@ export function drawSpriteTint(spriteCanvas, wx, wy, color, alpha, opts = {}) {
 // screen); times a user multiplier (設定 UI 大小); clamped so small screens fit + 4K isn't huge.
 let _uiScaleMul = 1;
 export function setUiScaleMul(m) { _uiScaleMul = Math.max(0.6, Math.min(1.5, m || 1)); }
-export function uiScale() { return Math.max(0.6, Math.min(2.6, Math.min(W / 1100, H / 680) * _uiScaleMul)); }
+// R29 E-2 — the 0.6/2.6 clamp is a CSS-space judgement ("how big should UI look"), so it is
+// applied to the CSS-derived scale and only then multiplied into device space. The old form
+// clamped after the dpr had already been folded in, so a 1920×1080 DPR2 player hit the 2.6 cap
+// and got UI at 81.9% of the physical size a DPR1 player saw. Return value keeps its meaning
+// (a device-pixel multiplier); dpr=1 is bit-identical to before.
+export function uiScale() {
+  const cssS = Math.max(0.6, Math.min(2.6, Math.min(cssW / 1100, cssH / 680) * _uiScaleMul));
+  return cssS * dpr;
+}
 
 export function ctxRaw() { return ctx; }
 
+// R29 E-3 — half-pixel alignment for ODD stroke widths. A 1 px stroke on an integer path
+// straddles two device columns at half intensity each (measured: peak 0.489, visually a 2 px
+// grey line) at EVERY DPR. Nudging the path by 0.5 puts it inside one column at full strength.
+// Fixed here, at the single choke point, rather than at the 102 `lw:` call sites; the fill is
+// nudged with it so the border still hugs the fill (0.5 device px is not visible).
 export function uiRect(x, y, w, h, color, { radius = 0, stroke = null, lw = 1, alpha = 1 } = {}) {
   ctx.save();
   ctx.globalAlpha = alpha;
+  const off = (stroke && Math.round(lw) % 2 === 1) ? 0.5 : 0;
+  if (off) { x += off; y += off; }
   if (radius > 0) roundRectPath(x, y, w, h, radius); else { ctx.beginPath(); ctx.rect(x, y, w, h); }
   if (color) { ctx.fillStyle = color; ctx.fill(); }
   if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = lw; ctx.stroke(); }
