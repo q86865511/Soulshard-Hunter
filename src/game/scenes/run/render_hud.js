@@ -4,7 +4,7 @@ import { Sfx } from '../../../engine/audio.js';
 import { mouse, pressed } from '../../../engine/input.js';
 import { clamp } from '../../../engine/math.js';
 import { P, withAlpha } from '../../../engine/palette.js';
-import { camera, ctxRaw, drawSpriteUI, fillCircleWorld, strokeCircleWorld, textWidth, UI, uiBar, uiClipRound, uiRect, uiScale, uiText, view, worldToScreen } from '../../../engine/renderer.js';
+import { camera, ctxRaw, drawSpriteUI, fillCircleWorld, strokeCircleWorld, textWidth, UI, uiBar, uiClipRound, uiRect, uiScale, uiText, uiWrapText, view, worldToScreen } from '../../../engine/renderer.js';
 import { getSprite, iconOr } from '../../../engine/sprites.js';
 import { BONDS, bondProgress } from '../../content/bonds.js';
 import { fmtQuestVal, trackedQuestStates } from '../../content/quests.js';
@@ -149,9 +149,8 @@ export const renderHudMixin = {
   // R16 #6: hover tooltip for a recent-pickup chip — name + effect text (+ remaining seconds).
   drawPickupTooltip(ic, mx, my, S) {
     const e = ic.entry; const W = 198 * S;
-    const lines = []; let line = '';
-    for (const ch of (e.desc || '')) { if (textWidth(line + ch, UI.FONT_CAPTION * S, UI.WEIGHT_BODY) > W - 16 * S && line) { lines.push(line); line = ch; } else line += ch; }
-    if (line) lines.push(line);
+    // R29/RE-02: shared token-aware wrap (was per-character — split pickup stat numbers)
+    const lines = uiWrapText(e.desc || '', W - 16 * S, UI.FONT_CAPTION * S, UI.WEIGHT_BODY);
     const H = (28 + lines.length * 13 + (ic.active ? 14 : 0)) * S;
     let x = mx + 14 * S, y = my - H - 8 * S;
     if (x + W > view.W) x = view.W - W - 6 * S;
@@ -184,9 +183,8 @@ export const renderHudMixin = {
     }
   },
   drawPatronTooltip(ic, mx, my, S) {
-    const p = ic.patron; const W = 204 * S; const lines = []; let line = '';
-    for (const ch of (p.desc || '')) { if (textWidth(line + ch, UI.FONT_CAPTION * S, UI.WEIGHT_BODY) > W - 16 * S && line) { lines.push(line); line = ch; } else line += ch; }
-    if (line) lines.push(line);
+    const p = ic.patron; const W = 204 * S;   // R29/RE-02: shared token-aware wrap
+    const lines = uiWrapText(p.desc || '', W - 16 * S, UI.FONT_CAPTION * S, UI.WEIGHT_BODY);
     const H = (44 + lines.length * 13) * S;
     let x = mx + 14 * S, y = my + 8 * S; if (x + W > view.W) x = view.W - W - 6 * S; if (y + H > view.H) y = view.H - H - 6 * S;
     uiRect(x, y, W, H, withAlpha('#10121f', 0.97), { radius: 6 * S, stroke: P.goldL, lw: 2 });

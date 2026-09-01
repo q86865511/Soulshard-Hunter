@@ -4,7 +4,7 @@ import { Enemies, Equipment, Items } from './content/registry.js';
 import { equipItem } from './content/equipment.js';
 import { Enemy } from './enemy.js';
 import { Pickup } from './pickup.js';
-import { drawSprite, fillRectWorld, fillCircleWorld, glowWorld, glowWorldCached, drawSpriteTint, lineWorld, strokeCircleWorld, uiText, uiRect, textWidth, UI, ctxRaw, camera, view, worldToScreen, addShake } from '../engine/renderer.js';
+import { drawSprite, fillRectWorld, fillCircleWorld, glowWorld, glowWorldCached, drawSpriteTint, strokeCircleWorld, uiText, uiRect, textWidth, UI, ctxRaw, camera, view, worldToScreen, addShake } from '../engine/renderer.js';
 import { getSprite, frameAt, hasSprite, defineSprite } from '../engine/sprites.js';
 import { circleHit, dist, dist2, clamp, rng, TAU } from '../engine/math.js';
 import { P, withAlpha } from '../engine/palette.js';
@@ -44,10 +44,22 @@ export function beamFamily(color) {
 // family -> { lw: base line width, core: white-hot core width, ah/aw: arrowhead size }
 // Exported (R28/W1-B2) so the co-op guest scene's own beam draw can share this ONE style
 // table rather than keeping a second copy — see scenes/coop.js drawField().
+//
+// R29/D-1 (ART_SPEC 9) — ownership must survive TOTAL loss of hue. The R28 table signed
+// ownership with colour + line weight only; the batch-C CVD measurement found boss #ff5a3c
+// and event #ffc23c collapse onto the same yellow under protanopia/deuteranopia (rendered
+// ΔE 18.3, hue delta 0.1°), leaving a 33% width difference as the sole cue, and the arrowhead
+// ladder (8.5 vs 7) was erased by antialiasing to the same 8 device px. So each family now
+// also owns a LINE STRUCTURE and an ARROW FORM that read in pure greyscale:
+//   boss   solid + perpendicular rungs every `rung` px (ladder/hazard rhythm) + big solid head
+//   event  dashed body (`dash`) — an interrupted rhythm nothing else has + hollow head
+//   player thin, plain, unbroken + small solid barb
+// `dash`/`rung`/`arrow`/`dot` are RENDER-ONLY style fields: the co-op `bm` tuple is untouched,
+// ownership is still signed by the raw colour hex through beamFamily().
 export const BEAM_STYLE = {
-  boss:   { lw: 5, core: 2,   ah: 10, aw: 6 },
-  event:  { lw: 4, core: 1.6, ah: 8.5, aw: 5.2 },
-  player: { lw: 3, core: 1.5, ah: 7,  aw: 4.5 },
+  boss:   { lw: 5, core: 2,   ah: 11.5, aw: 7.5, dot: 4,   rung: 18, dash: null,    arrow: 'solid' },
+  event:  { lw: 4, core: 1.4, ah: 9.5,  aw: 5.5, dot: 3,   rung: 0,  dash: [10, 9], arrow: 'hollow' },
+  player: { lw: 3, core: 1.0, ah: 5.5,  aw: 3.0, dot: 2.2, rung: 0,  dash: null,    arrow: 'solid' },
 };
 
 // R28/W1-B — boss ground ring (ART_SPEC 2.3): a dark red-orange contact ring that never
@@ -56,6 +68,34 @@ export const BEAM_STYLE = {
 // can never be occluded by an enemy that happens to sort earlier — and so it stays visible
 // with particles switched off (it is not a particle).
 const BOSS_RING_COLOR = '#c8341c';
+
+// R29/D-2 — a cached 1 px ink RING for the surrounded beacon. Built by stamping the frame's
+// alpha at 8 one-pixel offsets, flood-filling that union with ink (`source-in`), then erasing
+// the frame itself (`destination-out`) so the body is a hole. Cached per frame canvas, so a
+// 4-frame walk cycle bakes 4 small canvases once and the beacon costs one drawImage a frame.
+const RIM_PAD = 1;
+const _rimCache = new WeakMap();
+function beaconRim(frame) {
+  if (!frame) return null;
+  let c = _rimCache.get(frame);
+  if (c !== undefined) return c;
+  try {
+    const w = frame.width + RIM_PAD * 2, h = frame.height + RIM_PAD * 2;
+    c = document.createElement('canvas'); c.width = w; c.height = h;
+    const g = c.getContext('2d');
+    g.imageSmoothingEnabled = false;
+    for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+      if (!dx && !dy) continue;
+      g.drawImage(frame, RIM_PAD + dx, RIM_PAD + dy);
+    }
+    g.globalCompositeOperation = 'source-in';
+    g.fillStyle = P.ink; g.fillRect(0, 0, w, h);
+    g.globalCompositeOperation = 'destination-out';
+    g.drawImage(frame, RIM_PAD, RIM_PAD);
+  } catch (e) { c = null; }
+  _rimCache.set(frame, c);
+  return c;
+}
 // R26/B1 — south-edge wall-foot ambient occlusion: a 16×6 top-dark→transparent strip
 // baked ONCE, blitted on the FLOOR tile below a wall so the wall/floor seam grounds
 // (run + town share this path). Alpha driven by BALANCE so it stays tunable.
@@ -735,6 +775,47 @@ export class World {
     this.moveLabels.push({ x: e.x, y, str, color, vy: -34, life: 0.8, max: 0.8 });
   }
 
+  // R29/D-1 — the beam BODY, shared by the host draw loop and the co-op guest scene (both
+  // used to inline the same three lineWorld() calls, which meant the new per-family line
+  // structure would have had to be written twice). Draw order per family:
+  //   1. near-black outline (R28/W5, kept — it is what holds contrast on bright sand)
+  //   2. family colour at the family's weight, dashed if the family owns a dash rhythm
+  //   3. white-hot core
+  //   4. boss only: perpendicular rungs, so the boss line is the one with a periodic
+  //      cross-section spike even when every hue is gone
+  drawBeamBody(b, a, st = BEAM_STYLE.player) {
+    const p0 = worldToScreen(b.x0, b.y0), p1 = worldToScreen(b.x1, b.y1);
+    const dx = p1.x - p0.x, dy = p1.y - p0.y, len = Math.hypot(dx, dy);
+    if (len < 1) return;
+    const ctx = ctxRaw();
+    ctx.save();
+    if (st.dash) ctx.setLineDash(st.dash);
+    const stroke = (color, lw) => {
+      ctx.strokeStyle = color; ctx.lineWidth = lw;
+      ctx.beginPath(); ctx.moveTo(p0.x, p0.y); ctx.lineTo(p1.x, p1.y); ctx.stroke();
+    };
+    stroke(withAlpha(P.ink, a), st.lw + 2);
+    stroke(withAlpha(b.color, a), st.lw);
+    stroke(withAlpha('#ffffff', a * 0.85), st.core);
+    if (st.rung) {
+      ctx.setLineDash([]);
+      const ux = dx / len, uy = dy / len, nx = -uy, ny = ux;
+      const rl = st.lw / 2 + 4;                    // half-length of a rung, perpendicular
+      // `wall_cage` can put ~8 long beams on screen at once, so cap the rung count per beam:
+      // past ~48 the rhythm is already unmistakable and the extra strokes are pure cost.
+      const step = Math.max(st.rung, len / 48);
+      for (let d = step * 0.5; d < len - 1; d += step) {
+        const cx = p0.x + ux * d, cy = p0.y + uy * d;
+        const ax = cx - nx * rl, ay = cy - ny * rl, bx = cx + nx * rl, by = cy + ny * rl;
+        ctx.strokeStyle = withAlpha(P.ink, a); ctx.lineWidth = 5;
+        ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke();
+        ctx.strokeStyle = withAlpha(b.color, a); ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke();
+      }
+    }
+    ctx.restore();
+  }
+
   // R28/W1-B: `st` = the ownership family's style row (see BEAM_STYLE) — the arrowhead grows
   // with the family so weight is a second, colour-independent ownership cue.
   drawBeamCues(b, a, st = BEAM_STYLE.player) {
@@ -757,9 +838,11 @@ export class World {
     ctx.lineWidth = 1.5;
     ctx.beginPath(); ctx.moveTo(p0.x, p0.y); ctx.lineTo(p1.x, p1.y); ctx.stroke();
     ctx.setLineDash([]);
-    // start marker: small dot
+    // start marker: small dot, sized per family (a third colour-free ownership cue)
+    ctx.fillStyle = withAlpha(P.ink, a);
+    ctx.beginPath(); ctx.arc(p0.x, p0.y, (st.dot || 3) + 1.5, 0, TAU); ctx.fill();
     ctx.fillStyle = withAlpha(b.color, a);
-    ctx.beginPath(); ctx.arc(p0.x, p0.y, 3, 0, TAU); ctx.fill();
+    ctx.beginPath(); ctx.arc(p0.x, p0.y, st.dot || 3, 0, TAU); ctx.fill();
     // end marker: arrowhead pointing along the beam (shape info independent of colour)
     const ah = st.ah, aw = st.aw;
     const bx = p1.x - ux * ah, by = p1.y - uy * ah;
@@ -779,8 +862,19 @@ export class World {
     ctx.lineTo(bx + nx * aw, by + ny * aw);
     ctx.lineTo(bx - nx * aw, by - ny * aw);
     ctx.closePath();
-    ctx.fillStyle = withAlpha('#ffffff', a);
-    ctx.fill();
+    // R29/D-1: FORM, not just size. `solid` = filled head (boss's big one, the player's small
+    // barb); `hollow` = the ink triangle stays visible and only the rim is white, so the event
+    // head reads as an outline even in greyscale, where the size ladder alone was worth
+    // 2 device px between event and player.
+    if (st.arrow === 'hollow') {
+      ctx.strokeStyle = withAlpha('#ffffff', a);
+      ctx.lineWidth = 2;
+      ctx.lineJoin = 'miter';
+      ctx.stroke();
+    } else {
+      ctx.fillStyle = withAlpha('#ffffff', a);
+      ctx.fill();
+    }
     ctx.restore();
   }
 
@@ -844,20 +938,51 @@ export class World {
   // R28/FIX-1 (gate 高項「玩家淹沒」) — the TOP-layer half of the player identity mark. The
   // ground pool at layer 2 is painted over by every body that y-sorts after the avatar, so at
   // 60 enemies the player disappeared entirely. This thin cold-white foot ellipse is drawn
-  // ABOVE the actors (see draw(), after the beams): 1.5 screen px at half alpha, so it never
-  // covers the sprite — it only says "your feet are HERE" when the sprite itself is buried.
+  // ABOVE the actors (see draw(), after the beams): a thin stroke, so it never covers the
+  // sprite — it only says "your feet are HERE" when the sprite itself is buried.
   // Local avatar only (never remote co-op players), same as the ground pool and the beacon.
+  // R29/D-2 — dual-channel version. The cold stroke keeps its role; a near-black outline is
+  // stroked UNDER it (so the mark reads as a dark ellipse on 流沙荒漠's bright sand and
+  // 天界雲海's bright cloud, where the cold-white channel is what the FLOOR is made of), and
+  // four diagonal ticks give it a shape no ambient glow shares. Everything here is gated on
+  // PLAYER_RING_TOP_A > 0, so the existing on/off instrumentation still switches the whole
+  // mark off in one write.
   drawPlayerTopRing(player = this.player) {
     const p = player, fx = BALANCE.SCENE_FX;
     if (!p || p.dead || !fx) return;
+    const A = fx.PLAYER_RING_TOP_A ?? 0.5;
+    if (!(A > 0)) return;
     const r = fx.PLAYER_RING_TOP_R || 10;
     const s = worldToScreen(p.x, p.y), z = camera.zoom, ctx = ctxRaw();
+    const rx = r * z, ry = r * 0.5 * z;
+    const tick = (fx.PLAYER_RING_TICK || 0) * z;
+    const ring = () => { ctx.beginPath(); ctx.ellipse(s.x, s.y, rx, ry, 0, 0, TAU); ctx.stroke(); };
+    const ticks = () => {
+      if (!tick) return;
+      ctx.beginPath();
+      for (const [cx, cy] of [[0.7071, 0.7071], [-0.7071, 0.7071], [0.7071, -0.7071], [-0.7071, -0.7071]]) {
+        const x0 = s.x + cx * rx, y0 = s.y + cy * ry;
+        ctx.moveTo(x0, y0); ctx.lineTo(x0 + cx * tick, y0 + cy * tick * 0.5);
+      }
+      ctx.stroke();
+    };
     ctx.save();
-    ctx.strokeStyle = withAlpha(PLAYER_RING_COLOR, fx.PLAYER_RING_TOP_A ?? 0.5);
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.ellipse(s.x, s.y, r * z, r * 0.5 * z, 0, 0, TAU);
-    ctx.stroke();
+    ctx.lineCap = 'round';
+    // The ink is at its OWN alpha, not A × ink (gated on A so the batch-C on/off control
+    // still switches the whole mark off in one write). A ×A ink tops out near 0.35 effective,
+    // which blends to only ~2:1 against 流沙荒漠's sand — below the ART_SPEC 9 floor. At 0.85
+    // the ring's dark edge clears 3:1 on every floor in the game, which is the entire point
+    // of adding a dark channel to a mark that was previously light-and-cold only.
+    ctx.strokeStyle = withAlpha(P.ink, fx.PLAYER_RING_TOP_INK_A ?? 0.85);
+    ctx.lineWidth = fx.PLAYER_RING_TOP_INK_W ?? 3.2;
+    // stroked TWICE: a 3 px antialiased ellipse spreads over ~4 pixel columns, so most of the
+    // ink lands at partial coverage and the measured edge contrast is diluted well below the
+    // nominal alpha. A second pass compounds the partial pixels toward opaque without making
+    // the ring any thicker (the whole point is a hard thin edge, not a dark band).
+    ring(); ticks(); ring(); ticks();
+    ctx.strokeStyle = withAlpha(PLAYER_RING_COLOR, A);
+    ctx.lineWidth = fx.PLAYER_RING_TOP_W ?? 1.6;
+    ring(); ticks();
     ctx.restore();
   }
 
@@ -901,11 +1026,35 @@ export class World {
     const count = (e) => { if (!e.dead && e.spawnT <= 0 && dist2(p.x, p.y, e.x, e.y) < R2) near++; };
     if (list) { for (const e of list) count(e); }
     else this.forEachNear(p.x, p.y, fx.SURROUND_R, count);
-    if (near < fx.SURROUND_N) return;
+    // R29/D-2: ramp instead of a cliff. Batch C measured the "dense but under N" window as
+    // the weakest moment in the whole game (identity worth only ~11% over having no marks at
+    // all), because the beacon fires on nothing until the ring closes. It now fades in from
+    // SURROUND_N_SOFT neighbours and reaches full strength at SURROUND_N — same peak, no gap.
+    const soft = Math.min(fx.SURROUND_N_SOFT || fx.SURROUND_N, fx.SURROUND_N);
+    if (near < soft) return;
+    const ramp = clamp((near - soft + 1) / (fx.SURROUND_N - soft + 1), 0, 1);
     const sp = getSprite(p.spriteName || 'player');
     const frame = p.moving ? frameAt(sp, p.walkT, 0) : frameAt(sp, p.t * 0.4);
     const hopY = p.hop > 0 ? -Math.sin(Math.min(1, p.hop / 0.6) * Math.PI) * 6 : 0;
-    const a = fx.SURROUND_A_MIN + (fx.SURROUND_A_MAX - fx.SURROUND_A_MIN) * (0.5 + 0.5 * Math.sin(this.time * 9));
+    const a = (fx.SURROUND_A_MIN + (fx.SURROUND_A_MAX - fx.SURROUND_A_MIN) * (0.5 + 0.5 * Math.sin(this.time * 9))) * ramp;
+    if (!(a > 0)) return;
+    // R29/D-2: a near-black RIM around the silhouette (ART_SPEC 9's dark channel — the cold
+    // beacon alone disappears into pale mobs and bright floors). It has to be a true ring:
+    // the first attempt stacked offset ink tints and the overlap turned the beacon into a
+    // dark blob (measured: patch Weber went from +0.46 to −0.15 and the window's internal
+    // contrast rank FELL, i.e. it read as a flat mass). beaconRim() punches the body back
+    // out, so only the 1 px edge is ink and the cold silhouette keeps its brightness.
+    const rim = beaconRim(frame);
+    if (rim) {
+      const s = worldToScreen(p.x, p.y + hopY), z = camera.zoom, ctx = ctxRaw();
+      ctx.save();
+      ctx.globalAlpha = Math.min(1, a * (fx.SURROUND_INK_A ?? 0.85));
+      ctx.translate(s.x, s.y);
+      if (p.faceX < 0) ctx.scale(-1, 1);
+      ctx.scale(0.9 * z, 0.9 * z);
+      ctx.drawImage(rim, -(sp.ax + RIM_PAD), -(sp.ay + RIM_PAD));
+      ctx.restore();
+    }
     drawSpriteTint(frame, p.x, p.y + hopY, P.shardL, a, { ax: sp.ax, ay: sp.ay, flipX: p.faceX < 0, scale: 0.9 });
   }
 
@@ -955,15 +1104,10 @@ export class World {
     for (const b of this.beams) {
       const a = Math.max(0, b.life / b.max);
       const st = BEAM_STYLE[beamFamily(b.color)];
-      // R28/W5-fix (ART_SPEC 9, defect 3-a): a near-black outline UNDER the family colour line.
-      // The desert stress test measured shoulder contrast 1.07-1.59:1 and core 1.89-2.31:1 —
-      // all <3:1 in normal vision AND all three CVD sims — because a bright family colour +
-      // white core have no dark edge on bright sand. +2px per family keeps the boss(5)/
-      // event(4)/player(3) weight ladder distinguishable through the added ink; alpha tracks
-      // the same beam-life fade as the rest of the beam ("同步").
-      lineWorld(b.x0, b.y0, b.x1, b.y1, withAlpha(P.ink, a), st.lw + 2);
-      lineWorld(b.x0, b.y0, b.x1, b.y1, withAlpha(b.color, a), st.lw);
-      lineWorld(b.x0, b.y0, b.x1, b.y1, withAlpha('#ffffff', a * 0.85), st.core);
+      // R28/W5-fix (ART_SPEC 9, defect 3-a) keeps the near-black outline under the family
+      // colour line; R29/D-1 moved the three strokes (plus the new per-family dash/rung
+      // structure) into drawBeamBody so the co-op guest renders the identical body.
+      this.drawBeamBody(b, a, st);
       this.drawBeamCues(b, a, st);
     }
     // R28/FIX-1 — player identity, top half: shares the beam/telegraph layer so it sits above
@@ -1519,7 +1663,13 @@ export function makeInterior(id) {
   const reserved = new Set();
   const reserveRect = (x0, y0, x1, y1) => { for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) if (x >= 0 && y >= 0 && x < tw && y < th) reserved.add(y * tw + x); };
   reserveRect(cx - 3, stationRow, cx + 3, stationRow + 4);   // station + keeper atrium (NPC_POS_INT reaches dx ±3 / dy +4)
-  reserveRect(cx - 1, th - 4, cx + 1, th - 1);               // the walk-out corridor
+  // R29/D-3 (RE-06「道具不與動線競爭」): the reserve used to stop 4 rows above the door, so
+  // filler props landed in the middle of the ONE corridor every visit walks (measured: guild 4,
+  // blacksmith 2, personal 2). The whole carved spine is now off limits to dressing — it is
+  // the room's movement line and its sightline to the station, and nothing decorative earns
+  // a place in it. Props are unaffected elsewhere; interior decor carries no collision, so
+  // this is purely what the player looks at on the way in.
+  reserveRect(cx - 1, stationRow, cx + 1, th - 1);           // the walk-out corridor / station sightline
   // B3 walk-out trigger: glowing circle on the inside-door tile (spawn point is one row above)
   const triggers = [{ tx: cx, ty: th - 2, target: 'town' }];
   D.push({ sprite: 'ruin_doorglow', x: cx * TS, y: (th - 2) * TS, phase: 1 });

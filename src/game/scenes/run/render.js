@@ -2,7 +2,7 @@
 // Mixed into runScene via Object.assign in run.js; all state lives on `this`.
 import { mouse } from '../../../engine/input.js';
 import { P, withAlpha } from '../../../engine/palette.js';
-import { drawShadow, drawSprite, drawSpriteUI, glowWorld, textWidth, UI, uiBar, uiRect, uiScale, uiText, view, vignette, worldToScreen } from '../../../engine/renderer.js';
+import { drawShadow, drawSprite, drawSpriteUI, glowWorld, textWidth, UI, uiBar, uiRect, uiScale, uiText, uiWrapText, view, vignette, worldToScreen } from '../../../engine/renderer.js';
 import { frameAt, getSprite, iconOr } from '../../../engine/sprites.js';
 import { BALANCE, weaponMaxLevel } from '../../balance.js';
 import { BONDS, bondProgress } from '../../content/bonds.js';
@@ -259,9 +259,8 @@ export const renderMixin = {
     return best;
   },
   drawWorldTip(info, mx, my, S) {
-    const W = 196 * S; const lines = []; let line = '';
-    for (const ch of (info.desc || '')) { if (textWidth(line + ch, UI.FONT_CAPTION * S, UI.WEIGHT_BODY) > W - 16 * S && line) { lines.push(line); line = ch; } else line += ch; }
-    if (line) lines.push(line);
+    const W = 196 * S;   // R29/RE-02: shared token-aware wrap (was per-character — split「+12%」)
+    const lines = uiWrapText(info.desc || '', W - 16 * S, UI.FONT_CAPTION * S, UI.WEIGHT_BODY);
     const H = (28 + lines.length * 13) * S;
     let x = mx + 16 * S, y = my + 10 * S;
     if (x + W > view.W) x = view.W - W - 6 * S;
@@ -322,9 +321,8 @@ export const renderMixin = {
     } else if (ic.kind === 'weapon' && !def.evolved) {
       evo = { text: '（此武器無進化路線）', col: P.gray2 };
     }
-    let W = 210 * S; const lines = []; let line = '';
-    for (const ch of desc) { if (textWidth(line + ch, UI.FONT_BODY * S, UI.WEIGHT_BODY) > W - 16 * S && line) { lines.push(line); line = ch; } else line += ch; }
-    if (line) lines.push(line);
+    let W = 210 * S;   // R29/RE-02: shared token-aware wrap
+    const lines = uiWrapText(desc, W - 16 * S, UI.FONT_BODY * S, UI.WEIGHT_BODY);
     if (evo) W = Math.max(W, textWidth(evo.text, UI.FONT_CAPTION * S, UI.WEIGHT_BODY) + 16 * S);   // widen for a long evolution line
     const H = (34 + lines.length * 14) * S + (evo ? 16 * S : 0);
     let x = mx + 14 * S, y = my + 6 * S;

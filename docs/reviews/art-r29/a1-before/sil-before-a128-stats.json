@@ -1,0 +1,164 @@
+[
+ {
+  "id": "hunter",
+  "w": 16,
+  "h": 18,
+  "fill": 0.833
+ },
+ {
+  "id": "pyro",
+  "w": 16,
+  "h": 18,
+  "fill": 0.576
+ },
+ {
+  "id": "guardian",
+  "w": 16,
+  "h": 18,
+  "fill": 0.764
+ },
+ {
+  "id": "ranger",
+  "w": 16,
+  "h": 18,
+  "fill": 0.628
+ },
+ {
+  "id": "stormcaller",
+  "w": 16,
+  "h": 18,
+  "fill": 0.674
+ },
+ {
+  "id": "shadow",
+  "w": 16,
+  "h": 18,
+  "fill": 0.778
+ },
+ {
+  "id": "g_vanguard",
+  "w": 16,
+  "h": 18,
+  "fill": 0.639
+ },
+ {
+  "id": "g_arcanist",
+  "w": 16,
+  "h": 18,
+  "fill": 0.667
+ },
+ {
+  "id": "g_ranger",
+  "w": 16,
+  "h": 18,
+  "fill": 0.604
+ },
+ {
+  "id": "g_warden",
+  "w": 16,
+  "h": 18,
+  "fill": 0.632
+ },
+ {
+  "id": "g_revenant",
+  "w": 16,
+  "h": 18,
+  "fill": 0.865
+ },
+ {
+  "id": "g_stormcaller",
+  "w": 16,
+  "h": 18,
+  "fill": 0.611
+ },
+ {
+  "id": "h4_paladin",
+  "w": 16,
+  "h": 18,
+  "fill": 0.778
+ },
+ {
+  "id": "h4_chronomancer",
+  "w": 16,
+  "h": 18,
+  "fill": 0.701
+ },
+ {
+  "id": "h4_puppeteer",
+  "w": 16,
+  "h": 18,
+  "fill": 0.632
+ },
+ {
+  "id": "h4_gravekeeper",
+  "w": 16,
+  "h": 18,
+  "fill": 0.604
+ },
+ {
+  "id": "h4_starcaller",
+  "w": 16,
+  "h": 18,
+  "fill": 0.719
+ },
+ {
+  "id": "h4_bladedancer",
+  "w": 16,
+  "h": 18,
+  "fill": 0.691
+ },
+ {
+  "id": "h2_duelist",
+  "w": 16,
+  "h": 18,
+  "fill": 0.632
+ },
+ {
+  "id": "h2_warlock",
+  "w": 16,
+  "h": 18,
+  "fill": 0.646
+ },
+ {
+  "id": "h2_trapper",
+  "w": 16,
+  "h": 18,
+  "fill": 0.649
+ },
+ {
+  "id": "h2_voidcaller",
+  "w": 16,
+  "h": 18,
+  "fill": 0.816
+ },
+ {
+  "id": "h2_warder",
+  "w": 16,
+  "h": 18,
+  "fill": 0.691
+ },
+ {
+  "id": "h3_spearmaiden",
+  "w": 16,
+  "h": 18,
+  "fill": 0.632
+ },
+ {
+  "id": "h3_plague",
+  "w": 16,
+  "h": 18,
+  "fill": 0.892
+ },
+ {
+  "id": "h3_beastfang",
+  "w": 16,
+  "h": 18,
+  "fill": 0.653
+ },
+ {
+  "id": "h3_dragoon",
+  "w": 16,
+  "h": 18,
+  "fill": 0.639
+ }
+]

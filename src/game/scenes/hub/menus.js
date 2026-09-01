@@ -3,7 +3,7 @@
 import { Sfx } from '../../../engine/audio.js';
 import { mouse, pressed } from '../../../engine/input.js';
 import { P, withAlpha } from '../../../engine/palette.js';
-import { UI, drawSpriteUI, goldStr, textWidth, uiRect, uiScale, uiText, view } from '../../../engine/renderer.js';
+import { UI, drawSpriteUI, goldStr, uiRect, uiWrapText, uiScale, uiText, view } from '../../../engine/renderer.js';
 import { getSprite } from '../../../engine/sprites.js';
 import { Net } from '../../../net/api.js';
 import { openSocial } from '../../../net/social.js';
@@ -19,6 +19,7 @@ import { gate } from '../../content/town_gates.js';
 import { setScene } from '../../scene.js';
 import { META, saveMeta } from '../../state.js';
 import { goldLabel } from '../../ui/gold.js';
+import { drawPortrait } from '../../ui/portraits.js';
 import { settingsUI } from '../../ui/settings.js';
 import { refs } from '../refs.js';
 import { inside } from './shared.js';
@@ -210,17 +211,28 @@ export const menusMixin = {
     uiText(d.npc.name + ' · ' + d.npc.title, x + 88 * S, y + 26 * S, { size: UI.FONT_HEADING * S, color: d.npc.color || P.shardL, weight: '900' });
     // 2.1: 主角頭像（右側鏡像）+ 英雄名
     const cid = META.selectedCharacter || 'hunter';
-    const heroSp = getSprite(this.heroSprite || skinnedSprite(META, cid) || 'player');
+    const skinName = this.heroSprite || skinnedSprite(META, cid) || 'player';
+    const heroSp = getSprite(skinName);
     const hpx = x + w - 12 * S - 64 * S;
     uiRect(hpx, y + 12 * S, 64 * S, 64 * S, withAlpha('#1b2138', 0.96), { radius: 8 * S, stroke: P.ink2, lw: 2 });
-    const hsc = (58 * S) / heroSp.h;
-    drawSpriteUI(heroSp.frames[Math.floor(this.t * 3) % heroSp.frames.length], hpx + (64 * S - heroSp.w * hsc) / 2, y + 14 * S, hsc);
+    // R29/RE-03: third portrait surface (every NPC conversation). Only when the player is on the
+    // DEFAULT look — a portrait cannot show an equipped skin, and silently replacing the skinned
+    // sprite with base art would misreport what they bought. Same 64S box either way → no shift.
+    const baseName = (Characters.get(cid) || {}).sprite || ('char_' + cid);
+    const heroPortrait = (skinName === baseName)
+      && drawPortrait(cid, hpx + 3 * S, y + 15 * S, 58 * S, 58 * S, { radius: 6 * S, focusY: 0.3 });
+    if (!heroPortrait) {
+      const hsc = (58 * S) / heroSp.h;
+      drawSpriteUI(heroSp.frames[Math.floor(this.t * 3) % heroSp.frames.length], hpx + (64 * S - heroSp.w * hsc) / 2, y + 14 * S, hsc);
+    }
     uiText((Characters.get(cid) || {}).name || cid, hpx + 32 * S, y + 88 * S, { size: UI.FONT_CAPTION * S, align: 'center', color: '#e8e0c0', weight: '800' });
     // text (wrap) — reserve the right portrait column so lines never run under it
-    const tx = x + 88 * S, maxw = w - 104 * S - 84 * S; let yy = y + 48 * S, cur = '', size = 13.5 * S;
+    const tx = x + 88 * S, maxw = w - 104 * S - 84 * S; const yy = y + 48 * S, size = 13.5 * S;
     const isAsk = line.ask;
-    for (const ch of (line.text || '')) { if (textWidth(cur + ch, size, '600') > maxw && cur) { uiText((isAsk ? '「' : '') + cur, tx, yy, { size, color: isAsk ? P.gray3 : '#f0f2ff', weight: isAsk ? '600' : '700' }); cur = ch; yy += 18 * S; } else cur += ch; }
-    if (cur) uiText((isAsk ? '「' : '') + cur + (isAsk ? '」' : ''), tx, yy, { size, color: isAsk ? P.gray3 : '#f0f2ff', weight: isAsk ? '600' : '700' });
+    // R29/RE-02: shared token-aware wrap (was per-character). The 「」quote marks sit OUTSIDE the
+    // measured text, exactly as before — opening on every line, closing only on the last.
+    const dlines = uiWrapText(line.text || '', maxw, size, '600');
+    dlines.forEach((l, i) => uiText((isAsk ? '「' : '') + l + (isAsk && i === dlines.length - 1 ? '」' : ''), tx, yy + i * 18 * S, { size, color: isAsk ? P.gray3 : '#f0f2ff', weight: isAsk ? '600' : '700' }));
     // footer
     const last = d.page >= d.lines.length - 1;
     const hint = last ? (d.npc.station ? '▸ 進入「' + this.panelTitle(d.npc.station) + '」 (E)　·　Esc 離開' : '▸ 結束 (E)') : '▸ 繼續 (E / 空白 / 點擊)　·　Esc 離開';

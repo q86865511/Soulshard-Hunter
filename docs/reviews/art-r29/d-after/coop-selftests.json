@@ -1,0 +1,88 @@
+{
+  "coopRoundTrip": {
+    "rsPlayers": 2,
+    "snapPlayers": 2,
+    "snapEnemies": 5,
+    "snapProjectiles": 3,
+    "hostPlayers": 2,
+    "remoteMoved": 116.06185259559152,
+    "hud": {
+      "ti": "幽影地穴 · 難度 1 · 威脅 1",
+      "su": "距小王 4:52",
+      "bn": null,
+      "bf": 0,
+      "kills": 1,
+      "banner": "",
+      "bannerT": 0
+    },
+    "guestRendered": true,
+    "guestEnemies": 5,
+    "guestPlayers": 2,
+    "guestProjectiles": 3,
+    "mvLiftRoundTrip": true
+  },
+  "coopSilenceTest": {
+    "leftWhileActive": false,
+    "leftAfterSilence": true,
+    "guestDead": true,
+    "runEnded": false,
+    "hostAlive": true
+  },
+  "coopBossSyncTest": {
+    "bossId": "b3_leviathan",
+    "bossSpawned": true,
+    "eventsSpawnedHost": [
+      "evt_bomber",
+      "evt_bomb",
+      "evt_boulder",
+      "evt_goblin"
+    ],
+    "moves": {
+      "leap_slam": {
+        "started": true,
+        "maxHostMvLift": 46,
+        "hostPillarCount": 0,
+        "guestMvLiftSeen": true,
+        "guestPillarsSeen": false,
+        "guestBeamsSeen": true,
+        "error": null
+      },
+      "wall_cage": {
+        "started": true,
+        "maxHostMvLift": 0,
+        "hostPillarCount": 8,
+        "guestMvLiftSeen": false,
+        "guestPillarsSeen": true,
+        "guestBeamsSeen": true,
+        "error": null
+      },
+      "charge_combo": {
+        "started": true,
+        "maxHostMvLift": 0,
+        "hostPillarCount": 0,
+        "guestMvLiftSeen": false,
+        "guestPillarsSeen": false,
+        "guestBeamsSeen": true,
+        "error": null
+      },
+      "shock_lines": {
+        "started": true,
+        "maxHostMvLift": 0,
+        "hostPillarCount": 0,
+        "guestMvLiftSeen": false,
+        "guestPillarsSeen": false,
+        "guestBeamsSeen": true,
+        "error": null
+      }
+    },
+    "eventGuestSeen": [
+      "evt_bomber",
+      "evt_bomb",
+      "evt_boulder",
+      "evt_goblin"
+    ],
+    "guestRenderedOk": true,
+    "errors": []
+  },
+  "__GAME_ERROR__": null
+}

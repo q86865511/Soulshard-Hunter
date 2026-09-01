@@ -1,0 +1,206 @@
+{
+  "arrow": [
+    {
+      "file": "beams-clean-dpr1.png",
+      "dense": false,
+      "dpr": 1,
+      "family": "boss",
+      "spec_aw": 6,
+      "spec_ah": 10,
+      "meas_arrow_height_dev": 24,
+      "meas_arrow_height_css": 24.0,
+      "at_x": 1018
+    },
+    {
+      "file": "beams-clean-dpr1.png",
+      "dense": false,
+      "dpr": 1,
+      "family": "event",
+      "spec_aw": 5.2,
+      "spec_ah": 8.5,
+      "meas_arrow_height_dev": 18,
+      "meas_arrow_height_css": 18.0,
+      "at_x": 1027
+    },
+    {
+      "file": "beams-clean-dpr1.png",
+      "dense": false,
+      "dpr": 1,
+      "family": "player",
+      "spec_aw": 4.5,
+      "spec_ah": 7,
+      "meas_arrow_height_dev": 12,
+      "meas_arrow_height_css": 12.0,
+      "at_x": 1021
+    },
+    {
+      "file": "beams-clean-dpr2.png",
+      "dense": false,
+      "dpr": 2,
+      "family": "boss",
+      "spec_aw": 6,
+      "spec_ah": 10,
+      "meas_arrow_height_dev": 62,
+      "meas_arrow_height_css": 31.0,
+      "at_x": 1930
+    },
+    {
+      "file": "beams-clean-dpr2.png",
+      "dense": false,
+      "dpr": 2,
+      "family": "event",
+      "spec_aw": 5.2,
+      "spec_ah": 8.5,
+      "meas_arrow_height_dev": 55,
+      "meas_arrow_height_css": 27.5,
+      "at_x": 1927
+    },
+    {
+      "file": "beams-clean-dpr2.png",
+      "dense": false,
+      "dpr": 2,
+      "family": "player",
+      "spec_aw": 4.5,
+      "spec_ah": 7,
+      "meas_arrow_height_dev": 42,
+      "meas_arrow_height_css": 21.0,
+      "at_x": 1931
+    },
+    {
+      "file": "beams-dense-dpr1.png",
+      "dense": true,
+      "dpr": 1,
+      "family": "boss",
+      "spec_aw": 6,
+      "spec_ah": 10,
+      "meas_arrow_height_dev": 24,
+      "meas_arrow_height_css": 24.0,
+      "at_x": 1018
+    },
+    {
+      "file": "beams-dense-dpr1.png",
+      "dense": true,
+      "dpr": 1,
+      "family": "event",
+      "spec_aw": 5.2,
+      "spec_ah": 8.5,
+      "meas_arrow_height_dev": 29,
+      "meas_arrow_height_css": 29.0,
+      "at_x": 1024
+    },
+    {
+      "file": "beams-dense-dpr1.png",
+      "dense": true,
+      "dpr": 1,
+      "family": "player",
+      "spec_aw": 4.5,
+      "spec_ah": 7,
+      "meas_arrow_height_dev": 12,
+      "meas_arrow_height_css": 12.0,
+      "at_x": 1021
+    },
+    {
+      "file": "beams-dense-dpr2.png",
+      "dense": true,
+      "dpr": 2,
+      "family": "boss",
+      "spec_aw": 6,
+      "spec_ah": 10,
+      "meas_arrow_height_dev": 62,
+      "meas_arrow_height_css": 31.0,
+      "at_x": 1930
+    },
+    {
+      "file": "beams-dense-dpr2.png",
+      "dense": true,
+      "dpr": 2,
+      "family": "event",
+      "spec_aw": 5.2,
+      "spec_ah": 8.5,
+      "meas_arrow_height_dev": 55,
+      "meas_arrow_height_css": 27.5,
+      "at_x": 1927
+    },
+    {
+      "file": "beams-dense-dpr2.png",
+      "dense": true,
+      "dpr": 2,
+      "family": "player",
+      "spec_aw": 4.5,
+      "spec_ah": 7,
+      "meas_arrow_height_dev": 42,
+      "meas_arrow_height_css": 21.0,
+      "at_x": 1931
+    }
+  ],
+  "rendered_colour": {
+    "beams-clean-dpr1.png": {
+      "boss": [
+        194.3,
+        112.5,
+        99.7
+      ],
+      "event": [
+        215.9,
+        190.9,
+        122.0
+      ],
+      "player": [
+        137.0,
+        163.5,
+        180.2
+      ]
+    },
+    "beams-clean-dpr2.png": {
+      "boss": [
+        160.2,
+        97.7,
+        91.1
+      ],
+      "event": [
+        254.0,
+        212.5,
+        121.5
+      ],
+      "player": [
+        143.4,
+        171.0,
+        188.4
+      ]
+    },
+    "beams-dense-dpr1.png": {
+      "boss": [
+        166.1,
+        105.0,
+        96.2
+      ],
+      "event": [
+        157.4,
+        158.6,
+        96.1
+      ],
+      "player": [
+        137.5,
+        163.9,
+        180.8
+      ]
+    },
+    "beams-dense-dpr2.png": {
+      "boss": [
+        164.8,
+        102.4,
+        100.3
+      ],
+      "event": [
+        162.1,
+        180.4,
+        117.8
+      ],
+      "player": [
+        41.0,
+        51.0,
+        76.0
+      ]
+    }
+  }
+}

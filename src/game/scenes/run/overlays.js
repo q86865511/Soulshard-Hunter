@@ -4,7 +4,7 @@ import { BIOMES } from '../../../art/biomes.js';
 import { Sfx } from '../../../engine/audio.js';
 import { mouse } from '../../../engine/input.js';
 import { P, withAlpha } from '../../../engine/palette.js';
-import { ctxRaw, drawSpriteUI, goldStr, textWidth, UI, uiClipRound, uiRect, uiScale, uiText, view } from '../../../engine/renderer.js';
+import { ctxRaw, drawSpriteUI, goldStr, textWidth, UI, uiClipRound, uiRect, uiWrapText, uiScale, uiText, view } from '../../../engine/renderer.js';
 import { getSprite, iconOr } from '../../../engine/sprites.js';
 import { Cheats } from '../../cheats.js';
 import { BONDS, activeBonds, bondAdvancedBy, bondProgress } from '../../content/bonds.js';
@@ -219,10 +219,8 @@ export const overlaysMixin = {
     if (hov) this.drawTooltip(hov, mx, my, S);
   },
 
-  wrapText(str, cx, y, maxw, size, color = '#c8cfe8') {
-    const lines = []; let line = '';
-    for (const ch of str) { if (textWidth(line + ch, size, UI.WEIGHT_BODY) > maxw && line) { lines.push(line); line = ch; } else line += ch; }
-    if (line) lines.push(line);
+  wrapText(str, cx, y, maxw, size, color = '#c8cfe8') {   // R29/RE-02: shared token-aware wrap
+    const lines = uiWrapText(str, maxw, size, UI.WEIGHT_BODY);
     lines.forEach((l, i) => uiText(l, cx, y + i * (size + 3), { size, align: 'center', color, weight: UI.WEIGHT_BODY }));
     return lines.length;
   },

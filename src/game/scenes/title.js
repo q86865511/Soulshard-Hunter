@@ -8,7 +8,7 @@ import { openAuth, openLeaderboard, isModalOpen, netToast } from '../../net/ui.j
 import { openSocial } from '../../net/social.js';
 import { Characters } from '../content/registry.js';
 import { PATCH_NOTES, GAME_VERSION } from '../content/patchnotes.js';
-import { uiText, uiRect, uiScale, view, drawSpriteUI, vignette, ctxRaw, textWidth, UI } from '../../engine/renderer.js';
+import { uiText, uiRect, uiScale, view, drawSpriteUI, vignette, ctxRaw, textWidth, uiWrapText, UI } from '../../engine/renderer.js';
 import { getSprite, frameAt } from '../../engine/sprites.js';
 import { pressed, mouse } from '../../engine/input.js';
 import { P, withAlpha } from '../../engine/palette.js';
@@ -505,10 +505,8 @@ export const titleScene = {
     return { x: view.W / 2 - w / 2, y: notesBottomY - h, w, h };
   },
   // very small CJK-aware wrap that draws + returns line count
-  wrapNote(str, x, y, maxw, size) {
-    const lines = []; let line = '';
-    for (const ch of str) { if (textWidth(line + ch, size, '500') > maxw && line) { lines.push(line); line = ch; } else line += ch; }
-    if (line) lines.push(line);
+  wrapNote(str, x, y, maxw, size) {   // R29/RE-02: shared token-aware wrap (patch notes are full of 版號/百分比)
+    const lines = uiWrapText(str, maxw, size, '500');
     lines.forEach((l, i) => uiText(l, x, y + i * (size + 4), { size, color: P.gray4, weight: '500' }));
     return lines.length;
   },

@@ -19,7 +19,11 @@ export const LIGHT_BY_SPRITE = {
   rfoc_loom:           { r: 28, color: P.shard,   a: 0.20, oy: 8,  flicker: 0.12, speed: 2.4 },
   rfoc_restore:        { r: 26, color: P.ember,   a: 0.24, oy: 14, flicker: 0.30, speed: 6.5 },
   rfoc_hearth:         { r: 38, color: P.ember,   a: 0.33, oy: 6,  flicker: 0.32, speed: 6.5 },
-  rfg_ch_chandelier:   { r: 44, color: P.ember,   a: 0.26, oy: -12, flicker: 0.28, speed: 6 },
+  // R29/D-3 (RE-06「每房第一焦點唯一」): the church hangs TWO chandeliers, and at r44/a0.26
+  // each carried 503 glow energy (a·r²) against the censer's 347 — the room's focal
+  // installation was only its third-brightest light. Dimmed and tightened so the censer
+  // leads (347 vs 220); the chandeliers still read as the nave's ambient, which is their job.
+  rfg_ch_chandelier:   { r: 36, color: P.ember,   a: 0.17, oy: -12, flicker: 0.28, speed: 6 },
   rfg_gu_beam:         { r: 30, color: P.ember,   a: 0.24, oy: -14, flicker: 0.26, speed: 5.5 },
   // ── pre-existing single decor (biomes.js) ──
   dec_crystal:         { r: 30, color: P.shard,   a: 0.24, oy: 6,  flicker: 0.12, speed: 3 },

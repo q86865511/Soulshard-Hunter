@@ -1,0 +1,186 @@
+[
+  {
+    "dpr": 1,
+    "uiScale": 1.0588235294117647,
+    "smoothing": false,
+    "out": [
+      {
+        "name": "char_hunter",
+        "sprite": "16x18",
+        "scale": 2.118,
+        "paletteSize": 60,
+        "sampled": 830,
+        "foreignColours": 0,
+        "foreignPct": 0
+      },
+      {
+        "name": "char_hunter",
+        "sprite": "16x18",
+        "scale": 2.329,
+        "paletteSize": 60,
+        "sampled": 1006,
+        "foreignColours": 0,
+        "foreignPct": 0
+      },
+      {
+        "name": "char_hunter",
+        "sprite": "16x18",
+        "scale": 1.721,
+        "paletteSize": 60,
+        "sampled": 525,
+        "foreignColours": 0,
+        "foreignPct": 0
+      },
+      {
+        "name": "weapon_w_soulbolt",
+        "sprite": "16x16",
+        "scale": 2.118,
+        "paletteSize": 36,
+        "sampled": 880,
+        "foreignColours": 0,
+        "foreignPct": 0
+      },
+      {
+        "name": "weapon_w_soulbolt",
+        "sprite": "16x16",
+        "scale": 2.329,
+        "paletteSize": 36,
+        "sampled": 1109,
+        "foreignColours": 0,
+        "foreignPct": 0
+      },
+      {
+        "name": "weapon_w_soulbolt",
+        "sprite": "16x16",
+        "scale": 1.721,
+        "paletteSize": 36,
+        "sampled": 576,
+        "foreignColours": 0,
+        "foreignPct": 0
+      },
+      {
+        "name": "icon_gold",
+        "missing": true
+      },
+      {
+        "name": "coin",
+        "sprite": "8x9",
+        "scale": 2.118,
+        "paletteSize": 15,
+        "sampled": 228,
+        "foreignColours": 0,
+        "foreignPct": 0
+      },
+      {
+        "name": "coin",
+        "sprite": "8x9",
+        "scale": 2.329,
+        "paletteSize": 15,
+        "sampled": 275,
+        "foreignColours": 0,
+        "foreignPct": 0
+      },
+      {
+        "name": "coin",
+        "sprite": "8x9",
+        "scale": 3.441,
+        "paletteSize": 15,
+        "sampled": 658,
+        "foreignColours": 0,
+        "foreignPct": 0
+      }
+    ]
+  },
+  {
+    "dpr": 2,
+    "uiScale": 2.1176470588235294,
+    "smoothing": false,
+    "out": [
+      {
+        "name": "char_hunter",
+        "sprite": "16x18",
+        "scale": 4.235,
+        "paletteSize": 60,
+        "sampled": 3477,
+        "foreignColours": 0,
+        "foreignPct": 0
+      },
+      {
+        "name": "char_hunter",
+        "sprite": "16x18",
+        "scale": 4.659,
+        "paletteSize": 60,
+        "sampled": 4200,
+        "foreignColours": 0,
+        "foreignPct": 0
+      },
+      {
+        "name": "char_hunter",
+        "sprite": "16x18",
+        "scale": 3.441,
+        "paletteSize": 60,
+        "sampled": 2260,
+        "foreignColours": 0,
+        "foreignPct": 0
+      },
+      {
+        "name": "weapon_w_soulbolt",
+        "sprite": "16x16",
+        "scale": 4.235,
+        "paletteSize": 36,
+        "sampled": 3777,
+        "foreignColours": 0,
+        "foreignPct": 0
+      },
+      {
+        "name": "weapon_w_soulbolt",
+        "sprite": "16x16",
+        "scale": 4.659,
+        "paletteSize": 36,
+        "sampled": 4625,
+        "foreignColours": 0,
+        "foreignPct": 0
+      },
+      {
+        "name": "weapon_w_soulbolt",
+        "sprite": "16x16",
+        "scale": 3.441,
+        "paletteSize": 36,
+        "sampled": 2510,
+        "foreignColours": 0,
+        "foreignPct": 0
+      },
+      {
+        "name": "icon_gold",
+        "missing": true
+      },
+      {
+        "name": "coin",
+        "sprite": "8x9",
+        "scale": 4.235,
+        "paletteSize": 15,
+        "sampled": 1038,
+        "foreignColours": 0,
+        "foreignPct": 0
+      },
+      {
+        "name": "coin",
+        "sprite": "8x9",
+        "scale": 4.659,
+        "paletteSize": 15,
+        "sampled": 1275,
+        "foreignColours": 0,
+        "foreignPct": 0
+      },
+      {
+        "name": "coin",
+        "sprite": "8x9",
+        "scale": 6.882,
+        "paletteSize": 15,
+        "sampled": 2897,
+        "foreignColours": 0,
+        "foreignPct": 0
+      }
+    ]
+  }
+]

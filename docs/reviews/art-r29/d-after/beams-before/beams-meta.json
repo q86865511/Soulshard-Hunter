@@ -1,0 +1,266 @@
+[
+  {
+    "file": "beams-clean-dpr1.png",
+    "dpr": 1,
+    "W": 1280,
+    "H": 720,
+    "zoom": 3,
+    "dense": false,
+    "playerScreen": {
+      "x": 640,
+      "y": 360
+    },
+    "style": {
+      "boss": {
+        "lw": 5,
+        "core": 2,
+        "ah": 10,
+        "aw": 6
+      },
+      "event": {
+        "lw": 4,
+        "core": 1.6,
+        "ah": 8.5,
+        "aw": 5.2
+      },
+      "player": {
+        "lw": 3,
+        "core": 1.5,
+        "ah": 7,
+        "aw": 4.5
+      }
+    },
+    "fams": [
+      {
+        "family": "boss",
+        "color": "#ff5a3c",
+        "dyWorld": -70,
+        "yScreen": 150,
+        "ah": 10,
+        "aw": 6,
+        "x0Screen": 580,
+        "x1Screen": 1030
+      },
+      {
+        "family": "event",
+        "color": "#ffc23c",
+        "dyWorld": 45,
+        "yScreen": 495,
+        "ah": 8.5,
+        "aw": 5.2,
+        "x0Screen": 580,
+        "x1Screen": 1030
+      },
+      {
+        "family": "player",
+        "color": "#9adcff",
+        "dyWorld": 100,
+        "yScreen": 660,
+        "ah": 7,
+        "aw": 4.5,
+        "x0Screen": 580,
+        "x1Screen": 1030
+      }
+    ],
+    "enemies": 2,
+    "err": null
+  },
+  {
+    "file": "beams-clean-dpr2.png",
+    "dpr": 2,
+    "W": 2560,
+    "H": 1440,
+    "zoom": 5,
+    "dense": false,
+    "playerScreen": {
+      "x": 1280,
+      "y": 720
+    },
+    "style": {
+      "boss": {
+        "lw": 5,
+        "core": 2,
+        "ah": 10,
+        "aw": 6
+      },
+      "event": {
+        "lw": 4,
+        "core": 1.6,
+        "ah": 8.5,
+        "aw": 5.2
+      },
+      "player": {
+        "lw": 3,
+        "core": 1.5,
+        "ah": 7,
+        "aw": 4.5
+      }
+    },
+    "fams": [
+      {
+        "family": "boss",
+        "color": "#ff5a3c",
+        "dyWorld": -70,
+        "yScreen": 370,
+        "ah": 10,
+        "aw": 6,
+        "x0Screen": 1180,
+        "x1Screen": 1930
+      },
+      {
+        "family": "event",
+        "color": "#ffc23c",
+        "dyWorld": 45,
+        "yScreen": 945,
+        "ah": 8.5,
+        "aw": 5.2,
+        "x0Screen": 1180,
+        "x1Screen": 1930
+      },
+      {
+        "family": "player",
+        "color": "#9adcff",
+        "dyWorld": 100,
+        "yScreen": 1220,
+        "ah": 7,
+        "aw": 4.5,
+        "x0Screen": 1180,
+        "x1Screen": 1930
+      }
+    ],
+    "enemies": 2,
+    "err": null
+  },
+  {
+    "file": "beams-dense-dpr1.png",
+    "dpr": 1,
+    "W": 1280,
+    "H": 720,
+    "zoom": 3,
+    "dense": true,
+    "playerScreen": {
+      "x": 640,
+      "y": 360
+    },
+    "style": {
+      "boss": {
+        "lw": 5,
+        "core": 2,
+        "ah": 10,
+        "aw": 6
+      },
+      "event": {
+        "lw": 4,
+        "core": 1.6,
+        "ah": 8.5,
+        "aw": 5.2
+      },
+      "player": {
+        "lw": 3,
+        "core": 1.5,
+        "ah": 7,
+        "aw": 4.5
+      }
+    },
+    "fams": [
+      {
+        "family": "boss",
+        "color": "#ff5a3c",
+        "dyWorld": -70,
+        "yScreen": 150,
+        "ah": 10,
+        "aw": 6,
+        "x0Screen": 580,
+        "x1Screen": 1030
+      },
+      {
+        "family": "event",
+        "color": "#ffc23c",
+        "dyWorld": 45,
+        "yScreen": 495,
+        "ah": 8.5,
+        "aw": 5.2,
+        "x0Screen": 580,
+        "x1Screen": 1030
+      },
+      {
+        "family": "player",
+        "color": "#9adcff",
+        "dyWorld": 100,
+        "yScreen": 660,
+        "ah": 7,
+        "aw": 4.5,
+        "x0Screen": 580,
+        "x1Screen": 1030
+      }
+    ],
+    "enemies": 66,
+    "err": null
+  },
+  {
+    "file": "beams-dense-dpr2.png",
+    "dpr": 2,
+    "W": 2560,
+    "H": 1440,
+    "zoom": 5,
+    "dense": true,
+    "playerScreen": {
+      "x": 1280,
+      "y": 720
+    },
+    "style": {
+      "boss": {
+        "lw": 5,
+        "core": 2,
+        "ah": 10,
+        "aw": 6
+      },
+      "event": {
+        "lw": 4,
+        "core": 1.6,
+        "ah": 8.5,
+        "aw": 5.2
+      },
+      "player": {
+        "lw": 3,
+        "core": 1.5,
+        "ah": 7,
+        "aw": 4.5
+      }
+    },
+    "fams": [
+      {
+        "family": "boss",
+        "color": "#ff5a3c",
+        "dyWorld": -70,
+        "yScreen": 370,
+        "ah": 10,
+        "aw": 6,
+        "x0Screen": 1180,
+        "x1Screen": 1930
+      },
+      {
+        "family": "event",
+        "color": "#ffc23c",
+        "dyWorld": 45,
+        "yScreen": 945,
+        "ah": 8.5,
+        "aw": 5.2,
+        "x0Screen": 1180,
+        "x1Screen": 1930
+      },
+      {
+        "family": "player",
+        "color": "#9adcff",
+        "dyWorld": 100,
+        "yScreen": 1220,
+        "ah": 7,
+        "aw": 4.5,
+        "x0Screen": 1180,
+        "x1Screen": 1930
+      }
+    ],
+    "enemies": 66,
+    "err": null
+  }
+]

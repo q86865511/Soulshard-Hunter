@@ -1,0 +1,98 @@
+{
+  "scenes": [
+    {
+      "vp": "1280x720",
+      "kind": "title",
+      "px": 921600,
+      "noise_px": 0,
+      "noise_share": 0.0,
+      "bytes_identical_O_vs_AB": true,
+      "e12_diff_outside_noise": 0,
+      "e3_diff_outside_noise": 0,
+      "e3_diff_share_outside_noise": 0.0,
+      "e3_maxdelta_outside_noise": 0
+    },
+    {
+      "vp": "1280x720",
+      "kind": "hub_sortie",
+      "px": 921600,
+      "noise_px": 286471,
+      "noise_share": 0.31084,
+      "bytes_identical_O_vs_AB": false,
+      "e12_diff_outside_noise": 20267,
+      "e3_diff_outside_noise": 12520,
+      "e3_diff_share_outside_noise": 0.01359,
+      "e3_maxdelta_outside_noise": 177
+    },
+    {
+      "vp": "1280x720",
+      "kind": "run_combat",
+      "px": 921600,
+      "noise_px": 291308,
+      "noise_share": 0.31609,
+      "bytes_identical_O_vs_AB": false,
+      "e12_diff_outside_noise": 96,
+      "e3_diff_outside_noise": 96,
+      "e3_diff_share_outside_noise": 0.0001,
+      "e3_maxdelta_outside_noise": 121
+    },
+    {
+      "vp": "1920x1080",
+      "kind": "title",
+      "px": 2073600,
+      "noise_px": 0,
+      "noise_share": 0.0,
+      "bytes_identical_O_vs_AB": true,
+      "e12_diff_outside_noise": 0,
+      "e3_diff_outside_noise": 0,
+      "e3_diff_share_outside_noise": 0.0,
+      "e3_maxdelta_outside_noise": 0
+    },
+    {
+      "vp": "1920x1080",
+      "kind": "hub_sortie",
+      "px": 2073600,
+      "noise_px": 682025,
+      "noise_share": 0.32891,
+      "bytes_identical_O_vs_AB": false,
+      "e12_diff_outside_noise": 35181,
+      "e3_diff_outside_noise": 36642,
+      "e3_diff_share_outside_noise": 0.01767,
+      "e3_maxdelta_outside_noise": 179
+    },
+    {
+      "vp": "1920x1080",
+      "kind": "run_combat",
+      "px": 2073600,
+      "noise_px": 574299,
+      "noise_share": 0.27696,
+      "bytes_identical_O_vs_AB": false,
+      "e12_diff_outside_noise": 281,
+      "e3_diff_outside_noise": 2901,
+      "e3_diff_share_outside_noise": 0.0014,
+      "e3_maxdelta_outside_noise": 239
+    }
+  ],
+  "probe_frames": [
+    {
+      "vp": "1280x720",
+      "sha_O": "74820bc19242c0ed",
+      "sha_O2": "74820bc19242c0ed",
+      "sha_AB": "74820bc19242c0ed",
+      "sha_C": "5c84f819b91f5b3d",
+      "reproducible": true,
+      "O_eq_AB": true,
+      "AB_eq_C": false
+    },
+    {
+      "vp": "1920x1080",
+      "sha_O": "46dfc03b766210fe",
+      "sha_O2": "46dfc03b766210fe",
+      "sha_AB": "46dfc03b766210fe",
+      "sha_C": "9ac8bef4b07f611d",
+      "reproducible": true,
+      "O_eq_AB": true,
+      "AB_eq_C": false
+    }
+  ]
+}

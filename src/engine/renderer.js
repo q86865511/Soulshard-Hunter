@@ -31,8 +31,14 @@ export function resize() {
   canvas.style.height = cssH + 'px';
   // choose a zoom so a comfortable slice of the (large) world is visible —
   // a touch more zoomed-out than before so the big map reads as big.
-  const z = Math.round(Math.min(W / 430, H / 280));
-  camera.zoom = Math.max(2, Math.min(6, z));
+  // R29 E-1 — pick the zoom STEP in CSS pixels, then scale it into device space. The old
+  // form fed device pixels into the step choice, so a DPR2 player saw +44%/+78% more world
+  // than a DPR1 player on the same window — a gameplay (and shared-leaderboard) difference.
+  // Visible world is now cssW/zCss × cssH/zCss at any DPR; dpr=1 is bit-identical to before.
+  // Trade-off: fractional DPR (1.25/1.5 Windows scaling) yields a fractional device zoom, so
+  // nearest-neighbour pixel widths are slightly uneven — accepted over an unfair field of view.
+  const zCss = Math.max(2, Math.min(6, Math.round(Math.min(cssW / 430, cssH / 280))));
+  camera.zoom = zCss * dpr;
   ctx.imageSmoothingEnabled = false;
 }
 
@@ -269,13 +275,28 @@ export function drawSpriteTint(spriteCanvas, wx, wy, color, alpha, opts = {}) {
 // screen); times a user multiplier (設定 UI 大小); clamped so small screens fit + 4K isn't huge.
 let _uiScaleMul = 1;
 export function setUiScaleMul(m) { _uiScaleMul = Math.max(0.6, Math.min(1.5, m || 1)); }
-export function uiScale() { return Math.max(0.6, Math.min(2.6, Math.min(W / 1100, H / 680) * _uiScaleMul)); }
+// R29 E-2 — the 0.6/2.6 clamp is a CSS-space judgement ("how big should UI look"), so it is
+// applied to the CSS-derived scale and only then multiplied into device space. The old form
+// clamped after the dpr had already been folded in, so a 1920×1080 DPR2 player hit the 2.6 cap
+// and got UI at 81.9% of the physical size a DPR1 player saw. Return value keeps its meaning
+// (a device-pixel multiplier); dpr=1 is bit-identical to before.
+export function uiScale() {
+  const cssS = Math.max(0.6, Math.min(2.6, Math.min(cssW / 1100, cssH / 680) * _uiScaleMul));
+  return cssS * dpr;
+}
 
 export function ctxRaw() { return ctx; }
 
+// R29 E-3 — half-pixel alignment for ODD stroke widths. A 1 px stroke on an integer path
+// straddles two device columns at half intensity each (measured: peak 0.489, visually a 2 px
+// grey line) at EVERY DPR. Nudging the path by 0.5 puts it inside one column at full strength.
+// Fixed here, at the single choke point, rather than at the 102 `lw:` call sites; the fill is
+// nudged with it so the border still hugs the fill (0.5 device px is not visible).
 export function uiRect(x, y, w, h, color, { radius = 0, stroke = null, lw = 1, alpha = 1 } = {}) {
   ctx.save();
   ctx.globalAlpha = alpha;
+  const off = (stroke && Math.round(lw) % 2 === 1) ? 0.5 : 0;
+  if (off) { x += off; y += off; }
   if (radius > 0) roundRectPath(x, y, w, h, radius); else { ctx.beginPath(); ctx.rect(x, y, w, h); }
   if (color) { ctx.fillStyle = color; ctx.fill(); }
   if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = lw; ctx.stroke(); }
@@ -371,26 +392,58 @@ export function uiButton(x, y, w, h, label, {
 // R28/W0 — shared text-measuring helpers (pure: they MEASURE, the caller draws). Behaviour
 // mirrors the two hand-rolled copies still in the tree — hub/render_personal.js `clip1()` and
 // run/overlays.js `wrapText()` — which W1 folds into these. Both are untouched by this batch.
+//
+// R29/RE-02 — UNBREAKABLE TEXT TOKENS. The per-character greedy wrap is correct for CJK (which
+// has no spaces) but wrong for the numbers embedded in it: `+0.3`／`-10%`／`×1.2` were being cut
+// mid-token (「-10 / %」,「+0. / 3」) at exactly the highest-traffic decision point (the sortie
+// hero cards). Tokenising keeps a signed/decimal/percent number — and a latin word — atomic,
+// while every CJK glyph stays its own token, so CJK wrapping is byte-identical to before.
+// `(?<![0-9A-Za-z])` keeps the numeric arm from firing inside an identifier ("v2" stays one
+// latin token); `[\s\S]` is the per-glyph fallback that preserves the old CJK behaviour.
+const TOKEN_RE = /(?<![0-9A-Za-z])[+\-−±×✕]?\d+(?:[.,/]\d+)*[%％×°]?|[A-Za-z][A-Za-z0-9'’._-]*|[^\S\n]+|[\s\S]/gu;
+// 禁則: glyphs that must never be stranded at the head of a line. On overflow we keep them on
+// the current line (a few px of overhang) rather than break before them.
+const NO_LINE_START = new Set([...'。，、．,.!！?？:：;；)）]］}｝」』】〉》%％°·・…～~　']);
+function tokenize(str) { return str.match(TOKEN_RE) || []; }
+const isBlank = (t) => !/\S/.test(t);
+// Drop WHOLE tokens off the end until `str + suffix` fits — trimming by character would
+// re-break the very tokens the wrap just protected (a clipped 「+0.…」 is the RE-02 bug again).
+function trimTokensToWidth(str, maxW, size, weight, suffix) {
+  const toks = tokenize(str);
+  while (toks.length > 1 && textWidth(toks.join('') + suffix, size, weight) > maxW) toks.pop();
+  let s = toks.join('');
+  // last resort: a single token still too wide — fall back to per-character shaving
+  while (s.length > 1 && textWidth(s + suffix, size, weight) > maxW) s = s.slice(0, -1);
+  return s + suffix;
+}
 // Single-line clip with an ellipsis; returns the string that fits in `maxW`.
 export function uiClip1(text, maxW, size = UI.FONT_BODY, weight = UI.WEIGHT_BODY) {
   const str = String(text ?? '');
-  if (!(maxW > 0)) return str;
-  let s = str;
-  while (s.length > 1 && textWidth(s, size, weight) > maxW) s = s.slice(0, -1);
-  if (s.length < str.length && s.length > 1) s = s.slice(0, -1) + '…';
-  return s;
+  if (!(maxW > 0) || textWidth(str, size, weight) <= maxW) return str;
+  return trimTokensToWidth(str, maxW, size, weight, '…');
 }
-// Greedy per-character wrap (correct for CJK, which has no spaces); returns the lines.
-// Explicit '\n' also breaks — text without newlines wraps exactly like the overlays copy.
-export function uiWrapText(text, maxW, size = UI.FONT_BODY, weight = UI.WEIGHT_BODY) {
+// Greedy token-aware wrap (still per-glyph for CJK, which has no spaces); returns the lines.
+// Explicit '\n' always breaks. `maxLines > 0` truncates and ellipsises the last kept line.
+export function uiWrapText(text, maxW, size = UI.FONT_BODY, weight = UI.WEIGHT_BODY, maxLines = 0) {
   const str = String(text ?? '');
-  const lines = []; let line = '';
-  for (const ch of str) {
-    if (ch === '\n') { lines.push(line); line = ''; continue; }
-    if (textWidth(line + ch, size, weight) > maxW && line) { lines.push(line); line = ch; }
-    else line += ch;
+  const lines = [];
+  const paras = str.split('\n');
+  paras.forEach((para, pi) => {
+    let line = '';
+    for (const t of tokenize(para)) {
+      if (!line) { if (!isBlank(t)) line = t; continue; }   // never open a line with whitespace
+      if (textWidth(line + t, size, weight) <= maxW) { line += t; continue; }
+      if (NO_LINE_START.has(t)) { line += t; continue; }    // 禁則: keep it on this line
+      lines.push(line);
+      line = isBlank(t) ? '' : t;                           // a wrap eats the space it broke on
+    }
+    if (line || pi < paras.length - 1) lines.push(line);    // blank line only from an explicit \n
+  });
+  if (maxLines > 0 && lines.length > maxLines) {
+    const kept = lines.slice(0, maxLines);
+    kept[maxLines - 1] = trimTokensToWidth(kept[maxLines - 1], maxW, size, weight, '…');
+    return kept;
   }
-  if (line) lines.push(line);
   return lines;
 }
 // round16/1.4 → R17/2.1: the 🪙 emoji is missing from the CJK font stack on common

@@ -204,9 +204,25 @@ export const BALANCE = {
   // pool, a NEW top-layer foot ring (drawn above every actor, see world.drawPlayerTopRing),
   // and a brighter beacon. All render-only: no sim value reads SCENE_FX.
   SCENE_FX: {
-    PLAYER_RING_R: 24, PLAYER_RING_A: 0.30,   // local-player cold-white ground pool (identity; was 20 / 0.12)
-    PLAYER_RING_TOP_R: 10, PLAYER_RING_TOP_A: 0.5,   // top-layer 1.5 px foot ring — the only mark that survives being fully covered
-    SURROUND_N: 4, SURROUND_R: 14,            // ≥N enemies within R px of the player → "surrounded" beacon
+    PLAYER_RING_R: 24, PLAYER_RING_A: 0.34,   // local-player cold-white ground pool (identity; was 20 / 0.12)
+    PLAYER_RING_TOP_R: 10, PLAYER_RING_TOP_A: 0.62,   // top-layer foot ring — the only mark that survives being fully covered
+    // R29/D-2 (ART_SPEC 9) — the cold-white marks are a LIGHT+COLD channel only, so batch C
+    // measured them near-invisible where the ground already owns that channel: 流沙荒漠
+    // WCAG 1.06:1, 天界雲海 cold percentile 18.5%. The ring now carries a near-black outline
+    // (same trick that fixed the beams in R28/W5) so it also owns a DARK channel that no
+    // biome floor has, plus 4 diagonal ticks so the mark has a SHAPE a round decor glow
+    // cannot imitate. The ink stroke carries its OWN alpha (an A-multiplied ink tops out
+    // around 0.35 effective, which blends to ~2:1 on sand — under the ART_SPEC 9 floor) but
+    // is GATED on TOP_A > 0, so zeroing TOP_A still removes the whole top ring in one write
+    // and the batch-C on/off control stays valid.
+    PLAYER_RING_TOP_W: 2.2, PLAYER_RING_TOP_INK_W: 3.2, PLAYER_RING_TOP_INK_A: 0.85,
+    PLAYER_RING_TICK: 3.4,                    // world-px length of the 4 diagonal ticks (0 = off)
+    SURROUND_N: 4, SURROUND_R: 14,            // ≥N enemies within R px of the player → full "surrounded" beacon
+    // R29/D-2 — the beacon used to be a cliff at N: "dense but not yet surrounded" (the few
+    // seconds where you most need to find yourself) got nothing. It now ramps in from
+    // SURROUND_N_SOFT neighbours at a proportional alpha, reaching full strength at N.
+    SURROUND_N_SOFT: 2,
+    SURROUND_INK_A: 0.85,                     // dark rim behind the beacon silhouette (× the beacon alpha)
     SURROUND_A_MIN: 0.25, SURROUND_A_MAX: 0.65,  // beacon silhouette pulse range (max was 0.45)
     WALL_AO_ALPHA: 0.35,                       // south-edge wall-foot ambient-occlusion strength
   },

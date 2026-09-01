@@ -1,0 +1,182 @@
+[
+  {
+    "biome": "crypt",
+    "variant": "v0",
+    "sprite": "floor_crypt",
+    "file": "field-crypt-v0.png"
+  },
+  {
+    "biome": "crypt",
+    "variant": "v1",
+    "sprite": "floor2_crypt",
+    "file": "field-crypt-v1.png"
+  },
+  {
+    "biome": "crypt",
+    "variant": "v2",
+    "sprite": "floorx_crypt",
+    "file": "field-crypt-v2.png"
+  },
+  {
+    "biome": "cavern",
+    "variant": "v0",
+    "sprite": "floor_cavern",
+    "file": "field-cavern-v0.png"
+  },
+  {
+    "biome": "cavern",
+    "variant": "v1",
+    "sprite": "floor2_cavern",
+    "file": "field-cavern-v1.png"
+  },
+  {
+    "biome": "cavern",
+    "variant": "v2",
+    "sprite": "floorx_cavern",
+    "file": "field-cavern-v2.png"
+  },
+  {
+    "biome": "frost",
+    "variant": "v0",
+    "sprite": "floor_frost",
+    "file": "field-frost-v0.png"
+  },
+  {
+    "biome": "frost",
+    "variant": "v1",
+    "sprite": "floor2_frost",
+    "file": "field-frost-v1.png"
+  },
+  {
+    "biome": "frost",
+    "variant": "v2",
+    "sprite": "floorx_frost",
+    "file": "field-frost-v2.png"
+  },
+  {
+    "biome": "inferno",
+    "variant": "v0",
+    "sprite": "floor_inferno",
+    "file": "field-inferno-v0.png"
+  },
+  {
+    "biome": "inferno",
+    "variant": "v1",
+    "sprite": "floor2_inferno",
+    "file": "field-inferno-v1.png"
+  },
+  {
+    "biome": "inferno",
+    "variant": "v2",
+    "sprite": "floorx_inferno",
+    "file": "field-inferno-v2.png"
+  },
+  {
+    "biome": "void",
+    "variant": "v0",
+    "sprite": "floor_void",
+    "file": "field-void-v0.png"
+  },
+  {
+    "biome": "void",
+    "variant": "v1",
+    "sprite": "floor2_void",
+    "file": "field-void-v1.png"
+  },
+  {
+    "biome": "void",
+    "variant": "v2",
+    "sprite": "floorx_void",
+    "file": "field-void-v2.png"
+  },
+  {
+    "biome": "verdant",
+    "variant": "v0",
+    "sprite": "floor_verdant",
+    "file": "field-verdant-v0.png"
+  },
+  {
+    "biome": "verdant",
+    "variant": "v1",
+    "sprite": "floor2_verdant",
+    "file": "field-verdant-v1.png"
+  },
+  {
+    "biome": "verdant",
+    "variant": "v2",
+    "sprite": "floorx_verdant",
+    "file": "field-verdant-v2.png"
+  },
+  {
+    "biome": "desert",
+    "variant": "v0",
+    "sprite": "floor_desert",
+    "file": "field-desert-v0.png"
+  },
+  {
+    "biome": "desert",
+    "variant": "v1",
+    "sprite": "floor2_desert",
+    "file": "field-desert-v1.png"
+  },
+  {
+    "biome": "desert",
+    "variant": "v2",
+    "sprite": "floorx_desert",
+    "file": "field-desert-v2.png"
+  },
+  {
+    "biome": "swamp",
+    "variant": "v0",
+    "sprite": "floor_swamp",
+    "file": "field-swamp-v0.png"
+  },
+  {
+    "biome": "swamp",
+    "variant": "v1",
+    "sprite": "floor2_swamp",
+    "file": "field-swamp-v1.png"
+  },
+  {
+    "biome": "swamp",
+    "variant": "v2",
+    "sprite": "floorx_swamp",
+    "file": "field-swamp-v2.png"
+  },
+  {
+    "biome": "abyss",
+    "variant": "v0",
+    "sprite": "floor_abyss",
+    "file": "field-abyss-v0.png"
+  },
+  {
+    "biome": "abyss",
+    "variant": "v1",
+    "sprite": "floor2_abyss",
+    "file": "field-abyss-v1.png"
+  },
+  {
+    "biome": "abyss",
+    "variant": "v2",
+    "sprite": "floorx_abyss",
+    "file": "field-abyss-v2.png"
+  },
+  {
+    "biome": "celestial",
+    "variant": "v0",
+    "sprite": "floor_celestial",
+    "file": "field-celestial-v0.png"
+  },
+  {
+    "biome": "celestial",
+    "variant": "v1",
+    "sprite": "floor2_celestial",
+    "file": "field-celestial-v1.png"
+  },
+  {
+    "biome": "celestial",
+    "variant": "v2",
+    "sprite": "floorx_celestial",
+    "file": "field-celestial-v2.png"
+  }
+]
