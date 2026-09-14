@@ -14,7 +14,7 @@
 | R1 | `run.mjs`（CLI）＋`plan.mjs`（`parseArgs`/`expandCombos`）＋`ids.json` | 參數解析、組合展開、`--dry-run` 只印數量與估時；未知 id／`--runs 0` → `UsageError` exit 1 |
 | R2 | `driver.mjs`：`setup/startRun/step/collect/lastError`＋CLI 的 `page.addInitScript(stubRaf)` | 載入前把 `requestAnimationFrame` 換成空函式停用引擎迴圈（`src/engine/loop.js:31-33` 只靠 rAF 排程；`startLoop` 的 `stop()` 把手未被 `src/main.js:498` 保留，故不改 src/ 只能從 rAF 下手）；`newRun`＋`setScene(refs.run)`＋`applyPending()`；每格 `clearPauses()`→`resolveChoices()`→`scene.update(1/120)`；終止 `scene.dead`、超上限、或通關後死神逾時由驅動層 `finishRun(true)` |
 | R3 | `strategy/move.mjs` → `decideMove(view)` | 純函式；斥力/引力/牆面取樣的候選方向評分 |
-| R4 | `strategy/choice.mjs` → `decideChoice(kind, options, state, reg)` | 純函式；進化配對＞fuse＞持有升級＞新武器＞被動＞其他；滿級/滿槽/已進化犧牲過濾；tie-break 吃 seed；equip 的 -1 由 driver 走 `resolveEquip(false)` |
+| R4 | `strategy/choice.mjs` → `decideChoice(kind, options, state, reg)` | 純函式；進化配對＞fuse＞持有升級＞新武器＞被動＞其他；滿級/滿槽/已進化犧牲過濾（fuse 讀 `sacrifice`，**`sacrifice` 為武器實例或 `null`**，`null`＝燃燒被動路徑、無犧牲品）；tie-break 吃 seed；equip 的 -1 由 driver 走 `resolveEquip(false)` |
 | R5 | `record.mjs` → `makeRecord/validateRecord/TOOL_VERSION`；CLI `appendLine` | 欄位定義與驗證集中一處（含 `cleared/endReason/gameVersion`）；一局一次 `appendFileSync(JSON.stringify(rec)+'\n')` |
 | R6 | `summarize.mjs` → `summarize(records)` | 純函式產 Markdown；RNG 聲明段、格表（有效筆數 0 → N/A）、角色表、異常清單 |
 | R7 | `run.mjs` `withCleanContext()`＋`driver.setup()` | 每局 `browser.newContext()`；`page.route('**/api/**', abort)` 計數；建局前 `META.settings.analytics=false` |
@@ -29,6 +29,7 @@
   `view = { x, y, hpFrac, dashReady, ts, enemies:[{x,y,radius,boss,hpFrac,dist}], pickups:[{x,y,type}], blocked(wx,wy)→bool, seed }`。
 - `strategy/choice.mjs`：`decideChoice(kind, options, state, reg) → number`（`-1`＝關閉/不買）。
   `state = { weapons:[{id,level,evolved,equipped}], passives:[id], passiveLevels:{}, equipment:{weapon,armor,trinket}, MAX_WEAPONS, MAX_PASSIVES, seed }`；`reg = { weapon(id)→{evolveReq,evolveInto,maxLevel}, equip(id)→{slot,tier,exclusive} }`。
+  fuse 選項依遊戲實際形狀為 `{ kind:'fuse', id, def, target, sacrifice, weight }`（`src/game/progression.js:46`）：`target`／`sacrifice` 是玩家武器實例（`{def, level, evolved, …}`），**`sacrifice` 可為 `null`（燃燒被動路徑，無犧牲品）**；策略層讀 `sacrifice` 判斷是否犧牲掉已進化滿級武器。
 - `strategy/rng.mjs`：`makeRng(seed)→()=>float`、`hashSeed(...parts)→uint32`。
 - `record.mjs`：`TOOL_VERSION`、`makeRecord(cfg, raw)`、`validateRecord(obj)→string[]`。
 - `summarize.mjs`：`summarize(records)→string`（Markdown）。
@@ -122,7 +123,7 @@
 | R3 | 空場零向量 | 無敵無拾 | `move` 為 `{x:0,y:0}`、`dash:false` | 單元 |
 | R4 | 優先拿進化被動 | 持 A（`evolveReq:'power'`）未進化、options 含 power | 回 power 的 index | 單元 |
 | R4 | fuse 優先於升級與被動 | options＝[被動, `{kind:'fuse'}`, 持有武器升級] | 回 fuse 的 index | 單元 |
-| R4 | fuse 不犧牲已進化滿級武器 | fuse 的兩把來源武器之一 `evolved:true` 且滿級 | 不回該 fuse；退而選持有升級 | 單元 |
+| R4 | fuse 不犧牲已進化滿級武器 | fuse 的 `sacrifice` 是 `evolved:true` 且滿級的武器實例（`sacrifice:null` 則可選） | 不回該 fuse；退而選持有升級 | 單元 |
 | R4 | 不選滿級升級/滿槽新武器 | A 已滿級；weapons 已 6 | 不回該 index；全滿級時回第一個非武器項 | 單元 |
 | R4 | 一般優先序與 tie-break | 多選項同分 | 進化被動＞fuse＞升級＞新武器＞被動＞其他；同 seed 連跑 2 次同結果 | 單元 |
 | R4 | equip 只換高 tier、不動 signature | 同槽 tier 高／weapon 槽／空陣列 | 回 0／`-1`／`-1` | 單元 |
