@@ -40,7 +40,7 @@ jobs:
     if: ${{ vars.DEPLOY_ENABLED == 'true' }}
     runs-on: [self-hosted, linux, ARM64]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       # 1) 靜態前端 → /srv/soulshard(只放遊戲執行所需;排除後端與雜項;--delete 讓目標等於來源)
       - name: Deploy static frontend
