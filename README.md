@@ -9,7 +9,7 @@
 [![CI](https://github.com/q86865511/Soulshard-Hunter/actions/workflows/ci.yml/badge.svg)](https://github.com/q86865511/Soulshard-Hunter/actions/workflows/ci.yml)
 [![Vanilla JS](https://img.shields.io/badge/Vanilla%20JS-ES%20Modules-f7df1e?logo=javascript&logoColor=black)](src/main.js)
 [![No Build](https://img.shields.io/badge/build-zero%20config-2ea44f)](tools/serve.mjs)
-[![Node](https://img.shields.io/badge/Node-%E2%89%A520-339933?logo=node.js&logoColor=white)](server/package.json)
+[![Node](https://img.shields.io/badge/Node-%E2%89%A522-339933?logo=node.js&logoColor=white)](server/package.json)
 [![Fastify](https://img.shields.io/badge/Fastify-5.x-000000?logo=fastify&logoColor=white)](server/package.json)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-relay%20backend-4169e1?logo=postgresql&logoColor=white)](server/README.md)
 [![WebSocket](https://img.shields.io/badge/WebSocket-host--authoritative-010101?logo=socketdotio&logoColor=white)](docs/MULTIPLAYER_PLAN.md)
