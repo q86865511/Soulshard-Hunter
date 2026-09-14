@@ -4,7 +4,9 @@
   "type": "module",
   "description": "Dev/test-only frontend smoke tests (Playwright). The game runtime itself stays zero-dependency.",
   "scripts": {
-    "test:frontend": "node frontend-smoke.mjs"
+    "test:frontend": "node frontend-smoke.mjs",
+    "test:bot": "node --test \"../tools/bot/test/*.test.mjs\"",
+    "bot": "node ../tools/bot/run.mjs"
   },
   "devDependencies": {
     "playwright": "^1.50.0"
