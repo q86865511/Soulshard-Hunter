@@ -1,0 +1,43 @@
+{
+  "biomes": [
+    "crypt",
+    "cavern",
+    "frost",
+    "inferno",
+    "void",
+    "verdant",
+    "desert",
+    "swamp",
+    "abyss",
+    "celestial"
+  ],
+  "chars": [
+    "hunter",
+    "pyro",
+    "guardian",
+    "ranger",
+    "stormcaller",
+    "shadow",
+    "g_vanguard",
+    "g_arcanist",
+    "g_ranger",
+    "g_warden",
+    "g_revenant",
+    "g_stormcaller",
+    "h4_paladin",
+    "h4_chronomancer",
+    "h4_puppeteer",
+    "h4_gravekeeper",
+    "h4_starcaller",
+    "h4_bladedancer",
+    "h2_duelist",
+    "h2_warlock",
+    "h2_trapper",
+    "h2_voidcaller",
+    "h2_warder",
+    "h3_spearmaiden",
+    "h3_plague",
+    "h3_beastfang",
+    "h3_dragoon"
+  ]
+}

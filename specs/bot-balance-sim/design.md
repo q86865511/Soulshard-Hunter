@@ -94,6 +94,8 @@
 - **長跑記憶體/頁面崩潰**：每局換 context 是主要緩解；另每 50 局重開 browser、worker 遇 `pageerror`/closed 記 `error` 後重開 context；`evaluate` 逾時視為崩潰。
 - **遊戲 RNG 不可控**：`Math.random` 直接散布在生成/掉落/選項池（如 `progression.js:53` 的 `rng.weighted`），無法以 seed 固定；緩解＝每格 5 局並在報告與紀錄中明記（R9 聲明字串），分析只看分布不看單局。
 - **CPU 成本估不準**：估算法＝先在目標機跑 `--parallel 1 --runs 1` 的 hunter/crypt/diff1 取 `simMs` 中位數寫入 `BENCH.md`，再跑 `--parallel 4` 的 4 局量**每局實際 simMs 的膨脹倍率**（Chromium 每頁一個 renderer 行程，CPU-bound 時會互相排擠），總時 ≈ `局數 × 中位 simMs × 膨脹倍率 / P`；`--dry-run` 用 `BENCH.md` 的中位數換算並印出。
+  **BENCH.md 格式**（`preflight.parseBench` 解析，兩行缺一即整組回退為未校正的 60000 ms／膨脹 1）：
+  `median_ms: <整數>` 與 `inflation: <小數>`，兩行各自獨立，允許千分位逗號與行內其他說明文字。
 - **策略太弱導致「難度過高」的偽結論**：報告固定註明策略等級（走位＋懂進化的選擇，不含技能取捨最佳化），並以 diff1 的通關率當合理性下限；若 diff1 通關率接近 0%，先懷疑策略而非平衡。
 - **頁內外模組不同實例**（(f) 若未來 index.html 改帶 query）：整合測試以 `META === __DBG.meta()` 斷言，改動即紅。
 - **rAF 置換的副作用**：2026-09-14 查證 `requestAnimationFrame` 在 `src/`＋`index.html` 只有 `src/engine/loop.js` 使用，置換不影響其他子系統；若未來有人把 rAF 用在別處（例如 DOM 動畫），整合測試「兩批之間時間不前進」仍守住模擬正確性，但該功能在機器人頁面會不動——屬可接受。
