@@ -1,4 +1,4 @@
-# Round 30 — 維護與平衡測試基礎（進行中）
+# Round 30 — 維護與平衡測試基礎（完成）
 
 > 本輪不加內容、不動玩法／數值／協定／存檔。分兩段：(1) CI／Node 維護（PR #85，已上線）；(2) 機器人平衡測試工具 `bot-balance-sim`（規格三件套＋三波實作＋基準與全量報告，見下方各段）。
 
@@ -49,4 +49,40 @@
 - 整合 **27/27**：`node tools/bot/test/integration.mjs`（既有 T7 驗證紀錄，headless Chromium 短局；T9 未重跑，以免干擾並行效能基準）。
 - `git status --porcelain src/` 為空；T9 僅修改 README、CLAUDE.md 與本檔。
 
-**基準與全量結果**：見 `specs/bot-balance-sim/BENCH.md` 與 `docs/reviews/bot-balance/`（T8/T10 完成後補）。
+**T8 基準實測**：單局 simMs 中位 **461 ms**、parallel=4 膨脹倍率 **2.92**；預設每 50 局重開，270 局五秒封頂測試為 **0 error、4 次重開、89.590 秒、270 個唯一 key**。原始數字與證據路徑見 [BENCH.md](../../specs/bot-balance-sim/BENCH.md)。dry-run 為 **0.63 小時**，來自提前死亡樣本；若多數局撐滿 20 分鐘，線性外推約 **6.16 小時＋0.30 小時固定成本**，非保證上限。T10 全量結果另列於下方。
+
+## T10 — 首份全量批次（2026-09-15）
+
+**產出**：原始 JSONL **6752 行**（保留重試前舊行），經 dedupeLatest 後 **6750 個唯一 key**，遺漏／額外／schema 錯誤均為 0；report.md 已生成且與去重資料重算一致。起始至最終報告耗時 **73.94 分鐘**（4436186 ms，含原批次與續跑等待；原批次退出碼未取得，續跑退出碼見摘要）。
+
+**通關率總覽**（timeout/error 不計分母）：全部 **31/6738 = 0.46%**；diff1 **27/1342 = 2.01%**，diff2 **3/1347 = 0.22%**，diff3 **1/1350 = 0.07%**，diff4 **0/1349 = 0.00%**，diff5 **0/1350 = 0.00%**。最終 death 6707、timeout 12、error 0。diff1 接近零，量到的是策略上限，先做策略對照再判斷遊戲平衡。
+
+**決策摘要**：[docs/reviews/bot-balance/2026-09_summary.md](../reviews/bot-balance/2026-09_summary.md) 包含完整異常格、角色極差 **1.61pp**、diff1 合理性、策略限制與後續對照方案。通關局 endReason：finishRun 9、reaper_timeout 16、sim_cap 6；累計 **browser_restarts=133、api_hits=6866**，跨重開無漏 key。
+
+**W4 裁決修正**：使用者核准 1–8 全修。BENCH 區分 7 局正常局長／270 局五秒封頂母體，補滿局情境與固定成本；README 更新 R30 與估時限制；CLAUDE 修正 B 商店鐵砧與 resolveEquip(false) 佇列處理；修正文句標點，移除已核實的舊 EPERM／未校正輸出 15 檔（清單留存 .pipeline/closeout-cleanup-evidence.json）。純文件與既有批次產出，未更動工具策略、src/、遊戲數值、協定或存檔格式。
+
+**T10 收尾本機驗證（2026-09-15）**：原全量批次與一次同參數續跑均結束、5173 空閒後，才依序執行整合與前端測試；所有指定指令 exit 0。下列為實際輸出摘要：
+
+~~~text
+node --test "tools/bot/test/*.test.mjs"
+ℹ tests 127
+ℹ pass 127
+ℹ fail 0
+
+node tools/bot/test/integration.mjs
+ℹ tests 27
+ℹ pass 27
+ℹ fail 0
+
+cd server && npm run check && npm test
+node --check src/server.js && node --check src/db.js && node --check src/social.js && node --check src/realtime.js && node --check src/wsgw.js
+120 passed, 0 failed
+65 passed, 0 failed
+
+cd test && npm run test:frontend
+59/59 assertions passed
+
+git status --porcelain src/
+~~~
+
+最後一個指令 stdout 為空。完整輸出留於 .pipeline/closeout-{unit,integration,server-check,server-test,frontend}.txt。tasks.md 已勾 T10；本機 .pipeline/state.json 設為 done。PROGRESS.md 不存在，文件關卡列 N/A，不新增。此處為本機收尾，push／PR／merge 仍待使用者同意。

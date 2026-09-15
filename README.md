@@ -25,7 +25,7 @@
 - 🕹️ **可純單機離線遊玩**:雲端與多人皆為選配,未登入／連不上自動退回本機存檔,不影響遊玩
 - ⚙️ **前端零安裝**:一個靜態伺服器即可執行;**執行期不對任何第三方主機發出請求**(字型已自架,見[隱私](#匿名遊玩統計遙測))
 
-**目前進度**:Round 29 完成,對外版本 **V2.0**(V1.0=R18 / V1.5=R19 / V2.0=R20;R21–R29 為 V2.0 之後的內容與品質輪)。已實作末日遺跡城鎮、無盡／每日／週常模式、資料驅動 Boss 招式與局內事件、全 27 角色專屬武器、內容圖鑑與推薦目標、無障礙與輔助模式、匿名遙測、結算教練、場景光影美術輪。R27 為外部程式碼審查的修正批次(排行榜誠信閘門、雲端存檔資料遺失、字型自架、相依清零),不含新玩法。R28 為外部美術審核的改善輪:全角色與敵人尺度統一、戰鬥分層與預警所有權、UI 字級系統、10 生態地標與材質身份、27 張角色肖像、219 個圖示重繪、六室內改造,同樣不含新玩法。R29 為複審跟進輪:27 角色剪影重切(無名稱可辨)、數字不斷行、肖像三曝光面、三檔面板密度、色覺形狀通道、玩家標識暗通道、高 DPI 公平性(zoom/字級/1px 線)。逐輪更新詳見 [`docs/changelog/`](docs/changelog/)(最新 `ROUND29.md`)。
+**目前進度**:Round 30 完成,對外版本 **V2.0**(V1.0=R18 / V1.5=R19 / V2.0=R20;R21–R30 為 V2.0 之後的內容與品質輪)。已實作末日遺跡城鎮、無盡／每日／週常模式、資料驅動 Boss 招式與局內事件、全 27 角色專屬武器、內容圖鑑與推薦目標、無障礙與輔助模式、匿名遙測、結算教練、場景光影美術輪。R27 為外部程式碼審查的修正批次(排行榜誠信閘門、雲端存檔資料遺失、字型自架、相依清零),不含新玩法。R28 為外部美術審核的改善輪:全角色與敵人尺度統一、戰鬥分層與預警所有權、UI 字級系統、10 生態地標與材質身份、27 張角色肖像、219 個圖示重繪、六室內改造,同樣不含新玩法。R29 為複審跟進輪:27 角色剪影重切(無名稱可辨)、數字不斷行、肖像三曝光面、三檔面板密度、色覺形狀通道、玩家標識暗通道、高 DPI 公平性(zoom/字級/1px 線)。R30 完成 CI／Node 維護與機器人平衡測試工具、全量 6750 局摘要；不更動遊戲數值或玩法。逐輪更新詳見 [`docs/changelog/`](docs/changelog/)(最新 [`ROUND30.md`](docs/changelog/ROUND30.md))。
 
 ## 目錄
 
@@ -141,7 +141,7 @@ node tools/bot/run.mjs --biomes crypt --chars hunter --diffs 1 --runs 1 --parall
 
 `--biomes`／`--chars` 接受 `all` 或逗號分隔 ID；`--diffs` 限 1..5 整數（預設 `1,2,3,4,5`），`--runs` 預設 5、`--parallel` 預設 4。可用 `--seed` 固定策略亂數、`--shard i/n` 分片；未指定 `--maxSimSec` 時從 `balance.js` 推得上限（目前 1350 模擬秒）。CLI 另支援 `--restartEvery`（預設 50）、`--baseUrl` 與 `--evalTimeoutMs`（預設 60000 毫秒）。
 
-輸出預設為 `tools/bot/out/runs.jsonl` 與 `tools/bot/out/report.md`（gitignored）；`--out` 相對專案根解析，上例寫入 `tools/bot/out/smoke/`。同批次重跑會續跑未完成與 `error` 局。基準見 `specs/bot-balance-sim/BENCH.md`。
+輸出預設為 `tools/bot/out/runs.jsonl` 與 `tools/bot/out/report.md`（gitignored）；`--out` 相對專案根解析，上例寫入 `tools/bot/out/smoke/`。同批次重跑會續跑未完成與 `error` 局。基準見 [`specs/bot-balance-sim/BENCH.md`](specs/bot-balance-sim/BENCH.md)。dry-run 的 0.63 小時來自提前死亡的短局樣本，未完整涵蓋載頁等固定成本；多數局若撐滿 20 分鐘，線性外推約 6.16 小時，另估固定成本約 0.30 小時（情境估算，非保證上限）。
 
 - 單元測試：`cd test && npm run test:bot`。
 - 整合測試：在專案根執行 `node tools/bot/test/integration.mjs`（Playwright headless Chromium，需 5173 空閒）。
