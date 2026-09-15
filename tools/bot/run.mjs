@@ -25,6 +25,9 @@ import {
   nextConsecFail, dedupeLatest, resumeDoneKeys,
 } from './preflight.mjs';
 import { evaluateWithTimeout } from './pw_util.mjs';
+import { auditCell } from './experiment.mjs';
+import { sourceIdentity, openManifest, writeJson, sessionFile } from './experiment-io.mjs';
+let experimentSession = null;
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '..', '..');
@@ -98,7 +101,10 @@ async function main() {
   const re = takeFlag(argv, '--restartEvery');
   const bu = takeFlag(re.rest, '--baseUrl');
   const et = takeFlag(bu.rest, '--evalTimeoutMs');
-  argv = et.rest;
+  const st = takeFlag(et.rest, '--strategy');
+  const strategy = st.value;
+  if (strategy != null && !['A', 'B'].includes(strategy)) throw new UsageError('unknown --strategy: ' + strategy);
+  argv = st.rest;
 
   let restartEvery = DEFAULT_RESTART_EVERY;
   if (re.value != null) {
@@ -138,6 +144,18 @@ async function main() {
   const outDir = path.resolve(ROOT, opts.out);
   const srcGameVersion = readGameVersionFromSource(readSourceText(PATCHNOTES_PATH));
   const runsPath = path.join(outDir, 'runs.jsonl');
+  let manifest = null;
+  if (strategy != null) {
+    const { out, dryRun, ...args } = opts;
+    manifest = { experimentVersion: 1, strategy, ...sourceIdentity(ROOT), toolVersion: TOOL_VERSION,
+      gameVersion: srcGameVersion, args: { ...args, restartEvery, evalTimeoutMs, baseUrl } };
+    openManifest(outDir, manifest);
+    experimentSession = { file: sessionFile(outDir), startedAt: new Date().toISOString(), startedMs: Date.now(),
+      pid: process.pid, argv: process.argv.slice(2), identity: manifest };
+    writeJson(experimentSession.file, experimentSession);
+  } else if (fs.existsSync(path.join(outDir, 'manifest.json'))) {
+    throw new UsageError('experimental manifest requires explicit --strategy; use original arguments');
+  }
 
   // ── 續跑前置：容錯讀既有 JSONL ＋ 批次識別 ────────────────────────────────
   let existing = [];
@@ -154,6 +172,10 @@ async function main() {
       throw e;
     }
     existing = parsed.records;
+    if (manifest) {
+      const audit = auditCell(existing, combos, manifest);
+      if (audit.errors.length) throw new Error('manifest record mismatch: ' + audit.errors.join(','));
+    }
     if (parsed.truncatedTail) {
       // 半行必須實體移出檔案，否則續跑會把新紀錄接在壞行後面。
       // 先寫 .tmp 再 rename：直接覆寫時若在此刻中斷，好的紀錄也會一起沒了。
@@ -179,7 +201,7 @@ async function main() {
   }
 
   // error 局不算完成：續跑要重試它（resumeDoneKeys）。
-  const queue = pendingCombos(combos, resumeDoneKeys(existing));
+  const queue = pendingCombos(combos, resumeDoneKeys(manifest ? dedupeLatest(existing) : existing));
   fs.mkdirSync(outDir, { recursive: true });
 
   let apiHits = 0;
@@ -194,6 +216,7 @@ async function main() {
     fs.writeFileSync(path.join(outDir, 'report.md'), summarize(all), 'utf8');
     process.stdout.write(`api_hits=${apiHits}\n`);
     process.stdout.write(`browser_restarts=${restarts}\n`);
+    if (experimentSession) Object.assign(experimentSession, { apiHits, browserRestarts: restarts });
     return code;
   };
 
@@ -201,7 +224,14 @@ async function main() {
 
   // ── dev server：可達則沿用，否則（預設埠）自行起一個，結束時關掉 ──────────
   let srv = null;
-  if (!(await reachable(baseUrl))) {
+  const serverReady = await reachable(baseUrl);
+  if (strategy != null && serverReady) {
+    const served = await fetch(new URL('tools/bot/driver.mjs', baseUrl), { signal: AbortSignal.timeout(5000) });
+    if (!served.ok || await served.text() !== fs.readFileSync(path.join(HERE, 'driver.mjs'), 'utf8')) {
+      throw new UsageError('5173/baseUrl serves different project sources; stop and identify owner');
+    }
+  }
+  if (!serverReady) {
     if (!isDefaultServer(baseUrl)) throw new UsageError(`--baseUrl ${baseUrl} 無法連線`);
     srv = spawn(process.execPath, ['tools/serve.mjs'], { cwd: ROOT, stdio: 'ignore' });
     let up = false;
@@ -270,6 +300,7 @@ async function main() {
   }
 
   function appendRecord(rec) {
+    if (strategy != null) rec.strategy = strategy;
     const errs = validateRecord(rec);
     if (errs.length) {
       rec.result = 'error';
@@ -308,7 +339,7 @@ async function main() {
 
       await evaluateWithTimeout(page, (c) => window.__drv.startRun(c), {
         biomeId: job.biome, characterId: job.char, difficulty: job.diff,
-        mode: 'normal', seed: opts.seed, maxSimSec: opts.maxSimSec,
+        mode: 'normal', seed: opts.seed, maxSimSec: opts.maxSimSec, strategy: strategy || 'A',
       }, evalTimeoutMs);
       let res = null;
       for (let i = 0; i < maxBatches; i++) {
@@ -318,6 +349,10 @@ async function main() {
       const raw = await evaluateWithTimeout(page, () => window.__drv.collect(), null, evalTimeoutMs);
       if (pageErrors.length && !raw.error) raw.error = pageErrors[0];
       const rec = makeRecord(cfgOf(job), raw);
+      if (strategy != null) {
+        if (raw.strategy !== strategy) throw new Error('driver strategy mismatch');
+        rec.choiceAudit = raw.choiceAudit;
+      }
       // 頁面級錯誤不得被 makeRecord 推導成 death/timeout——那會讓壞資料混進平衡結論。
       if (pageErrors.length || raw.endReason === 'error') {
         rec.result = 'error';
@@ -337,6 +372,7 @@ async function main() {
       browser = await chromium.launch();
     } catch (e) {
       // 單一 worker 起不了瀏覽器不該拖垮整批：其餘 worker 續跑，未跑組合由 exit 3 反映。
+      if (strategy != null) fatal = new Error('Chromium launch failed: ' + ((e && e.message) || e));
       process.stderr.write(`worker 無法啟動 Chromium，該 worker 退出：${(e && e.message) || e}\n`);
       return;
     }
@@ -350,6 +386,7 @@ async function main() {
             await browser.close();
             browser = await chromium.launch();
           } catch (e) {
+            if (strategy != null) fatal = new Error('Chromium restart failed: ' + ((e && e.message) || e));
             process.stderr.write(`worker 重開 Chromium 失敗，該 worker 退出：${(e && e.message) || e}\n`);
             browser = null;
             return;
@@ -416,4 +453,8 @@ try {
   }
 }
 // 用 exitCode 而非 process.exit：後者會在 stdout 尚未 flush 時就砍掉程序（管線輸出會被截斷）。
+if (experimentSession) {
+  Object.assign(experimentSession, { endedAt: new Date().toISOString(), wallMs: Date.now() - experimentSession.startedMs, exitCode: code });
+  writeJson(experimentSession.file, experimentSession);
+}
 process.exitCode = code;

@@ -130,3 +130,6 @@ Topic-organized current architecture (per-round history is in `docs/changelog/`)
 - **Co-op:** `Player.maxHp` is a **getter** (`return this.stats.maxHp`) — never assign it; the guest stores the networked max as `pl.nmax`. `world.player` stays the LOCAL avatar; `world.players` is the full set. The WS path has its OWN rate limiter (`realtime._allow`) — `@fastify/rate-limit` only guards HTTP. The enemy tuple's last field is `mvLift` (t[8]); guest `makeEnemy` inits it to 0 and `applySnapshot` resets it each frame so the leap_slam lift releases cleanly.
 - **Co-op testing:** a backgrounded/headless tab queues WebSocket `onmessage` until JS next runs — so `RT.room` lags between `preview_eval` calls; poll `RT.room.members.length` inside an active eval before asserting. Run only ONE dev server on :8787 (kill zombies via `taskkill //F //PID <netstat-pid>`). Prefer the offline self-tests `__DBG.coopRoundTrip()` / `coopSilenceTest()` / `coopBossSyncTest()` — they exercise the encode→decode→render path without two real tabs or a relay server.
 - Git: commit messages via `git commit -F <file>` (PowerShell here-strings mangle `->`/parens). End commits with the Co-Authored-By trailer.
+
+## R31 bot 策略實驗
+只在 tools/bot/ 加入可選 B；預設 A 不變。規格 specs/bot-strategy-ab/，細節 docs/changelog/ROUND31.md。先導 540 局與確認 8100 局分目錄、固定 commit／來源指紋；禁止以新版本續跑舊 manifest。實驗期間不要同時啟動其他 5173 服務或改實驗來源。
