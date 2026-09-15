@@ -18,4 +18,16 @@
 新整合測試使用遊戲原生 ability 選項 def；驗證 A/B 真正取得不同內容，並驗證末筆 error 重新執行與錯組／缺策略／錯 seed 拒絕。
 
 ## 實驗結果
-待完成先導與確認批次後填入；不以實作通過宣稱策略有效。
+先導 540/540 唯一 key、0 error／0 缺漏、13.74 分鐘；A 5/264＝1.89%，B 4/270＝1.48%。分歧稽核 A 646／B 613 次皆符合策略；api_hits=562、browser_restarts=0。獨立 PowerShell 驗算一致。確認 8100 局已完成（詳下節）；先導不作效果判定。摘要：docs/reviews/bot-balance/2026-09_strategy-ab.md。
+
+## 全量確認與最終裁決（2026-09-16）
+
+8103 原始行／8100 唯一 key，兩策略各 4050；缺漏、額外、schema 錯誤、最終 error 皆 0。跨度 109.30 分鐘，session 累計 107.21 分鐘。A 76/4024＝1.89%；B 11/4037＝0.27%；B−A −1.62pp，5000 次獨立分層 bootstrap 95% CI [−2.04, −1.19]pp。全局差 −1.60pp，CI [−2.02, −1.19]pp。四項預先門檻僅排除率不增加通過，裁決：保留 A、不採用 B。
+
+B 被動空值 664/4050（A 1742/4050），存活中位 133.71 秒（A 129.45），但 level 中位 4（A 5），且 10 生態通關率皆較低。這是固定策略下的系統實驗，遊戲 RNG 不受控，不能當真人行為。
+
+三筆局次載頁錯誤均原參數補跑成功；最後 cell preflight 另逾時一次，原目錄／原 c08cefb 續跑成功。此舊失敗 session 未輸出 API／重開計數，JSON 保留 null；已知下界 api_hits≥8316、browser_restarts≥18，不偽造完整總數。資料完成後修正失敗計數保存與歷史稽核，新增測試先紅後綠。
+
+最終輸出：單元 tests 145/pass 145/fail 0；原整合 27/27；A/B 整合 4/4；server check exit 0、120 passed/0 failed＋65 passed/0 failed；frontend 59/59 assertions passed。PowerShell 獨立 key/結果計數與 CI 方向檢查一致，src/ 與 server/ 無差異。
+
+文件關卡：requirements.md 補歷史可觀測性限制（門檻未變）、design.md 補 session 稽核、tasks.md 全勾選、本 ROUND31、README、CLAUDE、docs/reviews/bot-balance/2026-09_strategy-ab.md。PROGRESS.md 不存在，未另建。原 R30 JSONL SHA256 未變。本輪只本機 commit，沒有 push／PR／merge／部署。
