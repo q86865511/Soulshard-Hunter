@@ -26,3 +26,7 @@ server/.env
 
 # local-only progress journal (synced to Notion, not tracked in git)
 PROGRESS.md
+
+# /pipeline 工作狀態與審查證據(session 本地)
+.pipeline/
+tools/bot/out/
