@@ -3,10 +3,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
-import { auditCell, makeSchedule } from './experiment.mjs';
+import { auditCell, makeSchedule, checkManifest } from './experiment.mjs';
 import { expandCombos, readJsonlTolerant } from './plan.mjs';
 import { metrics, bootstrapDifference, adoption } from './ab-stats.mjs';
-import { writeJson } from './experiment-io.mjs';
+import { writeJson, sourceIdentity } from './experiment-io.mjs';
+import { summarizeSessions } from './session-audit.mjs';
 import { summarize } from './summarize.mjs';
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../..');
 const [outArg,...extra]=process.argv.slice(2);
@@ -20,6 +21,7 @@ const progress=read(path.join(out,'progress.json'));
 if(progress.status!=='completed')throw Error('experiment not completed');
 const arms={A:[],B:[]},evidence=[];
 let apiHits=0,browserRestarts=0,sessionWallMs=0,rawRows=0,firstStart=Infinity,lastEnd=0;
+let failedSessions=0,missingApiCounters=0,missingRestartCounters=0;
 for(const cell of schedule){
  const dir=path.join(out,cell.id),manifest=read(path.join(dir,'manifest.json'));
  for(const k of ['commit','sourceHash'])if(manifest[k]!==experiment[k])throw Error('identity mismatch '+cell.id+' '+k);
@@ -32,11 +34,14 @@ for(const cell of schedule){
  if(!audit.complete||parsed.truncatedTail)throw Error('incomplete/invalid '+cell.id+': '+JSON.stringify({...audit,records:undefined}));
  if(fs.readFileSync(path.join(dir,'report.md'),'utf8')!==summarize(audit.records))throw Error('report mismatch '+cell.id);
  const sessions=fs.readdirSync(dir).filter(f=>f.startsWith('session-')&&f.endsWith('.json')).map(f=>read(path.join(dir,f)));
- if(!sessions.length||sessions.some(s=>!s.endedAt||![0,3].includes(s.exitCode)||!Number.isInteger(s.apiHits)||!Number.isInteger(s.browserRestarts)))throw Error('session evidence incomplete '+cell.id);
- for(const s of sessions){apiHits+=s.apiHits;browserRestarts+=s.browserRestarts;sessionWallMs+=s.wallMs;firstStart=Math.min(firstStart,Date.parse(s.startedAt));lastEnd=Math.max(lastEnd,Date.parse(s.endedAt));}
+ for(const s of sessions)if(checkManifest(s.identity,manifest))throw Error('session identity mismatch '+cell.id);
+ const accounting=summarizeSessions(sessions);
+ apiHits+=accounting.apiHitsKnown;browserRestarts+=accounting.browserRestartsKnown;sessionWallMs+=accounting.wallMs;
+ failedSessions+=accounting.failedSessions;missingApiCounters+=accounting.missingApiCounters;missingRestartCounters+=accounting.missingRestartCounters;
+ firstStart=Math.min(firstStart,accounting.firstStart);lastEnd=Math.max(lastEnd,accounting.lastEnd);
  arms[cell.strategy].push(...audit.records);rawRows+=audit.raw;
  evidence.push({cell:cell.id,raw:audit.raw,unique:audit.unique,initialErrors:audit.initialErrors,
-  sha256:createHash('sha256').update(body).digest('hex'),sessions:sessions.length});
+  sha256:createHash('sha256').update(body).digest('hex'),sessions:sessions.length,sessionAccounting:accounting});
 }
 const expected=experiment.phase==='pilot'?270:4050;
 for(const arm of ['A','B'])if(arms[arm].length!==expected)throw Error('arm count mismatch');
@@ -46,18 +51,22 @@ const decision=ci?adoption(stats.A,stats.B,ci):{adopt:false,reason:'pilot does n
 const choiceAudit=Object.fromEntries(['A','B'].map(arm=>[arm,
  Object.fromEntries(['choices','divergences','selectedAbility','selectedWeapon'].map(k=>[k,arms[arm].reduce((n,r)=>n+r.choiceAudit[k],0)]))]));
 const biomes=Object.fromEntries(ids.biomes.map(biome=>[biome,Object.fromEntries(['A','B'].map(arm=>[arm,metrics(arms[arm].filter(r=>r.biome===biome))]))]));
-const analysis={phase:experiment.phase,commit:experiment.commit,sourceHash:experiment.sourceHash,rawRows,unique:expected*2,
- stats,ci,decision,choiceAudit,biomes,apiHits,browserRestarts,sessionWallMs,wallMs:lastEnd-firstStart,
+const analysis={phase:experiment.phase,commit:experiment.commit,sourceHash:experiment.sourceHash,analysisIdentity:sourceIdentity(ROOT),rawRows,unique:expected*2,
+ stats,ci,decision,choiceAudit,biomes,apiHits:missingApiCounters?null:apiHits,apiHitsKnown:apiHits,browserRestarts:missingRestartCounters?null:browserRestarts,browserRestartsKnown:browserRestarts,failedSessions,missingApiCounters,missingRestartCounters,sessionWallMs,wallMs:lastEnd-firstStart,
  firstStart:new Date(firstStart).toISOString(),lastEnd:new Date(lastEnd).toISOString(),evidence};
 writeJson(path.join(out,'analysis.json'),analysis);
 const pct=x=>x==null?'N/A':(100*x).toFixed(2)+'%';
+const apiLabel=(missingApiCounters?'≥':'')+apiHits;
+const restartLabel=(missingRestartCounters?'≥':'')+browserRestarts;
 const nums=a=>a.map(x=>x==null?'N/A':x.toFixed(2)).join(' / ');
 let md='# Bot 策略 A/B '+experiment.phase+'\n\n';
 md+='本報告量的是系統性質，不代表真人退出與重試行為。遊戲 RNG 不受控，兩組是獨立抽樣。策略等級：固定走位、懂進化；A 優先新武器，B 優先一般被動；event/curse 固定第一項，shop 不買。\n\n';
 md+='執行 commit：'+experiment.commit+'；來源 SHA256：'+experiment.sourceHash+'。\n\n';
 md+='| 策略 | 全局 n | 有效 | clear | 通關率（有效） | 通關率（全局） | 排除比例 | time p25/p50/p75 秒 | level p25/p50/p75 | abilities 空（有效／全局） |\n|---|---:|---:|---:|---:|---:|---:|---|---|---|\n';
 for(const arm of ['A','B']){const s=stats[arm];md+=`| ${arm} | ${s.n} | ${s.effective} | ${s.clear} | ${pct(s.rate)} | ${pct(s.allRate)} | ${pct(s.excludedRate)} | ${nums(s.time)} | ${nums(s.level)} | ${s.emptyAbilities}/${s.effective}；${s.emptyAbilitiesAll}/${s.n} |\n`;}
-md+='\n原始行 '+rawRows+'；唯一 key '+expected*2+'；api_hits='+apiHits+'；browser_restarts='+browserRestarts+'；起訖 '+analysis.firstStart+' → '+analysis.lastEnd+'；實際跨度 '+(analysis.wallMs/60000).toFixed(2)+' 分鐘；session 累計 '+(sessionWallMs/60000).toFixed(2)+' 分鐘。\n';
+md+='\n原始行 '+rawRows+'；唯一 key '+expected*2+'；api_hits='+apiLabel+'；browser_restarts='+restartLabel+'；起訖 '+analysis.firstStart+' → '+analysis.lastEnd+'；實際跨度 '+(analysis.wallMs/60000).toFixed(2)+' 分鐘；session 累計 '+(sessionWallMs/60000).toFixed(2)+' 分鐘。\n';
+md+='\n分析版本：'+analysis.analysisIdentity.commit+'；分析來源 SHA256：'+analysis.analysisIdentity.sourceHash+'。\n';
+if(missingApiCounters||missingRestartCounters)md+='\n計數限制：'+failedSessions+' 個 session 非零退出；其中 API／重開計數各有 '+missingApiCounters+'／'+missingRestartCounters+' 個歷史失敗 session 未記錄。上列 ≥ 是已知下界，不是完整總數；未將未知值補成 0。所有最終 run 記錄仍須完整且無 error。\n';
 md+='\n## 選擇稽核與 endReason\n\n';
 for(const arm of ['A','B'])md+=arm+'：choiceAudit '+JSON.stringify(choiceAudit[arm])+'；result '+JSON.stringify(stats[arm].result)+'；endReason '+JSON.stringify(stats[arm].endReason)+'；clear endReason '+JSON.stringify(stats[arm].clearEndReason)+'。\n\n';
 md+='## 逐生態\n\n| 生態 | 策略 | n／有效 | clear | 有效率／全局率 | time p25/p50/p75 | level p25/p50/p75 | abilities 空／有效 | endReason |\n|---|---|---:|---:|---|---|---|---|---|\n';

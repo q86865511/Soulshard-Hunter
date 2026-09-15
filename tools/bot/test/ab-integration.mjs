@@ -72,3 +72,20 @@ test('CLI explicit strategies isolate records and reject mismatched/default resu
   assert.equal(session.exitCode,0);assert.ok(session.endedAt);assert.ok(session.wallMs>=0);
  }
 });
+
+test('CLI failed preflight still records terminal session and real counters',()=>{
+ const idsPath=path.join(ROOT,'tools/bot/ids.json');
+ const backup=fs.readFileSync(idsPath,'utf8');
+ const out=path.join(fs.mkdtempSync(path.join(os.tmpdir(),'bot-ab-failed-')),'out');
+ try{
+  const ids=JSON.parse(backup);ids.chars=ids.chars.slice(0,-1);
+  fs.writeFileSync(idsPath,JSON.stringify(ids,null,2)+'\n');
+  const result=spawnSync(process.execPath,['tools/bot/run.mjs','--strategy','A','--biomes','crypt','--chars','hunter','--diffs','1','--runs','1','--maxSimSec','2','--out',out],{cwd:ROOT,encoding:'utf8',timeout:90000});
+  assert.equal(result.status,2,result.stderr);
+  const sessionFile=fs.readdirSync(out).find(f=>f.startsWith('session-')&&f.endsWith('.json'));
+  const session=JSON.parse(fs.readFileSync(path.join(out,sessionFile),'utf8'));
+  assert.equal(session.exitCode,2);assert.ok(session.endedAt);
+  assert.ok(Number.isInteger(session.apiHits),'failed preflight must retain api counter');
+  assert.equal(session.browserRestarts,0);
+ }finally{fs.writeFileSync(idsPath,backup);}
+});

@@ -28,6 +28,7 @@ import { evaluateWithTimeout } from './pw_util.mjs';
 import { auditCell } from './experiment.mjs';
 import { sourceIdentity, openManifest, writeJson, sessionFile } from './experiment-io.mjs';
 let experimentSession = null;
+let experimentCounters = () => ({ apiHits: 0, browserRestarts: 0 });
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '..', '..');
@@ -206,6 +207,7 @@ async function main() {
 
   let apiHits = 0;
   let restarts = 0;
+  experimentCounters = () => ({ apiHits, browserRestarts: restarts });
   const written = [];
   let liveVersion = srcGameVersion || (headerRecord ? headerRecord.gameVersion : null);
   let fatal = null;
@@ -454,7 +456,7 @@ try {
 }
 // 用 exitCode 而非 process.exit：後者會在 stdout 尚未 flush 時就砍掉程序（管線輸出會被截斷）。
 if (experimentSession) {
-  Object.assign(experimentSession, { endedAt: new Date().toISOString(), wallMs: Date.now() - experimentSession.startedMs, exitCode: code });
+  Object.assign(experimentSession, experimentCounters(), { endedAt: new Date().toISOString(), wallMs: Date.now() - experimentSession.startedMs, exitCode: code });
   writeJson(experimentSession.file, experimentSession);
 }
 process.exitCode = code;
