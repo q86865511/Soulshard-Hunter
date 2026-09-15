@@ -85,6 +85,8 @@ function makeReg() {
 export async function startRun(cfg) {
   if (!M) await setup();
   const c = cfg || {};
+  const strategy = c.strategy ?? 'A';
+  if (!['A','B'].includes(strategy)) throw new Error('unknown strategy: ' + strategy);
   const run = M.state.newRun({
     biomeId: c.biomeId || null,
     characterId: c.characterId || 'hunter',
@@ -101,6 +103,8 @@ export async function startRun(cfg) {
     scene,
     run,
     reg: makeReg(),
+    strategy,
+    choiceAudit: { choices: 0, divergences: 0, selectedAbility: 0, selectedWeapon: 0 },
     seed: (typeof c.seed === 'number' && Number.isFinite(c.seed)) ? c.seed : 1,
     maxTicks: Math.max(1, Math.round(maxSimSec * 120)),
     ticks: 0,
@@ -174,7 +178,16 @@ function resolveChoices(s) {
     const opts = raw.map((o) => ({
       kind: o.kind, id: o.id, level: o.level, target: o.target, sacrifice: o.sacrifice,
     }));
-    const idx = decideChoice('level', opts, choiceState(s, 'level'), G.reg);
+    const state = choiceState(s, 'level');
+    const a = decideChoice('level', opts, state, G.reg, 'A');
+    const b = decideChoice('level', opts, state, G.reg, 'B');
+    const idx = G.strategy === 'A' ? a : b;
+    G.choiceAudit.choices++;
+    if (a !== b) {
+      G.choiceAudit.divergences++;
+      if (opts[idx]?.kind === 'ability') G.choiceAudit.selectedAbility++;
+      if (opts[idx]?.kind === 'weapon') G.choiceAudit.selectedWeapon++;
+    }
     if (idx >= 0 && idx < raw.length) M.prog.applyChoice(s.run, s.player, s.world, raw[idx]);
     s.choice = null;
     s.peekBuild = false;
@@ -321,6 +334,8 @@ export function collect() {
     simMs: Math.round(G.simMs),
     ticks: G.ticks,
     gameVersion: VERSION,
+    strategy: G.strategy,
+    choiceAudit: { ...G.choiceAudit },
   };
   if (G.error) raw.error = G.error;
   return raw;

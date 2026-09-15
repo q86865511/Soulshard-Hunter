@@ -93,7 +93,7 @@ function bestOf(cands, seed) {
 }
 
 /** level 面板：回傳選項 index，無可選候選時退回第一個非武器項，仍無則 -1。 */
-function decideLevel(options, state, reg) {
+function decideLevel(options, state, reg, strategy) {
   const weapons = ownedWeapons(state);
   const passives = ownedPassives(state);
   const maxWeapons = Number.isFinite(state && state.MAX_WEAPONS) ? state.MAX_WEAPONS : 6;
@@ -124,7 +124,7 @@ function decideLevel(options, state, reg) {
       const hasRoom = owned || passives.length < maxPassives;
       if (!hasRoom) continue;
       if (wantedEvolveReq.has(o.id)) cands.push({ index: i, pri: PRI_EVOLVE, sub: 0 });
-      else cands.push({ index: i, pri: PRI_ABILITY, sub: 0 });
+      else cands.push({ index: i, pri: strategy === 'B' ? PRI_NEWWEAPON : PRI_ABILITY, sub: 0 });
       continue;
     }
 
@@ -165,7 +165,7 @@ function decideLevel(options, state, reg) {
 
     if (kind === 'weapon') {
       if (weaponSlotsUsed >= maxWeapons) continue; // 武器槽已滿 → 不選新武器
-      cands.push({ index: i, pri: PRI_NEWWEAPON, sub: 0 });
+      cands.push({ index: i, pri: strategy === 'B' ? PRI_ABILITY : PRI_NEWWEAPON, sub: 0 });
       continue;
     }
 
@@ -212,12 +212,13 @@ function decideEquip(options, state, reg) {
  * @param {object} reg 內容登錄查詢器（weapon/equip）
  * @returns {number} 選項 index；-1 ＝ 關閉 / 不買 / 放棄
  */
-export function decideChoice(kind, options, state, reg) {
+export function decideChoice(kind, options, state, reg, strategy = 'A') {
+  if (strategy !== 'A' && strategy !== 'B') throw new Error('unknown strategy: ' + strategy);
   const opts = asArray(options);
   if (!opts || opts.length === 0) return -1;
   switch (kind) {
     case 'level':
-      return decideLevel(opts, state || {}, reg);
+      return decideLevel(opts, state || {}, reg, strategy);
     case 'equip':
       return decideEquip(opts, state || {}, reg);
     case 'event':

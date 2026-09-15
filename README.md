@@ -340,3 +340,18 @@ assets/portraits/               ← R28 的 27 張角色半身肖像(128×128 PN
 | [`docs/DEPLOY.md`](docs/DEPLOY.md) | Oracle Cloud 部署＋CI/CD＋HTTPS |
 | [`docs/MULTIPLAYER_PLAN.md`](docs/MULTIPLAYER_PLAN.md) | 多人連線設計與現況 |
 | [`server/README.md`](server/README.md) | 後端說明 |
+
+## Bot 策略 A/B 實驗（R31，已完成）
+
+規格：specs/bot-strategy-ab/；證據：docs/changelog/ROUND31.md。540＋8100 局已完成，裁決保留 A；詳見 [策略實驗報告](docs/reviews/bot-balance/2026-09_strategy-ab.md)。預設策略 A 保留 R30；--strategy B 只交換一般被動與新武器優先序。
+
+先 commit 實驗來源，再依序執行：
+
+```sh
+node tools/bot/ab-run.mjs pilot tools/bot/out/ab_pilot_2026-09-15
+node tools/bot/ab-analyze.mjs tools/bot/out/ab_pilot_2026-09-15
+node tools/bot/ab-run.mjs confirm tools/bot/out/ab_confirm_2026-09-15
+node tools/bot/ab-analyze.mjs tools/bot/out/ab_confirm_2026-09-15
+```
+
+兩階段各用獨立目錄；續跑使用同指令，manifest 會拒絕策略、來源或參數漂移。開始前 5173 必須空閒。實驗報告量的是系統性質，遊戲 RNG 不受控，不能代表真人通關率。
