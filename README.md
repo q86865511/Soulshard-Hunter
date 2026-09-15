@@ -126,6 +126,26 @@ CI 流程定義於 [`.github/workflows/ci.yml`](.github/workflows/ci.yml)(觸發
 
 前端為純 ESM、無建置,不走 `node --check`;自動化驗證走 **headless Chromium smoke 測試**(`cd test && npm ci && npm run test:frontend`,共 **59 條斷言**;測試依賴隔離在 `test/`,遊戲 runtime 仍零依賴):涵蓋 boot、registry 計數基準、場景切換、首局 story 暫停與離線合作自測。開發時也可**重載頁面 + 瀏覽器內自測**:`window.__DBG` 提供 `reg()`(內容註冊表計數)、`startRun()`、`nav(name)`、`pump(n,dt)`,以及 `coopRoundTrip()` / `coopSilenceTest()` / `coopBossSyncTest()`(在無雙分頁、無中繼伺服器下驗證 host→guest 全鏈路)。細節見 [`CLAUDE.md`](CLAUDE.md) 的 *Run / test* 一節。
 
+### 機器人平衡測試（tools/bot）
+
+沒有玩家資料時，用可重現的純函式策略在 headless Chromium 批次跑完整局，量各生態×角色×難度的存活時間、死亡來源、通關率；不代表真人退出／重試行為，且遊戲本身的 RNG 不受控。
+
+前置：`cd test && npm ci` 安裝 Playwright 相依，完成後回到專案根執行下列指令。生態與角色 ID 來自 `tools/bot/ids.json`；新增角色／生態後，執行 `node tools/bot/gen-ids.mjs` 更新清單。
+
+```bash
+# 只列組合數與估時，不開瀏覽器、不建立輸出檔
+node tools/bot/run.mjs --dry-run --biomes all --chars all
+# 1 局短跑：上限 60 模擬秒，使用獨立輸出子目錄
+node tools/bot/run.mjs --biomes crypt --chars hunter --diffs 1 --runs 1 --parallel 1 --maxSimSec 60 --seed 1 --out tools/bot/out/smoke
+```
+
+`--biomes`／`--chars` 接受 `all` 或逗號分隔 ID；`--diffs` 限 1..5 整數（預設 `1,2,3,4,5`），`--runs` 預設 5、`--parallel` 預設 4。可用 `--seed` 固定策略亂數、`--shard i/n` 分片；未指定 `--maxSimSec` 時從 `balance.js` 推得上限（目前 1350 模擬秒）。CLI 另支援 `--restartEvery`（預設 50）、`--baseUrl` 與 `--evalTimeoutMs`（預設 60000 毫秒）。
+
+輸出預設為 `tools/bot/out/runs.jsonl` 與 `tools/bot/out/report.md`（gitignored）；`--out` 相對專案根解析，上例寫入 `tools/bot/out/smoke/`。同批次重跑會續跑未完成與 `error` 局。基準見 `specs/bot-balance-sim/BENCH.md`。
+
+- 單元測試：`cd test && npm run test:bot`。
+- 整合測試：在專案根執行 `node tools/bot/test/integration.mjs`（Playwright headless Chromium，需 5173 空閒）。
+
 ## 遊戲操作
 
 | 按鍵 | 動作 |
