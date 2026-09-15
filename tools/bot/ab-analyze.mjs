@@ -56,6 +56,7 @@ const analysis={phase:experiment.phase,commit:experiment.commit,sourceHash:exper
  firstStart:new Date(firstStart).toISOString(),lastEnd:new Date(lastEnd).toISOString(),evidence};
 writeJson(path.join(out,'analysis.json'),analysis);
 const pct=x=>x==null?'N/A':(100*x).toFixed(2)+'%';
+const pp=x=>x==null?'N/A':(100*x).toFixed(2)+' pp';
 const apiLabel=(missingApiCounters?'≥':'')+apiHits;
 const restartLabel=(missingRestartCounters?'≥':'')+browserRestarts;
 const nums=a=>a.map(x=>x==null?'N/A':x.toFixed(2)).join(' / ');
@@ -74,7 +75,7 @@ for(const [biome,values] of Object.entries(biomes))for(const [arm,s] of Object.e
  md+=`| ${biome} | ${arm} | ${s.n}/${s.effective} | ${s.clear} | ${pct(s.rate)} / ${pct(s.allRate)} | ${nums(s.time)} | ${nums(s.level)} | ${s.emptyAbilities}/${s.effective} | ${JSON.stringify(s.endReason)} |\n`;
 md+='\n## 判定\n\n';
 if(ci){
- md+='B−A 有效局通關率差：'+pct(stats.B.rate-stats.A.rate)+'（百分點）；95% CI '+nums(ci.effective?.map(x=>100*x)||[])+' pp。全局差 '+pct(stats.B.allRate-stats.A.allRate)+'；95% CI '+nums(ci.all?.map(x=>100*x)||[])+' pp。\n\n';
+ md+='B−A 有效局通關率差：'+pp(stats.B.rate-stats.A.rate)+'；95% CI '+nums(ci.effective?.map(x=>100*x)||[])+' pp。全局差 '+pp(stats.B.allRate-stats.A.allRate)+'；95% CI '+nums(ci.all?.map(x=>100*x)||[])+' pp。\n\n';
  md+='生態×角色分層、兩組分別重抽樣，'+ci.iterations+' 次，分析 seed='+ci.seed+'。遊戲 RNG 不受控，不能當作同世界配對或真人成效。\n\n';
  md+='預先固定門檻：有效率至少 +1pp、CI 下界 >0、全局方向一致、B 排除率不增加。逐門檻：'+JSON.stringify(decision.gates)+'。結論：'+(decision.adopt?'B 符合採用門檻。':'保留 A；本次 B 未通過全部採用門檻，這不代表已證明等效。')+'\n';
 }else md+='先導僅檢查分派、資料隔離與耗時，不作採用判定。依 540 局 session 實耗線性估計 8100 局約 '+(sessionWallMs/60000*15).toFixed(1)+' 分鐘；這只是排程參考，局長與 RNG 會變動。\n';
