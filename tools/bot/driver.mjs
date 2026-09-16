@@ -12,6 +12,7 @@ import { decideMove } from './strategy/move.mjs';
 import { decideChoice } from './strategy/choice.mjs';
 import { hashSeed } from './strategy/rng.mjs';
 import { createGrowthDiagnostics } from './growth-diagnostics.mjs';
+import { policyOf } from './strategy/policy.mjs';
 
 const DT = 1 / 120;                 // 正式步長（src/main.js 的 fixed: 1/120）
 const HP_SAMPLE_TICKS = 3600;       // 每 30 模擬秒取一次血量
@@ -89,7 +90,7 @@ export async function startRun(cfg) {
   const c = cfg || {};
   if (c.diagnostics != null && c.diagnostics !== 'growth-v1') throw new Error('unknown diagnostics: ' + c.diagnostics);
   const strategy = c.strategy ?? 'A';
-  if (!['A','B'].includes(strategy)) throw new Error('unknown strategy: ' + strategy);
+  const policy = policyOf(strategy);
   const run = M.state.newRun({
     biomeId: c.biomeId || null,
     characterId: c.characterId || 'hunter',
@@ -107,6 +108,8 @@ export async function startRun(cfg) {
     run,
     reg: makeReg(),
     strategy,
+    policy,
+    moveAudit: { xpWeight: policy.xpWeight, samples: 0, policyDivergences: 0, xpPresentSamples: 0 },
     choiceAudit: { choices: 0, divergences: 0, selectedAbility: 0, selectedWeapon: 0 },
     seed: (typeof c.seed === 'number' && Number.isFinite(c.seed)) ? c.seed : 1,
     maxTicks: Math.max(1, Math.round(maxSimSec * 120)),
@@ -185,7 +188,7 @@ function resolveChoices(s) {
     const state = choiceState(s, 'level');
     const a = decideChoice('level', opts, state, G.reg, 'A');
     const b = decideChoice('level', opts, state, G.reg, 'B');
-    const idx = G.strategy === 'A' ? a : b;
+    const idx = G.policy.choiceStrategy === 'B' ? b : a;
     G.choiceAudit.choices++;
     if (a !== b) {
       G.choiceAudit.divergences++;
@@ -268,7 +271,15 @@ function tick() {
   clearPauses(s);
   resolveChoices(s);
   const view = buildView(s);
-  G.input = antiIdle(decideMove(view));
+  const move = decideMove(view, G.policy.xpWeight);
+  if (G.ticks % 120 === 0) {
+    const a = G.policy.xpWeight === 1 ? move : decideMove(view, 1);
+    const c = G.policy.xpWeight === 1.5 ? move : decideMove(view, 1.5);
+    G.moveAudit.samples++;
+    if (a.move.x !== c.move.x || a.move.y !== c.move.y) G.moveAudit.policyDivergences++;
+    if (view.pickups.some(p => p.type === 'xp')) G.moveAudit.xpPresentSamples++;
+  }
+  G.input = antiIdle(move);
   G.diagnostics?.motion(view, G.input, G.ticks);
 
   s.update(DT);
@@ -343,6 +354,8 @@ export function collect() {
     ticks: G.ticks,
     gameVersion: VERSION,
     strategy: G.strategy,
+    policy: G.policy,
+    moveAudit: { ...G.moveAudit },
     choiceAudit: { ...G.choiceAudit },
   };
   if (G.diagnostics) raw.diagnostics = G.diagnostics.collect();

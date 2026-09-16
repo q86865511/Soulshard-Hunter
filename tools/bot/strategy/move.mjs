@@ -79,7 +79,8 @@ function probeWalls(blocked, px, py, dx, dy, ts) {
  * @param {object} view 見檔頭 view 結構。
  * @returns {{move:{x:number,y:number}, dash:boolean}} move 長度 ≤ 1（零向量允許）。
  */
-export function decideMove(view) {
+export function decideMove(view, xpWeight = 1) {
+  if (!Number.isFinite(xpWeight) || xpWeight <= 0) throw new Error('xpWeight must be a positive finite number');
   const v = view || {};
   const px = num(v.x, 0);
   const py = num(v.y, 0);
@@ -136,7 +137,7 @@ export function decideMove(view) {
       const ty = dy / len;
       // 與最近敵人同向（夾角 <60°）的 pickup 不算引力：去撿它等於往敵人身上走。
       if (hasNearFoe && tx * nearFoeX + ty * nearFoeY > LURE_MAX_COS) continue;
-      lures.push({ tx, ty, infl: 1 / (1 + len / (6 * ts)) });
+      lures.push({ tx, ty, infl: (p.type === 'xp' ? xpWeight : 1) / (1 + len / (6 * ts)) });
     }
   }
 

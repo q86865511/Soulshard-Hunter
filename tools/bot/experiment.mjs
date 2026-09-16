@@ -3,6 +3,7 @@ import { keyOf } from './plan.mjs';
 import { dedupeLatest } from './preflight.mjs';
 import { validateRecord } from './record.mjs';
 import { validateGrowthDiagnostic } from './growth-diagnostics.mjs';
+import { policyOf } from './strategy/policy.mjs';
 const canonical = v => Array.isArray(v) ? v.map(canonical) : v && typeof v==='object'
  ? Object.fromEntries(Object.keys(v).sort().map(k=>[k,canonical(v[k])])) : v;
 export function checkManifest(existing,current) {
@@ -18,9 +19,20 @@ export function makeSchedule(ids,phase) {
    id:`seed-${seed}/${biome}/${strategy}`,biome,strategy,seed,diff:1,runs:phase==='pilot'?1:5,
   }))));
 }
+export function experimentPlan(ids,phase) {
+ const basePhase=phase==='diagnose'||phase==='pilot-c'?'pilot':phase==='confirm-c'?'confirm':phase;
+ const candidate=phase==='pilot-c'||phase==='confirm-c'?'C':'B';
+ const schedule=makeSchedule(ids,basePhase).map(cell=>candidate==='B'?cell:{
+  ...cell,strategy:cell.strategy==='B'?'C':'A',id:cell.id.replace(/\/B$/,'/C'),
+ });
+ return {basePhase,arms:['A',candidate],diagnostics:phase==='diagnose'||candidate==='C'?'growth-v1':null,schedule};
+}
 export function auditCell(records,combos,manifest) {
  const errors=[];
  const expected=new Set(combos.map(keyOf));
+ const profileRequired=manifest.experimentVersion>=2||manifest.strategy==='C';
+ let expectedProfile=null;
+ if(profileRequired){try{expectedProfile=policyOf(manifest.strategy);if(checkManifest(manifest.profile,expectedProfile))errors.push('policyProfile');}catch{errors.push('policyProfile');}}
  for(const r of records){
   if(validateRecord(r).length) errors.push('schema');
   for(const k of ['strategy','toolVersion','gameVersion']) if(r[k]!==manifest[k]) errors.push(k);
@@ -28,12 +40,18 @@ export function auditCell(records,combos,manifest) {
   if(!expected.has(keyOf(r))) errors.push('extra key');
   if(!['clear','death','timeout','error'].includes(r.result)) errors.push('result');
   if(r.result!=='error'){
+   if(profileRequired){
+    if(checkManifest(r.policy,expectedProfile||{}))errors.push('recordPolicy');
+    const m=r.moveAudit;
+    if(!m||!['samples','policyDivergences','xpPresentSamples'].every(k=>Number.isInteger(m[k])&&m[k]>=0)||
+      m.xpWeight!==expectedProfile?.xpWeight||m.samples!==Math.ceil(r.ticks/120)||m.policyDivergences>m.samples||m.xpPresentSamples>m.samples)errors.push('moveAudit');
+   }
    if(manifest.args.diagnostics==='growth-v1')errors.push(...validateGrowthDiagnostic(r.diagnostics));
    if(!Array.isArray(r.abilities)||!Array.isArray(r.weapons)||!Number.isFinite(r.level)||!Number.isFinite(r.simMs)||!Number.isInteger(r.ticks)) errors.push('record fields');
    const a=r.choiceAudit;
    if(!a || !['choices','divergences','selectedAbility','selectedWeapon'].every(k=>Number.isInteger(a[k])&&a[k]>=0)) errors.push('choiceAudit');
    else if(a.divergences>a.choices || a.selectedAbility+a.selectedWeapon!==a.divergences ||
-    (r.strategy==='A'?a.selectedAbility!==0:a.selectedWeapon!==0)) errors.push('choiceAudit dispatch');
+    (r.strategy==='B'?a.selectedWeapon!==0:a.selectedAbility!==0)) errors.push('choiceAudit dispatch');
   }
  }
  const latest=dedupeLatest(records);

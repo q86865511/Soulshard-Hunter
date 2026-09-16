@@ -138,3 +138,5 @@ R31 裁決：保留預設 A；B 不作後續全量基準。證據見 docs/review
 
 ## R32 成長診斷（進行中）
 工具端 growth-v1 為明確 opt-in，預設關閉；包裝既有局內方法但不改 src/。CLI 與 manifest 鎖定診斷版本；新輸出不可混 R31。規格 specs/bot-growth-diagnostics/，紀錄 docs/changelog/ROUND32.md。真人資料與架構範圍待補，不得把方案文件當成真人評估結果。
+
+候選 C 是工具策略組合：choiceStrategy=A、xpWeight=1.5；預設 A 仍是1。新版 manifest/profile 與 moveAudit 驗證實際分派；舊 A/B 資料以相容分支讀取。不可平行執行會改 ids.json 的整合測試與讀取該清單的分析測試。

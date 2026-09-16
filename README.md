@@ -361,3 +361,7 @@ node tools/bot/ab-analyze.mjs tools/bot/out/ab_confirm_2026-09-15
 規格：specs/bot-growth-diagnostics/。先提交固定來源，確認 5173 空閒，再執行 node tools/bot/ab-run.mjs diagnose tools/bot/out/growth_diag_2026-09-16；完成後用 node tools/bot/growth-analyze.mjs tools/bot/out/growth_diag_2026-09-16 產生報告。
 
 診斷 A/B 的 XP 掉落／收集、選項供給與升級節奏，共 540 局，並不重新採用 B。既有 R31 輸出不可混用；批次期間不得改工具來源或提交變更。真人評估目前待資料，架構工作仍保留 src／協定／存檔禁令。
+
+### 候選 C 的 A/C 實驗
+
+C 保留 A 選擇規則，只把 XP 走位權重1→1.5；規則見 specs/bot-growth-diagnostics/CANDIDATE_C.md。固定 commit 後依序執行 node tools/bot/ab-run.mjs pilot-c tools/bot/out/growth_c_pilot_2026-09-16，驗算完成後再執行 node tools/bot/ab-run.mjs confirm-c tools/bot/out/growth_c_confirm_2026-09-16。各階段使用 node tools/bot/ab-analyze.mjs <out> 產生報告，--verify-only 可只驗算而不覆寫報告。
