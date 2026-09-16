@@ -1,0 +1,1 @@
+participant_id,session_id,partner_id,date_utc,build_commit,game_version,url,device,input_device,familiarity_0_4,role,task_code,evidence_type,event_elapsed_s,event_type,end_reason,assistance,retry_intent_0_4,retry_observed,task_completed,observation,verbatim_quote,interpretation,alternative_explanation
