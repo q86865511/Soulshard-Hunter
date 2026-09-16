@@ -25,6 +25,7 @@ import {
   nextConsecFail, dedupeLatest, resumeDoneKeys,
 } from './preflight.mjs';
 import { evaluateWithTimeout } from './pw_util.mjs';
+import { validateGrowthDiagnostic } from './growth-diagnostics.mjs';
 import { auditCell } from './experiment.mjs';
 import { sourceIdentity, openManifest, writeJson, sessionFile } from './experiment-io.mjs';
 let experimentSession = null;
@@ -105,7 +106,11 @@ async function main() {
   const st = takeFlag(et.rest, '--strategy');
   const strategy = st.value;
   if (strategy != null && !['A', 'B'].includes(strategy)) throw new UsageError('unknown --strategy: ' + strategy);
-  argv = st.rest;
+  const dg = takeFlag(st.rest, '--diagnostics');
+  const diagnostics = dg.value;
+  if (diagnostics != null && diagnostics !== 'growth-v1') throw new UsageError('unknown --diagnostics: ' + diagnostics);
+  if (diagnostics != null && strategy == null) throw new UsageError('--diagnostics requires explicit --strategy');
+  argv = dg.rest;
 
   let restartEvery = DEFAULT_RESTART_EVERY;
   if (re.value != null) {
@@ -149,7 +154,7 @@ async function main() {
   if (strategy != null) {
     const { out, dryRun, ...args } = opts;
     manifest = { experimentVersion: 1, strategy, ...sourceIdentity(ROOT), toolVersion: TOOL_VERSION,
-      gameVersion: srcGameVersion, args: { ...args, restartEvery, evalTimeoutMs, baseUrl } };
+      gameVersion: srcGameVersion, args: { ...args, restartEvery, evalTimeoutMs, baseUrl, diagnostics } };
     openManifest(outDir, manifest);
     experimentSession = { file: sessionFile(outDir), startedAt: new Date().toISOString(), startedMs: Date.now(),
       pid: process.pid, argv: process.argv.slice(2), identity: manifest };
@@ -304,6 +309,7 @@ async function main() {
   function appendRecord(rec) {
     if (strategy != null) rec.strategy = strategy;
     const errs = validateRecord(rec);
+    if (diagnostics && rec.result !== 'error') errs.push(...validateGrowthDiagnostic(rec.diagnostics));
     if (errs.length) {
       rec.result = 'error';
       rec.endReason = 'error';
@@ -341,7 +347,7 @@ async function main() {
 
       await evaluateWithTimeout(page, (c) => window.__drv.startRun(c), {
         biomeId: job.biome, characterId: job.char, difficulty: job.diff,
-        mode: 'normal', seed: opts.seed, maxSimSec: opts.maxSimSec, strategy: strategy || 'A',
+        mode: 'normal', seed: opts.seed, maxSimSec: opts.maxSimSec, strategy: strategy || 'A', diagnostics,
       }, evalTimeoutMs);
       let res = null;
       for (let i = 0; i < maxBatches; i++) {
@@ -354,6 +360,7 @@ async function main() {
       if (strategy != null) {
         if (raw.strategy !== strategy) throw new Error('driver strategy mismatch');
         rec.choiceAudit = raw.choiceAudit;
+        if (diagnostics) rec.diagnostics = raw.diagnostics;
       }
       // 頁面級錯誤不得被 makeRecord 推導成 death/timeout——那會讓壞資料混進平衡結論。
       if (pageErrors.length || raw.endReason === 'error') {

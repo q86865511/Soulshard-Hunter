@@ -2,6 +2,7 @@
 import { keyOf } from './plan.mjs';
 import { dedupeLatest } from './preflight.mjs';
 import { validateRecord } from './record.mjs';
+import { validateGrowthDiagnostic } from './growth-diagnostics.mjs';
 const canonical = v => Array.isArray(v) ? v.map(canonical) : v && typeof v==='object'
  ? Object.fromEntries(Object.keys(v).sort().map(k=>[k,canonical(v[k])])) : v;
 export function checkManifest(existing,current) {
@@ -27,6 +28,7 @@ export function auditCell(records,combos,manifest) {
   if(!expected.has(keyOf(r))) errors.push('extra key');
   if(!['clear','death','timeout','error'].includes(r.result)) errors.push('result');
   if(r.result!=='error'){
+   if(manifest.args.diagnostics==='growth-v1')errors.push(...validateGrowthDiagnostic(r.diagnostics));
    if(!Array.isArray(r.abilities)||!Array.isArray(r.weapons)||!Number.isFinite(r.level)||!Number.isFinite(r.simMs)||!Number.isInteger(r.ticks)) errors.push('record fields');
    const a=r.choiceAudit;
    if(!a || !['choices','divergences','selectedAbility','selectedWeapon'].every(k=>Number.isInteger(a[k])&&a[k]>=0)) errors.push('choiceAudit');

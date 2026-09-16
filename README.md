@@ -355,3 +355,9 @@ node tools/bot/ab-analyze.mjs tools/bot/out/ab_confirm_2026-09-15
 ```
 
 兩階段各用獨立目錄；續跑使用同指令，manifest 會拒絕策略、來源或參數漂移。開始前 5173 必須空閒。實驗報告量的是系統性質，遊戲 RNG 不受控，不能代表真人通關率。
+
+## Bot 成長診斷（R32，進行中）
+
+規格：specs/bot-growth-diagnostics/。先提交固定來源，確認 5173 空閒，再執行 node tools/bot/ab-run.mjs diagnose tools/bot/out/growth_diag_2026-09-16；完成後用 node tools/bot/growth-analyze.mjs tools/bot/out/growth_diag_2026-09-16 產生報告。
+
+診斷 A/B 的 XP 掉落／收集、選項供給與升級節奏，共 540 局，並不重新採用 B。既有 R31 輸出不可混用；批次期間不得改工具來源或提交變更。真人評估目前待資料，架構工作仍保留 src／協定／存檔禁令。

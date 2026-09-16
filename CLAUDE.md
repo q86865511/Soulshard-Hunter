@@ -135,3 +135,6 @@ Topic-organized current architecture (per-round history is in `docs/changelog/`)
 只在 tools/bot/ 加入可選 B；預設 A 不變。規格 specs/bot-strategy-ab/，細節 docs/changelog/ROUND31.md。先導 540 局與確認 8100 局分目錄、固定 commit／來源指紋；禁止以新版本續跑舊 manifest。實驗期間不要同時啟動其他 5173 服務或改實驗來源。
 
 R31 裁決：保留預設 A；B 不作後續全量基準。證據見 docs/reviews/bot-balance/2026-09_strategy-ab.md；詳細版本紀錄維持於 ROUND31.md。
+
+## R32 成長診斷（進行中）
+工具端 growth-v1 為明確 opt-in，預設關閉；包裝既有局內方法但不改 src/。CLI 與 manifest 鎖定診斷版本；新輸出不可混 R31。規格 specs/bot-growth-diagnostics/，紀錄 docs/changelog/ROUND32.md。真人資料與架構範圍待補，不得把方案文件當成真人評估結果。

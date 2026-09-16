@@ -9,13 +9,13 @@ import { sourceIdentity, writeJson } from './experiment-io.mjs';
 import { expandCombos, readJsonlTolerant } from './plan.mjs';
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../..');
 const [phase,outArg,...extra]=process.argv.slice(2);
-if(!['pilot','confirm'].includes(phase)||!outArg||extra.length)throw Error('Usage: node tools/bot/ab-run.mjs pilot|confirm tools/bot/out/<new-phase-dir>');
+if(!['pilot','confirm','diagnose'].includes(phase)||!outArg||extra.length)throw Error('Usage: node tools/bot/ab-run.mjs pilot|confirm|diagnose tools/bot/out/<new-phase-dir>');
 const out=path.resolve(ROOT,outArg),ids=JSON.parse(fs.readFileSync(path.join(ROOT,'tools/bot/ids.json')));
 if(!out.startsWith(path.join(ROOT,'tools/bot/out')+path.sep))throw Error('experiment out must be under tools/bot/out/');
 if(ids.biomes.length!==10||ids.chars.length!==27)throw Error('Expected 10 biomes and 27 characters');
 const dirty=execFileSync('git',['status','--porcelain','--','src/','tools/bot/','tools/serve.mjs','index.html'],{cwd:ROOT,encoding:'utf8'});
 if(dirty.trim())throw Error('Commit experiment sources before long batches: '+dirty);
-const identity={experimentVersion:1,phase,...sourceIdentity(ROOT),schedule:makeSchedule(ids,phase),chars:ids.chars};
+const identity={experimentVersion:1,phase,...sourceIdentity(ROOT),schedule:makeSchedule(ids,phase==='diagnose'?'pilot':phase),chars:ids.chars};
 fs.mkdirSync(out,{recursive:true});
 const lock=path.join(out,'orchestrator.lock');
 if(fs.existsSync(lock)){
@@ -62,6 +62,7 @@ try{
   fs.mkdirSync(dir,{recursive:true});
   const args=['--strategy',cell.strategy,'--biomes',cell.biome,'--chars','all','--diffs','1',
    '--runs',String(cell.runs),'--seed',String(cell.seed),'--parallel','4','--out',dir];
+  if(phase==='diagnose')args.push('--diagnostics','growth-v1');
   const combos=expandCombos({biomes:[cell.biome],chars:ids.chars,diffs:[1],runs:cell.runs});
   let complete=false;
   for(let attempt=0;attempt<=2;attempt++){

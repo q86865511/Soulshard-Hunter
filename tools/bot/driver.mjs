@@ -11,6 +11,7 @@
 import { decideMove } from './strategy/move.mjs';
 import { decideChoice } from './strategy/choice.mjs';
 import { hashSeed } from './strategy/rng.mjs';
+import { createGrowthDiagnostics } from './growth-diagnostics.mjs';
 
 const DT = 1 / 120;                 // 正式步長（src/main.js 的 fixed: 1/120）
 const HP_SAMPLE_TICKS = 3600;       // 每 30 模擬秒取一次血量
@@ -84,7 +85,9 @@ function makeReg() {
 
 export async function startRun(cfg) {
   if (!M) await setup();
+  if (G?.diagnostics) G.diagnostics.dispose();
   const c = cfg || {};
+  if (c.diagnostics != null && c.diagnostics !== 'growth-v1') throw new Error('unknown diagnostics: ' + c.diagnostics);
   const strategy = c.strategy ?? 'A';
   if (!['A','B'].includes(strategy)) throw new Error('unknown strategy: ' + strategy);
   const run = M.state.newRun({
@@ -118,6 +121,7 @@ export async function startRun(cfg) {
   };
   // 既有的 co-op 注入點：回非 undefined 即代表「這個 avatar 由外部輸入驅動」。
   scene.world.inputFor = (p) => (p === scene.player ? G.input : undefined);
+  G.diagnostics = c.diagnostics === 'growth-v1' ? createGrowthDiagnostics(scene) : null;
   sampleHp();
   window.__BOT = { scene, run, ticks: 0 };
   return { ok: true };
@@ -188,6 +192,7 @@ function resolveChoices(s) {
       if (opts[idx]?.kind === 'ability') G.choiceAudit.selectedAbility++;
       if (opts[idx]?.kind === 'weapon') G.choiceAudit.selectedWeapon++;
     }
+    G.diagnostics?.choice(opts, idx, state);
     if (idx >= 0 && idx < raw.length) M.prog.applyChoice(s.run, s.player, s.world, raw[idx]);
     s.choice = null;
     s.peekBuild = false;
@@ -262,10 +267,13 @@ function tick() {
   const s = G.scene;
   clearPauses(s);
   resolveChoices(s);
-  G.input = antiIdle(decideMove(buildView(s)));
+  const view = buildView(s);
+  G.input = antiIdle(decideMove(view));
+  G.diagnostics?.motion(view, G.input, G.ticks);
 
   s.update(DT);
   G.ticks++;
+  G.diagnostics?.afterTick();
   if (G.ticks % HP_SAMPLE_TICKS === 0) sampleHp();
 
   if (s.dead) { finish(G.run.result === 'leave' ? 'abandon' : 'finishRun'); return; }
@@ -337,6 +345,7 @@ export function collect() {
     strategy: G.strategy,
     choiceAudit: { ...G.choiceAudit },
   };
+  if (G.diagnostics) raw.diagnostics = G.diagnostics.collect();
   if (G.error) raw.error = G.error;
   return raw;
 }
