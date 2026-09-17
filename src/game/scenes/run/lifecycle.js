@@ -46,7 +46,7 @@ export const lifecycleMixin = {
     this.leaveConfirm = false; this._lastKeys = 0;   // R17 QA: singleton scene — stale _lastKeys from a prior run suppressed the key banner
     this.paused = false; this.confirmQuit = false;   // 4.8
     // co-op: the run ends only when EVERY avatar is down (one player dying isn't game-over)
-    this.world.onPlayerDeath = () => { if (this.coop) { if (!this.world.anyPlayerAlive()) this.onDeath(); } else this.onDeath(); };
+    this.world.onPlayerDeath = () => { if (this.coop) { if (!(this.coop.canContinue ? this.coop.canContinue() : this.world.anyPlayerAlive())) this.onDeath(); } else this.onDeath(); };
     this.world.onLevelUp = () => this.onLevelUp();
     this.world.onEnemyKilled = (e) => {
       if (e === this.finalBossRef) this.onBigBossDead(e);

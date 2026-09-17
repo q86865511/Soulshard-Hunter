@@ -1,3 +1,4 @@
+import {makeAuthorityStub} from './authority-fake.mjs';
 // In-memory pool that interprets the exact queries server.js issues — used by the
 // smoke test and the no-Postgres dev launcher. NOT for production.
 export function makeFakePool() {
@@ -10,11 +11,13 @@ export function makeFakePool() {
   const adminLogs = [];       // round16/7.6
   const events = [];          // P1-3 telemetry: { sid, v, name, props, created_at }
   let uid = 0, rid = 0, fid = 0, lid = 0;
+  const authorityQuery=makeAuthorityStub({saves,runs,nextRunId:()=>++rid});
   const findEdge = (a, b) => edges.find((e) => String(e.user_id) === String(a) && String(e.friend_id) === String(b));
   const uobj = (id) => { const u = users.find((x) => String(x.id) === String(id)); return u ? { id: u.id, username: u.username } : null; };
   return {
     async query(sql, args = []) {
       const s = sql.replace(/\s+/g, ' ').trim();
+      const authority=authorityQuery(s,args);if(authority)return authority;
       if (s.startsWith('INSERT INTO users')) {
         const [username, email, hash] = args;
         if (users.some((u) => u.username === username) || (email && users.some((u) => u.email === email))) {

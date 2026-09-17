@@ -11,6 +11,8 @@
 import { decideMove } from './strategy/move.mjs';
 import { decideChoice } from './strategy/choice.mjs';
 import { hashSeed } from './strategy/rng.mjs';
+import { createGrowthDiagnostics } from './growth-diagnostics.mjs';
+import { policyOf } from './strategy/policy.mjs';
 
 const DT = 1 / 120;                 // 正式步長（src/main.js 的 fixed: 1/120）
 const HP_SAMPLE_TICKS = 3600;       // 每 30 模擬秒取一次血量
@@ -84,9 +86,11 @@ function makeReg() {
 
 export async function startRun(cfg) {
   if (!M) await setup();
+  if (G?.diagnostics) G.diagnostics.dispose();
   const c = cfg || {};
+  if (c.diagnostics != null && c.diagnostics !== 'growth-v1') throw new Error('unknown diagnostics: ' + c.diagnostics);
   const strategy = c.strategy ?? 'A';
-  if (!['A','B'].includes(strategy)) throw new Error('unknown strategy: ' + strategy);
+  const policy = policyOf(strategy);
   const run = M.state.newRun({
     biomeId: c.biomeId || null,
     characterId: c.characterId || 'hunter',
@@ -104,6 +108,8 @@ export async function startRun(cfg) {
     run,
     reg: makeReg(),
     strategy,
+    policy,
+    moveAudit: { xpWeight: policy.xpWeight, samples: 0, policyDivergences: 0, xpPresentSamples: 0 },
     choiceAudit: { choices: 0, divergences: 0, selectedAbility: 0, selectedWeapon: 0 },
     seed: (typeof c.seed === 'number' && Number.isFinite(c.seed)) ? c.seed : 1,
     maxTicks: Math.max(1, Math.round(maxSimSec * 120)),
@@ -118,6 +124,7 @@ export async function startRun(cfg) {
   };
   // 既有的 co-op 注入點：回非 undefined 即代表「這個 avatar 由外部輸入驅動」。
   scene.world.inputFor = (p) => (p === scene.player ? G.input : undefined);
+  G.diagnostics = c.diagnostics === 'growth-v1' ? createGrowthDiagnostics(scene) : null;
   sampleHp();
   window.__BOT = { scene, run, ticks: 0 };
   return { ok: true };
@@ -181,13 +188,14 @@ function resolveChoices(s) {
     const state = choiceState(s, 'level');
     const a = decideChoice('level', opts, state, G.reg, 'A');
     const b = decideChoice('level', opts, state, G.reg, 'B');
-    const idx = G.strategy === 'A' ? a : b;
+    const idx = G.policy.choiceStrategy === 'B' ? b : a;
     G.choiceAudit.choices++;
     if (a !== b) {
       G.choiceAudit.divergences++;
       if (opts[idx]?.kind === 'ability') G.choiceAudit.selectedAbility++;
       if (opts[idx]?.kind === 'weapon') G.choiceAudit.selectedWeapon++;
     }
+    G.diagnostics?.choice(opts, idx, state);
     if (idx >= 0 && idx < raw.length) M.prog.applyChoice(s.run, s.player, s.world, raw[idx]);
     s.choice = null;
     s.peekBuild = false;
@@ -262,10 +270,21 @@ function tick() {
   const s = G.scene;
   clearPauses(s);
   resolveChoices(s);
-  G.input = antiIdle(decideMove(buildView(s)));
+  const view = buildView(s);
+  const move = decideMove(view, G.policy.xpWeight);
+  if (G.ticks % 120 === 0) {
+    const a = G.policy.xpWeight === 1 ? move : decideMove(view, 1);
+    const c = G.policy.xpWeight === 1.5 ? move : decideMove(view, 1.5);
+    G.moveAudit.samples++;
+    if (a.move.x !== c.move.x || a.move.y !== c.move.y) G.moveAudit.policyDivergences++;
+    if (view.pickups.some(p => p.type === 'xp')) G.moveAudit.xpPresentSamples++;
+  }
+  G.input = antiIdle(move);
+  G.diagnostics?.motion(view, G.input, G.ticks);
 
   s.update(DT);
   G.ticks++;
+  G.diagnostics?.afterTick();
   if (G.ticks % HP_SAMPLE_TICKS === 0) sampleHp();
 
   if (s.dead) { finish(G.run.result === 'leave' ? 'abandon' : 'finishRun'); return; }
@@ -335,8 +354,11 @@ export function collect() {
     ticks: G.ticks,
     gameVersion: VERSION,
     strategy: G.strategy,
+    policy: G.policy,
+    moveAudit: { ...G.moveAudit },
     choiceAudit: { ...G.choiceAudit },
   };
+  if (G.diagnostics) raw.diagnostics = G.diagnostics.collect();
   if (G.error) raw.error = G.error;
   return raw;
 }

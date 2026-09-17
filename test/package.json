@@ -6,7 +6,8 @@
   "scripts": {
     "test:frontend": "node frontend-smoke.mjs",
     "test:bot": "node --test \"../tools/bot/test/*.test.mjs\"",
-    "bot": "node ../tools/bot/run.mjs"
+    "bot": "node ../tools/bot/run.mjs",
+    "test:authority": "node authority-parity.mjs && node authority-browser.mjs"
   },
   "devDependencies": {
     "playwright": "^1.50.0"

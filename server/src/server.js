@@ -12,6 +12,8 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { z } from 'zod';
 import { registerSocial } from './social.js';
+import { AuthorityManager } from './authority/manager.js';
+import { authorityPersistence } from './authority/persistence.js';
 import { Realtime } from './realtime.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-insecure-secret-change-me';
@@ -262,6 +264,7 @@ export async function buildApp(pool, { logger = false, rateMax = 120 } = {}) {
   app.put('/api/save', saveLimit, async (req, reply) => {
     const p = saveSchema.safeParse(req.body);
     if (!p.success) return reply.code(400).send({ error: 'invalid save payload' });
+    if(realtime.authority?.busy(req.user.uid))return reply.code(409).send({error:'合作進行中，雲端進度暫由伺服器保管'});
     // Reject an older write clobbering a newer one — but ONLY within the same save slot.
     // saveSeq is incremented PER SLOT on the client, so comparing it across slots is
     // meaningless: slot0 at seq=500 used to permanently block every push from slot1 at
@@ -285,6 +288,7 @@ export async function buildApp(pool, { logger = false, rateMax = 120 } = {}) {
     const p = runSchema.safeParse(req.body);
     if (!p.success) return reply.code(400).send({ error: 'invalid run payload', detail: p.error.issues });
     const c = p.data;
+    if((c.coop_size||1)>1)return reply.code(403).send({error:'合作成績由伺服器模擬結算，無法由用戶端上傳'});
     const bad = runPlausibility(c);
     if (bad) return reply.code(422).send({ error: 'implausible run rejected', detail: bad });   // anti-cheat: fabricated components
     const score = computeScore(c);
@@ -307,6 +311,7 @@ export async function buildApp(pool, { logger = false, rateMax = 120 } = {}) {
     if (!p.success) return reply.code(400).send({ error: 'invalid run payload', detail: p.error.issues });
     if (realtime.isBannedIp(req.ip)) return reply.code(403).send({ error: '此 IP 已被封鎖' });
     const c = p.data;
+    if((c.coop_size||1)>1)return reply.code(403).send({error:'合作成績由伺服器模擬結算，無法由用戶端上傳'});
     const bad = runPlausibility(c);
     if (bad) return reply.code(422).send({ error: 'implausible run rejected', detail: bad });
     const name = String(c.name).replace(/[<>]/g, '').replace(/\s+/g, ' ').trim().slice(0, 16) || '訪客';
@@ -339,9 +344,9 @@ export async function buildApp(pool, { logger = false, rateMax = 120 } = {}) {
     // registered player AND each guest name keeps only their single best row (no dupe flooding).
     const idExpr = `COALESCE(u.id::text, 'g:' || lower(r.guest_name))`;
     const sql = `
-      SELECT t.username, t.guest, t.score, t.stage, t.kills, t.character, t.biome, t.difficulty, t.time_s, t.cleared, t.reaper, t.coop_size, t.mode, t.challenge_key, t.created_at FROM (
+      SELECT t.username, t.guest, t.score, t.stage, t.kills, t.character, t.biome, t.difficulty, t.time_s, t.cleared, t.reaper, t.coop_size, t.mode, t.challenge_key, t.created_at, t.authority FROM (
         SELECT DISTINCT ON (${idExpr}) COALESCE(u.username, r.guest_name) AS username, (u.id IS NULL) AS guest,
-               r.score, r.stage, r.kills, r.character, r.biome, r.difficulty, r.time_s, r.cleared, r.reaper, r.coop_size, r.mode, r.challenge_key, r.created_at
+               r.score, r.stage, r.kills, r.character, r.biome, r.difficulty, r.time_s, r.cleared, r.reaper, r.coop_size, r.mode, r.challenge_key, r.created_at, (r.authority_run_id IS NOT NULL) AS authority
         FROM runs r LEFT JOIN users u ON u.id = r.user_id
         WHERE (u.id IS NOT NULL OR r.guest_name IS NOT NULL)${where.length ? ' AND ' + where.join(' AND ') : ''}
         ORDER BY ${idExpr}, r.score DESC
@@ -413,7 +418,17 @@ export async function buildApp(pool, { logger = false, rateMax = 120 } = {}) {
   // ---- Phase 2: social (friends) + realtime co-op gateway -------------------
   // The friend REST routes are testable via inject(); the realtime gateway is a
   // socket-less object here (attached to the live HTTP server post-listen, below).
-  const realtime = new Realtime(pool);
+  const persistence=authorityPersistence(pool,computeScore);
+  const authority=new AuthorityManager({
+    maxRooms:Math.max(1,Math.min(16,Number(process.env.AUTHORITY_MAX_ROOMS)||2)),
+    ...persistence,onError:error=>app.log.error({err:error},'authority failure'),
+  });
+  const realtime = new Realtime(pool,{authority});
+  app.addHook('onClose',async()=>authority.close());
+  app.get('/api/authority/results',{preHandler:auth},async req=>{
+    const rows=await pool.query('SELECT run_id, result, saved, created_at FROM authority_results WHERE host_uid=$1 ORDER BY created_at DESC LIMIT 10',[req.user.uid]);
+    return {rows:rows.rows};
+  });
   registerSocial(app, pool, auth, { onFriendChange: (a, b) => realtime.onFriendChange(a, b) });
   app.realtime = realtime;
   await realtime.loadBans().catch(() => {});   // load account/IP ban list into memory

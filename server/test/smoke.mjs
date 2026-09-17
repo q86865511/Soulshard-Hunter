@@ -1,3 +1,4 @@
+import {makeAuthorityStub} from './authority-fake.mjs';
 // End-to-end smoke test for the cloud backend — real Fastify + auth + zod + bcrypt,
 // driven by app.inject() against an in-memory pool that interprets the exact queries
 // server.js issues. No Postgres, no network, no open port. Run: node test/smoke.mjs
@@ -16,9 +17,11 @@ function makeFakePool() {
   const adminLogs = [];       // { id, admin_username, action, target, detail, created_at }
   const events = [];          // P1-3 telemetry: { sid, v, name, props, created_at }
   let uid = 0, rid = 0, fid = 0, lid = 0;
+  const authorityQuery=makeAuthorityStub({saves,runs,nextRunId:()=>++rid});
   return {
     async query(sql, args = []) {
       const s = sql.replace(/\s+/g, ' ').trim();
+      const authority=authorityQuery(s,args);if(authority)return authority;
       if (s.startsWith('INSERT INTO users')) {
         const [username, email, hash] = args;
         if (users.some((u) => u.username === username) || (email && users.some((u) => u.email === email))) {

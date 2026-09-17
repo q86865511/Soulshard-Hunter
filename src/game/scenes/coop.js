@@ -6,10 +6,13 @@ import { Player } from '../player.js';
 import { Enemy } from '../enemy.js';
 import { Enemies } from '../content/registry.js';
 import { deserializeMap, applySnapshot } from '../net/protocol.js';
+import { Net } from '../../net/api.js';
+import { importMeta, getMeta } from '../state.js';
 import { RT } from '../../net/rt.js';
 import { openSocial } from '../../net/social.js';
 import { setScene } from '../scene.js';
 import { refs } from './refs.js';
+import { coopMixin } from './run/coop.js';
 import { Particles } from '../../engine/particles.js';
 import {
   camera, vignette, uiText, uiRect, uiBar, uiScale, view, worldToScreen, UI,
@@ -27,14 +30,14 @@ const inside = (mx, my, r) => mx >= r.x && mx <= r.x + r.w && my >= r.y && my <=
 export const coopScene = {
   enter(payload) {
     const start = payload.start, rs = payload.runstart;
-    this.start = start; this.runstart = rs;
+    this.start = start; this.runstart = rs; this.authority = rs.protocol === 2; this.runId = rs.runId || null; this.settlementMessage='';
     this.selfCid = start.you;
     this.spectator = start.role === 'spectator';   // 中途觀戰: no avatar, no input, free camera
     this.defList = rs.defs;
     this.t = 0; this.selfDead = false; this.runOver = false; this.hostGone = false; this.disconnected = false;
     this.migrated = null; this.hostWaiting = false; this.specIdx = 0; this._dcWait = 0; this._keepRoom = false;
-    this.runResult = null; this.inputSeq = 0; this._inAccum = 0; this._dashPend = false;
-    this.levelup = null; this._snapSilent = 0; this._gotSnap = false;
+    this.runResult = null; this.inputSeq = 0; this._inAccum = 0; this._dashPend = false; this._interactPend = false;
+    this.coopMenu=false;this.levelup = null; this._snapSilent = 0; this._gotSnap = false;
     this.particles = new Particles();
     this.banner = rs.biomeName || ''; this.bannerT = 2.4;
 
@@ -72,13 +75,14 @@ export const coopScene = {
     this._subs = [
       RT.on('snap', (m) => this.onSnap(m)),
       RT.on('runend', (m) => this.onRunEnd(m)),
+      RT.on('settlement', (m) => this.onSettlement(m)),
       RT.on('room:closed', () => this.onHostGone()),       // authoritative: the room genuinely closed (everyone gone / finished)
       RT.on('rt:close', () => this.onDisconnected()),      // OUR socket dropped — distinct from host-gone (may be a transient blip)
       RT.on('resume', (m) => this.onResume(m)),            // server re-attached us into our held slot (new cid) → resume in place
       RT.on('host:waiting', () => { if (!this.runOver && !this.migrated) this.hostWaiting = true; }),   // host blip → hold, don't bail
       RT.on('host:back', () => { this.hostWaiting = false; this._snapSilent = 0; }),
       RT.on('host:migrated', (m) => this.onMigrated(m)),   // host left for good → new host, drop to the shared lobby
-      RT.on('levelup', (m) => { if (!this.spectator && m.cid === this.selfCid && !this.runOver && !this.hostGone && !this.disconnected) this.levelup = { opts: m.opts || [], t: 0, hover: -1 }; }),
+      RT.on('levelup', (m) => { if ((!this.authority || m.runId===this.runId) && !this.spectator && m.cid === this.selfCid && !this.runOver && !this.hostGone && !this.disconnected) this.levelup = { opts: m.opts || [], choiceId:m.choiceId, t: 0, hover: -1 }; }),
     ];
     RT.inRun = true;   // a reconnect mid-run resumes this scene rather than routing through coopbridge
   },
@@ -101,8 +105,25 @@ export const coopScene = {
   deathFx(e) { try { this.particles.death(e.x, e.y, (e.def && e.def.bloodColor) || P.green); } catch (err) { /* */ } },
 
   // ---- network in ----------------------------------------------------------
-  onSnap(m) { try { applySnapshot(this.guest, m); } catch (e) { /* a bad frame must not kill the scene */ } this._gotSnap = true; this._snapSilent = 0; },
-  onRunEnd(m) { this.runOver = true; this.runResult = m || {}; Music.setMode(m && m.won ? 'victory' : 'death'); },
+  onSnap(m) { if(this.authority && m.runId!==this.runId)return; try { applySnapshot(this.guest, m); } catch (e) { /* a bad frame must not kill the scene */ } this._gotSnap = true; this._snapSilent = 0; },
+  onRunEnd(m) { if(this.runOver || (this.authority && m?.runId!==this.runId))return; this.syncSettlement(m); this.runOver = true; this.runResult = m || {}; Music.setMode(m && m.won ? 'victory' : 'death'); },
+  onSettlement(m) {
+    if(!this.authority || !this.runOver || m.protocol!==2 || m.runId!==this.runId)return;
+    this.runResult={...this.runResult,settlement:m.settlement};
+    return this.syncSettlement(m);
+  },
+  async syncSettlement(m) {
+    if(!this.authority || String(m?.summary?.hostUid)!==String(RT.uid))return;
+    if(!m.settlement?.saved){this.settlementMessage=m.settlement?.error||(m.settlement?.pending?'結算儲存中…':'結算待同步');return;}
+    const token=Net.authToken(),runId=this.runId,before=JSON.stringify(getMeta());
+    this.settlementMessage='正在讀取合作獎勵…';
+    try {
+      const data=await Net.getSave();
+      if(Net.authToken()!==token || this.runId!==runId)return;
+      if(JSON.stringify(getMeta())!==before){this.settlementMessage='獎勵已存入雲端；本機進度已變更，請手動同步';return;}
+      this.settlementMessage=importMeta(data.meta)?'合作獎勵已同步':'獎勵已存入出戰時的雲端存檔';
+    } catch { if(Net.authToken()===token && this.runId===runId)this.settlementMessage='獎勵已存入雲端，下次登入時同步'; }
+  },
   onHostGone() { if (this.runOver || this.migrated) return; this.hostGone = true; Music.setMode('hub'); },
   // our own socket dropped mid-run — the server HOLDS our slot for a grace window, so show
   // "reconnecting" and wait; onResume() puts us straight back into the live world.
@@ -110,7 +131,7 @@ export const coopScene = {
   // server re-attached us into our held slot (new cid). isSelf flags were fixed at enter() and
   // the players array is unchanged, so snapshots stay index-aligned — just resume in place.
   onResume(m) {
-    if (m && m.you) this.selfCid = m.you;
+    if (m && m.you) { this.selfCid = m.you; if(this.self)this.self.cid=m.you; this.inputSeq=0; }
     this.disconnected = false; this._dcWait = 0; this.hostWaiting = false; this._snapSilent = 0; this.hostGone = false;
     // held through a host migration: the room is back to a lobby (no live sim) → drop to the shared lobby, not the dead field
     if (m && m.started === false && !this.runOver) { this.migrated = { hostCid: m.hostCid }; Music.setMode('hub'); return; }
@@ -137,12 +158,13 @@ export const coopScene = {
   // ---- input out (throttled ~33Hz; dash coalesced so a press is never dropped) --
   sendInputTick(dt) {
     if (pressed('dash')) this._dashPend = true;
+    if (pressed('interact')) this._interactPend = true;
     this._inAccum += dt;
     if (this._inAccum >= 1 / 33) {
       this._inAccum = 0;
       const ax = moveAxis();
-      RT.input({ seq: ++this.inputSeq, mv: [Math.round(ax.x * 1000) / 1000, Math.round(ax.y * 1000) / 1000], dash: this._dashPend });
-      this._dashPend = false;
+      RT.input({ protocol:this.authority?2:1, runId:this.runId, interact:this._interactPend, seq: ++this.inputSeq, mv: [Math.round(ax.x * 1000) / 1000, Math.round(ax.y * 1000) / 1000], dash: this._dashPend });
+      this._dashPend = false; this._interactPend = false;
     }
   },
 
@@ -173,7 +195,11 @@ export const coopScene = {
 
     if (this.selfDead) this.levelup = null;   // a dead avatar can't pick — drop any pending menu
     else if (this.levelup && !this.spectator) this.updateLevelup(dt);   // non-blocking level-up pick (players only)
-    if (pressed('escape')) { this.leave(); return; }
+    if (pressed('escape')) {
+      if(this.authority&&!this.spectator)this.coopMenu=!this.coopMenu;
+      else {this.leave();return;}
+    }
+    if(this.coopMenu&&this.updateCoopMenu())return;
 
     if (this.spectator) this.updateSpectate(dt);
     else { this.sendInputTick(dt); this.predictSelf(dt); }
@@ -220,6 +246,10 @@ export const coopScene = {
     camera.targetY = pxH > halfH * 2 ? clamp(s.y, halfH, pxH - halfH) : pxH / 2;
   },
 
+  coopMenuLayout:coopMixin.coopMenuLayout,
+  updateCoopMenu:coopMixin.updateCoopMenu,
+  drawCoopMenu:coopMixin.drawCoopMenu,
+  abandon(){this.leave();},
   leave() { try { RT.leaveRoom(); } catch (e) { /* */ } setScene(refs.hub, {}); },
 
   // ---- non-blocking level-up pick (options computed by the host; host applies) -----
@@ -238,7 +268,7 @@ export const coopScene = {
     if (pressed('slot1')) pick = 0; if (pressed('slot2')) pick = 1; if (pressed('slot3')) pick = 2;
     if (pick < 0 && lu.t > 18) pick = 0;   // auto-pick if ignored far too long
     if (pick >= 0 && pick < lu.opts.length) {
-      RT.send({ t: 'levelpick', i: pick });
+      RT.send({ t: 'levelpick', protocol:this.authority?2:1, runId:this.runId, choiceId:lu.choiceId, i: pick });
       if (this.self) this.particles.ring(this.self.x, this.self.y, P.manaL, 18, 100);
       this.levelup = null;
     }
@@ -246,7 +276,7 @@ export const coopScene = {
   drawLevelupMenu() {
     const S = uiScale(); const lu = this.levelup; const rects = this.levelupRects(lu.opts.length);
     const mx = mouse.x * view.dpr, my = mouse.y * view.dpr;
-    uiText('★ 升級！選擇武器（點擊或按 1 / 2 / 3）', view.W / 2, rects[0].y - 12 * S, { size: 13 * S, align: 'center', color: P.manaL, weight: '800', shadowColor: withAlpha('#000', 0.8) });
+    uiText('★ 升級！選擇強化（點擊或按 1 / 2 / 3）', view.W / 2, rects[0].y - 12 * S, { size: 13 * S, align: 'center', color: P.manaL, weight: '800', shadowColor: withAlpha('#000', 0.8) });
     rects.forEach((r, i) => {
       const o = lu.opts[i]; const hover = lu.hover === i; const oy = hover ? -6 * S : 0;
       uiRect(r.x, r.y + oy, r.w, r.h, withAlpha('#1b2840', 0.96), { radius: 8 * S, stroke: hover ? P.shardL : withAlpha(P.shardL, 0.5), lw: hover ? 3 : 2 });
@@ -254,7 +284,8 @@ export const coopScene = {
       const sp = getSprite(iconOr(o.icon, 'weapon_w_soulbolt')); const isc = (r.w * 0.36) / sp.w;
       drawSpriteUI(sp.frames[0], r.x + r.w / 2 - sp.w * isc / 2, r.y + oy + 12 * S, isc);
       const midY = r.y + oy + 14 * S + sp.h * isc;
-      uiText(o.act === 'new' ? '新武器' : o.act === 'heal' ? '回復生命' : ('Lv.' + o.lvl + ' → ' + (o.lvl + 1)), r.x + r.w / 2, midY + 8 * S, { size: UI.FONT_CAPTION * S, align: 'center', color: P.shardL, weight: UI.WEIGHT_HEADING });
+      uiText(o.label || (o.kind === 'ability' ? '被動強化' : o.kind === 'fuse' ? '武器融合' : o.act === 'new' ? '新武器' : o.act === 'heal' ? '回復生命' : ('Lv.' + o.lvl + ' → ' + (o.lvl + 1))), r.x + r.w / 2, midY + 8 * S, { size: UI.FONT_CAPTION * S, align: 'center', color: P.shardL, weight: UI.WEIGHT_HEADING });
+      if(o.knownEvo)uiText('◆',r.x+r.w-10*S,r.y+oy+18*S,{size:UI.FONT_CAPTION*S,align:'right',color:P.astralL});
       uiText(o.name, r.x + r.w / 2, midY + 24 * S, { size: 13 * S, align: 'center', color: '#fff', weight: '800' });
       uiText(String(i + 1), r.x + 9 * S, r.y + oy + 18 * S, { size: 13 * S, color: withAlpha('#fff', 0.45), weight: '900' });
     });
@@ -275,6 +306,7 @@ export const coopScene = {
     if (this.levelup && !this.spectator && calm) this.drawLevelupMenu();
     if (this.selfDead && !this.spectator && calm) this.drawSpectate();
     if (this.hostWaiting && calm) this.drawWaiting();
+    if (this.coopMenu && calm) this.drawCoopMenu();
     if (this.runOver) this.drawRunOver();
     if (this.migrated) this.drawMigrated();
     if (this.hostGone && !this.migrated) this.drawHostGone();
@@ -356,7 +388,8 @@ export const coopScene = {
       uiBar(12 * S, 14 * S, 180 * S, 14 * S, Math.max(0, Math.min(1, s.hp / sm)), { fg: P.red, bg: '#2a0e14', border: P.ink });
       uiText(Math.max(0, Math.round(s.hp)) + ' / ' + Math.round(sm), 102 * S, 24 * S, { size: UI.FONT_CAPTION * S, align: 'center', color: '#fff', weight: UI.WEIGHT_HEADING });
     }
-    uiText('連線合作 · ' + (this.spectator ? '觀戰' : '訪客') + (hud ? '　擊殺 ' + (hud.kills || 0) : ''), view.W - 12 * S, 18 * S, { size: UI.FONT_CAPTION * S, align: 'right', color: withAlpha(P.shardL, 0.85), weight: UI.WEIGHT_BODY });
+    uiText('連線合作 · ' + (this.spectator ? '觀戰' : RT.room?.hostCid===this.selfCid ? '房主' : '隊員') + (hud ? '　擊殺 ' + (hud.kills || 0) : ''), view.W - 12 * S, 18 * S, { size: UI.FONT_CAPTION * S, align: 'right', color: withAlpha(P.shardL, 0.85), weight: UI.WEIGHT_BODY });
+    if(hud && Number.isFinite(hud.level))uiText('隊伍 Lv.'+hud.level+'　經驗 '+Math.floor(hud.xp||0)+' / '+(hud.xpNext||0),12*S,44*S,{size:UI.FONT_CAPTION*S,color:P.gray3});
     // teammate name + hp tags above avatars
     for (const pl of this.players) {
       if (!pl || pl.dead || pl.x == null) continue;
@@ -366,7 +399,7 @@ export const coopScene = {
       uiRect(bx, by, bw, 3.2 * S, withAlpha('#2a0e14', 0.9), { radius: 1.5 * S });
       uiRect(bx, by, bw * Math.max(0, Math.min(1, pl.hp / (pl.nmax || 1))), 3.2 * S, pl.isSelf ? P.greenL : P.red, { radius: 1.5 * S });
     }
-    uiText(this.spectator ? 'Tab 切換視角　Esc 離開' : 'Esc 離開房間', view.W - 12 * S, view.H - 10 * S, { size: UI.FONT_CAPTION * S, align: 'right', color: withAlpha('#fff', 0.3) });
+    uiText(this.spectator ? 'Tab 切換視角　Esc 離開' : this.authority ? 'Esc 合作選單' : 'Esc 離開房間', view.W - 12 * S, view.H - 10 * S, { size: UI.FONT_CAPTION * S, align: 'right', color: withAlpha('#fff', 0.3) });
   },
 
   drawSpectate() {
@@ -378,6 +411,7 @@ export const coopScene = {
     const S = uiScale(); const won = this.runResult && this.runResult.won;
     uiRect(0, 0, view.W, view.H, withAlpha(won ? '#0b1a0d' : '#0b0d1a', 0.82));
     uiText(won ? '隊伍通關！' : '探索結束', view.W / 2, view.H * 0.36, { size: 34 * S, align: 'center', color: won ? P.goldL : P.redL, weight: '900' });
+    if(this.settlementMessage)uiText(this.settlementMessage,view.W/2,view.H*0.36+64*S,{size:UI.FONT_BODY*S,align:'center',color:P.gray3});
     if (this.runResult && this.runResult.score != null) uiText('隊伍分數 ' + this.runResult.score, view.W / 2, view.H * 0.36 + 36 * S, { size: 15 * S, align: 'center', color: '#fff', weight: UI.WEIGHT_HEADING });
     const blink = Math.sin(this.t * 4) * 0.5 + 0.5;
     uiText('點擊 / 空白鍵 返回城鎮', view.W / 2, view.H * 0.9, { size: 15 * S, align: 'center', color: withAlpha('#ffd479', 0.5 + blink * 0.5), weight: UI.WEIGHT_HEADING });
@@ -386,7 +420,7 @@ export const coopScene = {
     const S = uiScale();
     uiRect(0, 0, view.W, view.H, withAlpha('#0b0d1a', 0.82));
     uiText('房間已關閉', view.W / 2, view.H * 0.42, { size: 30 * S, align: 'center', color: P.redL, weight: '900' });
-    uiText('房主已離線或結束遊戲', view.W / 2, view.H * 0.42 + 30 * S, { size: 14 * S, align: 'center', color: P.gray3 });
+    uiText(this.authority ? '合作模擬已結束，請返回大廳' : '房主已離線或結束遊戲', view.W / 2, view.H * 0.42 + 30 * S, { size: 14 * S, align: 'center', color: P.gray3 });
     uiText('點擊返回城鎮', view.W / 2, view.H * 0.9, { size: 15 * S, align: 'center', color: withAlpha('#ffd479', 0.8), weight: UI.WEIGHT_HEADING });
   },
   drawDisconnected() {

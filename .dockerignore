@@ -1,0 +1,12 @@
+.git
+.github
+.claude
+.pipeline
+.codebase-memory
+**/node_modules
+**/.env*
+tools
+test
+docs
+specs
+assets

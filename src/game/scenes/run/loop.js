@@ -115,11 +115,12 @@ export const loopMixin = {
       if (!h.found && dd < 46) { h.found = true; this.banner = '✦ 發現隱藏房間！'; this.bannerT = 2.0; try { this.world.particles.ring(h.x, h.y, P.shardL, 20, 110); Sfx.play('levelup'); } catch (e) { /* */ } }   // 隱藏: only revealed on approach
       if (h.found && dd < 24) { this.nearHidden = h; break; }
     }
-    if (this.world.vaultNear && pressed('interact')) { this.openVault(this.world.vaultNear); }   // R17/7.3: key-use confirm beats everything
-    else if (this.nearShrine && pressed('interact')) { this.useShrine(); }
-    else if (this.nearNpc && pressed('interact')) { this.useNpc(this.nearNpc); }
-    else if (this.nearHidden && pressed('interact')) { this.openHidden(this.nearHidden); }
-    else if (this.cleared && pressed('interact')) {   // leave as a win during the Reaper window
+    const interact = this.coop && this.coop.remoteHost ? this.coop.takeInteract() : pressed('interact');
+    if (this.world.vaultNear && interact) { this.openVault(this.world.vaultNear); }   // R17/7.3: key-use confirm beats everything
+    else if (this.nearShrine && interact) { this.useShrine(); }
+    else if (this.nearNpc && interact) { this.useNpc(this.nearNpc); }
+    else if (this.nearHidden && interact) { this.openHidden(this.nearHidden); }
+    else if (this.cleared && interact) {   // leave as a win during the Reaper window
       // R17/1.7: E used to end the run INSTANTLY anywhere outside an interactable's 22px ring —
       // confirm first. Co-op can't freeze the shared world, so it keeps the immediate exit.
       if (this.coop) { this.finishRun(true); return; }

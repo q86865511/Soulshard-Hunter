@@ -10,9 +10,10 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
-    "test": "node test/smoke.mjs && node test/social.smoke.mjs",
+    "test": "node test/smoke.mjs && node test/social.smoke.mjs && npm run test:authority",
     "dev:fakedb": "node test/dev-fakedb.mjs",
-    "check": "node --check src/server.js && node --check src/db.js && node --check src/social.js && node --check src/realtime.js && node --check src/wsgw.js"
+    "check": "node --check src/server.js && node --check src/db.js && node --check src/social.js && node --check src/realtime.js && node --check src/wsgw.js && node --check src/authority/worker.js && node --check src/authority/manager.js && node --check src/authority/input.js && node --check src/authority/persistence.js",
+    "test:authority": "node test/authority-suite.mjs"
   },
   "dependencies": {
     "@fastify/cors": "^11.0.1",
@@ -23,5 +24,8 @@
     "pg": "^8.12.0",
     "ws": "^8.21.0",
     "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.5.8"
   }
 }

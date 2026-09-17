@@ -41,7 +41,8 @@ const MSG_CLASS = {
 };
 
 export class Realtime {
-  constructor(pool, { genCode } = {}) {
+  constructor(pool, { genCode, authority = null } = {}) {
+    this.authority = authority;
     this.pool = pool;
     this.genCode = genCode || defaultGenCode;
     this.byUid = new Map();     // uid -> Set<client>  (presence; one user may have several tabs)
@@ -85,7 +86,9 @@ export class Realtime {
     set.add(client);
     this.send(client, { t: 'welcome', uid, cid: client.cid, username: client.user.username });   // cid lets the client identify itself (host detection) before a run starts
     await this.pushFriends(uid).catch(() => {});
+    if(this.byCid.get(client.cid)!==client)return;
     if (firstTab) await this.broadcastPresence(uid, true, client.user.username).catch(() => {});   // tell my friends I'm online
+    if(this.byCid.get(client.cid)!==client)return;
     this._tryRejoin(client);   // a reconnect within the grace window resumes the in-run slot (host or guest)
   }
 
@@ -137,6 +140,7 @@ export class Realtime {
   // ---- rooms (lobby) ---------------------------------------------------------
   roomPublic(room) {
     return {
+      authority: !!this.authority, protocol: this.authority ? 2 : 1, runId: room.runId || null,
       code: room.code, hostCid: room.hostCid, started: room.started, cfg: room.cfg,
       members: [...room.members.values()].map((m) => ({
         cid: m.cid, uid: m.uid, username: m.username, ready: m.ready,
@@ -167,7 +171,7 @@ export class Realtime {
     code = String(code || '').toUpperCase().trim();
     const room = this.rooms.get(code);
     if (!room) return this.send(client, { t: 'room:err', msg: '房間不存在' });
-    if (room.started) return this.send(client, { t: 'room:err', msg: '該房間已開始遊戲' });
+    if (room.started || room.starting) return this.send(client, { t: 'room:err', msg: '該房間已開始遊戲' });
     if (room.members.size >= MAX_ROOM) return this.send(client, { t: 'room:err', msg: '房間已滿（最多 ' + MAX_ROOM + ' 人）' });
     if (this.roomOf.get(client.cid) === code) { this.broadcastRoom(room); return; }
     if (this.roomOf.has(client.cid)) this.leaveRoom(client, 'switch');
@@ -181,6 +185,7 @@ export class Realtime {
     code = String(code || '').toUpperCase().trim();
     const room = this.rooms.get(code);
     if (!room) return this.send(client, { t: 'room:err', msg: '房間不存在' });
+    if (room.starting || (this.authority && client.protocol !== 2)) return this.send(client,{t:'room:err',msg:'房間準備中或版本過舊，請重新整理後再試'});
     const specs = [...room.members.values()].filter((m) => m.spectator).length;
     if (specs >= MAX_SPECTATORS) return this.send(client, { t: 'room:err', msg: '觀戰人數已滿' });
     if (this.roomOf.get(client.cid) === code) { this.broadcastRoom(room); return; }
@@ -201,11 +206,13 @@ export class Realtime {
     this.pendingRejoin.delete(client.cid);   // only THIS socket's own held slot (per-slot keying — never a sibling tab's)
     const room = this.rooms.get(code);
     if (!room) return;
+    if (room.starting) { this._closeRoom(room,'start-cancelled'); return; }
     const wasHost = room.hostCid === client.cid;
     const m = room.members.get(client.cid);
     const wasSpectator = m && m.spectator;
     room.members.delete(client.cid);
-    if (room.members.size === 0) { this.rooms.delete(code); return; }
+    if (this.authority && room.started && !room.runEnded && !wasSpectator) this.authority.depart(code, client.cid);
+    if (room.members.size === 0) { if(room.started&&!room.runEnded)this.authority?.finish(code);else this.authority?.stop(code); this.rooms.delete(code); return; }
     if (wasHost) {
       if (room.runEnded) { this._closeRoom(room, 'host-left'); return; }   // run finished → clean close (also clears held rejoins)
       this._migrateHost(room, 'host-left');   // lobby OR mid-run: keep the party alive under a new host (pragmatic host transfer)
@@ -224,8 +231,10 @@ export class Realtime {
   // promote the oldest still-connected player to host; the authoritative sim died with the
   // old host, so an in-progress run is ended and the party drops back to a shared lobby.
   _migrateHost(room, reason) {
-    const next = [...room.members.values()].filter((m) => !m.disconnected && !m.spectator).sort((a, b) => a.seq - b.seq)[0];
+    const keepHeld=!!(this.authority && room.started && !room.runEnded);
+    const next = [...room.members.values()].filter(m=>!m.spectator && (keepHeld || !m.disconnected)).sort((a,b)=>Number(!!a.disconnected)-Number(!!b.disconnected)||a.seq-b.seq)[0];
     if (!next) { this._closeRoom(room, reason); return; }   // no host-capable PLAYER left (only spectators / disconnected husks) → close
+    if (this.authority && room.started && !room.runEnded) { room.hostCid = next.cid; this.broadcastHost(room); this.broadcastRoom(room); return; }
     const wasStarted = room.started && !room.runEnded;
     room.hostCid = next.cid;
     room.started = false; room.runEnded = false; room.lastRunStart = null;   // the sim is gone; back to lobby
@@ -242,6 +251,7 @@ export class Realtime {
     m.disconnected = true; m.dcAt = this._now();
     this.roomOf.delete(client.cid);
     this.pendingRejoin.set(client.cid, { code: room.code, uid: String(client.user.uid) });   // per-slot key (prevCid), carries uid
+    if (this.authority) { if (!m.spectator) this.authority.disconnect(room.code, client.cid); this.broadcastRoom(room); return; }
     if (room.hostCid === client.cid) {   // host blipped — tell players to hold; the sim may resume on reconnect
       for (const mm of room.members.values()) if (!mm.disconnected) { const c = this.byCid.get(mm.cid); if (c) this.send(c, { t: 'host:waiting' }); }
     } else {                              // player blipped — host freezes the avatar, but the slot is retained
@@ -252,11 +262,12 @@ export class Realtime {
 
   // a fresh socket for a uid that has an in-run slot held → re-key the slot to the new socket and resume
   _tryRejoin(client) {
+    if(this.authority && client.protocol !== 2) return;
     const uid = String(client.user.uid);
     // find a held slot for THIS uid whose member is still disconnected (an account may hold >1 slot — match per-slot)
     let prevCid = null, pend = null;
     for (const [pc, e] of this.pendingRejoin) {
-      if (e.uid !== uid) continue;
+      if (e.uid !== uid || (client.resumeCid && pc !== client.resumeCid)) continue;
       const r = this.rooms.get(e.code); const mm = r && r.members.get(pc);
       if (r && mm && mm.disconnected) { prevCid = pc; pend = e; break; }
     }
@@ -274,6 +285,7 @@ export class Realtime {
     const live = !!(room.started && !room.runEnded);   // false ⇒ the run ended / host migrated to a lobby while we were gone
     // resume carries `started` so the client knows whether to resume the field or drop to the shared lobby
     this.send(client, { t: 'resume', role: m.spectator ? 'spectator' : (wasHost ? 'host' : 'guest'), you: client.cid, hostCid: room.hostCid, started: live, room: this.roomPublic(room) });
+    if (live && this.authority) { if (!m.spectator) this.authority.reconnect(room.code, prevCid, client.cid); else if(room.lastRunStart)this.sendRaw(client,room.lastRunStart); this.broadcastHost(room); this.broadcastRoom(room); return; }
     if (live) {
       if (wasHost) {
         for (const mm of room.members.values()) if (mm.cid !== client.cid) { const c = this.byCid.get(mm.cid); if (c) this.send(c, { t: 'host:back', hostCid: client.cid }); }
@@ -296,14 +308,17 @@ export class Realtime {
   _finalizeDeparture(room, m) {
     const wasHost = room.hostCid === m.cid;
     room.members.delete(m.cid);
+    if(this.authority&&!m.spectator)this.authority.depart(room.code,m.cid);
     this.pendingRejoin.delete(m.cid);   // this husk's own held slot
-    if (room.members.size === 0) { this.rooms.delete(room.code); return; }
+    if (room.members.size === 0) { if(room.started&&!room.runEnded)this.authority?.finish(room.code);else this.authority?.stop(room.code); this.rooms.delete(room.code); return; }
     if (wasHost) this._migrateHost(room, 'host-left');
     else this.broadcastRoom(room);   // avatar was already frozen at hold time
   }
 
   // tear a room down: notify connected members, clear any held rejoin pointers into it, delete it
   _closeRoom(room, reason) {
+    if(room.started&&!room.runEnded&&reason!=='simulation-error')this.authority?.finish(room.code);
+    else this.authority?.stop(room.code);
     for (const m of room.members.values()) {
       this.pendingRejoin.delete(m.cid);
       const c = this.byCid.get(m.cid); if (c) { this.roomOf.delete(m.cid); this.send(c, { t: 'room:closed', reason }); }
@@ -314,25 +329,54 @@ export class Realtime {
   setReady(client, ready) { const r = this.myRoom(client); if (!r) return; const m = r.members.get(client.cid); if (m) { m.ready = !!ready; this.broadcastRoom(r); } }
   setBuild(client, charId, weaponId) {
     const r = this.myRoom(client); if (!r) return; const m = r.members.get(client.cid);
-    if (m) { if (typeof charId === 'string') m.charId = charId.slice(0, 40); if (typeof weaponId === 'string') m.weaponId = weaponId.slice(0, 40); this.broadcastRoom(r); }
+    if (m && !r.started && !r.starting) { if (typeof charId === 'string') m.charId = charId.slice(0, 40); if (typeof weaponId === 'string') m.weaponId = weaponId.slice(0, 40); this.broadcastRoom(r); }
   }
   setCfg(client, cfg) {   // host tweaks biome/difficulty in the lobby
-    const r = this.myRoom(client); if (!r || r.hostCid !== client.cid) return;
+    const r = this.myRoom(client); if (!r || r.started || r.starting || r.hostCid !== client.cid) return;
     if (cfg && typeof cfg === 'object') { if ('biomeId' in cfg) r.cfg.biomeId = cleanBiome(cfg.biomeId); if ('difficulty' in cfg) r.cfg.difficulty = clampDiff(cfg.difficulty); this.broadcastRoom(r); }
   }
 
-  startRoom(client) {
+  async startRoom(client) {
     const r = this.myRoom(client);
     if (!r) return this.send(client, { t: 'room:err', msg: '你不在房間中' });
+    if (r.started || r.starting) return;
     if (r.hostCid !== client.cid) return this.send(client, { t: 'room:err', msg: '只有房主能開始' });
     const players = [...r.members.values()].filter((m) => !m.spectator);   // spectators don't count toward the player minimum / ready gate
     if (players.length < 2) return this.send(client, { t: 'room:err', msg: '需要至少 2 名玩家才能開始連線合作' });
     for (const m of players) if (m.cid !== r.hostCid && !m.ready) return this.send(client, { t: 'room:err', msg: '尚有玩家未準備' });
+    let launch = null;
+    if (this.authority) {
+      if ([...r.members.values()].some(m => this.byCid.get(m.cid)?.protocol !== 2))
+        return this.send(client, { t:'room:err', msg:'合作模式已更新，請所有玩家重新整理遊戲後再試' });
+      r.starting = true;
+      try {
+        launch = await this.authority.start(this.roomPublic(r), m => this.authorityOutput(r,m));
+        if (this.rooms.get(r.code) !== r || !r.members.has(client.cid)) { this.authority.stop(r.code,launch.runId); return; }
+        r.runId = launch.runId;
+      } catch(error) {
+        this.authority.onError?.(error);
+        const known=['合作模擬房間已滿，請稍後再試','同一帳號只能參加一場合作模擬','請先使用帳號的雲端同步功能儲存進度，再開始合作'];
+        return this.send(client,{t:'room:err',msg:known.includes(error.message)?error.message:'合作模擬無法啟動，請確認雲端進度或稍後重試'});
+      }
+      finally { r.starting = false; }
+    }
     r.started = true; r.runEnded = false; r.lastRunStart = null;
     const pub = this.roomPublic(r);
     for (const m of r.members.values()) {
       const c = this.byCid.get(m.cid); if (!c) continue;
       this.send(c, { t: 'start', role: m.spectator ? 'spectator' : (m.cid === r.hostCid ? 'host' : 'guest'), you: m.cid, hostCid: r.hostCid, room: pub });
+    }
+    launch?.activate();
+  }
+
+  authorityOutput(room,m) {
+    if (this.rooms.get(room.code) !== room) return;
+    if (m.t === 'authority:error') { this._closeRoom(room,'simulation-error'); return; }
+    if (m.t === 'runstart') room.lastRunStart = JSON.stringify({...m,rejoin:undefined});
+    if (m.t === 'runend') room.runEnded = true;
+    for (const member of room.members.values()) {
+      if (member.disconnected || (m.rejoin && m.rejoin !== member.cid) || (m.t==='levelup' && m.cid!==member.cid)) continue;
+      const c=this.byCid.get(member.cid); if(c)this.send(c,m);
     }
   }
 
@@ -355,6 +399,11 @@ export class Realtime {
   // ---- gameplay relay (raw passthrough; server never parses snapshots) --------
   relayToHost(client, raw, parsed) {
     const code = this.roomOf.get(client.cid); const room = code && this.rooms.get(code);
+    if (this.authority) {
+      const member=room?.members.get(client.cid);
+      if(room?.started&&!room.runEnded&&member&&!member.spectator&&!member.disconnected)this.authority.input(room.code,client.cid,parsed);
+      return;
+    }
     if (!room || !room.started || room.hostCid === client.cid) return;
     const me = room.members.get(client.cid); if (me && me.spectator) return;   // spectators never drive the host sim
     const host = this.byCid.get(room.hostCid); if (!host) return;
@@ -362,6 +411,7 @@ export class Realtime {
     this.send(host, { ...parsed, cid: client.cid });
   }
   relayToGuests(client, raw, parsed) {
+    if (this.authority) return; // All client-authored world state is forbidden, including the lobby owner.
     const code = this.roomOf.get(client.cid); const room = code && this.rooms.get(code);
     if (!room || !room.started || room.hostCid !== client.cid) return;
     if (parsed.t === 'runstart') room.lastRunStart = raw;        // cache the map blob so late joiners / reconnects can be handed it
@@ -391,7 +441,7 @@ export class Realtime {
         case 'room:ready': this.setReady(client, m.ready); break;
         case 'room:build': this.setBuild(client, m.charId, m.weaponId); break;
         case 'room:cfg': this.setCfg(client, m.cfg); break;
-        case 'room:start': this.startRoom(client); break;
+        case 'room:start': await this.startRoom(client); break;
         case 'invite': this.invite(client, m.to); break;
         case 'chat': this.relayChat(client, m.text); break;
         case 'input': case 'levelpick': this.relayToHost(client, raw, m); break;
