@@ -5,13 +5,16 @@ import { RT } from '../../net/rt.js';
 import { Player } from '../player.js';
 import { Characters, Enemies } from '../content/registry.js';
 import { makeBaseStats } from '../state.js';
+import { choiceStyle } from '../progression.js';
+import { allRecipes, isSeen } from '../content/codex.js';
 import { BALANCE } from '../balance.js';
 import { buildRunStart, encodeSnapshot } from './protocol.js';
 
 const SNAP_HZ = 18;
 
 export class CoopHost {
-  constructor(room, selfCid) {
+  constructor(room, selfCid, { transport = RT, remoteHost = false } = {}) {
+    this.transport = transport; this.remoteHost = remoteHost; this._choiceSeq = 0;
     this.room = room; this.selfCid = selfCid;
     this.players = [];          // [{cid, uid, name, charId, weaponId, sprite, player, isLocal, left}]
     this.frame = 0;
@@ -46,63 +49,80 @@ export class CoopHost {
         player.netInput = { move: { x: 0, y: 0 }, dash: false };
         player.addWeapon((m.weaponId) || (char && char.startWeapon) || 'w_soulbolt', scene.world);
       }
+      if (isLocal && this.remoteHost) this._hostInput = { move: { x: 0, y: 0 }, dash: false };
       player.cid = m.cid; player.netName = m.username;
       return { cid: m.cid, uid: m.uid, name: m.username, charId, weaponId: m.weaponId, sprite: player.spriteName, player, isLocal, left: false };
     });
     scene.world.players = this.players.map((p) => p.player);
     scene.world.player = localPlayer;
-    scene.world.inputFor = (pl) => pl.netInput;     // local host avatar has no netInput → reads keyboard
+    scene.world.inputFor = (pl) => this.remoteHost && pl === localPlayer ? this._hostInput : pl.netInput;     // local host avatar has no netInput → reads keyboard
     scene.world.onEquipPickup = null;               // co-op auto-equips the grabber (no paused menu)
 
     // remote input → drive the matching avatar (+ reset its disconnect-silence timer)
-    this._subs.push(RT.on('input', (m) => {
+    this._subs.push(this.transport.on('input', (m) => {
       const slot = this.players.find((p) => p.cid === m.cid);
-      if (slot && slot.player && !slot.left) { slot.player.netInput = { move: { x: m.mv ? m.mv[0] : 0, y: m.mv ? m.mv[1] : 0 }, dash: !!m.dash }; slot.silentT = 0; }
+      if (this.remoteHost && slot?.leftReason === 'silence') this.reattach(m.cid,m.cid);
+      if (slot && slot.player && !slot.left) { const input = { move: { x: m.mv ? m.mv[0] : 0, y: m.mv ? m.mv[1] : 0 }, dash: !!m.dash };
+        if (this.remoteHost && slot.isLocal) { input.dash ||= !!this._hostInput?.dash; this._hostInput = input; }
+        else { input.dash ||= !!slot.player.netInput?.dash; slot.player.netInput = input; } slot.silentT = 0; if (this.remoteHost && slot.isLocal && !slot.player.dead && m.interact) this._interact = true; }
     }));
     // a guest dropped (clean WS close) → freeze + retire its avatar (sim keeps going for the rest)
-    this._subs.push(RT.on('peer:left', (m) => this.retire(m.cid)));
+    this._subs.push(this.transport.on('peer:left', (m) => this.retire(m.cid)));
     // a guest reconnected within the grace window → re-attach its avatar under the new cid (局中斷線重連)
-    this._subs.push(RT.on('peer:rejoin', (m) => this.reattach(m.prevCid, m.cid)));
+    this._subs.push(this.transport.on('peer:rejoin', (m) => this.reattach(m.prevCid, m.cid)));
     // our own (host) socket reconnected → re-bind selfCid + the local slot's cid; broadcasting auto-resumes (房主重連)
-    this._subs.push(RT.on('resume', (m) => {
+    this._subs.push(this.transport.on('resume', (m) => {
       if (!m || m.role !== 'host' || !m.you) return;
       this.selfCid = m.you;
       const ls = this.players.find((p) => p.isLocal);
       if (ls) { ls.cid = m.you; if (ls.player) ls.player.cid = m.you; }
     }));
     // a guest picked a level-up option → apply it to that guest's avatar
-    this._subs.push(RT.on('levelpick', (m) => {
+    this._subs.push(this.transport.on('levelpick', (m) => {
       const slot = this.players.find((p) => p.cid === m.cid);
-      if (slot && this.scene && this.scene.applyCoopGuestPick) this.scene.applyCoopGuestPick(slot, m.i | 0);
+      if (!slot || slot.left || slot.player.dead || !Number.isInteger(m.i)) return;
+      if (this.remoteHost && (m.choiceId !== slot.choiceId || !slot.pendingOpts?.[m.i])) return;
+      if (this.remoteHost && slot.isLocal) this.scene.selectCoopPick(m.i);
+      else if (this.scene && this.scene.applyCoopGuestPick) this.scene.applyCoopGuestPick(slot, m.i);
+      slot.choiceId = null;
     }));
 
-    RT.runStart(buildRunStart(scene));   // hand guests the map + roster so they can build their puppet world
-    RT.inRun = true;                     // mark a co-op run live (a reconnect mid-run resumes in place, not back to lobby)
+    this.transport.runStart(buildRunStart(scene));   // hand guests the map + roster so they can build their puppet world
+    this.transport.inRun = true;                     // mark a co-op run live (a reconnect mid-run resumes in place, not back to lobby)
   }
 
   // retire a remote avatar (disconnect, by clean close OR input-silence timeout) + end-check.
   // The slot is RETAINED (frozen) so a reconnect within the grace window can re-attach it.
-  retire(cid) {
-    const slot = this.players.find((p) => p.cid === cid);
-    if (slot && slot.player && !slot.left) {
-      slot.left = true;
-      slot.wasDead = !!slot.player.dead;   // remember combat-death vs alive-but-frozen, so a rejoin doesn't revive a truly-dead avatar
-      slot.player.netInput = { move: { x: 0, y: 0 }, dash: false };
-      slot.player.dead = true;
+  retire(cid, reason = 'disconnect') {
+    const slot = this.players.find(p => p.cid === cid);
+    const permanent = reason === 'leave';
+    if(slot && slot.player) {
+      if(!slot.left) { slot.wasDead=!!slot.player.dead; slot.left=true; slot.leftReason=reason; }
+      slot.permanent ||= permanent;
+      const input={move:{x:0,y:0},dash:false};
+      if(this.remoteHost && slot.isLocal) { this._hostInput=input; delete slot.player.netInput; }
+      else slot.player.netInput=input;
+      // Trusted simulation keeps disconnected bodies vulnerable. A confirmed departure
+      // removes the body; legacy browser-host mode retains its original retirement rule.
+      if(!this.remoteHost || permanent)slot.player.dead=true;
     }
-    if (this.scene && !this.scene.dead && !this.scene.world.anyPlayerAlive()) this.scene.onDeath();
+    if(this.scene && !this.scene.dead && !this.canContinue()) {
+      if(this.remoteHost && permanent)this.scene.finishRun(this.scene.cleared,'leave');
+      else this.scene.onDeath();
+    }
   }
 
   // a retired guest reconnected (new cid): un-freeze its avatar in place (局中斷線重連)
   reattach(prevCid, newCid) {
     const slot = this.players.find((p) => p.cid === prevCid);
-    if (!slot) return;
-    slot.cid = newCid; slot.left = false; slot.silentT = 0;
-    if (slot.player) { slot.player.dead = !!slot.wasDead; slot.player.cid = newCid; slot.player.netInput = { move: { x: 0, y: 0 }, dash: false }; }
+    if (!slot || slot.permanent) return;
+    slot.cid = newCid; slot.left = false; slot.leftReason = null; slot.silentT = 0;
+    if (slot.player) { if(!this.remoteHost)slot.player.dead = !!slot.wasDead; slot.player.cid = newCid; slot.player.netInput = { move: { x: 0, y: 0 }, dash: false }; if (slot.isLocal && this.remoteHost) { this._hostInput = slot.player.netInput; delete slot.player.netInput; } }
   }
 
   // host->guest: hand a guest its level-up choices (the host owns the apply via levelpick)
-  sendLevelup(slot, opts) { slot.pendingOpts = opts; if (RT.isConnected()) RT.send({ t: 'levelup', cid: slot.cid, opts }); }
+  sendLevelup(slot, opts) { slot.pendingOpts = opts; slot.choiceId = ++this._choiceSeq; if (this.transport.isConnected()) this.transport.send({ t: 'levelup', cid: slot.cid, opts, choiceId: slot.choiceId }); }
+  takeInteract() { const pressed = !!this._interact; this._interact = false; return pressed; }
 
   hudData(scene) {
     let bn = null, bf = 0;
@@ -120,7 +140,7 @@ export class CoopHost {
     }
     return {
       ti: scene.map.biome.name + ' · 難度 ' + (scene.run.difficulty || 1) + ' · 威脅 ' + (scene.threat || 1),
-      su, bn, bf, kills: scene.run.kills || 0,
+      su, bn, bf, kills: scene.run.kills || 0, level:scene.run.level, xp:scene.run.xp, xpNext:scene.run.xpNext,
       banner: scene.bannerT > 0 ? scene.banner : '', bannerT: Math.max(0, scene.bannerT || 0),   // sync the big centre announcements to guests
     };
   }
@@ -128,22 +148,38 @@ export class CoopHost {
   // count of avatars still alive + connected (run ends only when ALL are down)
   aliveCount() { return this.players.filter((p) => p.player && !p.player.dead && !p.left).length; }
   size() { return this.players.length; }
+  canContinue() { return this.remoteHost ? this.players.some(p=>p.player&&!p.player.dead&&!p.permanent) : this.aliveCount()>0; }
 
   tick(dt, scene) {
     // disconnect detection that doesn't wait for the WS heartbeat: a connected guest sends
     // input ~30Hz even when standing still, so >4s of silence means it's gone — retire it.
     for (const slot of this.players) {
-      if (slot.isLocal || slot.left || !slot.player) continue;
+      if ((slot.isLocal && !this.remoteHost) || slot.left || !slot.player) continue;
       slot.silentT = (slot.silentT || 0) + dt;
-      if (slot.silentT > 4) this.retire(slot.cid);
+      if (slot.silentT > 4) this.retire(slot.cid, 'silence');
+    }
+    if (this.remoteHost) {
+      if (this._hostInput) this._hostInput.dash = false;
+      for (const slot of this.players) if (slot.player.netInput) slot.player.netInput.dash = false;
+      const cp = scene.coopPick;
+      if (cp && cp !== this._hostPick) {
+        const host = this.players.find(p => p.isLocal);
+        this.sendLevelup(host, cp.options.map(c => {
+          const style=choiceStyle(c);
+          const knownEvo=(c.kind==='weapon'||c.kind==='weaponup')?isSeen('rec',c.id):c.kind==='ability'&&allRecipes().some(r=>r.reqId===c.id&&scene.player.weapons.some(w=>w.def.id===r.baseId));
+          return {name:c.def.name,icon:style.icon,label:style.sub,kind:c.kind,knownEvo,act:c.kind==='weapon'?'new':'upgrade',lvl:c.level||0};
+        }));
+      }
+      if(!cp && this._hostPick){const host=this.players.find(p=>p.isLocal);host.pendingOpts=null;host.choiceId=null;this.transport.send({t:'levelup',cid:host.cid,opts:[],choiceId:null});}
+      this._hostPick = cp;
     }
     this._snapAccum += dt;
     if (this._snapAccum >= this._snapInterval) {
       this._snapAccum = 0; this.frame++;
-      if (RT.isConnected()) { try { RT.snap(encodeSnapshot(scene)); } catch (e) { /* a bad frame must never crash the host sim */ } }
+      if (this.transport.isConnected()) { try { this.transport.snap(encodeSnapshot(scene)); } catch (e) { /* a bad frame must never crash the host sim */ } }
     }
   }
 
-  end(result) { if (RT.isConnected()) RT.runEnd(result || {}); this.dispose(); }
-  dispose() { RT.inRun = false; for (const u of this._subs) try { u(); } catch (e) { /* */ } this._subs = []; }
+  end(result) { if (this.transport.isConnected()) this.transport.runEnd(result || {}); this.dispose(); }
+  dispose() { this.transport.inRun = false; for (const u of this._subs) try { u(); } catch (e) { /* */ } this._subs = []; }
 }

@@ -20,7 +20,9 @@ services:
       retries: 10
 
   api:
-    build: .
+    build:
+      context: ..
+      dockerfile: server/Dockerfile
     restart: unless-stopped
     depends_on:
       db:
@@ -31,6 +33,7 @@ services:
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:5173,http://127.0.0.1:5173}
       ADMIN_USERS: ${ADMIN_USERS:-}   # comma-separated usernames granted the 🛠 admin console (read from .env)
       METRICS_RETENTION_DAYS: ${METRICS_RETENTION_DAYS:-90}   # P1-3: anonymous telemetry retention (days)
+      AUTHORITY_MAX_ROOMS: ${AUTHORITY_MAX_ROOMS:-2}
       NODE_ENV: production
       PORT: "8787"
     ports:

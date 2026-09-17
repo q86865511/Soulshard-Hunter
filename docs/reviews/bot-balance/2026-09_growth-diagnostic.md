@@ -92,3 +92,7 @@ B：panels 1080；offer-panels {"ability":0.9398148148148148,"weapon":0.78148148
 原始 540 行、唯一 540 key、最終 error 0；所有診斷守恆與 schema 通過。session accounting {"sessions":20,"failedSessions":0,"apiHitsKnown":557,"browserRestartsKnown":0,"missingApiCounters":0,"missingRestartCounters":0,"wallMs":829445,"firstStart":1789555506713,"lastEnd":1789556341207}。
 
 觀測是相關線索，不能單憑全局產量認定機制；成長與存活互相影響。共同窗口仍有隨時間變化的在險族群。候選 C 必須在診斷後另行凍結，採用判定使用獨立確認資料。
+
+## 後續確認（2026-09-17）
+
+候選 C 的 8100 局確認已完成，未通過採用門檻，保留 A。完整結果與不確定性見 [A/C 確認摘要](2026-09_strategy-ac.md)。本診斷原始觀測與數字保持不變。

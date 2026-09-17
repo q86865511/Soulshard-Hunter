@@ -17,6 +17,7 @@ class RtClient {
     this.want = false;          // do we want to be connected? (logged in)
     this.tries = 0;
     this.selfCid = null;
+    this.resumeCid=null;try{this.resumeCid=sessionStorage.getItem('soulshard.rt.resume');}catch{}
     this.room = null;           // latest room:state.room
     this.inRun = false;         // true while a co-op run scene (host run.js or guest coop.js) is live — gates reconnect routing
     this.friends = []; this.incoming = []; this.outgoing = [];
@@ -28,6 +29,11 @@ class RtClient {
   on(type, cb) { let s = this.listeners.get(type); if (!s) { s = new Set(); this.listeners.set(type, s); } s.add(cb); return () => this.off(type, cb); }
   off(type, cb) { const s = this.listeners.get(type); if (s) s.delete(cb); }
   emit(type, msg) { const s = this.listeners.get(type); if (s) for (const cb of [...s]) { try { cb(msg); } catch (e) { if (typeof console !== 'undefined') console.error('[RT.emit ' + type + ']', e); } } }
+
+  rememberConnection(cid=this.selfCid) {
+    this.resumeCid=cid||null;
+    try{if(cid)sessionStorage.setItem('soulshard.rt.resume',cid);else sessionStorage.removeItem('soulshard.rt.resume');}catch{}
+  }
 
   // ---- connection ------------------------------------------------------------
   isConnected() { return !!(this.ws && this.ws.readyState === 1); }
@@ -44,7 +50,7 @@ class RtClient {
     const token = Net.authToken();
     if (!token) return;
     let ws;
-    try { ws = new WebSocket(wsBase() + '/rt?token=' + encodeURIComponent(token)); }
+    try { ws = new WebSocket(wsBase() + '/rt?protocol=2&token=' + encodeURIComponent(token) + '&resumeCid=' + encodeURIComponent(this.resumeCid||'')); }
     catch (e) { this._scheduleReconnect(); return; }
     this.ws = ws;
     ws.addEventListener('open', () => { this.tries = 0; this.emit('rt:open', {}); });
@@ -67,7 +73,7 @@ class RtClient {
     this.want = false;
     if (this._timer) { clearTimeout(this._timer); this._timer = null; }
     if (this.ws) { try { this.ws.close(); } catch (e) { /* */ } this.ws = null; }
-    this.room = null; this.selfCid = null; this.friends = []; this.incoming = []; this.outgoing = [];
+    this.room = null; this.selfCid = null; this.rememberConnection(null); this.friends = []; this.incoming = []; this.outgoing = [];
   }
 
   // keep local mirror of the bits the UI polls
@@ -75,10 +81,10 @@ class RtClient {
     if (m.t === 'welcome') { this.uid = m.uid; this.selfCid = m.cid; }   // know our own conn id up-front (host detection in the lobby)
     else if (m.t === 'friends') { this.friends = m.friends || []; this.incoming = m.incoming || []; this.outgoing = m.outgoing || []; }
     else if (m.t === 'presence') { const f = this.friends.find((x) => String(x.id) === String(m.uid)); if (f) f.online = m.online; }
-    else if (m.t === 'room:state') this.room = m.room;
-    else if (m.t === 'room:closed') this.room = null;
-    else if (m.t === 'start') { this.selfCid = m.you; if (m.room) this.room = m.room; }
-    else if (m.t === 'resume') { this.selfCid = m.you; if (m.room) this.room = m.room; }   // reconnected into a held in-run slot (new cid)
+    else if (m.t === 'room:state') { this.room=m.room; if(this.room?.members?.some(p=>p.cid===this.selfCid))this.rememberConnection(); }
+    else if (m.t === 'room:closed') { this.room=null; this.rememberConnection(null); }
+    else if (m.t === 'start') { this.selfCid = m.you; this.rememberConnection(); if (m.room) this.room = m.room; }
+    else if (m.t === 'resume') { this.selfCid = m.you; this.rememberConnection(); if (m.room) this.room = m.room; }   // reconnected into a held in-run slot (new cid)
     else if (m.t === 'room:host') { if (this.room) this.room.hostCid = m.hostCid; }          // host migrated/reconnected
   }
 
@@ -88,7 +94,7 @@ class RtClient {
   createRoom(cfg) { this.send({ t: 'room:create', cfg: cfg || {} }); }
   joinRoom(code) { this.send({ t: 'room:join', code }); }
   spectateRoom(code) { this.send({ t: 'room:spectate', code }); }   // 中途觀戰: watch a live (or lobby) room with no avatar
-  leaveRoom() { this.send({ t: 'room:leave' }); this.room = null; }
+  leaveRoom() { this.send({ t: 'room:leave' }); this.room = null; this.rememberConnection(null); }
   setReady(ready) { this.send({ t: 'room:ready', ready: !!ready }); }
   setBuild(charId, weaponId) { this.send({ t: 'room:build', charId, weaponId }); }
   setCfg(cfg) { this.send({ t: 'room:cfg', cfg }); }

@@ -2,6 +2,7 @@
 // Save data is stored as a whole-blob JSONB (mirrors state.js META); the
 // leaderboard is a normalised `runs` table. See docs/MULTIPLAYER_PLAN.md.
 import pg from 'pg';
+import { AUTHORITY_SCHEMA } from './authority/persistence.js';
 
 const { Pool } = pg;
 
@@ -53,6 +54,7 @@ export async function initSchema(p = pool) {
     ALTER TABLE runs ADD COLUMN IF NOT EXISTS mode          text NOT NULL DEFAULT 'normal';   -- 'normal' | 'endless' | 'daily'
     ALTER TABLE runs ADD COLUMN IF NOT EXISTS challenge_key text;                              -- 'YYYYMMDD' for daily, else NULL
 
+    ALTER TABLE runs ADD COLUMN IF NOT EXISTS authority_run_id uuid UNIQUE;
     CREATE INDEX IF NOT EXISTS runs_score_idx       ON runs (score DESC);
     CREATE INDEX IF NOT EXISTS runs_biome_diff_idx  ON runs (biome, difficulty, score DESC);
     CREATE INDEX IF NOT EXISTS runs_user_idx        ON runs (user_id, score DESC);
@@ -125,4 +127,5 @@ export async function initSchema(p = pool) {
     CREATE INDEX IF NOT EXISTS events_name_time_idx ON events (name, created_at DESC);
     CREATE INDEX IF NOT EXISTS events_sid_idx       ON events (sid);
   `);
+  await p.query(AUTHORITY_SCHEMA);
 }

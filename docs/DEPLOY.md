@@ -4,6 +4,8 @@
 設網域、SSH、用 Docker 部署、設定 HTTPS、接 CI/CD 自動部署,一路到**真的從外面連進來玩一場
 多人合作**。每一步都附「💡 為什麼」幫你理解,不是只照抄。
 
+> R32 分支尚未部署。新版合作使用 protocol 2，需要同版前後端；先在目標平台驗證容量。Docker context 已改為 repo 根目錄，正式路徑須保留 server/、src/ 與 .dockerignore；原資料卷及 server/.env 位置不變。
+
 > 只想看架構/設計與分階段路線?見 [`MULTIPLAYER_PLAN.md`](MULTIPLAYER_PLAN.md)。
 
 **預估時間:** 第一次大約 1～2 小時(多半卡在等 Oracle 配額/憑證)。之後更新只要 `git push`。
@@ -155,6 +157,8 @@ echo "ADMIN_USERS=你的帳號" >> .env                       # (選填) 可開�
 > 💡 **`JWT_SECRET` 是什麼?** 它是伺服器簽發/驗證登入憑證(token)的祕密鑰匙。一定要夠長夠隨機(≥32 字),否則別人能偽造任何人的登入——所以程式設計成密鑰太弱就**拒絕啟動**。
 > 💡 **`CORS_ORIGIN`?** 白名單,只允許你這個網址的網頁呼叫 API,擋掉別的網站盜用。
 
+R32 可設定 AUTHORITY_MAX_ROOMS（預設 2）；它是資源保護上限，實際容量須在 Oracle ARM 量測，本機短時數據不能外推。
+
 ### 5c. 啟動
 ```bash
 docker compose up -d --build      # 第一次會 build,稍等幾分鐘
@@ -276,7 +280,7 @@ ssh-copy-id -i ~/.ssh/soulshard_deploy.pub oracle
 ### 8d. 測一次自動部署
 隨便改個小東西(例如 README 加一行),`git push` 到 `main` → 到 GitHub repo 的 **Actions** 分頁看「Deploy to Oracle」這個 workflow 跑綠勾 → 重新整理你的遊戲網址,改動已上線。
 
-> 💡 **CI/CD 流程白話版:** 你 push → GitHub 偵測到 main 有新 commit → 啟動 deploy.yml → 它 SSH 進 VM → `git reset --hard origin/main`(前端立刻更新,因為是直接給檔)→ `docker compose up -d --build`(重建並重啟後端)→ `curl /api/health` 確認活著。整個約 1 分鐘。
+> CI/CD 以目前 deploy.yml 為準：先跑後端／前端關卡，再由 self-hosted runner 同步靜態前端、server/、共用 src/ 與 .dockerignore，於原 server/ 目錄重建 compose，最後檢查 health。文件指令不代表本輪已執行部署。
 
 ---
 

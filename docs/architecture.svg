@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 920 620" role="img" aria-labelledby="t d" font-family="'Segoe UI',system-ui,-apple-system,sans-serif">
   <title id="t">Soulshard-Hunter 系統架構</title>
-  <desc id="d">純 vanilla Canvas 遊戲（engine、資料驅動 content registry、scenes），離線優先；可選的 Node/Fastify 雲端後端提供帳號、雲端存檔、排行榜與 host-authoritative 即時 co-op。</desc>
+  <desc id="d">純 vanilla Canvas 遊戲（engine、資料驅動 content registry、scenes），離線優先；可選的 Node/Fastify 雲端後端提供帳號、雲端存檔、排行榜與 server-authoritative 即時 co-op。</desc>
   <defs>
     <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
       <path d="M0 0L10 5L0 10z" fill="#7c8aa5"/>
@@ -9,7 +9,7 @@
   <rect x="0" y="0" width="920" height="620" rx="14" fill="#0f1623"/>
   <rect x="0" y="0" width="920" height="620" rx="14" fill="none" stroke="#283449" stroke-width="1.5"/>
   <text x="40" y="50" fill="#c8704f" font-size="25" font-weight="600">Soulshard-Hunter · 系統架構</text>
-  <text x="40" y="77" fill="#8a96ab" font-size="14.5">純 vanilla Canvas 遊戲 · 離線優先 · 雲端存檔 + host-authoritative 即時 co-op</text>
+  <text x="40" y="77" fill="#8a96ab" font-size="14.5">純 vanilla Canvas 遊戲 · 離線優先 · 雲端存檔 + server-authoritative 即時 co-op</text>
 
   <!-- Browser container -->
   <rect x="40" y="100" width="840" height="190" rx="10" fill="#121d2e" stroke="#3a5a8c" stroke-width="1.3"/>
@@ -46,12 +46,12 @@
   <text x="688" y="428" fill="#dbe4f0" font-size="15" font-weight="500" text-anchor="middle">Fastify server</text>
   <text x="688" y="449" fill="#8a96ab" font-size="12" text-anchor="middle">帳號 · 雲端存檔 · 排行榜 · admin</text>
   <rect x="544" y="466" width="288" height="56" rx="8" fill="#241a2e" stroke="#9a6fc0" stroke-width="1.3"/>
-  <text x="688" y="490" fill="#dbe4f0" font-size="13.5" font-weight="500" text-anchor="middle">即時 co-op relay（host-authoritative）</text>
-  <text x="688" y="508" fill="#a99bc4" font-size="11.5" text-anchor="middle">主機端跑權威 sim → 廣播世界快照</text>
+  <text x="688" y="490" fill="#dbe4f0" font-size="13.5" font-weight="500" text-anchor="middle">每房間 Node 權威模擬（120Hz）</text>
+  <text x="688" y="508" fill="#a99bc4" font-size="11.5" text-anchor="middle">全員輸入 → 伺服器世界 → 約 18Hz 快照</text>
 
   <rect x="64" y="430" width="220" height="60" rx="8" fill="#2a1e10" stroke="#9a7b3f" stroke-width="1.4"/>
   <text x="174" y="456" fill="#dbe4f0" font-size="15" font-weight="500" text-anchor="middle">PostgreSQL</text>
-  <text x="174" y="475" fill="#8a96ab" font-size="11.5" text-anchor="middle">帳號 · 存檔 · runs 排行</text>
+  <text x="174" y="475" fill="#8a96ab" font-size="11.5" text-anchor="middle">帳號 · 存檔 · 成績 · 唯一收據</text>
 
   <line x1="520" y1="455" x2="284" y2="458" stroke="#7c8aa5" stroke-width="1.6" marker-end="url(#a)"/>
   <text x="400" y="448" fill="#7c8aa5" font-size="11.5" text-anchor="middle">pg pool</text>

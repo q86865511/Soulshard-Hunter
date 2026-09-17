@@ -1,0 +1,48 @@
+import assert from 'node:assert/strict';
+import {setTimeout as delay} from 'node:timers/promises';
+import {AuthorityManager} from '../src/authority/manager.js';
+import {Realtime} from '../src/realtime.js';
+import {makeFakePool} from './fakepool.mjs';
+const errors=[];
+const manager=new AuthorityManager({maxRooms:1,onError:e=>errors.push(e.message)});
+const rt=new Realtime(makeFakePool(),{authority:manager,genCode:()=> 'AUTH1'});
+function client(cid,uid){const messages=[];return{cid,protocol:2,user:{uid,username:cid},messages,send:s=>messages.push(JSON.parse(s)),close(){}};}
+const a=client('a','1'),b=client('b','2'),spectator=client('s','3');
+const wait=async fn=>{for(let i=0;i<150;i++){if(fn())return;await delay(20);}throw Error('wait timed out: '+errors.join(';'));};
+let checks=0;const ok=(v,m)=>{assert.ok(v,m);checks++;};
+try{
+ await rt.onConnect(a);await rt.onConnect(b);await rt.onConnect(spectator);
+ rt.createRoom(a);rt.joinRoom(b,'AUTH1');rt.setReady(b,true);
+ await rt.startRoom(a);
+ const room=rt.myRoom(a),runId=room.runId;
+ ok(room.started&&manager.rooms.size===1,'real child process room started: '+JSON.stringify(a.messages.filter(m=>m.t==='room:err')));
+ ok(a.messages.some(m=>m.t==='start')&&a.messages.some(m=>m.t==='runstart'),'owner receives server start and map');
+ await wait(()=>a.messages.some(m=>m.t==='snap'));
+ const before=b.messages.filter(m=>m.t==='snap').length;
+ await rt.onMessage(a,JSON.stringify({t:'snap',magic:'forged'}));
+ await rt.onMessage(a,JSON.stringify({t:'runend',won:true,score:99999}));
+ ok(!room.runEnded&&!b.messages.some(m=>m.magic==='forged'),'even lobby owner cannot inject state or result');
+ const input=(c,seq)=>rt.onMessage(c,JSON.stringify({t:'input',protocol:2,runId,seq,mv:[1,0],dash:false}));
+ await input(a,1);await input(b,1);
+ rt.spectateRoom(spectator,'AUTH1');
+ ok(spectator.messages.some(m=>m.t==='runstart'),'late spectator gets server map');
+ ok(!manager.input('AUTH1','s',{t:'input',protocol:2,runId,seq:1,mv:[1,0],dash:false}),'spectator is absent from input gate');
+ await rt.onClose(a);
+ ok(room.started&&!b.messages.some(m=>m.t==='host:waiting'),'owner disconnect does not pause team');
+ const spoof=client('spoof','2');spoof.resumeCid='a';await rt.onConnect(spoof);
+ ok(!rt.roomOf.has('spoof')&&rt.pendingRejoin.has('a'),'resume cid cannot override authenticated account identity');
+ const a2=client('a2','1');a2.resumeCid='a';await rt.onConnect(a2);
+ await wait(()=>a2.messages.some(m=>m.t==='runstart'));
+ const resumed=a2.messages.find(m=>m.t==='runstart');
+ ok(resumed.players.some(p=>p.cid==='a2')&&!resumed.players.some(p=>p.cid==='a'),'rejoin map binds original actor to new connection');
+ await input(a2,1);await input(b,2);
+ rt.leaveRoom(a2);
+ ok(room.started&&room.hostCid==='b','owner departure keeps simulation running and transfers lobby management');
+ await wait(()=>b.messages.filter(m=>m.t==='snap').length>before+2);
+ ok(!b.messages.some(m=>m.t==='host:migrated'),'no false dead-world migration');
+ rt.leaveRoom(b);rt.leaveRoom(spectator);
+ await wait(()=>manager.rooms.size===0);
+ ok(manager.rooms.size===0&&!manager.busy('1')&&!manager.busy('2'),'empty room releases process and reservations');
+ ok(errors.length===0,'no child errors');
+ console.log(JSON.stringify({checks,errors}));
+}finally{manager.close();}

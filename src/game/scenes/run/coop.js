@@ -42,7 +42,8 @@ export const coopMixin = {
   // host applies a guest's networked pick to that guest's avatar (coophost calls this)
   applyCoopGuestPick(slot, i) {
     if (!slot || !slot.pendingOpts || !slot.player) return;
-    applyWeaponChoice(slot.player, slot.pendingOpts[i] || slot.pendingOpts[0], this.world);
+    if (!Number.isInteger(i) || i < 0 || i >= slot.pendingOpts.length) return;
+    applyWeaponChoice(slot.player, slot.pendingOpts[i], this.world);
     slot.pendingOpts = null;
   },
   coopPickRects(n) {
@@ -58,7 +59,11 @@ export const coopMixin = {
     if (mouse.justDown && cp.hover >= 0) pick = cp.hover;
     if (pressed('slot1')) pick = 0; if (pressed('slot2')) pick = 1; if (pressed('slot3')) pick = 2;
     if (pick < 0 && cp.t > 18) pick = 0;   // auto-pick if ignored far too long (never blocks the run)
-    if (pick >= 0 && pick < cp.options.length) {
+    this.selectCoopPick(pick);
+  },
+  selectCoopPick(pick) {
+    const cp = this.coopPick;
+    if (cp && Number.isInteger(pick) && pick >= 0 && pick < cp.options.length) {
       try { applyChoice(this.run, this.player, this.world, cp.options[pick]); } catch (e) { /* */ }
       this.world.particles.ring(this.player.x, this.player.y, P.manaL, 18, 100);
       this.banner = cp.options[pick].def.name; this.bannerT = 1.4; Sfx.play('levelup');

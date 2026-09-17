@@ -56,6 +56,9 @@ jobs:
       - name: Deploy backend (docker compose)
         run: |
           rsync -a --delete --exclude '.env' ./server/ ~/soulshard/server/
+          rsync -a ./.dockerignore ~/soulshard/.dockerignore
+          mkdir -p ~/soulshard/src
+          rsync -a --delete ./src/ ~/soulshard/src/
           cd ~/soulshard/server
           sudo docker compose up -d --build
 

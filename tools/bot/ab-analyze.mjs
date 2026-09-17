@@ -7,6 +7,7 @@ import { auditCell, experimentPlan, checkManifest } from './experiment.mjs';
 import { expandCombos, readJsonlTolerant } from './plan.mjs';
 import { metrics, bootstrapDifference, adoption } from './ab-stats.mjs';
 import { writeJson, sourceIdentity } from './experiment-io.mjs';
+import { readVerifiedInterruptions } from './interruption-evidence.mjs';
 import { summarizeSessions } from './session-audit.mjs';
 import { summarize } from './summarize.mjs';
 import { summarizeGrowth } from './growth-stats.mjs';
@@ -25,9 +26,10 @@ if(experiment.experimentVersion>=2&&(JSON.stringify(experiment.arms)!==JSON.stri
 if(JSON.stringify(schedule)!==JSON.stringify(experiment.schedule)||JSON.stringify(ids.chars)!==JSON.stringify(experiment.chars))throw Error('schedule mismatch');
 const progress=read(path.join(out,'progress.json'));
 if(progress.status!=='completed')throw Error('experiment not completed');
+const interruptions=readVerifiedInterruptions(out);
 const arms=Object.fromEntries(labels.map(arm=>[arm,[]])),evidence=[];
 let apiHits=0,browserRestarts=0,sessionWallMs=0,rawRows=0,firstStart=Infinity,lastEnd=0;
-let failedSessions=0,missingApiCounters=0,missingRestartCounters=0;
+let failedSessions=0,missingApiCounters=0,missingRestartCounters=0,interruptedSessions=0,missingWallTimes=0;
 for(const cell of schedule){
  const dir=path.join(out,cell.id),manifest=read(path.join(dir,'manifest.json'));
  for(const k of ['commit','sourceHash'])if(manifest[k]!==experiment[k])throw Error('identity mismatch '+cell.id+' '+k);
@@ -39,9 +41,10 @@ for(const cell of schedule){
  const audit=auditCell(parsed.records,combos,manifest);
  if(!audit.complete||parsed.truncatedTail)throw Error('incomplete/invalid '+cell.id+': '+JSON.stringify({...audit,records:undefined}));
  if(fs.readFileSync(path.join(dir,'report.md'),'utf8')!==summarize(audit.records))throw Error('report mismatch '+cell.id);
- const sessions=fs.readdirSync(dir).filter(f=>f.startsWith('session-')&&f.endsWith('.json')).map(f=>read(path.join(dir,f)));
+ const sessions=fs.readdirSync(dir).filter(f=>f.startsWith('session-')&&f.endsWith('.json')).map(f=>({...read(path.join(dir,f)),auditKey:cell.id+'/'+f}));
  for(const s of sessions)if(checkManifest(s.identity,manifest))throw Error('session identity mismatch '+cell.id);
- const accounting=summarizeSessions(sessions);
+ const accounting=summarizeSessions(sessions,interruptions);
+ interruptedSessions+=accounting.interruptedSessions;missingWallTimes+=accounting.missingWallTimes;
  apiHits+=accounting.apiHitsKnown;browserRestarts+=accounting.browserRestartsKnown;sessionWallMs+=accounting.wallMs;
  failedSessions+=accounting.failedSessions;missingApiCounters+=accounting.missingApiCounters;missingRestartCounters+=accounting.missingRestartCounters;
  firstStart=Math.min(firstStart,accounting.firstStart);lastEnd=Math.max(lastEnd,accounting.lastEnd);
@@ -63,7 +66,7 @@ if(candidate==='C'&&(!moveAudit.C||moveAudit.C.policyDivergences===0))throw Erro
 const growth=plan.diagnostics?Object.fromEntries(labels.map(arm=>[arm,summarizeGrowth(arms[arm])])):null;
 const biomes=Object.fromEntries(ids.biomes.map(biome=>[biome,Object.fromEntries(labels.map(arm=>[arm,metrics(arms[arm].filter(r=>r.biome===biome))]))]));
 const analysis={phase:experiment.phase,candidate,commit:experiment.commit,sourceHash:experiment.sourceHash,analysisIdentity:sourceIdentity(ROOT),rawRows,unique:expected*2,
- stats,ci,decision,choiceAudit,moveAudit,growth,biomes,apiHits:missingApiCounters?null:apiHits,apiHitsKnown:apiHits,browserRestarts:missingRestartCounters?null:browserRestarts,browserRestartsKnown:browserRestarts,failedSessions,missingApiCounters,missingRestartCounters,sessionWallMs,wallMs:lastEnd-firstStart,
+ stats,ci,decision,choiceAudit,moveAudit,growth,biomes,apiHits:missingApiCounters?null:apiHits,apiHitsKnown:apiHits,browserRestarts:missingRestartCounters?null:browserRestarts,browserRestartsKnown:browserRestarts,failedSessions,missingApiCounters,missingRestartCounters,interruptedSessions,missingWallTimes,sessionWallMs:missingWallTimes?null:sessionWallMs,sessionWallMsKnown:sessionWallMs,wallMs:lastEnd-firstStart,
  firstStart:new Date(firstStart).toISOString(),lastEnd:new Date(lastEnd).toISOString(),evidence};
 if(!verifyOnly)writeJson(path.join(out,'analysis.json'),analysis);
 const pct=x=>x==null?'N/A':(100*x).toFixed(2)+'%';
@@ -76,9 +79,10 @@ md+='本報告量的是系統性質，不代表真人退出與重試行為。遊
 md+='執行 commit：'+experiment.commit+'；來源 SHA256：'+experiment.sourceHash+'。\n\n';
 md+='| 策略 | 全局 n | 有效 | clear | 通關率（有效） | 通關率（全局） | 排除比例 | time p25/p50/p75 秒 | level p25/p50/p75 | abilities 空（有效／全局） |\n|---|---:|---:|---:|---:|---:|---:|---|---|---|\n';
 for(const arm of labels){const s=stats[arm];md+=`| ${arm} | ${s.n} | ${s.effective} | ${s.clear} | ${pct(s.rate)} | ${pct(s.allRate)} | ${pct(s.excludedRate)} | ${nums(s.time)} | ${nums(s.level)} | ${s.emptyAbilities}/${s.effective}；${s.emptyAbilitiesAll}/${s.n} |\n`;}
-md+='\n原始行 '+rawRows+'；唯一 key '+expected*2+'；api_hits='+apiLabel+'；browser_restarts='+restartLabel+'；起訖 '+analysis.firstStart+' → '+analysis.lastEnd+'；實際跨度 '+(analysis.wallMs/60000).toFixed(2)+' 分鐘；session 累計 '+(sessionWallMs/60000).toFixed(2)+' 分鐘。\n';
+md+='\n原始行 '+rawRows+'；唯一 key '+expected*2+'；api_hits='+apiLabel+'；browser_restarts='+restartLabel+'；起訖 '+analysis.firstStart+' → '+analysis.lastEnd+'；實際跨度 '+(analysis.wallMs/60000).toFixed(2)+' 分鐘（含人工暫停）；session 已知累計 '+(missingWallTimes?'≥':'')+(sessionWallMs/60000).toFixed(2)+' 分鐘。\n';
 md+='\n分析版本：'+analysis.analysisIdentity.commit+'；分析來源 SHA256：'+analysis.analysisIdentity.sourceHash+'。\n';
-if(missingApiCounters||missingRestartCounters)md+='\n計數限制：'+failedSessions+' 個 session 非零退出；其中 API／重開計數各有 '+missingApiCounters+'／'+missingRestartCounters+' 個歷史失敗 session 未記錄。上列 ≥ 是已知下界，不是完整總數；未將未知值補成 0。所有最終 run 記錄仍須完整且無 error。\n';
+if(missingApiCounters||missingRestartCounters)md+='\n計數限制：'+failedSessions+' 個 session 非成功結束（含外部中止）；其中 API／重開計數各有 '+missingApiCounters+'／'+missingRestartCounters+' 個 session 無完整終態計數。上列 ≥ 是已知下界，不是完整總數；未將未知值補成 0。所有最終 run 記錄仍須完整且無 error。\n';
+if(interruptedSessions)md+='\n人工中止：'+interruptedSessions+' 個 session 經 PID、格位、暫停快照與 SHA256 證據核對。'+missingWallTimes+' 筆精確執行時長未知；未捏造退出碼、結束時間或把未知計數補成 0。原 session 與 run 檔案保持原樣。\n';
 md+='\n## 選擇稽核與 endReason\n\n';
 md+='移動稽核：'+JSON.stringify(moveAudit)+'。null 表示舊批次未記錄，不是零分歧。\n\n';
 if(candidate==='C')md+='choiceAudit 記錄既有 A/B 選項對照；A/C 共用 A 選擇規則，C 的操弄證據在 moveAudit。同一輸入分別計算 A/C 的方向，每秒取樣，只有正式策略輸出會驅動角色。\n\n';

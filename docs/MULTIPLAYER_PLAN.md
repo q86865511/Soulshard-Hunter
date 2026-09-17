@@ -1,13 +1,13 @@
 # 計畫:Soulshard Hunter → 線上多人(Oracle 雲端 / 共享排行榜 / 1~3 人即時合作)
 
-> 狀態:**Phase 1 + Phase 2 已實作**(見 `docs/changelog/ROUND6.md`、`ROUND7.md`)。
+> 狀態：Phase 1／2 已上線；R32 分支已接通 D 項伺服器權威模擬，本地驗收完成，尚未部署。
 > - **Phase 1(雲端地基)**:帳號 / 雲端存檔 / 共享排行榜 — 完成(Round 6)。
 > - **Phase 2(即時合作同屏)**:1~3 人即時合作 + **好友 / 邀請 / 大廳** — 完成(Round 7)。
->   架構實作上採 **主機權威中繼**(host-authoritative relay,非本文最初規劃的伺服器權威):
+>   R7–R31 架構採 **主機權威中繼**(host-authoritative relay,非本文最初規劃的伺服器權威):
 >   其中一名玩家的瀏覽器跑既有 `run.js` 權威模擬並廣播世界快照,Node 伺服器只當房間/中繼。
 >   此選擇在使用者確認下,以「重用 100% 既有遊戲邏輯、對單機零回歸、本回合可完整交付」換取
 >   「主機端理論可作弊、無房主轉移」的取捨;後續若需更強防作弊可再把模擬搬上伺服器(本文 D 工作項)。
-> 下方原始設計/評估內容保留作為參考。
+> R32 現況見 [權威架構](architecture/SERVER_AUTHORITY_R32.md) 及 [規格](../specs/server-authority/requirements.md)。下方原始方案保留作歷史參考，不能當成已完成清單。
 
 ## Context(背景與目標)
 
@@ -173,11 +173,12 @@ CREATE INDEX ON runs (biome, difficulty, score DESC);
 - 寫 `serializeWorld(world)`(輸出純資料快照)與客戶端 `applySnapshot(snap)`(用 id 還原顯示)。
 - 全量快照約 ~100KB,**不可每幀全傳**:伺服器以 **15~20Hz** 廣播,並用 **delta(只送變動實體)+ 興趣管理**(離玩家遠的省略)。
 
-### D. 伺服器端 headless 模擬(重用 `game/` 模擬碼)
-- 已驗證可行:在伺服器入口先掛**極薄 DOM shim**(`globalThis.window = { addEventListener(){}, ... }`、`globalThis.document = { createElement: () => fakeCanvas }`、`requestAnimationFrame` no-op),即可 `import` `world.js` 等而不崩潰。
-- 伺服器**只跑 `update(dt)`,不跑 `render()/draw()`**;`Sfx.*` 呼叫已被 try/catch 包住會自動 no-op。
-- **不要** import 載入即 `defineSprite` 的 `art/*` 模組(只 import `sprites.js` 的查詢函式即可)。`getSprite` 查不到回 placeholder,不影響伺服器(伺服器不畫)。
-- 模擬迴圈用既有定步長 `loop.js` 概念,以固定 dt 推進。
+### D. 伺服器端 headless 模擬（R32 接入）
+- 共用 bootstrap 載入完整內容，每房間獨立 Node 子程序、固定 1/120 秒更新。
+- 實際內容會傳遞匯入 art；headless 介面讓 eager sprite bake 可執行，啟動驗證完整 registry。
+- 所有玩家由伺服器綁定的輸入驅動，遊戲公式及內容定義共用，瀏覽器呈現快照。
+- 有原生／瀏覽器對照、雙客戶端、重連、故障及結算測試；Oracle ARM 容量尚未實測。
+- 本輪詳細紀錄見 docs/changelog/ROUND32.md。
 
 ### E. 即時連線傳輸 + 大廳
 - `ws` server:`房間 = 大廳`,以 4~6 碼房號建立/加入;1~3 人 ready 後開局,伺服器 `newRun()` 並開始廣播快照。

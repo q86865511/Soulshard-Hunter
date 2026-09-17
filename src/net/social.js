@@ -248,6 +248,7 @@ function renderLobby(setMsg) {
 
   const room = RT.room;
   const me = room.members.find((m) => m.cid === RT.selfCid) || {};
+  if(room.authority)wrap.appendChild($('div',{class:'sl-sec',text:'合作由伺服器運算，採用房主已同步的雲端進度。若剛更換存檔或購買升級，請先完成原有的雲端同步。'}));
   const isHost = room.hostCid === RT.selfCid;
   const meSpec = !!me.spectator;
 

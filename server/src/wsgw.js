@@ -6,7 +6,7 @@ import { WebSocketServer } from 'ws';
 import jwt from 'jsonwebtoken';
 
 export function attachRealtime(httpServer, realtime, { jwtSecret, path = '/rt', logger = null } = {}) {
-  const wss = new WebSocketServer({ noServer: true, maxPayload: 2_000_000 });   // headroom for large world snapshots
+  const wss = new WebSocketServer({ noServer: true, maxPayload: realtime.authority ? 16_384 : 2_000_000 });   // headroom for large world snapshots
   let cidSeq = 0;
 
   httpServer.on('upgrade', (req, socket, head) => {
@@ -21,7 +21,7 @@ export function attachRealtime(httpServer, realtime, { jwtSecret, path = '/rt', 
     if (realtime.isBannedIp(ip) || realtime.isBannedUser(user.username)) { socket.write('HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n'); socket.destroy(); return; }
 
     wss.handleUpgrade(req, socket, head, (ws) => {
-      const client = { cid: 'c' + (++cidSeq), user, ip, send: (s) => { try { ws.send(s); } catch (e) { /* */ } }, close: () => { try { ws.close(); } catch (e) { /* */ } } };
+      const client = { resumeCid: (url.searchParams.get('resumeCid') || '').slice(0,40) || null, protocol: url.searchParams.get('protocol') === '2' ? 2 : 1, cid: 'c' + (++cidSeq), user, ip, send: (s) => { try { if(ws.bufferedAmount>2_000_000){ws.terminate();return;} ws.send(s); } catch (e) { /* */ } }, close: () => { try { ws.close(); } catch (e) { /* */ } } };
       ws.isAlive = true;
       ws.on('pong', () => { ws.isAlive = true; });
       ws.on('message', (data, isBinary) => { if (isBinary) return; Promise.resolve(realtime.onMessage(client, data.toString())).catch(() => {}); });

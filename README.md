@@ -1,5 +1,7 @@
 # 魂晶獵手 · Soulshard Hunter
 
+> R32 工作分支：成長診斷、A/C 確認實驗與伺服器權威模擬已完成本機驗收；A/C 保留 A。此分支尚未發布或部署；真人評估仍缺實測資料。最新紀錄見 [ROUND32](docs/changelog/ROUND32.md)。
+
 > 像素風 roguelike 生存遊戲（Vampire-Survivors-like）——原生 HTML5 Canvas + ES Modules,零建置、零依賴;可選配雲端帳號與 1~3 人即時連線合作。
 
 ### ▶ 立即遊玩:**<https://soulshard.terrychou.com>**(正式站,前後端皆在線上;不需安裝、不需註冊即可開玩)
@@ -11,11 +13,11 @@
 [![No Build](https://img.shields.io/badge/build-zero%20config-2ea44f)](tools/serve.mjs)
 [![Node](https://img.shields.io/badge/Node-%E2%89%A522-339933?logo=node.js&logoColor=white)](server/package.json)
 [![Fastify](https://img.shields.io/badge/Fastify-5.x-000000?logo=fastify&logoColor=white)](server/package.json)
-[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-relay%20backend-4169e1?logo=postgresql&logoColor=white)](server/README.md)
-[![WebSocket](https://img.shields.io/badge/WebSocket-host--authoritative-010101?logo=socketdotio&logoColor=white)](docs/MULTIPLAYER_PLAN.md)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-cloud%20backend-4169e1?logo=postgresql&logoColor=white)](server/README.md)
+[![WebSocket](https://img.shields.io/badge/WebSocket-server--authoritative-010101?logo=socketdotio&logoColor=white)](docs/MULTIPLAYER_PLAN.md)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-<p align="center"><img src="docs/architecture.svg" alt="魂晶獵手架構:瀏覽器原生 Canvas 遊戲 + 雲端主機權威中繼" width="840"></p>
+<p align="center"><img src="docs/architecture.svg" alt="魂晶獵手架構:瀏覽器原生 Canvas 遊戲 + 合作房間伺服器權威模擬" width="840"></p>
 
 > 只需走位,武器自動瞄準開火。在 20 分鐘的生態大地圖迎戰不斷湧出的怪潮:
 > 升級三選一、滿級進化合成,帶回金幣在城鎮解鎖角色、天賦與設施;
@@ -25,7 +27,7 @@
 - 🕹️ **可純單機離線遊玩**:雲端與多人皆為選配,未登入／連不上自動退回本機存檔,不影響遊玩
 - ⚙️ **前端零安裝**:一個靜態伺服器即可執行;**執行期不對任何第三方主機發出請求**(字型已自架,見[隱私](#匿名遊玩統計遙測))
 
-**目前進度**:Round 30 完成,對外版本 **V2.0**(V1.0=R18 / V1.5=R19 / V2.0=R20;R21–R30 為 V2.0 之後的內容與品質輪)。已實作末日遺跡城鎮、無盡／每日／週常模式、資料驅動 Boss 招式與局內事件、全 27 角色專屬武器、內容圖鑑與推薦目標、無障礙與輔助模式、匿名遙測、結算教練、場景光影美術輪。R27 為外部程式碼審查的修正批次(排行榜誠信閘門、雲端存檔資料遺失、字型自架、相依清零),不含新玩法。R28 為外部美術審核的改善輪:全角色與敵人尺度統一、戰鬥分層與預警所有權、UI 字級系統、10 生態地標與材質身份、27 張角色肖像、219 個圖示重繪、六室內改造,同樣不含新玩法。R29 為複審跟進輪:27 角色剪影重切(無名稱可辨)、數字不斷行、肖像三曝光面、三檔面板密度、色覺形狀通道、玩家標識暗通道、高 DPI 公平性(zoom/字級/1px 線)。R30 完成 CI／Node 維護與機器人平衡測試工具、全量 6750 局摘要；不更動遊戲數值或玩法。逐輪更新詳見 [`docs/changelog/`](docs/changelog/)(最新 [`ROUND30.md`](docs/changelog/ROUND30.md))。
+**既有版本沿革**:Round 30 完成,對外版本 **V2.0**(V1.0=R18 / V1.5=R19 / V2.0=R20;R21–R30 為 V2.0 之後的內容與品質輪)。已實作末日遺跡城鎮、無盡／每日／週常模式、資料驅動 Boss 招式與局內事件、全 27 角色專屬武器、內容圖鑑與推薦目標、無障礙與輔助模式、匿名遙測、結算教練、場景光影美術輪。R27 為外部程式碼審查的修正批次(排行榜誠信閘門、雲端存檔資料遺失、字型自架、相依清零),不含新玩法。R28 為外部美術審核的改善輪:全角色與敵人尺度統一、戰鬥分層與預警所有權、UI 字級系統、10 生態地標與材質身份、27 張角色肖像、219 個圖示重繪、六室內改造,同樣不含新玩法。R29 為複審跟進輪:27 角色剪影重切(無名稱可辨)、數字不斷行、肖像三曝光面、三檔面板密度、色覺形狀通道、玩家標識暗通道、高 DPI 公平性(zoom/字級/1px 線)。R30 完成 CI／Node 維護與機器人平衡測試工具、全量 6750 局摘要；不更動遊戲數值或玩法。逐輪更新詳見 [`docs/changelog/`](docs/changelog/)(最新 [`ROUND30.md`](docs/changelog/ROUND30.md))。
 
 ## 目錄
 
@@ -51,7 +53,7 @@
 
 技術上它是一個**零建置、零執行期依賴**的純前端遊戲:**原生 HTML5 Canvas + ES Modules**,遊戲內所有 sprite 都在程式中**程序化生成**,外部資產只有 `assets/music/` 的 12 首實錄配樂、`assets/font/` 的一個像素字型(自架、SIL OFL 1.1),以及 `assets/portraits/` 的 27 張角色肖像 PNG(R28 加入,選角卡與圖鑑用,缺檔會自動回退為程式生成 sprite)。一個靜態伺服器即可開跑。
 
-雲端與多人是**選配且離線優先**:沒登入或連不上時自動退回本機 `localStorage`,單機體驗完全不受影響。接上後端後,可獲得帳號、跨裝置雲端存檔、伺服器權威計分的共享排行榜,以及 **1~3 人即時連線合作**(採主機權威中繼架構)。
+雲端與多人是**選配且離線優先**:沒登入或連不上時自動退回本機 `localStorage`,單機體驗完全不受影響。接上後端後,可獲得帳號、跨裝置雲端存檔、伺服器權威計分的共享排行榜,以及 **1~3 人即時連線合作**(本分支採伺服器權威模擬)。
 
 ## ✨ 技術亮點
 
@@ -60,43 +62,28 @@
 - **資料驅動內容架構**:所有敵人/武器/被動/道具/裝備/天賦/設施透過單一 `content/registry.js` 整合接縫註冊,新增內容不碰 gameplay 程式;難度/經濟/節奏數值全部集中在 `src/game/balance.js`。
 - **multi-agent workflow 量產內容**:核心內容之外,以「生成 → 對抗式審查」的多代理工作流大量產出 63 敵人 / 43 武器 / 27 角色 / 54 被動 / 60 裝備…,經 `tools/integrate.mjs` 自動整合且**故障隔離**(單一 gen 檔出錯不拖垮整體)。
 - **120 Hz 固定步模擬**:固定步主迴圈壓低輸入延遲;空間網格(uniform spatial grid)取代 O(n²) 鄰近查詢,在 260 敵人上限仍保持穩定。
-- **主機權威即時合作**:開房玩家的瀏覽器跑**未修改的權威 `run.js` 模擬**並以 ~18Hz 廣播量化後的世界快照;Node 伺服器只當房間/中繼不跑模擬。訪客場景為純插值傀儡 + 自身 avatar 的本地預測/校正。**單機路徑零改動**。
+- **伺服器權威即時合作（R32）**：每房間一個 Node 子程序，以 120Hz 執行共用遊戲模擬、約 18Hz 發送快照；房主與隊員都使用本地預測／校正。世界、傷害、XP、升級與結算由伺服器持有。遊戲數值與存檔格式不變。
 - **伺服器權威計分**:排行榜分數由伺服器以 `kills/stage/time/difficulty/reaper` 重算並做合理性檢查(**不採信客戶端分數**);客戶端另有誠信閘門——輔助模式或動用開發者面板的對局一律不上傳。
-- **完整雲端後端**:Node + Fastify + PostgreSQL 單一程式同時提供 REST API 與 WebSocket 中繼;含 JWT 帳號、跨裝置存檔、多模式排行榜、好友/大廳/觀戰/斷線重連,以及 7 分頁管理後台(封鎖、踢人、稽核日誌、數據統計)。
+- **完整雲端後端**：Node + Fastify + PostgreSQL 提供 REST API、WebSocket 房間與隔離模擬；含 JWT、雲端存檔、排行榜、好友／觀戰／重連及管理後台。
 - **CI 與離線優先設計**:GitHub Actions 跑 185 項後端 smoke/social 測試與 59 條前端 headless smoke 斷言,兩者由 `deploy.yml` 的 `needs: [test, frontend]` 組成**部署雙關卡——任一紅燈就不部署**;前端另附離線自測 hook(`__DBG.coopRoundTrip/coopSilenceTest/coopBossSyncTest`)可在無雙分頁、無中繼伺服器的情況下驗證 host→guest 全鏈路。
 
 ## 🏗️ 架構
 
-整體分兩塊:**瀏覽器端的原生 Canvas 遊戲**(完全可離線執行)與**選配的雲端後端**(帳號 / 存檔 / 排行榜 / 即時合作)。前端以引擎層 → 內容註冊表 → 場景的方式組裝;雲端採**主機權威中繼**——遊戲模擬只跑在開房玩家的瀏覽器,Node + Fastify 伺服器只負責 REST API 與 WebSocket 房間/中繼,PostgreSQL 持久化帳號、存檔與排行榜。頂部 hero 圖為整體鳥瞰,以下 mermaid 為資料流:
+整體分為瀏覽器端的離線單機遊戲，以及選配的雲端服務。合作時，所有瀏覽器傳送輸入並呈現快照，Node 子程序執行共用模擬；API 程序負責身分、房間、限流及唯一結算，PostgreSQL 保存帳號、進度、成績與收據。
 
 ```mermaid
 flowchart TD
-    subgraph Browser["🖥️ 瀏覽器 — 原生 Canvas 遊戲(可離線)"]
-        direction TB
-        Engine["engine/<br/>固定步主迴圈 · renderer · input · audio<br/>Painter 程序化像素繪圖"]
-        Registry["content/registry.js<br/>資料驅動內容整合接縫<br/>(敵人/武器/被動/道具/裝備/天賦…)"]
-        Scenes["scenes/<br/>title · hub(末日遺跡城鎮) · run(局內) · coop(訪客)"]
-        Save[("localStorage<br/>本機存檔(離線優先)")]
-        Engine --> Scenes
-        Registry --> Scenes
-        Scenes <--> Save
-        NetClient["src/net/ 雲端客戶端<br/>api.js(REST+JWT) · rt.js(WS) · social.js"]
-        Scenes -. 選配 .-> NetClient
-    end
-
-    subgraph Cloud["☁️ 雲端後端(選配 · 主機權威中繼)"]
-        direction TB
-        Server["Node + Fastify 伺服器<br/>REST /api/* · WebSocket /rt 中繼<br/>(只當房間/中繼,不跑模擬)"]
-        DB[("PostgreSQL<br/>帳號 · 雲端存檔 · 排行榜")]
-        Server <--> DB
-    end
-
-    NetClient -- "REST：登入/存檔/排行榜<br/>(伺服器權威計分)" --> Server
-
-    HostBrowser["👑 開房玩家瀏覽器<br/>跑權威 run.js 模擬<br/>~18Hz 廣播世界快照"]
-    GuestBrowser["🎮 訪客瀏覽器<br/>插值傀儡 + 本地預測/校正<br/>不跑模擬"]
-    HostBrowser -- "WS 快照(量化 tuple)" --> Server
-    Server -- "WS 中繼" --> GuestBrowser
+    Solo["單機瀏覽器<br/>既有模擬與本機存檔"]
+    Players["合作瀏覽器：房主／隊員<br/>輸入、畫面、預測與校正"]
+    API["Fastify + WebSocket<br/>JWT、房間、輸入閘門、重連"]
+    Sim["每房間獨立 Node 程序<br/>共用完整內容與 runScene<br/>120Hz 模擬／約 18Hz 快照"]
+    DB[("PostgreSQL<br/>帳號／存檔／成績／唯一收據")]
+    Solo -. "選配雲端同步" .-> API
+    Players -->|"protocol 2：input／levelpick"| API
+    API -->|"綁定 actor 的有界輸入"| Sim
+    Sim -->|"runstart／snap／levelup／runend"| API
+    API -->|"快照與結果"| Players
+    API <-->|"CAS 存檔與一次性結算"| DB
 ```
 
 更細的子系統說明見 [`CLAUDE.md`](CLAUDE.md)(開發指南);多人連線設計與現況見 [`docs/MULTIPLAYER_PLAN.md`](docs/MULTIPLAYER_PLAN.md)。實際的目錄對應見[專案結構](#專案結構)一節。
@@ -232,13 +219,13 @@ node tools/bot/run.mjs --biomes crypt --chars hunter --diffs 1 --runs 1 --parall
 完全**離線優先**:未登入或連不上時自動退回本機 `localStorage`,不會卡開機或遊玩。
 
 - **Phase 1 — 雲端地基**:帳號、跨裝置雲端存檔、共享排行榜。**伺服器權威計分**——排行榜分數由伺服器以 `kills/stage/time/difficulty/reaper` 重算並做合理性檢查(不採信客戶端分數),訪客上傳另有較嚴的每 IP 頻率限制。
-- **Phase 2 — 即時合作(共視窗)**:1~3 人合作＋好友／大廳／邀請／觀戰／斷線重連。採**主機權威中繼**(host-authoritative relay):開房玩家的瀏覽器跑權威模擬並以 ~18Hz 廣播世界快照,Node 伺服器只當房間／中繼(不跑模擬);各客戶端鏡頭各自跟隨自己。**單機路徑完全不變**。
+- **即時合作（R32 分支）**：沿用好友／大廳／邀請／觀戰入口，開局至少兩人、最多三人。伺服器執行世界，房主離開後隊伍繼續；斷線角色仍承受傷害，重連沿用當前生命與死亡狀態。先同步原房主存檔；雲端歷史進度本身不宣稱已驗真。
 
 設計細節與現況見 [`docs/MULTIPLAYER_PLAN.md`](docs/MULTIPLAYER_PLAN.md)。
 
 ### 後端:本機啟動
 
-後端在 [`server/`](server/)(**Node + Fastify + PostgreSQL**;JWT + bcryptjs + zod + `ws`),同一支程式同時提供 REST API(`/api/*`)與 WebSocket 中繼(`/rt`):
+後端在 [`server/`](server/)(**Node + Fastify + PostgreSQL**;JWT + bcryptjs + zod + `ws`),同一支程式同時提供 REST API(`/api/*`)與 WebSocket 權威合作(`/rt`):
 
 ```bash
 cd server
@@ -314,7 +301,7 @@ assets/portraits/               ← R28 的 27 張角色半身肖像(128×128 PN
 - **前端自動化測試為 smoke 級**:`test/` 的 Playwright headless smoke(59 條斷言)涵蓋 boot/registry/場景/教學暫停/圖鑑/遙測/co-op 自測並作為部署關卡,但 UI 冷路徑仍靠 `__DBG` hook 與「重載 + 手動 pump」人工驗證。
 - **雲端存檔需真實 PostgreSQL 才持久**:`npm run dev:fakedb` 為記憶體假資料庫,重啟即清空,僅供本機測試;本機 `localStorage` 存檔不受影響。
 - **雲端存檔為「一個帳號一份 blob」**:本機有 3 個存檔槽,雲端只保存目前使用中的那一槽(切槽等於改由該槽接管雲端;拉取前一律先寫 `.precloud.bak` 可還原)。同一槽被另一台裝置推上更新版本時,本機推送會被伺服器擋下並**明確提示**「雲端存檔未套用」,不再靜默。
-- **即時合作為主機權威中繼,非 rollback netcode**:開房玩家(host)是權威來源;host 離線會觸發主機遷移,訪客在斷線重連有 ~20 秒寬限。高延遲下訪客自身 avatar 靠本地預測/校正,其餘實體為插值,並非逐幀同步。
+- **合作以伺服器世界為準**：客戶端做本地預測／校正與其他實體插值。房主離開後隊伍繼續，暫時斷線保留約 20 秒重連窗口；角色仍受傷，重連沿用當前死亡狀態。離線進度與單機紀錄的可信範圍仍有限制。
 - **合作人數上限 1~3 人**:採共視窗設計,鏡頭各自跟隨;非大廳式大規模連線。
 - **gen 內容檔會被重新整合覆寫**:`src/art/gen/*` 與 `src/game/content/gen/*` 由 workflow 生成,部分經手動微調的平衡修正在重跑 `tools/integrate.mjs` 後會被覆寫,需重新套用(詳見 [`CLAUDE.md`](CLAUDE.md) 的 Gotchas)。
 - **瀏覽器需求**:依賴 HTML5 Canvas、ES Modules 與 WebAudio,須在較新的桌面瀏覽器執行。
@@ -365,3 +352,7 @@ node tools/bot/ab-analyze.mjs tools/bot/out/ab_confirm_2026-09-15
 ### 候選 C 的 A/C 實驗
 
 C 保留 A 選擇規則，只把 XP 走位權重1→1.5；規則見 specs/bot-growth-diagnostics/CANDIDATE_C.md。固定 commit 後依序執行 node tools/bot/ab-run.mjs pilot-c tools/bot/out/growth_c_pilot_2026-09-16，驗算完成後再執行 node tools/bot/ab-run.mjs confirm-c tools/bot/out/growth_c_confirm_2026-09-16。各階段使用 node tools/bot/ab-analyze.mjs <out> 產生報告，--verify-only 可只驗算而不覆寫報告。
+
+### R32 權威合作測試
+
+安裝 server 與 test 的測試依賴後，執行 `npm --prefix server run test:authority`、`npm --prefix test run test:authority`。後者使用臨時本機埠、假帳號與測試 DB，不屬於真人評估。可信範圍見 [權威架構](docs/architecture/SERVER_AUTHORITY_R32.md)。
