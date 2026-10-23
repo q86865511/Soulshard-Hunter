@@ -132,6 +132,37 @@
       window.__GAME_ERROR__ = String(e.reason && (e.reason.stack || e.reason));
     });
   </script>
+  <!-- Release URLs also protect browsers where a worker cannot take control. -->
+  <script type="importmap">
+{
+  "imports": {
+    "/src/art/first_hunt.js": "/src/art/first_hunt.js?__build=r33-v2.2",
+    "/src/game/balance.js": "/src/game/balance.js?__build=r33-v2.2",
+    "/src/game/content/first_hunt.js": "/src/game/content/first_hunt.js?__build=r33-v2.2",
+    "/src/game/content/patchnotes.js": "/src/game/content/patchnotes.js?__build=r33-v2.2",
+    "/src/game/lights.js": "/src/game/lights.js?__build=r33-v2.2",
+    "/src/game/player.js": "/src/game/player.js?__build=r33-v2.2",
+    "/src/game/scenes/hub.js": "/src/game/scenes/hub.js?__build=r33-v2.2",
+    "/src/game/scenes/hub/first_hunt.js": "/src/game/scenes/hub/first_hunt.js?__build=r33-v2.2",
+    "/src/game/scenes/hub/lifecycle.js": "/src/game/scenes/hub/lifecycle.js?__build=r33-v2.2",
+    "/src/game/scenes/hub/menus.js": "/src/game/scenes/hub/menus.js?__build=r33-v2.2",
+    "/src/game/scenes/hub/panels.js": "/src/game/scenes/hub/panels.js?__build=r33-v2.2",
+    "/src/game/scenes/hub/render.js": "/src/game/scenes/hub/render.js?__build=r33-v2.2",
+    "/src/game/scenes/hub/render_personal.js": "/src/game/scenes/hub/render_personal.js?__build=r33-v2.2",
+    "/src/game/scenes/hub/upgrades.js": "/src/game/scenes/hub/upgrades.js?__build=r33-v2.2",
+    "/src/game/scenes/run.js": "/src/game/scenes/run.js?__build=r33-v2.2",
+    "/src/game/scenes/run/combat.js": "/src/game/scenes/run/combat.js?__build=r33-v2.2",
+    "/src/game/scenes/run/first_hunt.js": "/src/game/scenes/run/first_hunt.js?__build=r33-v2.2",
+    "/src/game/scenes/run/lifecycle.js": "/src/game/scenes/run/lifecycle.js?__build=r33-v2.2",
+    "/src/game/scenes/run/loop.js": "/src/game/scenes/run/loop.js?__build=r33-v2.2",
+    "/src/game/scenes/run/modes.js": "/src/game/scenes/run/modes.js?__build=r33-v2.2",
+    "/src/game/scenes/run/render.js": "/src/game/scenes/run/render.js?__build=r33-v2.2",
+    "/src/game/scenes/run/render_hud.js": "/src/game/scenes/run/render_hud.js?__build=r33-v2.2",
+    "/src/game/state.js": "/src/game/state.js?__build=r33-v2.2",
+    "/src/game/world.js": "/src/game/world.js?__build=r33-v2.2"
+  }
+}
+  </script>
   <script type="module">
     // R33: prepare the current worker BEFORE importing the module graph. Otherwise
     // returning players can boot old CDN/HTTP-cached modules before the update claims them.
