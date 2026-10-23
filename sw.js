@@ -8,7 +8,8 @@
 //     cache is only an offline fallback). This matches the repo's "no stale modules" philosophy.
 //   - heavy static assets (audio / images / fonts) -> CACHE-FIRST (fast, offline-capable).
 // Bump CACHE to force-evict everything after a deploy if ever needed.
-const CACHE = 'soulshard-v1';
+const CACHE = 'soulshard-v2.2';
+const BUILD = 'r33-v2.2';
 const PRECACHE = ['/', '/index.html'];
 
 self.addEventListener('install', (e) => {
@@ -34,9 +35,12 @@ self.addEventListener('fetch', (e) => {
 
   const isCode = req.mode === 'navigate' || /\.(?:js|mjs|css|json|html)$/.test(url.pathname);
   if (isCode) {
-    // network-first: prefer fresh code; fall back to cache (then index.html) when offline
+    // R33: bypass both the browser HTTP cache and older CDN objects (4h max-age).
+    // Cache under the original URL so offline fallback keeps stable module keys.
+    const fresh = new URL(req.url);
+    fresh.searchParams.set('__build', BUILD);
     e.respondWith(
-      fetch(req)
+      fetch(fresh.href, { cache: 'no-store', credentials: req.credentials })
         .then((res) => { const clone = res.clone(); caches.open(CACHE).then((c) => c.put(req, clone)); return res; })
         .catch(() => caches.match(req).then((r) => r || caches.match('/index.html'))),
     );

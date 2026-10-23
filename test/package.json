@@ -4,7 +4,7 @@
   "type": "module",
   "description": "Dev/test-only frontend smoke tests (Playwright). The game runtime itself stays zero-dependency.",
   "scripts": {
-    "test:first-hunt": "node --test first-hunt.test.mjs && node first-hunt-browser.mjs",
+    "test:first-hunt": "node --test first-hunt.test.mjs service-worker.test.mjs && node first-hunt-browser.mjs",
     "test:frontend": "node frontend-smoke.mjs",
     "test:bot": "node --test \"../tools/bot/test/*.test.mjs\"",
     "bot": "node ../tools/bot/run.mjs",

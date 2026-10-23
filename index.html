@@ -132,14 +132,31 @@
       window.__GAME_ERROR__ = String(e.reason && (e.reason.stack || e.reason));
     });
   </script>
-  <script type="module" src="./src/main.js"></script>
-  <script>
-    // round16/7.4 — offline cache. Registered ONLY in production: the dev server (tools/serve.mjs)
-    // is intentionally no-cache so edited ES modules never go stale; a SW would defeat that and
-    // silently break local testing. See sw.js for the staleness-aware strategy.
+  <script type="module">
+    // R33: prepare the current worker BEFORE importing the module graph. Otherwise
+    // returning players can boot old CDN/HTTP-cached modules before the update claims them.
+    // Local development remains worker-free; offline/unsupported browsers still boot.
     if ('serviceWorker' in navigator && !/^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname)) {
-      window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));
+      let timeout;
+      const prepare = async () => {
+        const reg = await navigator.serviceWorker.register('/sw.js?__build=r33-v2.2', { updateViaCache: 'none' });
+        const worker = reg.installing || reg.waiting;
+        if (worker && worker.state !== 'activated') await new Promise((resolve, reject) => {
+          worker.addEventListener('statechange', () => {
+            if (worker.state === 'activated') resolve();
+            if (worker.state === 'redundant') reject(new Error('Offline worker update unavailable'));
+          });
+        });
+        if (!navigator.serviceWorker.controller?.scriptURL.includes('__build=r33-v2.2')) await new Promise((resolve) => {
+          navigator.serviceWorker.addEventListener('controllerchange', resolve, { once: true });
+        });
+      };
+      try {
+        await Promise.race([prepare(), new Promise((resolve) => { timeout = setTimeout(resolve, 8000); })]);
+      } catch (_) { /* offline: the previous worker may still provide the cached game */ }
+      finally { clearTimeout(timeout); }
     }
+    await import('./src/main.js');
   </script>
 </body>
 </html>
