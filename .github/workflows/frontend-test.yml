@@ -27,3 +27,5 @@ jobs:
         run: npx playwright install --with-deps chromium
       - name: 前端 smoke 測試
         run: npm run test:frontend
+      - name: 初獵玩法與回城成長
+        run: npm run test:first-hunt

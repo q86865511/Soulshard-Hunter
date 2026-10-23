@@ -214,6 +214,7 @@ export const modesMixin = {
   },
   // Banks the unlock immediately, then keeps the run alive for the Reaper window.
   clearLevel() {
+    if (this.firstHunt) { this.finishRun(true); return; }
     if (this.cleared) return;
     this.cleared = true; this.run.cleared = true;
     const bid = this.run.biomeId || BIOMES[0].id;
@@ -265,8 +266,10 @@ export const modesMixin = {
     this.run.score = result === 'leave' ? Math.floor(this.run.kills * 12 + this.run.stage * 400 + this.run.time) : Math.floor(this.run.kills * 12 + this.run.stage * 400 + this.run.time + (this.run.difficulty || 1) * 600 + (this.reaperSlain ? 5000 : 0));
     this.run.result = result;   // P1-3: won here always means a cleared run; !won = died before clearing
     if (this.player) this.run.weaponIds = (this.player.weapons || []).map((w) => w.def.id);   // snapshot loadout for run_ended (bankRun has no player)
-    META.stats.bestStage = Math.max(META.stats.bestStage || 0, this.run.stage);
-    META.stats.bestScore = Math.max(META.stats.bestScore || 0, this.run.score);
+    if (!this.firstHunt) {
+      META.stats.bestStage = Math.max(META.stats.bestStage || 0, this.run.stage);
+      META.stats.bestScore = Math.max(META.stats.bestScore || 0, this.run.score);
+    }
     if (won) { addShake(8); Sfx.play('levelup'); Music.setMode('victory'); } else { Music.setMode('death'); }
     if (this.coop) this.run.coopSize = this.coop.size();   // record party size on the leaderboard upload
     if (!this.banked) {

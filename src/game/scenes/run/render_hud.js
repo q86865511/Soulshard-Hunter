@@ -50,6 +50,7 @@ export const renderHudMixin = {
   },
   // #2: persistent tracked-quest panel on the left, below the minimap
   drawQuestTracker() {
+    if (this.firstHunt) return;
     if (this.dead || this.choice || this.equipChoice || this.eventChoice || this.shopOpen || this.paused) return;
     const S = uiScale(); const list = trackedQuestStates(META); if (!list.length) return;   // 5.2: one row per tracked quest
     const x = 12 * S, w = 158 * S, h = 46 * S, gap = 6 * S; let y = 196 * S;

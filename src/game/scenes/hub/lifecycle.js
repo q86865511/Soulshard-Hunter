@@ -18,7 +18,7 @@ import { TS, World, makeCamp, makeInterior } from '../../world.js';
 import { BUILDINGS, KEEPER_AREA, NPC_POS, NPC_POS_INT, TOWN_NPC_IDS } from './shared.js';
 
 export const lifecycleMixin = {
-  enter() {
+  enter(payload = {}) {
     this.world = new World({});
     this.maps = {};                 // R19: lazy per-area map cache (town + 6 interiors); rebuilt only on first visit
     this.area = 'town';
@@ -35,6 +35,7 @@ export const lifecycleMixin = {
     this.petState = { x: null, y: null, t: 0, bob: 0 };   // R18/B10 cosmetic pet follower
     this.loadArea('town');          // R19: build the exterior (default spawn = plaza)
     Music.start('hub');
+    if (payload.firstHuntReturn) { this.panel = 'firstHunt'; return; }
     if (!META.tutorialDone) setTimeout(() => this.triggerTutorial(), 1000);   // 6.1 first-visit town guide
   },
 
@@ -65,6 +66,7 @@ export const lifecycleMixin = {
     this.doorCd = 0.7;   // R20/B3: re-trigger cooldown so a spawn beside the glow tile can't bounce straight back
     if (this.petState) this.petState.x = null;   // pet re-spawns next to the hero in the new area
     this.injectRoomDecor();   // R18/B10: only acts in the personal interior now (FLOOR-guarded)
+    this.injectFirstHuntCamp();
   },
   // R28/W4-G (ART_SPEC 7) — CLAMP the hub camera to the map, exactly the way run.js's
   // aimCamera always has. Following the hero unclamped is why the audit's interior shots

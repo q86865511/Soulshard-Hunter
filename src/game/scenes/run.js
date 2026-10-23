@@ -13,7 +13,8 @@ import { renderHudMixin } from './run/render_hud.js';
 import { shopHiddenMixin } from './run/shop_hidden.js';
 import { renderMixin } from './run/render.js';
 import { overlaysMixin } from './run/overlays.js';
+import { firstHuntMixin } from './run/first_hunt.js';
 
-export const runScene = Object.assign({}, lifecycleMixin, modesMixin, eventsMixin, combatMixin, loopMixin, coopMixin, renderHudMixin, shopHiddenMixin, renderMixin, overlaysMixin);
+export const runScene = Object.assign({}, lifecycleMixin, modesMixin, eventsMixin, combatMixin, loopMixin, coopMixin, renderHudMixin, shopHiddenMixin, renderMixin, overlaysMixin, firstHuntMixin);
 
 refs.run = runScene;

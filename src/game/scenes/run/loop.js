@@ -35,11 +35,12 @@ export const loopMixin = {
     if (settingsUI.open) { settingsUI.update(); return; }
     if (this.dead) {
       this.deathT += dt; this.world.particles.update(dt);
-      if (this.deathT > 0.8 && (pressed('space') || pressed('enter') || mouse.justDown)) setScene(refs.hub, {});
+      if (this.deathT > 0.8 && (pressed('space') || pressed('enter') || mouse.justDown)) setScene(refs.hub, { firstHuntReturn: !!this.firstHunt });
       return;
     }
     if (this.paused) { this.updatePause(); return; }
     if (this.leaveConfirm) { this.updateLeaveConfirm(); return; }   // R17/1.7: post-clear leave needs a confirm
+    if (this.firstHuntChoice) { this.updateFirstHuntChoice(); return; }
     if (this.hudTut) { this.updateHudTut(); return; }   // 6.3A first-run HUD walkthrough pauses the field
     if (this.hiddenPanel) { this.updateHidden(dt); return; }   // a hidden room pauses the run for its choice
     if (this.choice) { this.updateChoice(); return; }
@@ -62,7 +63,7 @@ export const loopMixin = {
       if (pressed('pause') || (pressed('escape') && !this.shopOpen)) { this.paused = true; this.confirmQuit = false; Sfx.play('uiClick'); return; }   // when the shop is open, Esc backs out of it (handled below) rather than opening pause over it
       if (pressed('build')) { this.showBuild = !this.showBuild; Sfx.play('uiClick'); }
       if (pressed('minimap')) { this.bigMap = !this.bigMap; Sfx.play('uiClick'); }
-      if (pressed('shop') && !this.shopChoice) {                          // 原#4: B opens the soulshard / anvil shop anywhere
+      if (pressed('shop') && !this.shopChoice && !this.firstHunt) {                          // 原#4: B opens the soulshard / anvil shop anywhere
         if (Cheats.eatShop) Cheats.eatShop = false;                       // task 1: this B is part of the Konami code — don't pop the shop
         else { this.shopOpen = !this.shopOpen; Sfx.play('uiClick'); }
       }
@@ -73,8 +74,8 @@ export const loopMixin = {
     if (Cheats.enabled && Cheats.fast) dt *= 3;   // F2 time-warp
     this.run.time += dt;
     // 6.3A: 2s into the FIRST battle (after any intro), pause once for a HUD walkthrough.
-    if (!META.tutorialHUDDone && !this._hudTutShown && !this.coop && !this.story && this.run.time >= 2) { this.hudTut = true; this._hudTutShown = true; return; }
-    this.tickBattleHints(dt);   // 6.2 first-battle combat hints
+    if (!this.firstHunt && !META.tutorialHUDDone && !this._hudTutShown && !this.coop && !this.story && this.run.time >= 2) { this.hudTut = true; this._hudTutShown = true; return; }
+    if (!this.firstHunt) this.tickBattleHints(dt);   // 6.2 first-battle combat hints
     this.threat = 1 + Math.floor(this.run.time / BALANCE.THREAT_PERIOD);   // ~1 -> 13 over the 20-min level
     // report-cap stage at the threat ceiling (threat keeps climbing past 20:00 during the Reaper window;
     // an uncapped stage would trip the server's anti-cheat plausibility gate on legit clear+reaper runs)
@@ -84,6 +85,7 @@ export const loopMixin = {
     const hpFrac = this.player.maxHp ? this.player.hp / this.player.maxHp : 1;
     setShakeScale(hpFrac < 0.25 ? 1.0 : 0.42);
     this.world.update(dt);
+    if (this.dead) return;
     if (this.dailyTempoMul !== 1) { this.world.playerTempo *= this.dailyTempoMul; this.world.enemyTempo *= this.dailyTempoMul; }   // R18/B9 m_tempo: faster attack cadence (world recomputes tempo each tick)
     if (this.petId && this.player && !this.player.dead) updatePetFollow(this.petState, this.player.x, this.player.y, this.player.facing, dt);   // R18/B10 pet trails the local player
     // R17/1.4: a key pickup was just small floating text and easy to miss — surface it as a banner.
@@ -98,13 +100,19 @@ export const loopMixin = {
 
     if (this.challenge) this.updateChallenge(dt);   // 原#3 timed challenge
     this.endlessTick(dt);   // R18/B7: curse trigger + soul-tax drain + milestones (endless only)
-    this.spawnTick(dt);
-    this.miniBossTick();
-    this.eventsTick();
-    this.updateEvents(dt);
-    this.interactablesTick(dt);   // 原#2: refresh map interactables over time
-    this.guardianTick();          // R17/7.1: randomized guardian wake-ups
-    this.finalTick(dt);
+    if (this.firstHunt) {
+      this.firstHuntTick(dt);
+      if (this.firstHuntChoice || this.dead) return;
+      this.firstHuntSpawnTick(dt);
+    } else {
+      this.spawnTick(dt);
+      this.miniBossTick();
+      this.eventsTick();
+      this.updateEvents(dt);
+      this.interactablesTick(dt);
+      this.guardianTick();
+      this.finalTick(dt);
+    }
     this.nearShrine = !!(this.shrinePos && !this.shrineUsed && dist(this.player.x, this.player.y, this.shrinePos.x, this.shrinePos.y) < 20);
     this.nearNpc = null;
     for (const n of this.npcs) { if (!n.used && dist(this.player.x, this.player.y, n.x, n.y) < 22) { this.nearNpc = n; break; } }

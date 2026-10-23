@@ -14,6 +14,8 @@ import { applyKeybinds } from '../engine/input.js';
 import { Net, queueCloudSave, postRunResult } from '../net/api.js';   // cloud save + leaderboard (offline-first)
 import { Tele } from '../net/telemetry.js';   // P1-3 anonymous product telemetry (offline no-op, opt-out)
 import { Cheats } from './cheats.js';   // 排行榜誠信 gate：作弊過的對局不上傳
+import { BALANCE } from './balance.js';
+import { firstHuntHero, firstHuntProgress, isFirstHunt, settleFirstHunt } from './content/first_hunt.js';
 
 const SAVE_KEY = 'soulshard.save.v1';            // legacy single-save key (migrated into slot 0 on first load)
 const SLOT_COUNT = 3;
@@ -315,7 +317,8 @@ export function runCheated(run) {
 export function newRun(opts = {}) {
   // opts.characterId / opts.startWeapon let co-op build the host's run from the lobby
   // pick instead of META.selectedCharacter (which the host may not have changed).
-  const char = Characters.get(opts.characterId || META.selectedCharacter || 'hunter') || Characters.get('hunter');
+  const trial = opts.mode === 'first_hunt';
+  const char = Characters.get(trial ? firstHuntHero(opts.characterId).id : (opts.characterId || META.selectedCharacter || 'hunter')) || Characters.get('hunter');
   const run = {
     floor: 1, stage: 1, depth: 1, time: 0,
     biomeId: opts.biomeId || null, difficulty: (opts.difficulty == null ? 1 : opts.difficulty), cleared: false,   // 6.5: difficulty 0 = 劇情 (don't let `||` coerce 0→1)
@@ -337,8 +340,14 @@ export function newRun(opts = {}) {
     bonds: [],              // 原#13: ids of bonds currently active this run
     startedAt: (typeof performance !== 'undefined' ? performance.now() : 0),
   };
-  applyMeta(run);
+  if (!trial) applyMeta(run);
   if (char && char.passive) { try { char.passive(run.stats); } catch (e) { console.warn('character passive', e); } }
+  if (trial) {
+    run.biomeId = 'crypt'; run.difficulty = 1;
+    run.characterSprite = 'fh_hero_' + run.characterId;
+    run.stats.maxHp += BALANCE.FIRST_HUNT.START_HP;
+    run.stats.pickupRange += BALANCE.FIRST_HUNT.PICKUP_BONUS + (firstHuntProgress(META).restored ? BALANCE.FIRST_HUNT.CAMP_PICKUP : 0);
+  }
   return run;
 }
 
@@ -359,6 +368,11 @@ export function applyMeta(run) {
 }
 
 export function bankRun(run) {
+  if (isFirstHunt(run)) {
+    run.cheated = runCheated(run);
+    if (settleFirstHunt(META, run)) saveMeta();
+    return { newAchievements: [], newCharacters: [] };
+  }
   META.gold += run.gold;
   run.bankRepaid = bankRepay(META);   // 7.2: auto-repay any outstanding loan from this run's gold (carries remainder)
   META.stats.runs += 1;

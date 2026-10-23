@@ -139,6 +139,7 @@ export const renderMixin = {
     else if (this.panel === 'personal') this.drawPersonal();
     else if (this.panel === 'bank') this.drawBank();
     else if (this.panel === 'codex') this.drawCodex();   // P1 內容圖鑑
+    else if (this.panel === 'firstHunt') this.drawFirstHunt();
 
     if (this.dialogue) this.drawDialogue();
     if (this.confirm) this.drawConfirm();   // task 8: buy/reset confirmation on top

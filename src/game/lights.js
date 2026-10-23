@@ -9,6 +9,8 @@
 import { P } from '../engine/palette.js';
 
 export const LIGHT_BY_SPRITE = {
+  fh_altar:            { r: 40, color: '#80e5d8', a: 0.15, oy: 24, flicker: 0.12, speed: 2 },
+  fh_candles:          { r: 23, color: '#ffd19a', a: 0.16, oy: 8, flicker: 0.22, speed: 5 },
   // ── universal ──
   torch:               { r: 42, color: P.ember,   a: 0.34, oy: 4,  flicker: 0.35, speed: 8 },
   // ── R28/W4-G hub interiors: each room's "working" focal installation owns a ground

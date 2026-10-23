@@ -7,6 +7,29 @@
 // "scale player power DOWN and enemy power UP via coefficients, then playtest").
 // ---------------------------------------------------------------------------
 export const BALANCE = {
+  // R33: isolated first-hunt showcase. Standard modes never consume these values.
+  FIRST_HUNT: {
+    MAP_W: 48, MAP_H: 36, BOSS_AT: 150, GROWTH_AT: [20, 65], SURGE_AT: 90,
+    SPAWN_INTERVAL: [1.35, 1.0, 0.75], SPAWN_CAP: [14, 22, 30],
+    SPAWN_DELAY: 0.8, SPAWN_PHASE_AT: 45, ROSTER_SECOND_AT: 35,
+    MOB_RING_MIN: 155, MOB_RING_JITTER: 65, MOB_MARGIN: 48, MOB_SPAWN_TRIES: 24,
+    SURGE_HP: 1.2,
+    MOB_HP: 0.7, MOB_DAMAGE: 0.65, MOB_SPEED: 0.85,
+    START_WEAPON_LEVEL: 2, START_HP: 35, PICKUP_BONUS: 24, CAMP_PICKUP: 12,
+    CHARGE_MAX: 100, PICKUP_CHARGE: 4, KILL_CHARGE: 25,
+    GUARD_CHARGE_PER_SEC: 18, GUARD_HURT_CHARGE: 40, GUARD_NEAR: 80,
+    PULSE_DAMAGE: { hunter: 42, pyro: 48, guardian: 55 },
+    PULSE_RADIUS: { hunter: 84, pyro: 64, guardian: 76 }, PULSE_COOLDOWN: 0.5,
+    PULSE_KNOCKBACK: { hunter: 50, pyro: 50, guardian: 180 },
+    GUARD_INVULN: 1.0, BURN_DURATION: 2.5, BURN_DPS: 8,
+    UPGRADE_POWER: 1.4, UPGRADE_HP: 25, UPGRADE_PICKUP: 12, UPGRADE_WEAPON_LEVELS: 2, UPGRADE_WEAPON_DAMAGE: 1.15,
+    BOSS_HP: 1100, BOSS_DAMAGE: 14, BOSS_SPEED: 16, BOSS_PHASE_HP: 0.5,
+    BOSS_CD: [4.8, 3.7], BOSS_WINDUP: 1.1, BOSS_RADIUS: 48,
+    BOSS_CROSS_REACH: 132, BOSS_CROSS_WIDTH: 12, BOSS_SPAWN_GRACE: 1.4,
+    BOSS_ADDS_INTERVAL: 10, BOSS_ADDS_COUNT: 2, BOSS_ADDS_CAP: 8,
+    BOSS_SPAWN_OFFSET_Y: 8,
+    SURGE_COUNT: 5, BOSS_HEAL: 25,
+  },
   // ---- run timeline (E2 / 原#13) ----------------------------------------
   LEVEL_TIME: 20 * 60,                       // a run lasts 20 minutes
   MINIBOSS_TIMES: [5 * 60, 10 * 60, 15 * 60], // a DISTINCT mini-boss every 5 min

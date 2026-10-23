@@ -18,6 +18,7 @@ export const renderMixin = {
 
   render() {
     this.world.draw();
+    if (this.firstHunt) this.drawFirstHuntWorld();
     if (this.petId && this.petState && this.petState.x != null && this.player && !this.player.dead) {   // R18/B10 cosmetic pet (local only)
       const pp = petById(this.petId), psp = pp && getSprite(pp.sprite);
       if (psp && !psp.missing) { drawShadow(this.petState.x, this.petState.y, 4); drawSprite(frameAt(psp, this.petState.t), this.petState.x, this.petState.y + (this.petState.bob || 0), { ax: psp.ax, ay: psp.ay, flipX: (this.player.facing || 1) < 0 }); }
@@ -41,7 +42,7 @@ export const renderMixin = {
     this.drawBondTracker();
     this.drawBanner();
     this.drawBattleHint();   // 6.2 first-battle combat hints
-    this.drawInfo();
+    if (!this.firstHunt) this.drawInfo();
     this.drawBigMinimap();
     if (this.story && this.story.t > 0) this.drawStory();
     if (this.challenge) this.drawChallenge();
@@ -54,7 +55,8 @@ export const renderMixin = {
     if (this.curseChoice) this.drawCurseChoice();   // R18/B7
     if (this.coop) this.drawCoopTags();
     if (this.coop && this.coopPick && !this.coopMenu) this.drawCoopPick();
-    if (this.dead) { if (this.won) this.drawWon(); else this.drawDeath(); }
+    if (this.firstHuntChoice) this.drawFirstHuntChoice();
+    if (this.dead) { if (this.firstHunt) this.drawFirstHuntResult(); else if (this.won) this.drawWon(); else this.drawDeath(); }
     if (this.paused) this.drawPause();
     if (this.leaveConfirm && !this.dead) this.drawLeaveConfirm();   // R17/1.7
     if (this.hudTut) this.drawHudTut();   // 6.3A first-run HUD walkthrough (on top)
@@ -193,6 +195,7 @@ export const renderMixin = {
   },
 
   drawStageHud() {
+    if (this.firstHunt) { this.drawFirstHuntHud(); return; }
     const S = uiScale();
     const diffLabel = this.endless ? '無盡挑戰' : (this.storyMode ? '劇情' : '難度 ' + (this.run.difficulty || 1));   // 6.5/6.6
     const et = this.run.time || 0, em = Math.floor(et / 60), es = Math.floor(et % 60);   // 4.11: 已遊玩時間

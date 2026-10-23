@@ -125,7 +125,8 @@ export const upgradesMixin = {
     const pgY = lvlY - 34 * S;
     const prev = { x: f.x + f.w / 2 - 116 * S, y: pgY, w: 34 * S, h: 22 * S };
     const next = { x: f.x + f.w / 2 + 82 * S, y: pgY, w: 34 * S, h: 22 * S };
-    const dailyBar = { x: f.x + 20 * S, y: f.y + 52 * S, w: f.w - 40 * S, h: 28 * S };   // R18/B9 每日挑戰 entry
+    const firstHuntBar = { x: f.x + 20 * S, y: f.y + 52 * S, w: (f.w - 48 * S) * 0.43, h: 28 * S };
+    const dailyBar = { x: firstHuntBar.x + firstHuntBar.w + 8 * S, y: f.y + 52 * S, w: (f.w - 48 * S) * 0.57, h: 28 * S };
     const top = f.y + 88 * S;
     const cw = (f.w - 40 * S - (cols - 1) * 12 * S) / cols;
     // R17 B15: NO hard floor — at high uiScale a 56S floor pushed the grid over the page/level
@@ -133,7 +134,7 @@ export const upgradesMixin = {
     const chh = Math.max(34 * S, Math.min(86 * S, (pgY - 8 * S - top) / 3 - 8 * S));
     const pageChars = chars.slice(this.sortPage * perPage, this.sortPage * perPage + perPage);
     const cards = pageChars.map((c, i) => ({ c, x: f.x + 20 * S + (i % cols) * (cw + 12 * S), y: top + Math.floor(i / cols) * (chh + 8 * S), w: cw, h: chh }));
-    return { f, cards, prev, next, pages, pgY, levels, lvlButtons, lvlY, dPrev, dNext, dY, start, dailyBar };
+    return { f, cards, prev, next, pages, pgY, levels, lvlButtons, lvlY, dPrev, dNext, dY, start, dailyBar, firstHuntBar };
   },
   // R18/B9: launch today's daily challenge — a closed showcase run (borrowed biome+hero,
   // fixed difficulty 3, deterministic mutators). No unlocks are written (clearLevel/hub guard).
@@ -157,6 +158,7 @@ export const upgradesMixin = {
     const L = this.sortieLayout();
     if (mouse.wheel) this.sortPage = Math.max(0, Math.min(L.pages - 1, this.sortPage + (mouse.wheel > 0 ? 1 : -1)));
     if (!mouse.justDown) return;
+    if (inside(mx, my, L.firstHuntBar)) { this.openPanel('firstHunt'); return; }
     if (inside(mx, my, L.dailyBar)) { this.launchDaily(); return; }   // R18/B9 每日挑戰
     for (const card of L.cards) if (inside(mx, my, card)) { this.selectChar(card.c); return; }
     if (inside(mx, my, L.prev)) { this.sortPage = Math.max(0, this.sortPage - 1); Sfx.play('uiClick'); return; }

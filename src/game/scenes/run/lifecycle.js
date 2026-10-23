@@ -9,6 +9,7 @@ import { setParticleArtCaps } from '../../../engine/particles.js';
 import { Net } from '../../../net/api.js';
 import { Tele } from '../../../net/telemetry.js';
 import { BALANCE } from '../../balance.js';
+import { createFirstHuntMap, isFirstHunt } from '../../content/first_hunt.js';
 import { biomeWeight } from '../../content/biome_tags.js';
 import { applyDailyMutators } from '../../content/daily.js';
 import { exclusiveFor } from '../../content/exclusives.js';
@@ -34,6 +35,7 @@ export const lifecycleMixin = {
     setGlowCfg({ decoCap: artv.GLOW_DECO_ALPHA, budget: 48 });
     setParticleArtCaps({ alpha: artv.DECO_PARTICLE_ALPHA, sat: 0.7 });
     this.run = payload.run || newRun();
+    this.firstHunt = null; this.firstHuntChoice = false;
     this.run.time = 0;
     this.run.stage = 1; this.run.floor = 1;
     this.coop = payload.coop || null;   // Phase 2: a CoopHost handle when this is a host co-op run (null = single-player)
@@ -47,19 +49,25 @@ export const lifecycleMixin = {
     this.paused = false; this.confirmQuit = false;   // 4.8
     // co-op: the run ends only when EVERY avatar is down (one player dying isn't game-over)
     this.world.onPlayerDeath = () => { if (this.coop) { if (!(this.coop.canContinue ? this.coop.canContinue() : this.world.anyPlayerAlive())) this.onDeath(); } else this.onDeath(); };
-    this.world.onLevelUp = () => this.onLevelUp();
+    this.world.onLevelUp = () => this.firstHunt ? this.firstHuntLevelUp() : this.onLevelUp();
     this.world.onEnemyKilled = (e) => {
+      if (this.firstHunt) { this.firstHuntEnemyKilled(e); return; }
       if (e === this.finalBossRef) this.onBigBossDead(e);
       else if (e === this.reaperRef) this.onReaperDead(e);
       else if (e.boss) this.onBossDead(e);
     };
     this.world.onEquipPickup = (def) => this.openEquipChoice(def);
-    this.world.onPlayerHit = (d) => { this.run.dmgTaken = (this.run.dmgTaken || 0) + (d || 0); if (this.challenge && this.challenge.type === 'nohit') this.failChallenge(); };   // 原#3 challenge fail + task-2 no-hit tracking
+    this.world.onPlayerHit = (d) => {
+      this.run.dmgTaken = (this.run.dmgTaken || 0) + (d || 0);
+      if (this.firstHunt?.hero.id === 'guardian') this.firstHunt.charge = Math.min(BALANCE.FIRST_HUNT.CHARGE_MAX, this.firstHunt.charge + BALANCE.FIRST_HUNT.GUARD_HURT_CHARGE);
+      if (this.challenge && this.challenge.type === 'nohit') this.failChallenge();
+    };
     this.equipChoice = null; this.equipQueue = [];
     this.eventChoice = null; this.challenge = null;   // 原#3 mini-boss event + timed challenge
     this.newlyUnlocked = [];   // 原#1 results screen: achievements unlocked this run
     this.hudTut = false; this._hudTutShown = false; this._bhIdx = 0; this._bhActive = null;   // 6.2/6.3 first-run tutorials (single-player only)
     this.buildWorld();
+    if (isFirstHunt(this.run) && !this.coop) this.initFirstHunt();
     this._startPresence();   // round16/7.3: announce "playing now" (REST heartbeat; offline-first)
   },
 
@@ -79,7 +87,7 @@ export const lifecycleMixin = {
   // ---- the level battleground (one biome, 30 min, final-boss climax) --------
   buildWorld() {
     const biome = BIOMES.find((b) => b.id === this.run.biomeId) || BIOMES[0];
-    const map = generateWorld(biome);
+    const map = isFirstHunt(this.run) ? createFirstHuntMap(biome) : generateWorld(biome);
     this.map = map;
     this.world.loadMap(map);
     this.buildMinimap();
@@ -174,7 +182,7 @@ export const lifecycleMixin = {
     const q = STORY_QUESTS[META.questIndex || 0];
     const lore = heroLore(this.run.characterId);
     const who = (Characters.get(this.run.characterId) || {}).name || '';
-    this.story = (q || lore) ? {
+    this.story = !isFirstHunt(this.run) && (q || lore) ? {
       title: q ? q.title : (who + (lore ? ' · ' + lore.epithet : '')),
       text: q ? q.story : (lore ? lore.lore : ''),
       quote: lore ? lore.quote : null, who, chapter: !!q,

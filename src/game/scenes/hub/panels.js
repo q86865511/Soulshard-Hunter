@@ -67,6 +67,7 @@ export const panelsMixin = {
     if (this.panelCta && mouse.justDown && inside(mx, my, this.panelCta)) { this.openPanel(this.panelCta.panel); return; }
     if (this.panel === 'talents') this.updateTalents(mx, my);
     else if (this.panel === 'sortie') this.updateSortie(mx, my);
+    else if (this.panel === 'firstHunt') this.updateFirstHunt(mx, my);
     else if (this.panel === 'achievements') this.updateAchievements(mx, my);   // 3.5-B filter tabs
     else if (this.panel === 'wardrobe') this.updateWardrobe(mx, my);
     else if (this.panel === 'smith') { this.tab === 0 ? this.updateForge(mx, my) : this.updateFacilities(mx, my); }

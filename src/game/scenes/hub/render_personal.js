@@ -164,6 +164,9 @@ export const renderPersonalMixin = {
     const S = f.S;
     const mx = mouse.x * view.dpr, my = mouse.y * view.dpr;
     const L = this.sortieLayout();
+    const fh = L.firstHuntBar;
+    uiRect(fh.x, fh.y, fh.w, fh.h, '#18373b', { radius: 5 * S, stroke: '#80e5d8', lw: 2 });
+    uiText('初獵 · 重燃魂火　／　三名角色免費借用', fh.x + 10 * S, fh.y + fh.h / 2, { size: UI.FONT_CAPTION * S, baseline: 'middle', color: '#b9fff0', weight: UI.WEIGHT_HEADING });
     // R18/B9: 每日挑戰 entry bar — borrowed biome+hero+mutators, click to launch directly.
     {
       const dc = dailyChallenge(); const db = L.dailyBar; const dhov = inside(mx, my, db);
@@ -171,8 +174,9 @@ export const renderPersonalMixin = {
       const hn = (Characters.get(dc.characterId) || {}).name || dc.characterId;
       const mutNames = dc.mutators.map((id) => (mutatorById(id) || {}).name || id).join('·');
       uiRect(db.x, db.y, db.w, db.h, withAlpha(dhov ? '#3a2f12' : '#28220e', 0.96), { radius: 7 * S, stroke: P.goldL, lw: dhov ? 3 : 2 });
-      uiText('📅 每日挑戰', db.x + 12 * S, db.y + db.h / 2, { size: UI.FONT_BODY * S, align: 'left', baseline: 'middle', color: P.goldL, weight: '800' });
-      uiText(bn + ' · ' + hn + ' · ' + mutNames, db.x + 120 * S, db.y + db.h / 2, { size: UI.FONT_CAPTION * S, align: 'left', baseline: 'middle', color: P.holyL, weight: '600' });
+      uiText('📅 每日挑戰', db.x + 12 * S, db.y + 12 * S, { size: UI.FONT_CAPTION * S, align: 'left', color: P.goldL, weight: UI.WEIGHT_HEADING });
+      this.clip1(bn + ' · ' + hn, db.x + 95 * S, db.y + 12 * S, db.w - 169 * S, UI.FONT_CAPTION * S, P.holyL, UI.WEIGHT_BODY);
+      this.clip1(mutNames, db.x + 12 * S, db.y + 25 * S, db.w - 86 * S, UI.FONT_CAPTION * S, P.gray3, UI.WEIGHT_BODY);
       const best = (META.daily && META.daily.key === dc.key) ? (META.daily.best || 0) : 0;
       uiText(best > 0 ? '最佳 ' + best : '未挑戰', db.x + db.w - 12 * S, db.y + db.h / 2, { size: UI.FONT_CAPTION * S, align: 'right', baseline: 'middle', color: P.gold, weight: '800' });
     }

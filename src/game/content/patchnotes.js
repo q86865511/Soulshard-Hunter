@@ -8,9 +8,20 @@
 // An item may be a plain string (legacy) OR a { h, t } object — `h` renders as a coloured
 // category chip and `t` as the body. In the body, wrap a system/feature name in 《…》 to tint
 // it (soul-teal) and any number / ×N / 90–240 / 21→27 / 96×96 is auto-highlighted in gold.
-export const GAME_VERSION = 'V2.1';
+export const GAME_VERSION = 'V2.2';
 
 export const PATCH_NOTES = [
+{
+  "v": "V2.2",
+  "title": "初獵・重燃魂火",
+  "date": "2026-10-23",
+  "items": [
+    { "h": "三名獵手", "t": "《初獵》可免費借用魂晶獵手、烈焰術士、晶岩守衛，體驗收集蓄能、擊殺引爆與近身反擊。從出擊面板或廣場魂火台進入。" },
+    { "h": "魂火祭壇", "t": "踏入幽影地穴的獨立祭壇競技場，在 20／65 秒選擇祝福、90 秒迎接敵潮，150 秒挑戰兩階段《守火者》。首領戰持續至勝敗。" },
+    { "h": "回城重建", "t": "每位獵手首次通關可帶回 1 枚重建印記，依序重燃營火、掛起獵旗、展示戰利品，並解鎖烈焰術士與晶岩守衛。" },
+    { "h": "獨立試煉", "t": "初獵不計入正式戰績、金幣收益與排行榜；原有 20 分鐘狩獵、每日、無盡和多人合作仍可遊玩。" }
+  ]
+},
 {
   "v": "V2.1",
   "title": "合作對局升級",

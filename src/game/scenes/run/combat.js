@@ -232,7 +232,7 @@ export const combatMixin = {
     Music.stop(); Sfx.play('portal');
     if (this.coop) { try { this.coop.dispose(); } catch (e) { /* */ } RT.leaveRoom(); this.coop = null; }   // host leaving closes the room for guests
     if (!this.dead && !this.banked) { this.banked = true; bankRun(this.run); }   // bank at most once (bankRun already applies bestStage/bestScore)
-    setScene(refs.hub, {});
+    setScene(refs.hub, { firstHuntReturn: !!this.firstHunt });
   },
   // ---- R17/1.7: post-clear leave confirm ------------------------------------
   // After the final boss dies, E anywhere used to finishRun(true) instantly — players trying to

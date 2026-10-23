@@ -58,7 +58,7 @@ export class Player {
     const existing = this.weapons.find((w) => w.def.id === id);
     if (existing) { this.levelWeapon(existing, world); return existing; }
     if (this.weapons.length >= 6) return null;
-    const inst = { def, level: 1, t: 0, st: {}, forge: computeForgeMods(id) };   // 5-5: attach forge mods once
+    const inst = { def, level: 1, t: 0, st: {}, forge: this.run?.mode === 'first_hunt' ? null : computeForgeMods(id) };   // R33 borrowed loadouts do not inherit permanent forge power
     this.weapons.push(inst);
     if (!this.netInput) markSeen('w', id);   // P1 內容圖鑑: local avatar only (host mustn't record a guest's discoveries)
     return inst;

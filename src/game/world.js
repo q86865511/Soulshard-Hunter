@@ -317,9 +317,13 @@ export class World {
   // the 4 px amber "field hazard" styling. The default is now a cold player-family hex, so a
   // missing colour degrades into the harmless 3 px player look. Verified render-only: all 12
   // call sites (boss_moves ×4, events ×4, weapons ×4) pass an explicit family colour today.
-  addBeam(x0, y0, x1, y1, color = '#9adcff') { this.beams.push({ x0, y0, x1, y1, color, life: 0.14, max: 0.14 }); }
+  addBeam(x0, y0, x1, y1, color = '#9adcff', life = 0.14) { this.beams.push({ x0, y0, x1, y1, color, life, max: life }); }
 
   dropLoot(e) {
+    if (this.run.mode === 'first_hunt') {
+      if (e.xp > 0) this.addPickup('xp', e.x, e.y, Math.round(e.xp * (this.player?.stats?.xpMult ?? 1)));
+      return;
+    }
     if (e.guardian) { this.addPickup('key', e.x, e.y, 1); this.addPickup('chest', e.x, e.y, 2); }   // #8: room guardian → key + chest
     const floor = this.run.floor || 1;
     const lp = this.nearestPlayer(e.x, e.y) || this.player;   // co-op: scale loot off whoever's nearest the kill
@@ -361,7 +365,7 @@ export class World {
       case 'gold': run.gold += payload; run.goldEarned += payload; this.particles.text(x, y - 8, '+' + payload, { color: P.goldL, size: 11, weight: '800' }); Sfx.play('coin'); if (this.onCollectGold) this.onCollectGold(payload); break;
       case 'shard': run.shards += payload; this.particles.text(x, y - 8, '魂晶+' + payload, { color: P.shardL, size: 12 }); Sfx.play('shard'); break;
       case 'heart': if (who) who.heal(payload); this.particles.text(x, y - 10, '+' + payload, { color: P.redL, size: 12 }); Sfx.play('heart'); break;
-      case 'xp': this.gainXp(payload); break;
+      case 'xp': this.gainXp(payload); if (this.onXpCollected) this.onXpCollected(payload, who); break;
       case 'key': this.keys = (this.keys || 0) + (payload || 1); this.particles.text(x, y - 10, '🔑 鑰匙 +' + (payload || 1), { color: P.goldL, size: 12, weight: '800' }); logPick({ name: '鑰匙', desc: '用於開啟封鎖的寶庫寶箱。', color: P.goldL, emoji: '🔑' }); Sfx.play('shard'); break;
       case 'item': {   // B2: ground items are used the instant they're picked up (no storage)
         const def = payload;
